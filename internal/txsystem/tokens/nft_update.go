@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -14,7 +15,6 @@ import (
 
 func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
 		if err := validateUpdateNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
 		}
@@ -56,10 +56,13 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
+	if data.locked != 0 {
+		return errors.New("token is locked")
+	}
 	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
 	}
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	ps, err := getChainedPredicates[*nonFungibleTokenTypeData](
 		hashAlgorithm,
 		s,
 		data.nftType,
@@ -73,12 +76,12 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if err != nil {
 		return err
 	}
-	predicates = append([]state.Predicate{data.dataUpdatePredicate}, predicates...)
+	ps = append([]predicates.PredicateBytes{data.dataUpdatePredicate}, ps...)
 	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, attr.DataUpdateSignatures, sigBytes)
+	return verifyPredicates(ps, attr.DataUpdateSignatures, sigBytes)
 }
 
 func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {

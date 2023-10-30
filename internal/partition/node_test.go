@@ -3,26 +3,33 @@ package partition
 import (
 	"context"
 	gocrypto "crypto"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/stretchr/testify/require"
 )
 
 type AlwaysValidCertificateValidator struct{}
+
+func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) error {
+	return nil
+}
 
 func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
@@ -38,31 +45,6 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	}
 	p.partition.startNewRound(context.Background(), ucr)
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
-}
-
-func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
-	s := &testtxsystem.CounterTxSystem{}
-	p := RunSingleNodePartition(t, s)
-	transfer := testtransaction.NewTransactionOrder(t)
-	stateBefore, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
-	bufferBefore := p.partition.txBuffer.Count()
-	// make sure no round is active
-	p.partition.handleT1TimeoutEvent()
-	// send tx to the channel
-	p.partition.txCh <- transfer
-	// tx is added back to the buffer
-	require.Eventually(t, func() bool {
-		return bufferBefore+1 == p.partition.txBuffer.Count()
-	}, test.WaitDuration, test.WaitTick)
-	// make sure tx system remains untouched
-	stateAfter, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
-	require.Equal(t, stateBefore.Root(), stateAfter.Root())
 }
 
 func TestNode_NodeStartTest(t *testing.T) {
@@ -121,8 +103,15 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
 	// start node with db filled
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// Ask Node for latest block
 	b := tp.GetLatestBlock(t)
 	require.Equal(t, uint64(3), b.GetRoundNumber())
@@ -254,7 +243,8 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	systemId := protocol.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
+	systemId, err := types.SystemID(tp.nodeConf.GetSystemIdentifier()).Id32()
+	require.NoError(t, err)
 	luc, found := tp.certs[systemId]
 	require.True(t, found)
 	// Mock and skip some root rounds
@@ -323,18 +313,13 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 
 func copyIR(record *types.InputRecord) *types.InputRecord {
 	return &types.InputRecord{
-		PreviousHash:    copyArray(record.PreviousHash),
-		Hash:            copyArray(record.Hash),
-		BlockHash:       copyArray(record.BlockHash),
-		SummaryValue:    copyArray(record.SummaryValue),
+		PreviousHash:    slices.Clone(record.PreviousHash),
+		Hash:            slices.Clone(record.Hash),
+		BlockHash:       slices.Clone(record.BlockHash),
+		SummaryValue:    slices.Clone(record.SummaryValue),
 		RoundNumber:     record.RoundNumber,
 		SumOfEarnedFees: record.SumOfEarnedFees,
 	}
-}
-
-func copyArray(a []byte) []byte {
-	b := make([]byte, 0, len(a))
-	return append(b, a...)
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
@@ -508,7 +493,11 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), UnicityCertificate: block.UnicityCertificate})
+
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		UnicityCertificate: block.UnicityCertificate,
+	})
 
 	ContainsError(t, tp, "invalid system identifier")
 }
@@ -522,26 +511,31 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		SystemIdentifier:   tp.nodeConf.GetSystemIdentifier(),
+		UnicityCertificate: block.UnicityCertificate,
+	})
 
 	ContainsError(t, tp, "outdated block proposal for round 1, LUC round 2")
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{},
+		WithLeaderSelector(&TestLeaderSelector{
+			leader:      "12",
+			currentNode: "12",
+		}))
 	block := tp.GetLatestBlock(t)
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	tp.partition.leaderSelector = &TestLeaderSelector{
-		leader:      "12",
-		currentNode: "12",
-	}
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -560,9 +554,10 @@ func TestBlockProposal_Ok(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -581,9 +576,10 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -611,9 +607,10 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -644,13 +641,13 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	tp.CreateBlock(t)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash2)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash2)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
@@ -659,13 +656,61 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system, WithTxIndexer(memorydb.New()))
-	record, proof, err := tp.partition.GetTransactionRecord(test.RandomBytes(32))
+	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
 	require.NoError(t, err)
 	require.Nil(t, record)
 	require.Nil(t, proof)
 }
 
-func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) error {
-	return nil
+func Test_txProcessorForRound(t *testing.T) {
+	t.Run("unknown leader", func(t *testing.T) {
+		n := &Node{log: logger.New(t)}
+		require.Nil(t, n.txProcessorForRound(22, UnknownLeader))
+	})
+
+	t.Run("node is not the leader", func(t *testing.T) {
+		// expected: the processor func will forward tx to the leader
+		nw := testnetwork.NewMockNetwork()
+		n := &Node{
+			configuration: &configuration{hashAlgorithm: gocrypto.SHA256},
+			network:       nw,
+			log:           logger.New(t),
+		}
+		// inits n.peer but does not override n.network
+		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
+
+		f := n.txProcessorForRound(22, "leaderNodeID")
+		require.NotNil(t, f)
+
+		tx := testtransaction.NewTransactionOrder(t)
+		f(context.Background(), tx)
+		// check that the tx has been sent to the leader
+		msgs := nw.SentMessages(network.ProtocolInputForward)
+		require.Contains(t, msgs, testnetwork.PeerMessage{ID: "leaderNodeID", Message: tx})
+	})
+
+	t.Run("node is the leader", func(t *testing.T) {
+		// expected: tx will be added to proposedTransactions
+		txSys := &testtxsystem.CounterTxSystem{}
+		txVal, err := NewDefaultTxValidator([]byte{0, 0, 0, 0})
+		require.NoError(t, err)
+		n := &Node{
+			configuration:     &configuration{hashAlgorithm: gocrypto.SHA256},
+			transactionSystem: txSys,
+			txValidator:       txVal,
+			log:               logger.New(t),
+		}
+		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
+
+		tx := testtransaction.NewTransactionOrder(t)
+		tx.Payload.ClientMetadata.Timeout = 25
+
+		f := n.txProcessorForRound(22, n.peer.ID())
+		require.NotNil(t, f)
+
+		f(context.Background(), tx)
+		require.Len(t, n.proposedTransactions, 1)
+		require.EqualValues(t, 1, txSys.ExecuteCountDelta)
+	})
 }

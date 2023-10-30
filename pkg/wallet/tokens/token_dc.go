@@ -4,15 +4,17 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"sort"
+
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const maxBurnBatchSize = 100
@@ -65,9 +67,9 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 		totalAmountToBeJoined := totalAmountJoined
 		var err error
 		for _, token := range burnBatch {
-			totalAmountToBeJoined, _, err = sdk.AddUint64(totalAmountToBeJoined, token.Amount)
+			totalAmountToBeJoined, _, err = util.AddUint64(totalAmountToBeJoined, token.Amount)
 			if err != nil {
-				log.Warning(fmt.Sprintf("unable to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err))
+				w.log.WarnContext(ctx, fmt.Sprintf("unable to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err))
 				// just stop without returning error, so that we can continue with other token types
 				if totalFees > 0 {
 					return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx + 1}, nil
@@ -76,7 +78,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 			}
 		}
 
-		burnBatchAmount, burnFee, proofs, err := w.burnTokensForDC(ctx, acc.AccountKey, burnBatch, targetTokenBacklink, invariantPredicateArgs)
+		burnBatchAmount, burnFee, proofs, err := w.burnTokensForDC(ctx, acc.AccountKey, burnBatch, targetTokenBacklink, targetTokenID, invariantPredicateArgs)
 		if err != nil {
 			return nil, err
 		}
@@ -95,6 +97,12 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 }
 
 func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID types.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, uint64, error) {
+	// explicitly sort proofs by unit ids in increasing order, even though backend already returns tokens ordered by id
+	sort.Slice(burnProofs, func(i, j int) bool {
+		a := burnProofs[i].TxRecord.TransactionOrder.UnitID()
+		b := burnProofs[j].TxRecord.TransactionOrder.UnitID()
+		return a.Compare(b) < 0
+	})
 	burnTxs := make([]*types.TransactionRecord, len(burnProofs))
 	burnTxProofs := make([]*types.TxProof, len(burnProofs))
 	for i, proof := range burnProofs {
@@ -121,21 +129,20 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	if err != nil {
 		return nil, 0, err
 	}
-	if err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, true); err != nil {
+	if err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, true); err != nil {
 		return nil, 0, err
 	}
-
 	return sub.Proof.TxRecord.TransactionOrder.Hash(crypto.SHA256), sub.Proof.TxRecord.ServerMetadata.ActualFee, nil
 }
 
-func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
-	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, targetTokenBacklink sdk.TxHash, targetTokenID types.UnitID, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
+	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend, w.log)
 	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 	burnBatchAmount := uint64(0)
 
 	for _, token := range tokensToBurn {
 		burnBatchAmount += token.Amount
-		attrs := newBurnTxAttrs(token, nonce)
+		attrs := newBurnTxAttrs(token, targetTokenBacklink, targetTokenID)
 		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, token.ID, acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attrs)
 			if err != nil {

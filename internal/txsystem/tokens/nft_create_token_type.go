@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -15,7 +15,6 @@ import (
 
 func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Create Non-Fungible Token Type tx: %+v", tx)
 		if err := validate(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid create non-fungible token tx: %w", err)
 		}
@@ -24,7 +23,7 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		// update state
 		unitID := tx.UnitID()
 		if err := options.state.Apply(
-			state.AddUnit(unitID, script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(attr)),
+			state.AddUnit(unitID, templates.AlwaysTrueBytes(), newNonFungibleTokenTypeData(attr)),
 		); err != nil {
 			return nil, err
 		}

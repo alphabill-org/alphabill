@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -82,7 +83,7 @@ func (e *EvmClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (
 	}, nil
 }
 
-// todo: The methods PostTransaction(), GetRoundNumber() and GetTxProof() do not belong here as they are common for all
+// todo: The methods PostTransaction(), GetRoundNumber() and GetTxProof() GetInfo() do not belong here as they are common for all
 // client needs a general refactoring - it should be possible to add a generic client and not have everything together
 
 // PostTransaction post node transaction
@@ -124,6 +125,41 @@ func (e *EvmClient) GetTxProof(ctx context.Context, _ types.UnitID, txHash sdk.T
 		TxRecord: proof.TxRecord,
 		TxProof:  proof.TxProof,
 	}, nil
+}
+
+func (e *EvmClient) GetInfo(ctx context.Context) (*sdk.InfoResponse, error) {
+	var infoResponse *sdk.InfoResponse
+	addr := e.getURL(apiPathPrefix, "info")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build http request: %w", err)
+	}
+	req.Header.Set("User-Agent", clientUserAgent)
+	rsp, err := e.hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request to backend failed: %w", err)
+	}
+	if err = decodeJsonResponse(rsp, http.StatusOK, &infoResponse, false); err != nil {
+		return nil, err
+	}
+	return infoResponse, nil
+}
+
+func decodeJsonResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
+	defer rsp.Body.Close()
+	if rsp.StatusCode == successStatus {
+		err := json.NewDecoder(rsp.Body).Decode(data)
+		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
+			return fmt.Errorf("failed to decode response body: %w", err)
+		}
+		return nil
+	}
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %s", rsp.Status)
+	}
+	msg := fmt.Sprintf("node responded %s: %s", rsp.Status, string(bodyBytes))
+	return errors.New(msg)
 }
 
 // GetBalance - reads account balance
@@ -180,7 +216,7 @@ func (e *EvmClient) getURL(pathElements ...string) *url.URL {
 /*
 get executes GET request to given "addr" and decodes response body into "data" (which has to be a pointer
 of the data type expected in the response).
-When "allowEmptyResponse" is false then response must have a non empty body with CBOR content.
+When "allowEmptyResponse" is false then response must have a non-empty body with CBOR content.
 
 It returns value of the offset parameter from the Link header (empty string when header is not
 present, ie missing header is not error).
@@ -198,7 +234,6 @@ func (e *EvmClient) get(ctx context.Context, addr *url.URL, data any, allowEmpty
 	if err = decodeResponse(rsp, http.StatusOK, data, allowEmptyResponse); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -225,17 +260,13 @@ In case of some other response status body is expected to contain error response
 */
 func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
 	defer func() { _ = rsp.Body.Close() }()
-	type Decoder interface {
-		Decode(val interface{}) error
-	}
 
 	if rsp.StatusCode == successStatus {
-		dec := cbor.NewDecoder(rsp.Body)
 		// no response data expected
 		if data == nil {
 			return nil
 		}
-		err := dec.Decode(data)
+		err := cbor.NewDecoder(rsp.Body).Decode(data)
 		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
 			return fmt.Errorf("failed to decode response body: %w", err)
 		}
@@ -243,14 +274,13 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 	}
 	switch {
 	case rsp.StatusCode == http.StatusNotFound:
-		return errors.Join(ErrNotFound)
+		return ErrNotFound
 	default:
 		errInfo := &struct {
 			_   struct{} `cbor:",toarray"`
 			Err string
 		}{}
-		dec := cbor.NewDecoder(rsp.Body)
-		if err := dec.Decode(errInfo); err != nil {
+		if err := cbor.NewDecoder(rsp.Body).Decode(errInfo); err != nil {
 			return fmt.Errorf("%s", rsp.Status)
 		}
 		return fmt.Errorf("%s, %s", rsp.Status, errInfo.Err)

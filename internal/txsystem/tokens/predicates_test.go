@@ -3,55 +3,54 @@ package tokens
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyPredicates(t *testing.T) {
 	tests := []*struct {
 		name       string
-		predicates []state.Predicate
+		predicates []predicates.PredicateBytes
 		signatures [][]byte
 		err        string
 	}{
 		{
 			name:       "no predicates, no signatures",
-			predicates: []state.Predicate{},
+			predicates: []predicates.PredicateBytes{},
 			signatures: [][]byte{},
 		},
 		{
 			name:       "no predicates, one signature",
-			predicates: []state.Predicate{},
-			signatures: [][]byte{script.PredicateArgumentEmpty()},
+			predicates: []predicates.PredicateBytes{},
+			signatures: [][]byte{nil},
 		},
 		{
 			name:       "one predicate, one default signature",
-			predicates: []state.Predicate{script.PredicateAlwaysTrue()},
-			signatures: [][]byte{script.PredicateArgumentEmpty()},
+			predicates: []predicates.PredicateBytes{templates.AlwaysTrueBytes()},
+			signatures: [][]byte{nil},
 		},
 		{
 			name:       "one predicate, no signatures",
-			predicates: []state.Predicate{script.PredicateAlwaysFalse()},
+			predicates: []predicates.PredicateBytes{templates.AlwaysFalseBytes()},
 			signatures: [][]byte{},
 			err:        "number of signatures (0) not equal to number of parent predicates (1)",
 		},
 		{
 			name:       "one predicate, one empty signature",
-			predicates: []state.Predicate{script.PredicateAlwaysTrue()},
+			predicates: []predicates.PredicateBytes{templates.AlwaysTrueBytes()},
 			signatures: [][]byte{{}},
-			err:        "invalid script format",
 		},
 		{
 			name:       "two predicates (true and false), two signatures, unsatisfiable",
-			predicates: []state.Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysFalse()},
-			signatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
-			err:        "script execution result yielded false",
+			predicates: []predicates.PredicateBytes{templates.AlwaysTrueBytes(), templates.AlwaysFalseBytes()},
+			signatures: [][]byte{nil, nil},
+			err:        "always false",
 		},
 		{
 			name:       "two predicates, two signatures",
-			predicates: []state.Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysTrue()},
-			signatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
+			predicates: []predicates.PredicateBytes{templates.AlwaysTrueBytes(), templates.AlwaysTrueBytes()},
+			signatures: [][]byte{nil, nil},
 		},
 	}
 

@@ -2,129 +2,122 @@ package txbuffer
 
 import (
 	"context"
-	gocrypto "crypto"
-	"sync"
+	"crypto"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 const (
-	zero           uint32 = 0
-	one            uint32 = 1
-	testBufferSize uint32 = 10
+	testBufferSize = 10
 )
 
-func TestNewTxBuffer_InvalidMaxSize(t *testing.T) {
-	_, err := New(zero, gocrypto.SHA256)
-	require.ErrorIs(t, err, ErrInvalidMaxSize)
-}
-func TestNewTxBuffer_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NotNil(t, buffer)
-	defer buffer.Close()
-	require.NoError(t, err)
-	require.EqualValues(t, zero, len(buffer.transactionsCh))
-	require.EqualValues(t, zero, len(buffer.transactions))
-}
+func Test_TxBuffer_New(t *testing.T) {
+	t.Run("invalid buffer size", func(t *testing.T) {
+		buffer, err := New(0, crypto.SHA256, logger.New(t))
+		require.ErrorIs(t, err, ErrInvalidMaxSize)
+		require.Nil(t, buffer)
+	})
 
-func TestAddTx_TxIsNil(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-	_, err = buffer.Add(nil)
-	require.ErrorIs(t, err, ErrTxIsNil)
-}
-
-func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-
-	tx := testtransaction.NewTransactionOrder(t)
-	_, err = buffer.Add(tx)
-	require.NoError(t, err)
-
-	_, err = buffer.Add(tx)
-	require.ErrorIs(t, err, ErrTxInBuffer)
-	require.EqualValues(t, one, len(buffer.transactionsCh))
-	require.EqualValues(t, one, len(buffer.transactions))
-}
-
-func TestAddTx_TxBufferFull(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-
-	for i := uint32(0); i < testBufferSize; i++ {
-		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	t.Run("success", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
-	}
-
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
-	require.ErrorIs(t, err, ErrTxBufferFull)
-	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
-	require.Equal(t, testBufferSize, uint32(len(buffer.transactions)))
+		require.NotNil(t, buffer)
+		require.Equal(t, crypto.SHA256, buffer.hashAlgorithm)
+		require.NotNil(t, buffer.transactionsCh)
+		require.EqualValues(t, testBufferSize, cap(buffer.transactionsCh))
+		require.NotNil(t, buffer.transactions)
+		require.NotNil(t, buffer.log)
+	})
 }
 
-func TestAddTx_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
-	require.NoError(t, err)
-	require.EqualValues(t, one, len(buffer.transactionsCh))
-	require.Equal(t, one, uint32(len(buffer.transactions)))
-}
-
-func TestCount_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-	for i := uint32(0); i < testBufferSize; i++ {
-		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+func Test_TxBuffer_Add(t *testing.T) {
+	t.Run("nil tx is rejected", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
-	}
-	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
-	require.EqualValues(t, testBufferSize, len(buffer.transactions))
+		txh, err := buffer.Add(nil)
+		require.ErrorIs(t, err, ErrTxIsNil)
+		require.Nil(t, txh)
+		require.Empty(t, buffer.transactions)
+		require.Empty(t, buffer.transactionsCh)
+	})
+
+	t.Run("tx already in buffer", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		require.NoError(t, err)
+
+		tx := testtransaction.NewTransactionOrder(t)
+		txh, err := buffer.Add(tx)
+		require.NoError(t, err)
+		require.NotEmpty(t, txh)
+		require.Len(t, buffer.transactions, 1)
+		require.Len(t, buffer.transactionsCh, 1)
+		require.Contains(t, buffer.transactions, string(txh))
+
+		_, err = buffer.Add(tx)
+		require.ErrorIs(t, err, ErrTxInBuffer)
+		require.Len(t, buffer.transactions, 1)
+		require.Len(t, buffer.transactionsCh, 1)
+		require.Contains(t, buffer.transactions, string(txh))
+	})
+
+	t.Run("buffer is full", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		require.NoError(t, err)
+
+		for i := 0; i < int(testBufferSize); i++ {
+			_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+			require.NoError(t, err)
+		}
+
+		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+		require.ErrorIs(t, err, ErrTxBufferFull)
+		require.Len(t, buffer.transactions, testBufferSize)
+		require.Len(t, buffer.transactionsCh, testBufferSize)
+	})
 }
 
-func TestRemove_NotFound(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-	tx := testtransaction.NewTransactionOrder(t)
-	_, err = buffer.Add(tx)
-	require.NoError(t, err)
-	buffer.removeFromIndex("1")
-	require.EqualValues(t, 1, len(buffer.transactionsCh))
+func Test_TxBuffer_removeFromIndex(t *testing.T) {
+	t.Run("tx id not in the index", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		require.NoError(t, err)
+		tx := testtransaction.NewTransactionOrder(t)
+		txh, err := buffer.Add(tx)
+		require.NoError(t, err)
+
+		buffer.removeFromIndex("1")
+		require.Len(t, buffer.transactionsCh, 1)
+		require.Len(t, buffer.transactions, 1)
+		require.Contains(t, buffer.transactions, string(txh))
+	})
+
+	t.Run("tx id is in the index", func(t *testing.T) {
+		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		require.NoError(t, err)
+
+		tx := testtransaction.NewTransactionOrder(t)
+		txh, err := buffer.Add(tx)
+		require.NoError(t, err)
+		require.NotEmpty(t, txh)
+
+		buffer.removeFromIndex(string(txh))
+		// the tx is removed from the index map but is still in chan!
+		require.Len(t, buffer.transactions, 0)
+		require.Len(t, buffer.transactionsCh, 1)
+	})
 }
 
-func TestRemove_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+func Test_TxBuffer_Process(t *testing.T) {
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
-	defer buffer.Close()
-
-	tx := testtransaction.NewTransactionOrder(t)
-	_, err = buffer.Add(tx)
-	require.NoError(t, err)
-
-	hash := tx.Hash(gocrypto.SHA256)
-	buffer.removeFromIndex(string(hash))
-	// the tx is removed from the index map but is still in chan!
-	require.EqualValues(t, 1, len(buffer.transactionsCh))
-	require.EqualValues(t, 0, len(buffer.transactions))
-}
-
-func TestProcess_ProcessAllTransactions(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
 
 	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
@@ -133,70 +126,69 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
 
-	var c uint32
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
-			atomic.AddUint32(&c, 1)
-			return true
-		})
-	}()
-
-	require.Eventually(t, func() bool {
-		return atomic.LoadUint32(&c) == 3
-	}, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool {
-		return len(buffer.transactionsCh) == 0
-	}, test.WaitDuration, test.WaitTick)
-}
-
-func TestProcess_CloseQuitsProcess(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-
-	var c uint32
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
-			atomic.AddUint32(&c, 1)
-			return true
-		})
-	}()
-
-	buffer.Close()
-	select {
-	case <-time.After(test.WaitDuration):
-		t.Error("buffer.Process didn't quit within timeout")
-	case <-done:
-		require.EqualValues(t, 0, atomic.LoadUint32(&c), "unexpectedly process callback has been called")
-	}
-}
-
-func TestProcess_CancelProcess(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	defer buffer.Close()
-
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
-	require.NoError(t, err)
+	require.Len(t, buffer.transactionsCh, 3)
+	require.Len(t, buffer.transactions, 3)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+	var c uint32
+	done := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		buffer.Process(ctx, func(tx *types.TransactionOrder) bool {
-			cancel()
-			<-ctx.Done()
-			return false
+		defer close(done)
+		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+			atomic.AddUint32(&c, 1)
 		})
 	}()
-	// processing the tx should trigger cancellation of the process loop
-	require.Eventually(t, func() bool {
-		wg.Wait()
-		return true
-	}, test.WaitDuration, test.WaitTick)
-	require.EqualValues(t, 0, len(buffer.transactionsCh))
+
+	require.Eventually(t, func() bool { return atomic.LoadUint32(&c) == 3 }, test.WaitDuration, test.WaitTick)
+
+	cancel()
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("buffer processor haven't shut down within timeout")
+	case <-done:
+		require.Empty(t, buffer.transactions)
+		require.Empty(t, buffer.transactionsCh)
+	}
+}
+
+func Test_TxBuffer_concurrency(t *testing.T) {
+	const totalTxCnt = 20 // how many transactions to process
+
+	buffer, err := New(10, crypto.SHA256, logger.New(t))
+	require.NoError(t, err)
+
+	// add "totalTxCnt" transactions into buffer (do not fail the test on "buffer full" error)
+	go func() {
+		for cnt := 0; cnt < totalTxCnt; {
+			if _, err := buffer.Add(testtransaction.NewTransactionOrder(t)); err != nil {
+				if !errors.Is(err, ErrTxBufferFull) {
+					t.Errorf("failed to add tx: %v", err)
+				}
+				continue
+			}
+			cnt++
+		}
+	}()
+
+	// consume transactions from the buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	var processedCnt atomic.Int32
+	go func() {
+		defer close(done)
+		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+			processedCnt.Add(1)
+		})
+	}()
+
+	// wait until consumer has seen the same amount of txs we generated
+	require.Eventually(t, func() bool { return processedCnt.Load() == totalTxCnt }, 3*time.Second, 200*time.Millisecond)
+
+	// shut down the tx processor
+	cancel()
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("buffer processor haven't shut down within timeout")
+	case <-done:
+	}
 }

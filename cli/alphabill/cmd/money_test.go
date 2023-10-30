@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -31,6 +31,12 @@ import (
 type envVar [2]string
 
 func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	logCfgFilename := filepath.Join(tmpDir, "custom-log-conf.yaml")
+
+	// custom log cfg file with minimal content
+	require.NoError(t, os.WriteFile(logCfgFilename, []byte(`log-format: "text"`), 0666))
+
 	tests := []struct {
 		args           string   // arguments as a space separated string
 		envVars        []envVar // Environment variables that will be set before creating command
@@ -132,14 +138,14 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			envVars: []envVar{
 				{"AB_HOME", "/custom-home-2"},
 				{"AB_CONFIG", "custom-config.props"},
-				{"AB_LOGGER_CONFIG", "custom-log-conf.yaml"},
+				{"AB_LOGGER_CONFIG", logCfgFilename},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
 				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home-1",
 					CfgFile:    "/custom-home-1/custom-config.props",
-					LogCfgFile: "custom-log-conf.yaml",
+					LogCfgFile: logCfgFilename,
 				}
 				return sc
 			}(),
@@ -187,38 +193,38 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				defer os.Unsetenv(en[0])
 			}
 
-			abApp := New()
+			abApp := New(logger.LoggerBuilder(t))
 			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
-			abApp.WithOpts(Opts.NodeRunFunc(shardRunFunc)).Execute(context.Background())
+			err := abApp.WithOpts(Opts.NodeRunFunc(shardRunFunc)).Execute(context.Background())
+			require.NoError(t, err, "executing app command")
 			require.Equal(t, tt.expectedConfig.Node, actualConfig.Node)
+			// do not compare logger/loggerBuilder
+			actualConfig.Base.Logger = nil
+			actualConfig.Base.loggerBuilder = nil
 			require.Equal(t, tt.expectedConfig, actualConfig)
 		})
 	}
 }
 
 func TestMoneyNodeConfig_ConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	logCfgFilename := filepath.Join(tmpDir, "custom-log-conf.yaml")
+
 	configFileContents := `
-server-address=srv:1234
-server-max-recv-msg-size=9999
-logger-config=custom-log-conf.yaml
+server-address: "srv:1234"
+server-max-recv-msg-size: 9999
+logger-config: "` + logCfgFilename + `"
 `
 
-	// Write temporary file and clean up afterwards
-	f, err := os.CreateTemp("", "example-conf.*.props")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(f.Name())
-	if _, err = f.Write([]byte(configFileContents)); err != nil {
-		t.Fatal(err)
-	}
-	if err = f.Close(); err != nil {
-		t.Fatal(err)
-	}
+	// custom log cfg file must exist so store one value there
+	require.NoError(t, os.WriteFile(logCfgFilename, []byte(`log-format: "text"`), 0666))
+
+	cfgFilename := filepath.Join(tmpDir, "custom-conf.yaml")
+	require.NoError(t, os.WriteFile(cfgFilename, []byte(configFileContents), 0666))
 
 	expectedConfig := defaultMoneyNodeConfiguration()
-	expectedConfig.Base.CfgFile = f.Name()
-	expectedConfig.Base.LogCfgFile = "custom-log-conf.yaml"
+	expectedConfig.Base.CfgFile = cfgFilename
+	expectedConfig.Base.LogCfgFile = logCfgFilename
 	expectedConfig.RPCServer.Address = "srv:1234"
 	expectedConfig.RPCServer.MaxRecvMsgSize = 9999
 
@@ -229,11 +235,14 @@ logger-config=custom-log-conf.yaml
 		return nil
 	}
 
-	abApp := New()
-	args := "money --config=" + f.Name()
+	abApp := New(logger.LoggerBuilder(t))
+	args := "money --config=" + cfgFilename
 	abApp.baseCmd.SetArgs(strings.Split(args, " "))
-	abApp.WithOpts(Opts.NodeRunFunc(runFunc)).Execute(context.Background())
-
+	err := abApp.WithOpts(Opts.NodeRunFunc(runFunc)).Execute(context.Background())
+	require.NoError(t, err, "executing app command")
+	// do not compare logger/loggerBuilder
+	actualConfig.Base.Logger = nil
+	actualConfig.Base.loggerBuilder = nil
 	require.Equal(t, expectedConfig, actualConfig)
 }
 
@@ -292,12 +301,13 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		logF := logger.LoggerBuilder(t)
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
-		cmd := New()
+		cmd := New(logF)
 		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
@@ -321,7 +331,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-			cmd = New()
+			cmd = New(logF)
 			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
@@ -330,7 +340,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		log.Info("Started money node and dialing...")
+		t.Log("Started money node and dialing...")
 		// Create the gRPC client
 		conn, err := grpc.DialContext(ctx, moneyNodeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
@@ -350,20 +360,20 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := defaultInitialBillID
-	attr := &billtx.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+	attr := &money.TransferAttributes{
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           billtx.PayloadTypeTransfer,
+			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0, 0, 0, 0},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	txBytes, _ := cbor.Marshal(tx)
 	protoTx := &alphabill.Transaction{Order: txBytes}
@@ -373,20 +383,20 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := money.NewBillID(nil, []byte{6})
-	attr := &billtx.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+	attr := &money.TransferAttributes{
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           billtx.PayloadTypeTransfer,
+			Type:           money.PayloadTypeTransfer,
 			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	txBytes, _ := cbor.Marshal(tx)
 	protoTx := &alphabill.Transaction{Order: txBytes}

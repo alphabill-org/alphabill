@@ -81,6 +81,7 @@ func TestBuildSMTAndGetAllAuthPaths(t *testing.T) {
 		leaf := hasher.Sum(nil)
 		hasher.Reset()
 		pathRoot, err := CalculatePathRoot(path, leaf, v.Key(), crypto.SHA256)
+		require.NoError(t, err)
 		require.Equal(t, smtRoot, pathRoot)
 	}
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
-
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -20,8 +18,7 @@ func newNodeIdentifierCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&file, keyFileCmdFlag, "k", "", "path to the key file")
-	err := cmd.MarkFlagRequired(keyFileCmdFlag)
-	if err != nil {
+	if err := cmd.MarkFlagRequired(keyFileCmdFlag); err != nil {
 		panic(err)
 	}
 	return cmd
@@ -30,7 +27,7 @@ func newNodeIdentifierCmd() *cobra.Command {
 func identifierRunFun(_ context.Context, file string) error {
 	keys, err := LoadKeys(file, false, false)
 	if err != nil {
-		return errors.Wrapf(err, "failed to load keys %v", file)
+		return fmt.Errorf("failed to load keys %v: %w", file, err)
 	}
 	id, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {

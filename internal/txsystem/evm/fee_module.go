@@ -2,7 +2,11 @@ package evm
 
 import (
 	"crypto"
+	"fmt"
+	"log/slog"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -10,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var _ txsystem.Module = (*FeeAccount)(nil)
@@ -23,6 +26,7 @@ type (
 		hashAlgorithm    crypto.Hash
 		txValidator      *fc.DefaultFeeCreditTxValidator
 		feeCalculator    FeeCalculator
+		log              *slog.Logger
 	}
 
 	FeeCalculator func() uint64
@@ -34,13 +38,13 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(systemIdentifier []byte, options *Options) (*FeeAccount, error) {
+func newFeeModule(systemIdentifier []byte, options *Options, log *slog.Logger) (*FeeAccount, error) {
 	s := options.state
 	if len(options.initialAccountAddress) > 0 && options.initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
 		address := common.BytesToAddress(options.initialAccountAddress)
-		log.Info("Adding an initial account %v with balance %v", address, options.initialAccountBalance)
+		log.Info(fmt.Sprintf("Adding an initial account %v with balance %v", address, options.initialAccountBalance))
 		id := s.Savepoint()
-		stateDB := statedb.NewStateDB(s)
+		stateDB := statedb.NewStateDB(s, log)
 		stateDB.CreateAccount(address)
 		stateDB.AddBalance(address, options.initialAccountBalance)
 		s.ReleaseToSavepoint(id)
@@ -61,6 +65,7 @@ func newFeeModule(systemIdentifier []byte, options *Options) (*FeeAccount, error
 		hashAlgorithm:    options.hashAlgorithm,
 		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase, nil),
 		feeCalculator:    FixedFee(1),
+		log:              log,
 	}, nil
 }
 
@@ -68,7 +73,7 @@ func (m FeeAccount) TxExecutors() map[string]txsystem.TxExecutor {
 	return map[string]txsystem.TxExecutor{
 		//  fee credit transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator),
-		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.feeCalculator, m.txValidator),
+		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log),
 	}
 }
 

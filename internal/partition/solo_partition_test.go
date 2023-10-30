@@ -4,16 +4,20 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
+	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -22,15 +26,14 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -42,14 +45,15 @@ type SingleNodePartition struct {
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
-	certs      map[protocol.SystemIdentifier]*types.UnicityCertificate
+	certs      map[types.SystemID32]*types.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
+	log        *slog.Logger
 }
 
 type partitionStartupDependencies struct {
-	peer        *network.Peer
+	peerConf    *network.PeerConfiguration
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
@@ -66,20 +70,16 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 }
 
 func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
-	peer := createPeer(t)
-	key, err := peer.PublicKey()
-	require.NoError(t, err)
-	pubKeyBytes, err := key.Raw()
-	require.NoError(t, err)
+	peerConf := createPeerConfiguration(t)
 
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
 		txSystem,
-		WithPeerID(peer.ID()),
+		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
-		WithEncryptionPubKey(pubKeyBytes),
+		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
 		WithSystemIdentifier(systemId),
 		WithT2Timeout(2500),
 	)
@@ -96,16 +96,18 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 
 	// root state
-	var certs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetSystemIdentifierString()] = partition.Certificate
+		sysID, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
+		require.NoError(t, err)
+		certs[sysID] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork()
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
-		peer:        peer,
+		peerConf:    peerConf,
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
@@ -120,6 +122,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
+		log:        testlogger.New(t).With(logger.NodeID(peerConf.ID)),
 	}
 	return partition
 }
@@ -137,25 +140,36 @@ func StartSingleNodePartition(ctx context.Context, t *testing.T, p *SingleNodePa
 
 func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
-	StartSingleNodePartition(ctx, t, partition)
+	done := StartSingleNodePartition(ctx, t, partition)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	return partition
 }
 
 func (sn *SingleNodePartition) newNode() error {
-	n, err := New(
-		sn.nodeDeps.peer,
+	nodeID := sn.nodeDeps.peerConf.ID
+
+	n, err := NewNode(
+		context.Background(),
+		sn.nodeDeps.peerConf,
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
 		sn.nodeDeps.net,
+		sn.log,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
-				leader:      sn.nodeDeps.peer.ID(),
-				currentNode: sn.nodeDeps.peer.ID(),
+				leader:      nodeID,
+				currentNode: nodeID,
 			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
 			WithEventHandler(sn.eh.HandleEvent, 100),
@@ -172,11 +186,7 @@ func (sn *SingleNodePartition) newNode() error {
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolInputForward,
-		Message:  tx,
-	})
+	sn.mockNet.Receive(tx)
 	return nil
 }
 
@@ -186,20 +196,11 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
-
+	sn.mockNet.Receive(uc)
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolBlockProposal,
-		Message:  prop,
-	})
+	sn.mockNet.Receive(prop)
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
@@ -251,7 +252,7 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
 		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
+			t.Errorf("Unexpected DB iterator error: %v", err)
 		}
 	}()
 	var bl types.Block
@@ -269,21 +270,22 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)]
-	require.True(t, found)
-	err := consensus.CheckBlockCertificationRequest(req, luc)
+	sysID, err := req.SystemIdentifier.Id32()
 	require.NoError(t, err)
+	luc, found := sn.certs[sysID]
+	require.True(t, found)
+	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.certs[sysID] = uc
 	return uc
 }
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.handleT1TimeoutEvent()
+	sn.partition.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -292,7 +294,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
+	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {
@@ -301,18 +303,14 @@ type TestLeaderSelector struct {
 	mutex       sync.Mutex
 }
 
-func (l *TestLeaderSelector) SelfID() peer.ID {
+// IsLeader returns true it current node is the leader and must propose the next block.
+func (l *TestLeaderSelector) IsLeader(peerID peer.ID) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	return l.currentNode
+	return l.leader == peerID
 }
 
-// IsCurrentNodeLeader returns true it current node is the leader and must propose the next block.
-func (l *TestLeaderSelector) IsCurrentNodeLeader() bool {
-	return l.leader == l.SelfID()
-}
-
-func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate) {
+func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate, validators []peer.ID) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if seal == nil {
@@ -322,36 +320,44 @@ func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate) {
 	l.leader = l.currentNode
 }
 
-func (l *TestLeaderSelector) GetLeaderID() peer.ID {
+func (l *TestLeaderSelector) GetLeader() peer.ID {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.leader
 }
 
-func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate) peer.ID {
+func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate, validators []peer.ID) peer.ID {
 	if seal == nil {
 		return ""
 	}
 	return l.currentNode
 }
 
-func createPeer(t *testing.T) *network.Peer {
+func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	// fake validator, so that network 'send' requests don't fail
-	_, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	fakeValidatorID, err := peer.IDFromPublicKey(pubKey)
+	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
 	require.NoError(t, err)
 
-	conf := &network.PeerConfiguration{
-		//KeyPair will be generated
-		Validators: []peer.ID{fakeValidatorID},
-		Address:    "/ip4/127.0.0.1/tcp/0",
-	}
-	newPeer, err := network.NewPeer(context.Background(), conf)
+	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, newPeer.Close()) })
 
-	return newPeer
+	privKeyBytes, err := privKey.Raw()
+	require.NoError(t, err)
+
+	pubKeyBytes, err := pubKey.Raw()
+	require.NoError(t, err)
+
+	peerConf, err := network.NewPeerConfiguration(
+		"/ip4/127.0.0.1/tcp/0",
+		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
+		nil,
+		[]peer.ID{fakeValidatorID},
+	)
+	require.NoError(t, err)
+
+	return peerConf
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {
@@ -416,10 +422,7 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 	}, test.WaitDuration, test.WaitTick)
 	// if more than one return last, but there has to be at least one, otherwise require.Eventually fails before
 	return &testnetwork.PeerMessage{
-		ID: reqs[len(reqs)-1].ID,
-		OutputMessage: network.OutputMessage{
-			Protocol: reqs[len(reqs)-1].Protocol,
-			Message:  reqs[len(reqs)-1].Message,
-		},
+		ID:      reqs[len(reqs)-1].ID,
+		Message: reqs[len(reqs)-1].Message,
 	}
 }

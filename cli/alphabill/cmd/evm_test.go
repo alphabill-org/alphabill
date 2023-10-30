@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -12,13 +14,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestRunEvmNode(t *testing.T) {
@@ -27,11 +31,12 @@ func TestRunEvmNode(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
+		logF := logger.LoggerBuilder(t)
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
-		cmd := New()
+		cmd := New(logF)
 		args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
@@ -52,32 +57,39 @@ func TestRunEvmNode(t *testing.T) {
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
 
-		listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
+		listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
 			dbLocation := homeDir + "/tx.db"
-			cmd = New()
-			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			cmd = New(logF)
+			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --rest-server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
-		// Create the gRPC client
-		log.Info("Started evm node")
-		var conn *grpc.ClientConn
-		// There is a race here between node start and rpc client, try multiple times and wait for connection
-		var conErr error
+		t.Log("Started evm node")
+		// create rest client
+		addr, err := url.Parse("http://" + listenAddr)
+		require.NoError(t, err)
+		restClient := evmclient.New(*addr)
+		var info *wallet.InfoResponse
 		require.Eventually(t, func() bool {
-			conn, conErr = grpc.DialContext(ctx, "localhost"+listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-			return conErr == nil
-		}, time.Second, test.WaitTick)
+			info, err = restClient.GetInfo(ctx)
+			return err == nil
+		}, 2*time.Second, test.WaitTick)
 		// Got a session up, so the node has started
-		require.NoError(t, conErr)
-		defer func() { require.NoError(t, conn.Close()) }()
+		require.NoError(t, err)
+		require.Equal(t, hex.EncodeToString(evm.DefaultEvmTxSystemIdentifier), info.SystemID)
+		// get node round, but expect failure, since there is no root node running, node is in init state
+		require.Eventually(t, func() bool {
+			_, err = restClient.GetRoundNumber(ctx)
+			return strings.Contains(err.Error(), "initializing")
+		}, 2*time.Second, test.WaitTick)
+		t.Log("Close evm node")
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed

@@ -1,19 +1,34 @@
-# File name to log to. If not set, logs to stdout.
+# File name to log to. If not set, logs to stderr.
+# Special values "stdout", "stderr", "discard" can be used to log into corresponding
+# stream (discard means /dev/null ie log records will be discarded IOW logging
+# is disabled).
 outputPath:
-# Set to true to log in console optimized way. If false, uses JSON format.
-consoleFormat: false
-# Controls if the log caller file name and row number is added to log.
-showCaller: true
-# The time zone for log messages.
-timeLocation: UTC
+
 # Controls if goroutine ID is added to log.
 showGoroutineID: true
-# Controls if Node ID is added to log.
-showNodeID: true
-# The default log level for all loggers
-# Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
+
+# The default log level
+# Possible levels: ERROR; WARN; INFO; DEBUG; TRACE
+# If not set level will be INFO
 defaultLevel: DEBUG
-# Override the logger level for each package. Use _ for separating directories and other special characters.
-# E.g. internal/txsystem/state becomes internal_txsystem_state.
-packageLevels:
-  internal_txbuffer: WARNING
+
+# Output format for log records:
+# - text: "parser friendly" plain text;
+# - json: JSON;
+# - ecs: JSON structured as described by Elastic Common Schema;
+# - console: "pretty text" ie human readable colored output (if output FD supports it);
+# default is "ecs"
+format: json
+
+# Sets time format to use for log record timestamp. Uses Go time
+# format, ie "2006-01-02T15:04:05.0000Z0700" for more see
+# https://pkg.go.dev/time#pkg-constants
+# special value "none" can be used to disable logging timestamp;
+timeFormat: "2006-01-02T15:04:05.0000Z0700"
+
+# How to format peer ID values (ie node id):
+# - none: do not log peer id at all;
+# - short: log shortened id (middle part replaced with single *);
+# otherwise full peer id is logged.
+# This setting is not respected by ECS handler which always logs full ID.
+peerIdFormat:

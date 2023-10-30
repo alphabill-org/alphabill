@@ -9,6 +9,8 @@ const (
 	PayloadTypeSplit    = "split"
 	PayloadTypeTransDC  = "transDC"
 	PayloadTypeSwapDC   = "swapDC"
+	PayloadTypeLock     = "lock"
+	PayloadTypeUnlock   = "unlock"
 )
 
 type (
@@ -29,10 +31,15 @@ type (
 
 	SplitAttributes struct {
 		_              struct{} `cbor:",toarray"`
-		Amount         uint64
-		TargetBearer   []byte
+		TargetUnits    []*TargetUnit
 		RemainingValue uint64
 		Backlink       []byte
+	}
+
+	TargetUnit struct {
+		_              struct{} `cbor:",toarray"`
+		Amount         uint64
+		OwnerCondition []byte
 	}
 
 	SwapDCAttributes struct {
@@ -41,5 +48,16 @@ type (
 		DcTransfers      []*types.TransactionRecord
 		DcTransferProofs []*types.TxProof
 		TargetValue      uint64 // value added to target bill
+	}
+
+	LockAttributes struct {
+		_          struct{} `cbor:",toarray"`
+		LockStatus uint64   // status of the lock, non-zero value means locked
+		Backlink   []byte
+	}
+
+	UnlockAttributes struct {
+		_        struct{} `cbor:",toarray"`
+		Backlink []byte
 	}
 )

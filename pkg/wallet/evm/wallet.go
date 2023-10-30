@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
@@ -101,7 +101,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	txPub := NewTxPublisher(w.restCli)
 	proof, err := txPub.SendTx(ctx, txo, nil)
 	if err != nil {
-		return nil, fmt.Errorf("evm transaction execute failed: %w", err)
+		return nil, fmt.Errorf("evm transaction failed or account does not have enough fee credit: %w", err)
 	}
 	if proof == nil || proof.TxRecord == nil {
 		return nil, fmt.Errorf("unexpected result")
@@ -126,13 +126,16 @@ func (w *Wallet) EvmCall(ctx context.Context, accNr uint64, attrs *evmclient.Cal
 		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("generating address: %w", err)
+	}
 	attrs.From = from.Bytes()
 	details, err := w.restCli.Call(ctx, attrs)
 	if err != nil {
 		return nil, err
 	}
 	return &evmclient.Result{
-		Success:   true,
+		Success:   len(details.ErrorDetails) == 0,
 		ActualFee: 0,
 		Details:   details,
 	}, nil
@@ -147,6 +150,9 @@ func (w *Wallet) GetBalance(ctx context.Context, accNr uint64) (*big.Int, error)
 		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("generating address: %w", err)
+	}
 	balanceStr, _, err := w.restCli.GetBalance(ctx, from.Bytes())
 	balance, ok := new(big.Int).SetString(balanceStr, 10)
 	if !ok {
@@ -186,6 +192,6 @@ func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, ac.PubKey),
 	}, nil
 }

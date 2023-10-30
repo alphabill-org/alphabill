@@ -15,7 +15,6 @@ import (
 
 func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Split Fungible Token tx: %v", tx)
 		if err := validateSplitFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -27,7 +26,6 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		d := u.Data().(*fungibleTokenData)
 		// add new token unit
 		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
-		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
 		txHash := tx.Hash(options.hashAlgorithm)
@@ -71,9 +69,12 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 }
 
 func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
+	}
+	if d.locked != 0 {
+		return errors.New("token is locked")
 	}
 	if attr.TargetValue == 0 {
 		return errors.New("when splitting a token the value assigned to the new token must be greater than zero")

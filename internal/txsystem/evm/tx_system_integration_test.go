@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -48,7 +49,7 @@ var systemIdentifier = []byte{0, 0, 4, 2}
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+		system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
@@ -57,18 +58,21 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
 	require.NoError(t, network.Start(t))
+	defer network.WaitClose(t)
 
 	// transfer
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, transferTx), test.WaitDuration, test.WaitTick)
-
+	txRecord, _, err := testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, transferTx)
+	require.NoError(t, err, "evm transfer tx failed")
+	require.EqualValues(t, transferTx, txRecord.TransactionOrder)
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, deployContractTx), test.WaitDuration, test.WaitTick)
-	_, _, txRecord, err := evmPartition.GetTxProof(deployContractTx)
+	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, deployContractTx)
+	require.NoError(t, err, "evm deploy tx failed")
+	require.EqualValues(t, deployContractTx, txRecord.TransactionOrder)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
 	var details ProcessingDetails
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
@@ -85,8 +89,9 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
-	_, _, txRecord, err = evmPartition.GetTxProof(callContractTx)
+	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, callContractTx)
+	require.NoError(t, err, "evm call tx failed")
+	require.EqualValues(t, callContractTx, txRecord.TransactionOrder)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
@@ -110,7 +115,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	from := test.RandomBytes(20)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -180,6 +185,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// Round 2 again, but this time with empty block, state should not change from round 1
 	require.NoError(t, system.BeginBlock(2))
 	round2EndState, err = system.EndBlock()
+	require.NoError(t, err)
 	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
 }
 

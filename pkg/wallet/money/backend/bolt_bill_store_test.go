@@ -10,7 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
@@ -114,15 +114,18 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	bills, nextKey, err = bs.Do().GetBills(ownerPredicate2, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
+	require.Nil(t, nextKey)
 
 	bills, nextKey, err = bs.Do().GetBills(ownerPredicate1, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 2)
+	require.Nil(t, nextKey)
 
 	// test get bill for unknown owner nok
 	bills, nextKey, err = bs.Do().GetBills([]byte{1, 2, 3, 4}, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 0)
+	require.Nil(t, nextKey)
 }
 
 func TestBillStore_DeleteBill(t *testing.T) {
@@ -231,16 +234,16 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 		{
 			SystemIdentifier: []byte{0},
 			T2Timeout:        2500,
-			FeeCreditBill:    &genesis.FeeCreditBill{
-				UnitId: []byte{2},
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         []byte{2},
 				OwnerPredicate: []byte{3},
 			},
 		},
 		{
 			SystemIdentifier: []byte{1},
 			T2Timeout:        2500,
-			FeeCreditBill:    &genesis.FeeCreditBill{
-				UnitId: []byte{2},
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         []byte{2},
 				OwnerPredicate: []byte{3},
 			},
 		},
@@ -403,13 +406,10 @@ func TestBillStore_Paging_FilterDCBills(t *testing.T) {
 	ownerPredicate := getOwnerPredicate(pubKey)
 
 	// add bills
-	var bills []*Bill
 	for i := byte(0); i < 10; i++ {
 		b := newBillWithValueAndOwner(i, ownerPredicate)
 		b.DCTargetUnitID = test.RandomBytes(32)
 		b.DCTargetUnitBacklink = test.RandomBytes(32)
-		bills = append(bills, b)
-
 		err := bs.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
@@ -447,7 +447,7 @@ func createTestBillStore(t *testing.T) *boltBillStore {
 
 func getOwnerPredicate(pubkey string) []byte {
 	pubKey, _ := hexutil.Decode(pubkey)
-	return script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey))
+	return templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey))
 }
 
 func newBillWithValueAndOwner(val byte, ownerPredicate []byte) *Bill {

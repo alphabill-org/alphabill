@@ -8,27 +8,27 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMoneyBackendCLI(t *testing.T) {
 	// create ab network
-	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
@@ -47,7 +47,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	serverAddr := fmt.Sprintf("localhost:%d", port)
 	consoleWriter = &testConsoleWriter{}
 	go func() {
-		cmd := New()
+		cmd := New(logger.LoggerBuilder(t))
 		args := fmt.Sprintf("money-backend --home %s start --server-addr %s --%s %s", homedir, serverAddr, alphabillNodeURLCmdName, alphabillNodeAddr)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

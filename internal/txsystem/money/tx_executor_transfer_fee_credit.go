@@ -15,10 +15,12 @@ import (
 
 var (
 	ErrTxNil                       = errors.New("tx is nil")
+	ErrTxAttrNil                   = errors.New("tx attributes is nil")
 	ErrBillNil                     = errors.New("bill is nil")
+	ErrBillLocked                  = errors.New("bill is already locked")
 	ErrTargetSystemIdentifierEmpty = errors.New("TargetSystemIdentifier is empty")
 	ErrTargetRecordIDEmpty         = errors.New("TargetRecordID is empty")
-	ErrAdditionTimeInvalid         = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
+	ErrAdditionTimeInvalid         = errors.New("EarliestAdditionTime is greater than LatestAdditionTime")
 	ErrRecordIDExists              = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists              = errors.New("fee tx cannot contain fee authorization proof")
 	ErrInvalidFCValue              = errors.New("the amount to transfer cannot exceed the value of the bill")
@@ -28,7 +30,6 @@ var (
 
 func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing transferFC %v", tx)
 		unitID := tx.UnitID()
 		unit, _ := s.GetUnit(unitID, false)
 		if unit == nil {
@@ -81,6 +82,9 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	}
 	if len(attr.TargetRecordID) == 0 {
 		return ErrTargetRecordIDEmpty
+	}
+	if bd.IsLocked() {
+		return ErrBillLocked
 	}
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid

@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -24,6 +25,7 @@ type (
 		submissions []*TxSubmission
 		maxTimeout  uint64
 		backend     BackendAPI
+		log         *slog.Logger
 	}
 
 	BackendAPI interface {
@@ -33,12 +35,13 @@ type (
 	}
 )
 
-func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey) *TxSubmissionBatch {
+func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey, log *slog.Logger) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:      sender,
 		backend:     backend,
 		submissions: []*TxSubmission{s},
 		maxTimeout:  s.Transaction.Timeout(),
+		log:         log,
 	}
 }
 
@@ -46,10 +49,11 @@ func (s *TxSubmission) Confirmed() bool {
 	return s.Proof != nil
 }
 
-func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
+func NewBatch(sender wallet.PubKey, backend BackendAPI, log *slog.Logger) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:  sender,
 		backend: backend,
+		log:     log,
 	}
 }
 
@@ -87,7 +91,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 }
 
 func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
-	log.Info("Confirming submitted transactions")
+	t.log.InfoContext(ctx, "Confirming submitted transactions")
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -98,34 +102,45 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if roundNr >= t.maxTimeout {
-			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
-			for _, sub := range t.submissions {
-				if !sub.Confirmed() {
-					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
-				}
-			}
-			return errors.New("confirmation timeout")
-		}
 		unconfirmed := false
 		for _, sub := range t.submissions {
-			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
+			if sub.Confirmed() {
 				continue
 			}
-			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
-			if err != nil {
-				return err
+
+			// Tx can be included in block sub.Transaction().Timeout()-1 at latest.
+			// But let's wait until node is at round sub.Transaction().Timeout()+1
+			// to give backend more time to fetch and process the block. A more reliable
+			// solution would be to use the latest round number that backend has processed,
+			// instead of the latest round number from node.
+			if roundNr <= sub.Transaction.Timeout() {
+				proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
+				if err != nil {
+					return err
+				}
+				if proof != nil {
+					t.log.DebugContext(ctx, "Unit is confirmed", logger.UnitID(sub.UnitID))
+					sub.Proof = proof
+				}
 			}
-			if proof != nil {
-				log.Debug(fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
-				sub.Proof = proof
-			}
+
 			unconfirmed = unconfirmed || !sub.Confirmed()
 		}
 		if unconfirmed {
+			// If this was the last attempt to get proofs, log the ones that timed out.
+			if roundNr > t.maxTimeout {
+				t.log.InfoContext(ctx, "Tx confirmation timeout is reached", logger.Round(roundNr))
+				for _, sub := range t.submissions {
+					if !sub.Confirmed() {
+						t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for hash=%X", sub.TxHash), logger.UnitID(sub.UnitID))
+					}
+				}
+				return errors.New("confirmation timeout")
+			}
+
 			time.Sleep(500 * time.Millisecond)
 		} else {
-			log.Info("All transactions confirmed")
+			t.log.InfoContext(ctx, "All transactions confirmed")
 			return nil
 		}
 	}

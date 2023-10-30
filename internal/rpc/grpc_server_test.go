@@ -8,8 +8,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
@@ -30,7 +31,7 @@ type (
 	}
 )
 
-func (mn *MockNode) GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
 	zeroHash := [32]byte{}
 	if bytes.Equal(zeroHash[:], hash) {
 		return nil, nil, nil
@@ -66,6 +67,10 @@ func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
 
 func (mn *MockNode) SystemIdentifier() []byte {
 	return []byte{0, 1, 0, 0}
+}
+
+func (mn *MockNode) GetPeer() *network.Peer {
+	return nil
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
@@ -164,7 +169,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: 1,
 		Backlink:    nil,
 	}

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -41,8 +41,9 @@ func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem
 			if err != nil {
 				return fmt.Errorf("failed to get payload bytes: %w", err)
 			}
-			if err := script.RunScript(feeProof, unit.Bearer(), sigBytes); err != nil {
-				return fmt.Errorf("invalid fee proof: %w", err)
+			if err := predicates.RunPredicate(unit.Bearer(), feeProof, sigBytes); err != nil {
+				return fmt.Errorf("invalid fee proof: %w [txFeeProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
+					err, feeProof, unit.Bearer(), sigBytes)
 			}
 
 			// 8. the maximum permitted transaction cost does not exceed the fee credit balance

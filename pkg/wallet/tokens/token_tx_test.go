@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
@@ -18,7 +19,7 @@ func TestConfirmUnitsTx_skip(t *testing.T) {
 			return nil
 		},
 	}
-	batch := txsubmitter.NewBatch(nil, backend)
+	batch := txsubmitter.NewBatch(nil, backend, logger.New(t))
 	batch.Add(&txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 1}}}})
 	err := batch.SendTx(context.Background(), false)
 	require.NoError(t, err)
@@ -41,7 +42,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 			return &wallet.Proof{}, nil
 		},
 	}
-	batch := txsubmitter.NewBatch(nil, backend)
+	batch := txsubmitter.NewBatch(nil, backend, logger.New(t))
 	batch.Add(&txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 101}}}})
 	err := batch.SendTx(context.Background(), true)
 	require.NoError(t, err)
@@ -62,7 +63,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			if getRoundNumberCalled == 1 {
 				return 100, nil
 			}
-			return 102, nil
+			return 103, nil
 		},
 		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled++
@@ -72,7 +73,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			return nil, nil
 		},
 	}
-	batch := txsubmitter.NewBatch(nil, backend)
+	batch := txsubmitter.NewBatch(nil, backend, logger.New(t))
 	sub1 := &txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 101}}}, UnitID: randomID1}
 	batch.Add(sub1)
 	sub2 := &txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 102}}}}

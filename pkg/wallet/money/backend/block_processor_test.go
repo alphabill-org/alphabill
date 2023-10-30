@@ -5,19 +5,21 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 var moneySystemID = money.DefaultSystemIdentifier
@@ -29,7 +31,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
-	ownerCondition := script.PredicatePayToPublicKeyHashDefault(pubKeyHash)
+	ownerCondition := templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)
 	tx1 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
@@ -57,10 +59,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	tx3 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeSplit,
-				UnitID:         newBillID(3),
-				Attributes:     splitTxAttr(pubKeyHash, 1, 1),
+				SystemID: moneySystemID,
+				Type:     money.PayloadTypeSplit,
+				UnitID:   newBillID(3),
+				Attributes: splitTxAttr(1,
+					&money.TargetUnit{Amount: 1, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)},
+				),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
 		},
@@ -99,12 +103,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
 				UnitId:         money.NewBillID(nil, []byte{2}),
-				OwnerPredicate: script.PredicateAlwaysTrue(),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
 	})
 	require.NoError(t, err)
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transactions
@@ -215,8 +219,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify FCB LastAddFCTxHash is not changed
-	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
+	// verify FCB LastAddFCTxHash is updated
+	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.LastAddFCTxHash)
 
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
@@ -253,7 +257,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	}, nil)
 	require.NoError(t, err)
 
@@ -264,7 +268,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
-				OwnerPredicate: script.PredicateAlwaysTrue(),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
 	})
@@ -272,12 +276,12 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 
 	err = store.Do().SetBill(&Bill{
 		Id:             moneyPartitionFeeBillID,
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Value:          0,
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transferFC of 50 billy from userBillID
@@ -419,7 +423,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	}, nil)
 	require.NoError(t, err)
 
@@ -431,7 +435,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
-				OwnerPredicate: script.PredicateAlwaysTrue(),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
 		{
@@ -439,7 +443,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
 				UnitId:         tokenPartitionFeeBillID,
-				OwnerPredicate: script.PredicateAlwaysTrue(),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
 	})
@@ -447,18 +451,18 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 
 	err = store.Do().SetBill(&Bill{
 		Id:             moneyPartitionFeeBillID,
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Value:          0,
 	}, nil)
 	require.NoError(t, err)
 	err = store.Do().SetBill(&Bill{
 		Id:             tokenPartitionFeeBillID,
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Value:          0,
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transferFC of 20 billy from userBillID
@@ -613,7 +617,7 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	}, nil)
 	require.NoError(t, err)
 
@@ -624,7 +628,7 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
-				OwnerPredicate: script.PredicateAlwaysTrue(),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
 	})
@@ -632,12 +636,12 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 
 	err = store.Do().SetBill(&Bill{
 		Id:             moneyPartitionFeeBillID,
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Value:          0,
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// when transferFC is processed
@@ -684,6 +688,72 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	require.Equal(t, closeFCRecord, closedFeeCredit)
 }
 
+func TestBlockProcessor_NWaySplit(t *testing.T) {
+	store := createTestBillStore(t)
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+
+	var targetUnits []*money.TargetUnit
+	for i := 1; i <= 5; i++ {
+		pubKeyBytes := []byte{byte(i)}
+		pubKeyHash := hash.Sum256(pubKeyBytes)
+		ownerCondition := templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)
+		targetUnits = append(targetUnits, &money.TargetUnit{
+			Amount:         uint64(i),
+			OwnerCondition: ownerCondition,
+		})
+	}
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       moneySystemID,
+				Type:           money.PayloadTypeSplit,
+				UnitID:         newBillID(3),
+				Attributes:     splitTxAttr(1, targetUnits...),
+				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+	err := store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing bill for split
+	err = store.Do().SetBill(&Bill{Id: tx.TransactionOrder.UnitID(), OwnerPredicate: templates.AlwaysTrueBytes()}, nil)
+	require.NoError(t, err)
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         money.NewBillID(nil, []byte{2}),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
+			},
+		},
+	})
+	require.NoError(t, err)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// process transactions
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify target bills were added
+	for _, targetUnit := range targetUnits {
+		bills, nextKey, err := store.Do().GetBills(targetUnit.OwnerCondition, true, nil, 100)
+		require.NoError(t, err)
+		require.Nil(t, nextKey)
+		require.Len(t, bills, 1)
+		require.Equal(t, targetUnit.Amount, bills[0].Value)
+	}
+}
+
 func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, b)
 	require.NotNil(t, txProof)
@@ -708,7 +778,7 @@ func newFeeCreditRecordID(unitPart byte) []byte {
 func transferTxAttr(pubKeyHash []byte) []byte {
 	attr := &money.TransferAttributes{
 		TargetValue: 100,
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pubKeyHash),
 		Backlink:    hash.Sum256([]byte{}),
 	}
 	attrBytes, _ := cbor.Marshal(attr)
@@ -726,10 +796,9 @@ func dustTxAttr() []byte {
 	return attrBytes
 }
 
-func splitTxAttr(pubKeyHash []byte, amount uint64, remainingValue uint64) []byte {
+func splitTxAttr(remainingValue uint64, targetUnits ...*money.TargetUnit) []byte {
 	attr := &money.SplitAttributes{
-		Amount:         amount,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
 		Backlink:       hash.Sum256([]byte{}),
 	}
@@ -739,7 +808,7 @@ func splitTxAttr(pubKeyHash []byte, amount uint64, remainingValue uint64) []byte
 
 func swapTxAttr(pubKeyHash []byte) []byte {
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(pubKeyHash),
 		DcTransfers:      []*types.TransactionRecord{},
 		DcTransferProofs: []*types.TxProof{},
 		TargetValue:      100,

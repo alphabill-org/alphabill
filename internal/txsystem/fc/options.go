@@ -5,7 +5,6 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type Option func(f *FeeCredit)
@@ -43,12 +42,6 @@ func WithTrustBase(trustBase map[string]abcrypto.Verifier) Option {
 func WithFeeCalculator(feeCalculator FeeCalculator) Option {
 	return func(f *FeeCredit) {
 		f.feeCalculator = feeCalculator
-	}
-}
-
-func WithLogger(logger logger.Logger) Option {
-	return func(f *FeeCredit) {
-		f.logger = logger
 	}
 }
 

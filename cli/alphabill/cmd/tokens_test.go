@@ -15,10 +15,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -39,8 +40,9 @@ func TestRunTokensNode(t *testing.T) {
 			ctxCancel()
 			appStoppedWg.Wait()
 		}()
+		logF := logger.LoggerBuilder(t)
 		// generate node genesis
-		cmd := New()
+		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
@@ -66,7 +68,7 @@ func TestRunTokensNode(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-			cmd = New()
+			cmd = New(logF)
 			args = "tokens --home " + homeDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
@@ -87,10 +89,10 @@ func TestRunTokensNode(t *testing.T) {
 		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
-			SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
-			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-			InvariantPredicate:       script.PredicateAlwaysTrue(),
-			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
+			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			InvariantPredicate:       templates.AlwaysTrueBytes(),
+			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
 		attrBytes, _ := cbor.Marshal(attr)
 		tx := &types.TransactionOrder{

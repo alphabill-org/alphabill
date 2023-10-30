@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -22,7 +23,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 func TestNewPeer_PeerConfigurationIsNil(t *testing.T) {
-	p, err := NewPeer(context.Background(), nil)
+	p, err := NewPeer(context.Background(), nil, nil)
 	require.ErrorIs(t, err, ErrPeerConfigurationIsNil)
 	require.Nil(t, p)
 }
@@ -41,8 +42,9 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 			PrivateKey: test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(context.Background(), conf)
-	require.ErrorContains(t, err, "invalid private key error, expected secp256k1 data size to be 32")
+
+	_, err := NewPeer(context.Background(), conf, logger.New(t))
+	require.ErrorContains(t, err, "invalid private key: expected secp256k1 data size to be 32")
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
@@ -54,8 +56,8 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 			PublicKey:  test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(context.Background(), conf)
-	require.ErrorContains(t, err, "invalid public key error, malformed public key: invalid length: 30")
+	_, err := NewPeer(context.Background(), conf, logger.New(t))
+	require.ErrorContains(t, err, "invalid public key: malformed public key: invalid length: 30")
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
@@ -71,7 +73,7 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 		},
 		Address: randomTestAddressStr,
 	}
-	peer, err := NewPeer(context.Background(), conf)
+	peer, err := NewPeer(context.Background(), conf, logger.New(t))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, peer.Close()) }()
 	p := peer.host.Peerstore().PeersWithKeys()[0]
@@ -81,16 +83,23 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 }
 
 func TestBootstrapNodes(t *testing.T) {
+	log := logger.New(t)
 	ctx := context.Background()
 	bootstrapNode := createDHT(ctx, t, false, dht.DisableAutoRefresh())
-	bootstrapNodeAddrInfo := []peer.AddrInfo{{bootstrapNode.Host().ID(), bootstrapNode.Host().Addrs()}}
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.Host().ID(), Addrs: bootstrapNode.Host().Addrs()}}
 
-	peer1, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr, BootstrapPeers: bootstrapNodeAddrInfo})
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+
+	peer1, err := NewPeer(context.Background(), peerConf1, log)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
 
-	peer2, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr, BootstrapPeers: bootstrapNodeAddrInfo})
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+
+	peer2, err := NewPeer(context.Background(), peerConf2, log)
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
@@ -100,8 +109,15 @@ func TestBootstrapNodes(t *testing.T) {
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
 }
 
+/*
+createPeer returns new Peer configured with random port on localhost and registers
+cleanup for it (ie in the end of the test peer.Close is called).
+*/
 func createPeer(t *testing.T) *Peer {
-	p, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr})
+	peerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
+
+	p, err := NewPeer(context.Background(), peerConf, logger.New(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, p.Close()) })
 	return p
@@ -134,4 +150,18 @@ func createHost(t *testing.T) *basichost.BasicHost {
 	host.Start()
 	t.Cleanup(func() { require.NoError(t, host.Close()) })
 	return host
+}
+
+func generateKeyPair(t *testing.T) *PeerKeyPair {
+	privateKey, publicKey, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+	privateKeyBytes, err := privateKey.Raw()
+	require.NoError(t, err)
+	publicKeyBytes, err := publicKey.Raw()
+	require.NoError(t, err)
+
+	return &PeerKeyPair{
+		PublicKey:  publicKeyBytes,
+		PrivateKey: privateKeyBytes,
+	}
 }

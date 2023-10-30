@@ -24,7 +24,6 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		bd, _ := s.GetUnit(unitID, false)
-		log.Debug("Processing reclaimFC %v", tx)
 		if bd == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}
@@ -56,6 +55,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			newBillData.Locked = 0
 			return newBillData, nil
 		}
 		updateAction := state.UpdateUnitData(unitID, updateFunc)
@@ -65,8 +65,13 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 		}
 		feeCreditTxRecorder.recordReclaimFC(
 			&reclaimFeeCreditTx{
-				tx: tx, attr: attr, closeFCTransferAttr: closeFCAttr, reclaimFee: fee, closeFee: closeFeeCreditTransfer.ServerMetadata.ActualFee})
-
+				tx:                  tx,
+				attr:                attr,
+				closeFCTransferAttr: closeFCAttr,
+				reclaimFee:          fee,
+				closeFee:            closeFeeCreditTransfer.ServerMetadata.ActualFee,
+			},
+		)
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

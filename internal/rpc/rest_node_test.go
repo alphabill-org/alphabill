@@ -8,11 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
+
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
@@ -24,7 +26,7 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(message))
 	recorder := httptest.NewRecorder()
 
-	NewRESTServer("", MaxBodySize, NodeEndpoints(node)).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", MaxBodySize, NodeEndpoints(node, logger.New(t))).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusAccepted, recorder.Code)
 	require.Equal(t, 1, len(node.transactions))
 	tx := node.transactions[0]
@@ -49,10 +51,14 @@ func createTxOrder(t *testing.T) *types.TransactionOrder {
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(1)))
+	// CBOR decoder is returns ok status if byte is 0xF6 (null) or 0xF7 (undefined),
+	// in both cases all Tx fields are still nil, but this is not checked in mock, hence the telegram gets accepted
+	// Do not use random bytes, use something that will always fail.
+	// In real situation the Tx validator would reject just 1 byte Tx anyway, here it is important to just simulate an error
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader([]byte{0x00}))
 	recorder := httptest.NewRecorder()
 
-	NewRESTServer("", MaxBodySize, NodeEndpoints(&MockNode{})).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", MaxBodySize, NodeEndpoints(&MockNode{}, logger.New(t))).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "unable to decode request body as transaction")
 }
@@ -62,7 +68,7 @@ func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/rounds/latest", bytes.NewReader([]byte{}))
 	recorder := httptest.NewRecorder()
-	NewRESTServer("", 10, NodeEndpoints(node)).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", 10, NodeEndpoints(node, logger.New(t))).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 	var response uint64
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
@@ -72,7 +78,7 @@ func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
 func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transactions/%s", hex.EncodeToString(test.RandomBytes(32))), bytes.NewReader([]byte{}))
 	recorder := httptest.NewRecorder()
-	NewRESTServer("", 10, NodeEndpoints(&MockNode{})).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", 10, NodeEndpoints(&MockNode{}, logger.New(t))).Handler.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 	require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
@@ -92,7 +98,7 @@ func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transactions/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 	recorder := httptest.NewRecorder()
-	NewRESTServer("", 10, NodeEndpoints(&MockNode{})).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", 10, NodeEndpoints(&MockNode{}, logger.New(t))).Handler.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 	require.Equal(t, int64(-1), recorder.Result().ContentLength)

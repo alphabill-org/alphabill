@@ -3,17 +3,18 @@ package tokens
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
+
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Burn Fungible Token tx: %v", tx)
 		if err := validateBurnFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
@@ -29,9 +30,12 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Bur
 }
 
 func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
+	}
+	if d.locked != 0 {
+		return errors.New("token is locked")
 	}
 	if !bytes.Equal(d.tokenType, attr.TypeID) {
 		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.tokenType, attr.TypeID)
@@ -81,7 +85,8 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	signatureAttr := &BurnFungibleTokenAttributes{
 		TypeID:                       b.TypeID,
 		Value:                        b.Value,
-		Nonce:                        b.Nonce,
+		TargetTokenID:                b.TargetTokenID,
+		TargetTokenBacklink:          b.TargetTokenBacklink,
 		Backlink:                     b.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
@@ -104,12 +109,20 @@ func (b *BurnFungibleTokenAttributes) SetValue(value uint64) {
 	b.Value = value
 }
 
-func (b *BurnFungibleTokenAttributes) GetNonce() []byte {
-	return b.Nonce
+func (b *BurnFungibleTokenAttributes) GetTargetTokenID() []byte {
+	return b.TargetTokenID
 }
 
-func (b *BurnFungibleTokenAttributes) SetNonce(nonce []byte) {
-	b.Nonce = nonce
+func (b *BurnFungibleTokenAttributes) SetTargetTokenID(targetTokenID []byte) {
+	b.TargetTokenID = targetTokenID
+}
+
+func (b *BurnFungibleTokenAttributes) GetTargetTokenBacklink() []byte {
+	return b.TargetTokenBacklink
+}
+
+func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(targetTokenBacklink []byte) {
+	b.TargetTokenBacklink = targetTokenBacklink
 }
 
 func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {

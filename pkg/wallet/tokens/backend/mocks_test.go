@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -13,14 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -106,17 +107,18 @@ func (abc *mockABClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 }
 
 type mockCfg struct {
-	dbFile string
-	db     Storage
-	abc    ABClient
-	srvL   net.Listener
-	log    log.Logger
+	dbFile   string
+	db       Storage
+	abc      ABClient
+	srvL     net.Listener
+	log      *slog.Logger
+	systemID []byte
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
-func (c *mockCfg) Client() ABClient { return c.abc }
+func (c *mockCfg) Client() (ABClient, error) { return c.abc, nil }
 
-func (c *mockCfg) Logger() log.Logger { return c.log }
+func (c *mockCfg) Logger() *slog.Logger { return c.log }
 
 func (c *mockCfg) Storage() (Storage, error) {
 	if c.db != nil {
@@ -128,6 +130,13 @@ func (c *mockCfg) Storage() (Storage, error) {
 	return newBoltStore(c.dbFile)
 }
 
+func (c *mockCfg) SystemID() []byte {
+	if c.systemID != nil {
+		return c.systemID
+	}
+	return tokens.DefaultSystemIdentifier
+}
+
 func (c *mockCfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{
 		Handler:           endpoints,
@@ -136,6 +145,10 @@ func (c *mockCfg) HttpServer(endpoints http.Handler) http.Server {
 		WriteTimeout:      5 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
+}
+
+func (c *mockCfg) APIAddr() string {
+	return "127.0.0.1:0"
 }
 
 func (c *mockCfg) initListener() error {

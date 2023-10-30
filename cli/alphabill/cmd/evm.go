@@ -8,7 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +48,7 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config.RESTServer.addConfigurationFlags(nodeCmd)
 	// mark the --tb-tx flag as mandatory for EVM nodes
 	if err := nodeCmd.MarkFlagRequired("tx-db"); err != nil {
-		return nil
+		panic(err)
 	}
 	return nodeCmd
 }
@@ -57,8 +59,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return err
 	}
 	params := &genesis.EvmPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
-	if err != nil {
+	if err = cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
 	blockStore, err := initNodeBlockStore(cfg.Node.DbFile)
@@ -71,9 +72,22 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
+	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
+	if err != nil {
+		return fmt.Errorf("failed to load node keys: %w", err)
+	}
+
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+
+	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
+
 	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
 		systemIdentifier,
+		log,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(blockStore),
@@ -82,15 +96,16 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, log)
+	if err != nil {
+		return fmt.Errorf("failed to create node evm node: %w", err)
+	}
 	cfg.RESTServer.router = api.NewAPI(
 		txs.GetState(),
 		systemIdentifier,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
+		log,
 	)
-	self, node, err := createNode(ctx, txs, cfg.Node, blockStore)
-	if err != nil {
-		return fmt.Errorf("failed to create node evm node: %w", err)
-	}
-	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer)
+	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, log)
 }

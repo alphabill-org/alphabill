@@ -5,9 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/url"
 	"strings"
+
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -15,11 +18,9 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -44,6 +45,7 @@ type (
 		backend    TokenBackend
 		confirmTx  bool
 		feeManager *fees.FeeManager
+		log        *slog.Logger
 	}
 
 	SubmissionResult struct {
@@ -70,7 +72,7 @@ type (
 	}
 )
 
-func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool, feeManager *fees.FeeManager) (*Wallet, error) {
+func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool, feeManager *fees.FeeManager, log *slog.Logger) (*Wallet, error) {
 	if !strings.HasPrefix(backendUrl, "http://") && !strings.HasPrefix(backendUrl, "https://") {
 		backendUrl = "http://" + backendUrl
 	}
@@ -84,6 +86,7 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 		backend:    client.New(*addr),
 		confirmTx:  confirmTx,
 		feeManager: feeManager,
+		log:        log,
 	}, nil
 }
 
@@ -99,7 +102,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 }
 
 func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs CreateFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
-	log.Info("Creating new fungible token type")
+	w.log.Info("Creating new fungible token type")
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomFungibleTokenTypeID(nil)
@@ -135,7 +138,7 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 }
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
-	log.Info("Creating new NFT type")
+	w.log.Info("Creating new NFT type")
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomNonFungibleTokenTypeID(nil)
@@ -163,7 +166,7 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs Cre
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId backend.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
-	log.Info("Creating new fungible token")
+	w.log.Info("Creating new fungible token")
 	attrs := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           bearerPredicate,
 		TypeID:                           typeId,
@@ -187,7 +190,7 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId back
 }
 
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungibleTokenAttributes, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
-	log.Info("Creating new NFT")
+	w.log.Info("Creating new NFT")
 	if len(attrs.Name) > nameMaxSize {
 		return nil, errInvalidNameLength
 	}
@@ -363,7 +366,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	if err != nil {
 		return nil, err
 	}
-	err = sub.ToBatch(w.backend, key.PubKey).SendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, key.PubKey, w.log).SendTx(ctx, w.confirmTx)
 	if sub.Confirmed() {
 		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
 	}
@@ -404,7 +407,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if typeId.Eq(token.TypeID) {
 			matchingTokens = append(matchingTokens, token)
 			var overflow bool
-			totalBalance, overflow, _ = wallet.AddUint64(totalBalance, token.Amount)
+			totalBalance, overflow, _ = util.AddUint64(totalBalance, token.Amount)
 			if overflow {
 				// capping the total balance to maxUint64 should be enough to perform the transfer
 				totalBalance = math.MaxUint64
@@ -430,7 +433,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if err != nil {
 			return nil, err
 		}
-		err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
+		err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, w.confirmTx)
 		if sub.Confirmed() {
 			return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
 		}
@@ -478,7 +481,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if err != nil {
 		return nil, err
 	}
-	err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, w.confirmTx)
 	if sub.Confirmed() {
 		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
 	}

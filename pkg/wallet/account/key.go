@@ -30,7 +30,6 @@ type (
 
 	KeyHashes struct {
 		Sha256 []byte `json:"sha256"`
-		Sha512 []byte `json:"sha512"`
 	}
 )
 
@@ -123,7 +122,6 @@ func NewDerivationPath(accountIndex uint64) string {
 func NewKeyHash(key []byte) *KeyHashes {
 	return &KeyHashes{
 		Sha256: hash.Sum256(key),
-		Sha512: hash.Sum512(key),
 	}
 }
 

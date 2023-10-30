@@ -273,6 +273,7 @@ func Test_restAPI_getToken(t *testing.T) {
 			ID:     test.RandomBytes(32),
 			Kind:   NonFungible,
 			Amount: 42,
+			Locked: 1,
 		}
 		api := &tokensRestAPI{db: &mockStorage{
 			getToken: func(id TokenID) (*TokenUnit, error) {

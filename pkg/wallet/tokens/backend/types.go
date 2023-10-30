@@ -38,6 +38,7 @@ type (
 		TypeID   TokenTypeID      `json:"typeId"`
 		TypeName string           `json:"typeName"`
 		Owner    wallet.Predicate `json:"owner"`
+		Locked   uint64           `json:"locked"`
 		// fungible only
 		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`
@@ -60,6 +61,7 @@ type (
 		Id     []byte `json:"id"`
 		Value  uint64 `json:"value,string"`
 		TxHash []byte `json:"txHash"`
+		Locked uint64 `json:"locked"`
 	}
 )
 
@@ -135,5 +137,6 @@ func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 		Id:     f.Id,
 		Value:  f.Value,
 		TxHash: f.TxHash,
+		Locked: f.Locked,
 	}
 }

@@ -182,13 +182,18 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*ty
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
-	defer x.pacemaker.Stop()
-	x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	currentRound := x.pacemaker.GetCurrentRound()
 	x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return x.loop(ctx) })
+
+	g.Go(func() error {
+		defer x.pacemaker.Stop()
+		x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
+		return x.loop(ctx)
+	})
+
 	g.Go(func() error { return x.sendCertificates(ctx) })
+
 	err := g.Wait()
 	x.log.InfoContext(ctx, "exited distributed consensus manager main loop", logger.Error(err))
 	return err

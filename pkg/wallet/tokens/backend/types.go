@@ -61,7 +61,7 @@ type (
 		Id     []byte `json:"id"`
 		Value  uint64 `json:"value,string"`
 		TxHash []byte `json:"txHash"`
-		Locked uint64 `json:"locked"`
+		Locked uint64 `json:"locked,string"`
 	}
 )
 

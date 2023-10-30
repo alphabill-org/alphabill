@@ -437,12 +437,13 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 		}
 		return err
 	}
-
+	// node is up-to-date, first handle high QC, maybe this has not been seen yet
+	x.processQC(ctx, vote.Timeout.HighQc)
 	// when there is multiple consecutive timeout rounds and instance is in one of the previous round
 	// (ie haven't got enough timeout votes for the latest round quorum) recovery is not triggered as
 	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
 	// AdvanceRoundTC handles nil TC gracefully.
-	x.pacemaker.AdvanceRoundTC(vote.Timeout.LastTC)
+	x.processTC(vote.Timeout.LastTC)
 
 	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if err != nil {
@@ -568,7 +569,9 @@ func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
 		return
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
-		x.log.Warn("failed to handle timeout certificate", logger.Error(err))
+		// method deletes the block that got TC - it will never be part of the chain.
+		// however, this node might not have even seen the block, in which case error is returned, but this is ok - just log
+		x.log.Debug("could not remove the timeout block, node has not received it", logger.Error(err))
 	}
 	x.pacemaker.AdvanceRoundTC(tc)
 }

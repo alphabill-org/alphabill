@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/client/wallet"
 	"github.com/alphabill-org/alphabill/common/logger"
@@ -21,8 +21,8 @@ const (
 
 type BlockProcessor struct {
 	store    BillStore
-	sdrs     map[string]*genesis.SystemDescriptionRecord
-	moneySDR *genesis.SystemDescriptionRecord
+	sdrs     map[string]*sdr.SystemDescriptionRecord
+	moneySDR *sdr.SystemDescriptionRecord
 	log      *slog.Logger
 }
 
@@ -31,7 +31,7 @@ func NewBlockProcessor(store BillStore, moneySystemID []byte, log *slog.Logger) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system description records: %w", err)
 	}
-	sdrsMap := map[string]*genesis.SystemDescriptionRecord{}
+	sdrsMap := map[string]*sdr.SystemDescriptionRecord{}
 	for _, sdr := range sdrs {
 		sdrsMap[string(sdr.SystemIdentifier)] = sdr
 	}

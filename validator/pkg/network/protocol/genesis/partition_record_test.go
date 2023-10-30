@@ -3,14 +3,14 @@ package genesis
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &genesis.SystemDescriptionRecord{
+var systemDescription = &sdr.SystemDescriptionRecord{
 	SystemIdentifier: []byte{0, 0, 0, 0},
 	T2Timeout:        10,
 }
@@ -20,7 +20,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		SystemDescriptionRecord *genesis.SystemDescriptionRecord
+		SystemDescriptionRecord *sdr.SystemDescriptionRecord
 		Validators              []*PartitionNode
 	}
 
@@ -32,7 +32,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name:       "system description record is nil",
 			fields:     fields{},
-			wantErrStr: genesis.ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: sdr.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "validators are missing",
@@ -52,11 +52,11 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name: "invalid validator system identifier",
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 1},
 					T2Timeout:        10,
 				},
-				Validators: []*PartitionNode{genesis.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
+				Validators: []*PartitionNode{sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
 			wantErrStr: "invalid system id: expected 00000001, got 00000000",
 		},
@@ -65,8 +65,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			fields: fields{
 				SystemDescriptionRecord: systemDescription,
 				Validators: []*PartitionNode{
-					genesis.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
-					genesis.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
+					sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
+					sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
 				},
 			},
 			wantErrStr: "validator list error, duplicated node id: 1",
@@ -100,7 +100,7 @@ func TestPartitionRecord_GetPartitionNode(t *testing.T) {
 	pr := &PartitionRecord{
 		SystemDescriptionRecord: systemDescription,
 		Validators: []*PartitionNode{
-			genesis.createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
+			sdr.createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
 		},
 	}
 	require.NotNil(t, pr.GetPartitionNode(nodeIdentifier))

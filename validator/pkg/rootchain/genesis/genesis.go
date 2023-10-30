@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	ag "github.com/alphabill-org/alphabill/api/genesis"
+	ag "github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	util2 "github.com/alphabill-org/alphabill/common/util"

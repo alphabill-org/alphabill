@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
@@ -94,12 +94,12 @@ func TestRootGenesis_IsValid(t *testing.T) {
 					{
 						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
 						Certificate:             nil,
-						SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
+						SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
 					},
 					{
 						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
 						Certificate:             nil,
-						SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
+						SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
 					},
 				},
 			},
@@ -134,7 +134,7 @@ func TestRootGenesis(t *testing.T) {
 	signingKey, _ := testsig.CreateSignerAndVerifier(t)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
-	node := genesis.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
+	node := sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
 	consensus := &ConsensusParams{
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,

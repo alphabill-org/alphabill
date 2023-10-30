@@ -1,4 +1,4 @@
-package genesis
+package sdr
 
 import (
 	gocrypto "crypto"

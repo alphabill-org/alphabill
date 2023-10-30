@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/certificates"
@@ -19,7 +19,7 @@ var (
 
 type (
 	Options struct {
-		sdr *genesis.SystemDescriptionRecord
+		sdr *sdr.SystemDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -31,8 +31,8 @@ func DefaultOptions() *Options {
 	}
 }
 
-func DefaultSDR() *genesis.SystemDescriptionRecord {
-	return &genesis.SystemDescriptionRecord{
+func DefaultSDR() *sdr.SystemDescriptionRecord {
+	return &sdr.SystemDescriptionRecord{
 		SystemIdentifier: DefaultSystemIdentifier,
 		T2Timeout:        DefaultT2Timeout,
 	}
@@ -80,7 +80,7 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	return proofs
 }
 
-func CreateUC(t *testing.T, b *types.Block, roundNumber uint64, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.UnicityCertificate {
+func CreateUC(t *testing.T, b *types.Block, roundNumber uint64, sdr *sdr.SystemDescriptionRecord, signer abcrypto.Signer) *types.UnicityCertificate {
 	blockHash, err := b.Hash(crypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{

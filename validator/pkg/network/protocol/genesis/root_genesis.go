@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 )
 
 const (
@@ -26,7 +26,7 @@ type RootGenesis struct {
 }
 
 type SystemDescriptionRecordGetter interface {
-	GetSystemDescriptionRecord() *genesis.SystemDescriptionRecord
+	GetSystemDescriptionRecord() *sdr.SystemDescriptionRecord
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {

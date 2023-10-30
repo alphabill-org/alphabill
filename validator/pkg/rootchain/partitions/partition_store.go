@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	ag "github.com/alphabill-org/alphabill/api/genesis"
+	ag "github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"

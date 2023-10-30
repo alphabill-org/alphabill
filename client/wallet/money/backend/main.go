@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/client/wallet"
 	"github.com/alphabill-org/alphabill/client/wallet/account"
@@ -95,8 +95,8 @@ type (
 		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
 		GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error)
 		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
-		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
-		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
+		GetSystemDescriptionRecords() ([]*sdr.SystemDescriptionRecord, error)
+		SetSystemDescriptionRecords(sdrs []*sdr.SystemDescriptionRecord) error
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
@@ -114,7 +114,7 @@ type (
 		DbFile                   string
 		ListBillsPageLimit       int
 		InitialBill              InitialBill
-		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
+		SystemDescriptionRecords []*sdr.SystemDescriptionRecord
 		Logger                   *slog.Logger
 	}
 

@@ -11,7 +11,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/client/wallet"
 )
@@ -26,7 +26,7 @@ var (
 	feeUnitsBucket        = []byte("feeUnitsBucket")        // unitID => unit_bytes (for free credit units)
 	lockedFeeCreditBucket = []byte("lockedFeeCreditBucket") // systemID => [unitID => transferFC record]
 	closedFeeCreditBucket = []byte("closedFeeCreditBucket")
-	sdrBucket             = []byte("sdrBucket") // []genesis.SystemDescriptionRecord
+	sdrBucket             = []byte("sdrBucket") // []sdr.SystemDescriptionRecord
 	txProofsBucket        = []byte("txProofs")  // unitID => [txHash => cbor(block proof)]
 	txHistoryBucket       = []byte("txHistory") // pubKeyHash => [seqNum => cbor(TxHistoryRecord)]
 )
@@ -339,11 +339,11 @@ func (s *boltBillStoreTx) SetClosedFeeCredit(unitID []byte, txr *types.Transacti
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error) {
-	var sdrs []*genesis.SystemDescriptionRecord
+func (s *boltBillStoreTx) GetSystemDescriptionRecords() ([]*sdr.SystemDescriptionRecord, error) {
+	var sdrs []*sdr.SystemDescriptionRecord
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(sdrBucket).ForEach(func(systemID, sdrBytes []byte) error {
-			var sdr *genesis.SystemDescriptionRecord
+			var sdr *sdr.SystemDescriptionRecord
 			err := json.Unmarshal(sdrBytes, &sdr)
 			if err != nil {
 				return err
@@ -358,7 +358,7 @@ func (s *boltBillStoreTx) GetSystemDescriptionRecords() ([]*genesis.SystemDescri
 	return sdrs, nil
 }
 
-func (s *boltBillStoreTx) SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error {
+func (s *boltBillStoreTx) SetSystemDescriptionRecords(sdrs []*sdr.SystemDescriptionRecord) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
 		for _, sdr := range sdrs {
 			sdrBytes, err := json.Marshal(sdr)

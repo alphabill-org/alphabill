@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/certification"
@@ -25,7 +25,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	type fields struct {
 		Nodes                   []*PartitionNode
 		Certificate             *types.UnicityCertificate
-		SystemDescriptionRecord *genesis.SystemDescriptionRecord
+		SystemDescriptionRecord *sdr.SystemDescriptionRecord
 	}
 	type args struct {
 		verifier      map[string]crypto2.Verifier
@@ -56,7 +56,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes:                   []*PartitionNode{nil},
 				SystemDescriptionRecord: nil,
 			},
-			wantErrStr: genesis.ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: sdr.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "contains nodes with same node identifier",
@@ -66,7 +66,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node id: 1",
 		},
@@ -78,7 +78,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node signing public key",
 		},
@@ -90,7 +90,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey2, encryptionKey1),
 				},
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node encryption public key",
 		},
@@ -101,7 +101,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
 			wantErrStr: "unicity certificate validation failed, unicity certificate is nil",
 		},

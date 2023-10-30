@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 )
@@ -18,12 +18,12 @@ var (
 )
 
 type PartitionGenesis struct {
-	_                       struct{}                         `cbor:",toarray"`
-	SystemDescriptionRecord *genesis.SystemDescriptionRecord `json:"system_description_record,omitempty"`
-	Certificate             *types.UnicityCertificate        `json:"certificate,omitempty"`
-	RootValidators          []*PublicKeyInfo                 `json:"root_validators,omitempty"`
-	Keys                    []*PublicKeyInfo                 `json:"keys,omitempty"`
-	Params                  []byte                           `json:"params,omitempty"`
+	_                       struct{}                     `cbor:",toarray"`
+	SystemDescriptionRecord *sdr.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Certificate             *types.UnicityCertificate    `json:"certificate,omitempty"`
+	RootValidators          []*PublicKeyInfo             `json:"root_validators,omitempty"`
+	Keys                    []*PublicKeyInfo             `json:"keys,omitempty"`
+	Params                  []byte                       `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
@@ -61,7 +61,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	}
 
 	if x.SystemDescriptionRecord == nil {
-		return genesis.ErrSystemDescriptionIsNil
+		return sdr.ErrSystemDescriptionIsNil
 	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
 		return fmt.Errorf("invalid system decsrition record, %w", err)

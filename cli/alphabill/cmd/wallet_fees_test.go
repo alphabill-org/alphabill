@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/client/wallet/fees"
 	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
@@ -21,10 +21,10 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
-var defaultTokenSDR = &genesis.SystemDescriptionRecord{
+var defaultTokenSDR = &sdr.SystemDescriptionRecord{
 	SystemIdentifier: tokens.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
-	FeeCreditBill: &genesis.FeeCreditBill{
+	FeeCreditBill: &sdr.FeeCreditBill{
 		UnitId:         money2.NewBillID(nil, []byte{3}),
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
@@ -260,7 +260,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 					Value:     initialBill.Value,
 					Predicate: templates.AlwaysTrueBytes(),
 				},
-				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
+				SystemDescriptionRecords: []*sdr.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 				Logger:                   logger.New(t),
 			})
 		require.ErrorIs(t, err, context.Canceled)

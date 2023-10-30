@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils"
@@ -30,7 +30,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	}
 
 	type fields struct {
-		SystemDescriptionRecord *genesis.SystemDescriptionRecord
+		SystemDescriptionRecord *sdr.SystemDescriptionRecord
 		Certificate             *types.UnicityCertificate
 		RootValidators          []*PublicKeyInfo
 		Keys                    []*PublicKeyInfo
@@ -60,13 +60,13 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: genesis.ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: sdr.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "keys are missing",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -79,7 +79,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "node signing key info is nil",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -93,7 +93,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "key info identifier is empty",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -108,7 +108,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "signing pub key is invalid",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -121,7 +121,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption pub key is invalid",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -134,7 +134,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "invalid root signing public key",
 			args: args{verifier: verifiers},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -147,7 +147,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "certificate is nil",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -161,7 +161,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption key is nil",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
@@ -174,7 +174,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption key is invalid",
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},

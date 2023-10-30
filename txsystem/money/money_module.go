@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
@@ -134,7 +134,7 @@ func addInitialBill(initialBill *InitialBill, s *state.State) error {
 	}))
 }
 
-func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBillID types.UnitID, s *state.State) error {
+func addInitialFeeCredits(records []*sdr.SystemDescriptionRecord, initialBillID types.UnitID, s *state.State) error {
 	if len(records) == 0 {
 		return ErrUndefinedSystemDescriptionRecords
 	}

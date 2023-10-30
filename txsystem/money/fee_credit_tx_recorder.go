@@ -3,7 +3,7 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/state"
@@ -11,7 +11,7 @@ import (
 
 // feeCreditTxRecorder container struct for recording fee credit transactions
 type feeCreditTxRecorder struct {
-	sdrs  map[string]*genesis.SystemDescriptionRecord
+	sdrs  map[string]*sdr.SystemDescriptionRecord
 	state *state.State
 	// recorded fee credit transfers indexed by string(system_identifier)
 	transferFeeCredits map[string][]*transferFeeCreditTx
@@ -34,8 +34,8 @@ type reclaimFeeCreditTx struct {
 	closeFee            uint64
 }
 
-func newFeeCreditTxRecorder(s *state.State, systemIdentifier []byte, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
-	sdrs := make(map[string]*genesis.SystemDescriptionRecord)
+func newFeeCreditTxRecorder(s *state.State, systemIdentifier []byte, records []*sdr.SystemDescriptionRecord) *feeCreditTxRecorder {
+	sdrs := make(map[string]*sdr.SystemDescriptionRecord)
 	for _, record := range records {
 		sdrs[string(record.SystemIdentifier)] = record
 	}

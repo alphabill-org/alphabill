@@ -19,8 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/client/wallet/account"
 	"github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
@@ -197,11 +197,11 @@ func createMoneyPartition(t *testing.T, initialBill *money2.InitialBill, nodeCou
 			money2.WithSystemIdentifier(money2.DefaultSystemIdentifier),
 			money2.WithHashAlgorithm(crypto.SHA256),
 			money2.WithInitialBill(initialBill),
-			money2.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+			money2.WithSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 				{
 					SystemIdentifier: money2.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
-					FeeCreditBill: &genesis.FeeCreditBill{
+					FeeCreditBill: &sdr.FeeCreditBill{
 						UnitId:         money2.NewBillID(nil, []byte{2}),
 						OwnerPredicate: templates.AlwaysTrueBytes(),
 					},

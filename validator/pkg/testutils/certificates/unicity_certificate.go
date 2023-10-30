@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/util"
@@ -15,7 +15,7 @@ func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
 	ir *types.InputRecord,
-	systemDescription *genesis.SystemDescriptionRecord,
+	systemDescription *sdr.SystemDescriptionRecord,
 	roundNumber uint64,
 	previousRoundRootHash []byte,
 

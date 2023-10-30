@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/certification"
 )
@@ -30,7 +30,7 @@ type MoneyPartitionParams struct {
 	_                        struct{} `cbor:",toarray"`
 	InitialBillValue         uint64
 	DcMoneySupplyValue       uint64
-	SystemDescriptionRecords []*genesis.SystemDescriptionRecord
+	SystemDescriptionRecords []*sdr.SystemDescriptionRecord
 }
 
 type EvmPartitionParams struct {

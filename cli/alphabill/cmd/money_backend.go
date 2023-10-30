@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
 	util2 "github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
@@ -49,13 +49,13 @@ func (c *moneyBackendConfig) GetDbFile() (string, error) {
 	return dbFile, nil
 }
 
-func (c *moneyBackendConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
-	var sdrs []*genesis.SystemDescriptionRecord
+func (c *moneyBackendConfig) getSDRFiles() ([]*sdr.SystemDescriptionRecord, error) {
+	var sdrs []*sdr.SystemDescriptionRecord
 	if len(c.SDRFiles) == 0 {
 		sdrs = append(sdrs, defaultMoneySDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util2.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
+			sdr, err := util2.ReadJsonFile(sdrFile, &sdr.SystemDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}

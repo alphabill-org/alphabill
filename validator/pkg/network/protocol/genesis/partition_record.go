@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 )
 
@@ -15,12 +15,12 @@ var (
 )
 
 type PartitionRecord struct {
-	_                       struct{}                         `cbor:",toarray"`
-	SystemDescriptionRecord *genesis.SystemDescriptionRecord `json:"system_description_record,omitempty"`
-	Validators              []*PartitionNode                 `json:"validators,omitempty"`
+	_                       struct{}                     `cbor:",toarray"`
+	SystemDescriptionRecord *sdr.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Validators              []*PartitionNode             `json:"validators,omitempty"`
 }
 
-func (x *PartitionRecord) GetSystemDescriptionRecord() *genesis.SystemDescriptionRecord {
+func (x *PartitionRecord) GetSystemDescriptionRecord() *sdr.SystemDescriptionRecord {
 	if x == nil {
 		return nil
 	}

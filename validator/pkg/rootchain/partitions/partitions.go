@@ -1,7 +1,7 @@
 package partitions
 
 import (
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 )
 
@@ -13,6 +13,6 @@ type (
 	}
 
 	PartitionConfiguration interface {
-		GetInfo(id types.SystemID32) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error)
+		GetInfo(id types.SystemID32) (*sdr.SystemDescriptionRecord, PartitionTrustBase, error)
 	}
 )

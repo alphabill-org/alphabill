@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
@@ -27,10 +27,10 @@ const (
 	defaultT2Timeout          = 2500
 )
 
-var defaultMoneySDR = &genesis.SystemDescriptionRecord{
+var defaultMoneySDR = &sdr.SystemDescriptionRecord{
 	SystemIdentifier: money2.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
-	FeeCreditBill: &genesis.FeeCreditBill{
+	FeeCreditBill: &sdr.FeeCreditBill{
 		UnitId:         money2.NewBillID(nil, []byte{2}),
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
@@ -165,13 +165,13 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	return res, nil
 }
 
-func (c *moneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
-	var sdrs []*genesis.SystemDescriptionRecord
+func (c *moneyGenesisConfig) getSDRFiles() ([]*sdr.SystemDescriptionRecord, error) {
+	var sdrs []*sdr.SystemDescriptionRecord
 	if len(c.SDRFiles) == 0 {
 		sdrs = append(sdrs, defaultMoneySDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
+			sdr, err := util.ReadJsonFile(sdrFile, &sdr.SystemDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}

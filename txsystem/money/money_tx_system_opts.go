@@ -3,7 +3,7 @@ package money
 import (
 	gocrypto "crypto"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/state"
@@ -19,7 +19,7 @@ type (
 		trustBase                map[string]crypto.Verifier
 		initialBill              *InitialBill
 		dcMoneyAmount            uint64
-		systemDescriptionRecords []*genesis.SystemDescriptionRecord
+		systemDescriptionRecords []*sdr.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 	}
 
@@ -73,7 +73,7 @@ func WithDCMoneyAmount(a uint64) Option {
 	}
 }
 
-func WithSystemDescriptionRecords(records []*genesis.SystemDescriptionRecord) Option {
+func WithSystemDescriptionRecords(records []*sdr.SystemDescriptionRecord) Option {
 	return func(g *Options) {
 		g.systemDescriptionRecords = records
 	}

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/logger"
 	"github.com/alphabill-org/alphabill/common/util"
@@ -18,7 +18,7 @@ import (
 var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 // SystemDescriptions is map of system description records indexed by System Identifiers
-type SystemDescriptions map[string]*genesis.SystemDescriptionRecord
+type SystemDescriptions map[string]*sdr.SystemDescriptionRecord
 
 type Module interface {
 	TxExecutors() map[string]TxExecutor

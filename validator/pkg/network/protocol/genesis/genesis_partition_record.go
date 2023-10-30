@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 )
@@ -17,13 +17,13 @@ var (
 )
 
 type GenesisPartitionRecord struct {
-	_                       struct{}                         `cbor:",toarray"`
-	Nodes                   []*PartitionNode                 `json:"nodes,omitempty"`
-	Certificate             *types.UnicityCertificate        `json:"certificate,omitempty"`
-	SystemDescriptionRecord *genesis.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	_                       struct{}                     `cbor:",toarray"`
+	Nodes                   []*PartitionNode             `json:"nodes,omitempty"`
+	Certificate             *types.UnicityCertificate    `json:"certificate,omitempty"`
+	SystemDescriptionRecord *sdr.SystemDescriptionRecord `json:"system_description_record,omitempty"`
 }
 
-func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *genesis.SystemDescriptionRecord {
+func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *sdr.SystemDescriptionRecord {
 	if x == nil {
 		return nil
 	}

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/blockproposal"
@@ -85,7 +85,7 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
+	systemDescription *sdr.SystemDescriptionRecord,
 	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
@@ -110,7 +110,7 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
+	systemDescription *sdr.SystemDescriptionRecord,
 	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {

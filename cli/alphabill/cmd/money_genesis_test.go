@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	pg "github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
@@ -153,10 +153,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	sdr := &genesis.SystemDescriptionRecord{
+	sdr := &sdr.SystemDescriptionRecord{
 		SystemIdentifier: money2.DefaultSystemIdentifier,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &sdr.FeeCreditBill{
 			UnitId:         money2.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -184,7 +184,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.Equal(t, sdr, params.SystemDescriptionRecords[0])
 }
 
-func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {
+func createSDRFile(dir string, sdr *sdr.SystemDescriptionRecord) (string, error) {
 	filePath := path.Join(dir, "money-sdr.json")
 	err := util.WriteJsonFile(filePath, sdr)
 	if err != nil {

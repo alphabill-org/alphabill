@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )

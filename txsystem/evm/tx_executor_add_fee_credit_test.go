@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/state"
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"

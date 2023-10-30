@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"

@@ -6,7 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/predicates"
@@ -19,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	testblock "github.com/alphabill-org/alphabill/validator/pkg/testutils/block"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
@@ -948,11 +949,11 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem2.GenericTxSys
 	return s, mss, signer
 }
 
-func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
-	return []*genesis.SystemDescriptionRecord{{
+func createSDRs(fcbID types.UnitID) []*sdr.SystemDescriptionRecord {
+	return []*sdr.SystemDescriptionRecord{{
 		SystemIdentifier: moneySystemID,
 		T2Timeout:        2500,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &sdr.FeeCreditBill{
 			UnitId:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network"
@@ -33,7 +34,7 @@ func NewTestNode(t *testing.T) *TestNode {
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID32, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 			SystemIdentifier: systemID.ToSystemID(),
 			T2Timeout:        2500,
 		},

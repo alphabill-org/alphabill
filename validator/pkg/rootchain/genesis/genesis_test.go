@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/certification"
@@ -36,7 +37,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 			SystemIdentifier: systemIdentifier,
 			T2Timeout:        2500,
 		},

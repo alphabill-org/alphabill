@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
@@ -37,7 +38,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 				SystemIdentifier: sysID0.ToSystemID(),
 				T2Timeout:        2500,
 			},
@@ -45,7 +46,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 				SystemIdentifier: sysID1.ToSystemID(),
 				T2Timeout:        2500,
 			},

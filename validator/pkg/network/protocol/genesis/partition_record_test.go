@@ -56,7 +56,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 1},
 					T2Timeout:        10,
 				},
-				Validators: []*PartitionNode{sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
+				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
 			wantErrStr: "invalid system id: expected 00000001, got 00000000",
 		},
@@ -65,8 +65,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			fields: fields{
 				SystemDescriptionRecord: systemDescription,
 				Validators: []*PartitionNode{
-					sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
-					sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
+					createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
+					createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
 				},
 			},
 			wantErrStr: "validator list error, duplicated node id: 1",
@@ -100,7 +100,7 @@ func TestPartitionRecord_GetPartitionNode(t *testing.T) {
 	pr := &PartitionRecord{
 		SystemDescriptionRecord: systemDescription,
 		Validators: []*PartitionNode{
-			sdr.createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
+			createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
 		},
 	}
 	require.NotNil(t, pr.GetPartitionNode(nodeIdentifier))

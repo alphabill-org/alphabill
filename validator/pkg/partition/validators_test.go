@@ -4,17 +4,17 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/certificates"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &genesis.SystemDescriptionRecord{
+var systemDescription = &sdr.SystemDescriptionRecord{
 	SystemIdentifier: []byte{0, 0, 0, 0},
 	T2Timeout:        2500,
 }
@@ -22,7 +22,7 @@ var systemDescription = &genesis.SystemDescriptionRecord{
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *sdr.SystemDescriptionRecord
 		rootTrustBase     map[string]crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -38,7 +38,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				rootTrustBase:     map[string]crypto.Verifier{"test": v},
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: sdr.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -93,7 +93,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *sdr.SystemDescriptionRecord
 		trustBase         map[string]crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -109,7 +109,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         map[string]crypto.Verifier{"test": v},
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: sdr.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",

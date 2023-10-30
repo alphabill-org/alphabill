@@ -3,6 +3,7 @@ package partitions
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
@@ -53,14 +54,14 @@ func TestPartitionStore(t *testing.T) {
 			name: "create partition store",
 			args: args{partitions: []*genesis.GenesisPartitionRecord{
 				{
-					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+					SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 						SystemIdentifier: id1.ToSystemID(),
 						T2Timeout:        2500,
 					},
 					Nodes: nil,
 				},
 				{
-					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+					SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 						SystemIdentifier: id2.ToSystemID(),
 						T2Timeout:        2500,
 					},
@@ -106,7 +107,7 @@ func TestPartitionStore_Info(t *testing.T) {
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 				SystemIdentifier: id1.ToSystemID(),
 				T2Timeout:        2600,
 			},
@@ -117,7 +118,7 @@ func TestPartitionStore_Info(t *testing.T) {
 			},
 		},
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &sdr.SystemDescriptionRecord{
 				SystemIdentifier: id2.ToSystemID(),
 				T2Timeout:        2500,
 			},

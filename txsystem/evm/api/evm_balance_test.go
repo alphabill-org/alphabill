@@ -13,6 +13,7 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 

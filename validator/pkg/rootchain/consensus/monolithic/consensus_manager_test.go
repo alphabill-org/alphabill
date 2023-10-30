@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb"
@@ -67,9 +68,9 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0.ToSystemID(), T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1.ToSystemID(), T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: sysID0.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: sysID1.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &sdr.SystemDescriptionRecord{SystemIdentifier: sysID2.ToSystemID(), T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	store := NewStateStore(memorydb.New())

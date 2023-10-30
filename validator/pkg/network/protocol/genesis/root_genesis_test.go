@@ -134,7 +134,7 @@ func TestRootGenesis(t *testing.T) {
 	signingKey, _ := testsig.CreateSignerAndVerifier(t)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
-	node := sdr.createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
+	node := createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
 	consensus := &ConsensusParams{
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,

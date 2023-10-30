@@ -32,8 +32,6 @@ type (
 		GetBills(pubKey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
-		GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -62,10 +60,7 @@ type (
 		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
 		OwnerPredicate       []byte `json:"ownerPredicate"`
-
-		// fcb specific fields
-		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
+		Locked               uint64 `json:"locked"`
 	}
 
 	Pubkey struct {
@@ -91,10 +86,6 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
-		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
-		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
-		GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error)
-		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -285,16 +276,6 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
-// GetLockedFeeCredit returns most recently seen transferFC transaction for given system ID and fee credit bill ID.
-func (w *WalletBackend) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
-	return w.store.Do().GetLockedFeeCredit(systemID, fcbID)
-}
-
-// GetClosedFeeCredit returns most recently seen closeFC transaction for given fee credit bill ID.
-func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error) {
-	return w.store.Do().GetClosedFeeCredit(fcbID)
-}
-
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.abc.GetRoundNumber(ctx)
@@ -398,7 +379,7 @@ func (b *Bill) ToGenericBill() *sdk.Bill {
 		TxHash:               b.TxHash,
 		DCTargetUnitID:       b.DCTargetUnitID,
 		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
-		LastAddFCTxHash:      b.LastAddFCTxHash,
+		Locked:               b.Locked,
 	}
 }
 
@@ -415,13 +396,6 @@ func (b *Bill) getValue() uint64 {
 		return b.Value
 	}
 	return 0
-}
-
-func (b *Bill) getLastAddFCTxHash() []byte {
-	if b != nil {
-		return b.LastAddFCTxHash
-	}
-	return nil
 }
 
 func (b *Bill) IsDCBill() bool {

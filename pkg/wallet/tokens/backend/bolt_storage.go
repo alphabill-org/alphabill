@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -25,8 +24,7 @@ var (
 	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID -> b(kind)]
 	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> cbor(block proof)]
 
-	bucketFeeCredits      = []byte("fee-credits")           // UnitID -> json(FeeCreditBill)
-	closedFeeCreditBucket = []byte("closedFeeCreditBucket") // unitID => closeFC record
+	bucketFeeCredits = []byte("fee-credits") // UnitID -> json(FeeCreditBill)
 )
 
 type storage struct {
@@ -300,31 +298,6 @@ func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error {
 	})
 }
 
-func (s *storage) GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error) {
-	var res *types.TransactionRecord
-	err := s.db.View(func(tx *bolt.Tx) error {
-		txBytes := tx.Bucket(closedFeeCreditBucket).Get(fcbID)
-		if txBytes == nil {
-			return nil
-		}
-		return json.Unmarshal(txBytes, &res)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
-func (s *storage) SetClosedFeeCredit(fcbID types.UnitID, txr *types.TransactionRecord) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		txBytes, err := json.Marshal(txr)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket(closedFeeCreditBucket).Put(fcbID, txBytes)
-	})
-}
-
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
@@ -404,7 +377,7 @@ func newBoltStore(dbFile string) (*storage, error) {
 	}
 	s := &storage{db: db}
 
-	if err := sdk.CreateBuckets(db.Update, bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory, bucketFeeCredits, closedFeeCreditBucket); err != nil {
+	if err := sdk.CreateBuckets(db.Update, bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory, bucketFeeCredits); err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
 

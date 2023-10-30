@@ -71,10 +71,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:              id,
-			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
-			TxHash:          txHash,
-			LastAddFCTxHash: txHash,
+			Id:     id,
+			Value:  fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
+			TxHash: txHash,
 		}, txProof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
@@ -85,15 +84,10 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		if err != nil {
 			return err
 		}
-		err = p.store.SetClosedFeeCredit(id, tr)
-		if err != nil {
-			return err
-		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:              id,
-			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:          txHash,
-			LastAddFCTxHash: txHash,
+			Id:     id,
+			Value:  fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash: txHash,
 		}, txProof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx

@@ -143,10 +143,9 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:              tokens.NewFeeCreditRecordID(nil, []byte{1}),
-		Value:           10000000,
-		TxHash:          []byte{1},
-		LastAddFCTxHash: []byte{2},
+		Id:     tokens.NewFeeCreditRecordID(nil, []byte{1}),
+		Value:  10000000,
+		TxHash: []byte{1},
 	}, nil)
 	require.NoError(t, err)
 

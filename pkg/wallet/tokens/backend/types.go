@@ -54,13 +54,12 @@ type (
 
 	TokenID     = types.UnitID
 	TokenTypeID = types.UnitID
-	Kind          byte
+	Kind        byte
 
 	FeeCreditBill struct {
-		Id              []byte `json:"id"`
-		Value           uint64 `json:"value,string"`
-		TxHash          []byte `json:"txHash"`
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash"`
+		Id     []byte `json:"id"`
+		Value  uint64 `json:"value,string"`
+		TxHash []byte `json:"txHash"`
 	}
 )
 
@@ -128,21 +127,13 @@ func (f *FeeCreditBill) GetTxHash() []byte {
 	return nil
 }
 
-func (f *FeeCreditBill) GetLastAddFCTxHash() []byte {
-	if f != nil {
-		return f.LastAddFCTxHash
-	}
-	return nil
-}
-
 func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 	if f == nil {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:              f.Id,
-		Value:           f.Value,
-		TxHash:          f.TxHash,
-		LastAddFCTxHash: f.LastAddFCTxHash,
+		Id:     f.Id,
+		Value:  f.Value,
+		TxHash: f.TxHash,
 	}
 }

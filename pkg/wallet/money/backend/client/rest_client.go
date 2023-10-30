@@ -31,30 +31,26 @@ type (
 		HttpClient  http.Client
 		pagingLimit int
 
-		balanceURL         *url.URL
-		roundNumberURL     *url.URL
-		unitsURL           *url.URL
-		txHistoryURL       *url.URL
-		listBillsURL       *url.URL
-		feeCreditBillURL   *url.URL
-		lockedFeeCreditURL *url.URL
-		closedFeeCreditURL *url.URL
-		transactionsURL    *url.URL
-		infoURL            *url.URL
+		balanceURL       *url.URL
+		roundNumberURL   *url.URL
+		unitsURL         *url.URL
+		txHistoryURL     *url.URL
+		listBillsURL     *url.URL
+		feeCreditBillURL *url.URL
+		transactionsURL  *url.URL
+		infoURL          *url.URL
 	}
 )
 
 const (
-	BalancePath         = "api/v1/balance"
-	ListBillsPath       = "api/v1/list-bills"
-	TxHistoryPath       = "api/v1/tx-history"
-	UnitsPath           = "api/v1/units"
-	RoundNumberPath     = "api/v1/round-number"
-	FeeCreditPath       = "api/v1/fee-credit-bills"
-	LockedFeeCreditPath = "api/v1/locked-fee-credit"
-	ClosedFeeCreditPath = "api/v1/closed-fee-credit"
-	TransactionsPath    = "api/v1/transactions"
-	InfoPath            = "api/v1/info"
+	BalancePath      = "api/v1/balance"
+	ListBillsPath    = "api/v1/list-bills"
+	TxHistoryPath    = "api/v1/tx-history"
+	UnitsPath        = "api/v1/units"
+	RoundNumberPath  = "api/v1/round-number"
+	FeeCreditPath    = "api/v1/fee-credit-bills"
+	TransactionsPath = "api/v1/transactions"
+	InfoPath         = "api/v1/info"
 
 	paramPubKey         = "pubkey"
 	paramIncludeDCBills = "includeDcBills"
@@ -69,19 +65,17 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
 	return &MoneyBackendClient{
-		BaseUrl:            u,
-		HttpClient:         http.Client{Timeout: time.Minute},
-		balanceURL:         u.JoinPath(BalancePath),
-		roundNumberURL:     u.JoinPath(RoundNumberPath),
-		unitsURL:           u.JoinPath(UnitsPath),
-		txHistoryURL:       u.JoinPath(TxHistoryPath),
-		listBillsURL:       u.JoinPath(ListBillsPath),
-		feeCreditBillURL:   u.JoinPath(FeeCreditPath),
-		lockedFeeCreditURL: u.JoinPath(LockedFeeCreditPath),
-		closedFeeCreditURL: u.JoinPath(ClosedFeeCreditPath),
-		transactionsURL:    u.JoinPath(TransactionsPath),
-		infoURL:            u.JoinPath(InfoPath),
-		pagingLimit:        defaultPagingLimit,
+		BaseUrl:          u,
+		HttpClient:       http.Client{Timeout: time.Minute},
+		balanceURL:       u.JoinPath(BalancePath),
+		roundNumberURL:   u.JoinPath(RoundNumberPath),
+		unitsURL:         u.JoinPath(UnitsPath),
+		txHistoryURL:     u.JoinPath(TxHistoryPath),
+		listBillsURL:     u.JoinPath(ListBillsPath),
+		feeCreditBillURL: u.JoinPath(FeeCreditPath),
+		transactionsURL:  u.JoinPath(TransactionsPath),
+		infoURL:          u.JoinPath(InfoPath),
+		pagingLimit:      defaultPagingLimit,
 	}, nil
 }
 
@@ -142,28 +136,6 @@ func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.
 		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
 	}
 	return fcb, nil
-}
-
-func (c *MoneyBackendClient) GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
-	var res *types.TransactionRecord
-	addr := c.lockedFeeCreditURL.
-		JoinPath(hexutil.Encode(systemID)).
-		JoinPath(hexutil.Encode(fcbID))
-	_, err := c.get(ctx, addr, &res, false)
-	if err != nil {
-		return nil, fmt.Errorf("get locked fee credit request failed: %w", err)
-	}
-	return res, nil
-}
-
-func (c *MoneyBackendClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
-	var res *types.TransactionRecord
-	addr := c.closedFeeCreditURL.JoinPath(hexutil.Encode(fcbID))
-	_, err := c.get(ctx, addr, &res, false)
-	if err != nil {
-		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
-	}
-	return res, nil
 }
 
 func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {

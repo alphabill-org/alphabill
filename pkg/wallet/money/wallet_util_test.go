@@ -174,7 +174,6 @@ func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 			TxHash:               b.TxHash,
 			DCTargetUnitID:       b.DCTargetUnitID,
 			DCTargetUnitBacklink: b.DCTargetUnitBacklink,
-			LastAddFCTxHash:      b.LastAddFCTxHash,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs}
@@ -209,14 +208,6 @@ func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID types.Unit
 		return b.getFeeCreditBill(ctx, unitID)
 	}
 	return nil, errors.New("getFeeCreditBill not implemented")
-}
-
-func (b *backendAPIMock) GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
-	return nil, nil
-}
-
-func (b *backendAPIMock) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
-	return nil, nil
 }
 
 func (b *backendAPIMock) GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error) {

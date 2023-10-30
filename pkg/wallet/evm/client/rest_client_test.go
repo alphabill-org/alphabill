@@ -167,7 +167,7 @@ func TestEvmClient_GetFeeCreditBill(t *testing.T) {
 		value := new(big.Int)
 		value.SetString("1300000000000000", 10)
 		require.EqualValues(t, WeiToAlpha(value), fcrBill.Value)
-		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, fcrBill.LastAddFCTxHash)
+		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, fcrBill.TxHash)
 	})
 }
 

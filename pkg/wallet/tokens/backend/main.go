@@ -60,9 +60,6 @@ type Storage interface {
 
 	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
 	SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error
-
-	GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error)
-	SetClosedFeeCredit(fcbID types.UnitID, txr *types.TransactionRecord) error
 }
 
 /*

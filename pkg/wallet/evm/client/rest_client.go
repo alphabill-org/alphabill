@@ -76,10 +76,9 @@ func (e *EvmClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (
 		return nil, fmt.Errorf("account %s has invalid balance %v", hexutil.Encode(unitID), balanceStr)
 	}
 	return &sdk.Bill{
-		Id:              unitID,
-		Value:           WeiToAlpha(balanceWei),
-		TxHash:          nil,
-		LastAddFCTxHash: backlink,
+		Id:     unitID,
+		Value:  WeiToAlpha(balanceWei),
+		TxHash: backlink,
 	}, nil
 }
 

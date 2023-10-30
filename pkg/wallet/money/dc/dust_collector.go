@@ -1,4 +1,4 @@
-package money
+package dc
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -24,6 +25,7 @@ type (
 	DustCollector struct {
 		systemID      []byte
 		maxBillsPerDC int
+		txTimeout     uint64
 		backend       BackendAPI
 		unitLocker    UnitLocker
 		log           *slog.Logger
@@ -35,6 +37,16 @@ type (
 		SwapProof    *wallet.Proof
 	}
 
+	BackendAPI interface {
+		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
+		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
+		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
+		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	}
+
 	UnitLocker interface {
 		LockUnit(lockedBill *unitlock.LockedUnit) error
 		UnlockUnit(accountID, unitID []byte) error
@@ -44,10 +56,11 @@ type (
 	}
 )
 
-func NewDustCollector(systemID []byte, maxBillsPerDC int, backend BackendAPI, unitLocker UnitLocker, log *slog.Logger) *DustCollector {
+func NewDustCollector(systemID []byte, maxBillsPerDC int, txTimeout uint64, backend BackendAPI, unitLocker UnitLocker, log *slog.Logger) *DustCollector {
 	return &DustCollector{
 		systemID:      systemID,
 		maxBillsPerDC: maxBillsPerDC,
+		txTimeout:     txTimeout,
 		backend:       backend,
 		unitLocker:    unitLocker,
 		log:           log,
@@ -333,7 +346,7 @@ func (w *DustCollector) getTxTimeout(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch round number: %w", err)
 	}
-	return roundNr + txTimeoutBlockCount, nil
+	return roundNr + w.txTimeout, nil
 }
 
 func (w *DustCollector) getBillByID(bills []*wallet.Bill, id types.UnitID) *wallet.Bill {

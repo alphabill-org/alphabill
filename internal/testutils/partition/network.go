@@ -100,6 +100,7 @@ func (rn *rootNode) Stop() error {
 type ValidatorIndex int
 
 const ANY_VALIDATOR ValidatorIndex = -1
+const testNetworkTimeout = 600 * time.Millisecond
 
 // getGenesisFiles is a helper function to collect all node genesis files
 func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
@@ -232,7 +233,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		for _, rn := range r.Nodes {
 			rootPeer.Network().Peerstore().AddAddr(rn.id, rn.addr, peerstore.PermanentAddrTTL)
 		}
-		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, log)
+		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, log)
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
@@ -241,7 +242,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
-		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, 300*time.Millisecond, log)
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, log)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}

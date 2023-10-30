@@ -268,8 +268,16 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	if n.network != nil {
 		return nil
 	}
-
-	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, network.DefaultValidatorNetOptions, n.log)
+	var testValidatorNetOptions = network.ValidatorNetOptions{
+		ResponseChannelCapacity:          1000,
+		ForwarderTimeout:                 600 * time.Millisecond,
+		BlockCertificationTimeout:        600 * time.Millisecond,
+		BlockProposalTimeout:             600 * time.Millisecond,
+		LedgerReplicationRequestTimeout:  600 * time.Millisecond,
+		LedgerReplicationResponseTimeout: 600 * time.Millisecond,
+		HandshakeTimeout:                 600 * time.Millisecond,
+	}
+	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, testValidatorNetOptions, n.log)
 	if err != nil {
 		return err
 	}

@@ -17,8 +17,10 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/dc"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
@@ -33,7 +35,7 @@ type (
 		feeManager    *fees.FeeManager
 		TxPublisher   *TxPublisher
 		unitLocker    UnitLocker
-		dustCollector *DustCollector
+		dustCollector *dc.DustCollector
 		log           *slog.Logger
 	}
 
@@ -43,8 +45,6 @@ type (
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
-		GetLockedFeeCredit(ctx context.Context, systemID []byte, unitID []byte) (*types.TransactionRecord, error)
-		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -64,6 +64,14 @@ type (
 		AccountIndex uint64
 		CountDCBills bool
 	}
+
+	UnitLocker interface {
+		LockUnit(lockedBill *unitlock.LockedUnit) error
+		UnlockUnit(accountID, unitID []byte) error
+		GetUnit(accountID, unitID []byte) (*unitlock.LockedUnit, error)
+		GetUnits(accountID []byte) ([]*unitlock.LockedUnit, error)
+		Close() error
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -77,7 +85,7 @@ func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend Backe
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend, log)
 	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
-	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker, log)
+	dustCollector := dc.NewDustCollector(moneySystemID, maxBillsForDustCollection, txTimeoutBlockCount, backend, unitLocker, log)
 	return &Wallet{
 		am:            am,
 		backend:       backend,
@@ -282,8 +290,8 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wa
 // together with account numbers, the proof can be nil if swap tx was not sent e.g. if there's not enough bills to swap.
 // If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
 // proof, the proof can be nil e.g. if there's not enough bills to swap.
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*DustCollectionResult, error) {
-	var res []*DustCollectionResult
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*dc.DustCollectionResult, error) {
+	var res []*dc.DustCollectionResult
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
 			accKey, err := w.am.GetAccountKey(acc.AccountIndex)

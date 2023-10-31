@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -174,10 +175,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify FCB LastAddFCTxHash equals to TxHash
-	lastAddFCTxHash := addFC.Hash(gocrypto.SHA256)
-	require.Equal(t, lastAddFCTxHash, fcb.TxHash)
-	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
+	// verify txHash
+	require.Equal(t, addFC.Hash(gocrypto.SHA256), fcb.TxHash)
 
 	// verify tx1 unit is deleted (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
@@ -219,8 +218,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify FCB LastAddFCTxHash is updated
-	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.LastAddFCTxHash)
+	// verify txHash
+	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.TxHash)
 
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
@@ -608,86 +607,6 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.EqualValues(t, 0, fcb.Value)
 }
 
-func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
-	fcbID := newFeeCreditRecordID(101)
-	store := createTestBillStore(t)
-
-	userBillID := []byte{1}
-	err := store.Do().SetBill(&Bill{
-		Id:             userBillID,
-		Value:          100,
-		TxHash:         []byte{2},
-		OwnerPredicate: templates.AlwaysTrueBytes(),
-	}, nil)
-	require.NoError(t, err)
-
-	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
-		{
-			SystemIdentifier: moneySystemID,
-			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
-				UnitId:         moneyPartitionFeeBillID,
-				OwnerPredicate: templates.AlwaysTrueBytes(),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = store.Do().SetBill(&Bill{
-		Id:             moneyPartitionFeeBillID,
-		OwnerPredicate: templates.AlwaysTrueBytes(),
-		Value:          0,
-	}, nil)
-	require.NoError(t, err)
-
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
-	require.NoError(t, err)
-
-	// when transferFC is processed
-	transferFCAttr := testfc.NewTransferFCAttr(
-		testfc.WithTargetRecordID(fcbID),
-		testfc.WithTargetSystemID(moneySystemID),
-	)
-	transferFC := testfc.NewTransferFC(t, transferFCAttr,
-		testtransaction.WithUnitId(userBillID),
-		testtransaction.WithSystemID(moneySystemID),
-	)
-	transferFCRecord := &types.TransactionRecord{TransactionOrder: transferFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
-	b := &types.Block{
-		Transactions:       []*types.TransactionRecord{transferFCRecord},
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
-	}
-	err = blockProcessor.ProcessBlock(context.Background(), b)
-	require.NoError(t, err)
-
-	// then locked fee credit is added
-	lockedFeeCredit, err := store.Do().GetLockedFeeCredit(moneySystemID, fcbID)
-	require.NoError(t, err)
-	require.Equal(t, transferFCRecord, lockedFeeCredit)
-
-	// when closeFC is processed
-	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
-	)
-	closeFC := testfc.NewCloseFC(t, closeFCAttr,
-		testtransaction.WithSystemID(moneySystemID),
-		testtransaction.WithUnitId(fcbID),
-	)
-	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
-	b = &types.Block{
-		Transactions:       []*types.TransactionRecord{closeFCRecord},
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
-	}
-	err = blockProcessor.ProcessBlock(context.Background(), b)
-	require.NoError(t, err)
-
-	// then closed fee credit is added
-	closedFeeCredit, err := store.Do().GetClosedFeeCredit(fcbID)
-	require.NoError(t, err)
-	require.Equal(t, closeFCRecord, closedFeeCredit)
-}
-
 func TestBlockProcessor_NWaySplit(t *testing.T) {
 	store := createTestBillStore(t)
 	fcbID := newFeeCreditRecordID(101)
@@ -754,6 +673,350 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 	}
 }
 
+func TestLockTx_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// store fee credit bill
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+	err = store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing bill for lock tx
+	unitID := newBillID(3)
+	err = store.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: templates.AlwaysTrueBytes()}, nil)
+	require.NoError(t, err)
+
+	// store system description records
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         money.NewBillID(nil, []byte{2}),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create lock tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       moneySystemID,
+				Type:           money.PayloadTypeLock,
+				UnitID:         unitID,
+				Attributes:     marshalCbor(&money.LockAttributes{LockStatus: 1}),
+				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with lock tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// process lock tx
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify bill was locked
+	bill, err := store.Do().GetBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, bill)
+	require.EqualValues(t, 1, bill.Locked)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), bill.TxHash)
+
+	// and fee credit bll value is reduced
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 99, fcb.Value)
+}
+
+func TestUnlockTx_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// store fee credit bill
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+	err = store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing locked bill for unlock tx
+	unitID := newBillID(3)
+	err = store.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: templates.AlwaysTrueBytes(), Locked: 1}, nil)
+	require.NoError(t, err)
+
+	// create unlock tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       moneySystemID,
+				Type:           money.PayloadTypeUnlock,
+				UnitID:         unitID,
+				Attributes:     marshalCbor(&money.UnlockAttributes{}),
+				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with unlock tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// process block
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify bill was unlocked
+	bill, err := store.Do().GetBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, bill)
+	require.EqualValues(t, 0, bill.Locked)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), bill.TxHash)
+
+	// and fee credit bll value is reduced
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 99, fcb.Value)
+}
+
+func TestSwapUnlocksBill(t *testing.T) {
+	store := createTestBillStore(t)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// store fee credit bill
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+	err = store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing locked bill for swap tx
+	unitID := newBillID(3)
+	err = store.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: templates.AlwaysTrueBytes(), Locked: 1}, nil)
+	require.NoError(t, err)
+
+	// create swap tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       moneySystemID,
+				Type:           money.PayloadTypeSwapDC,
+				UnitID:         unitID,
+				Attributes:     swapTxAttr([]byte{1}),
+				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with the swap tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// process block
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify bill was unlocked
+	bill, err := store.Do().GetBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, bill)
+	require.EqualValues(t, 0, bill.Locked)
+}
+
+func TestReclaimUnlocksBill(t *testing.T) {
+	store := createTestBillStore(t)
+	signer, _ := crypto.NewInMemorySecp256K1Signer()
+
+	// store fee credit bill
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+	err := store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing locked bill for reclaim tx
+	unitID := newBillID(3)
+	err = store.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: templates.AlwaysTrueBytes(), Locked: 1}, nil)
+	require.NoError(t, err)
+
+	// store system description records
+	moneyPartitionFeeBill := &genesis.FeeCreditBill{
+		UnitId:         money.NewBillID(nil, []byte{2}),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+	}
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill:    moneyPartitionFeeBill,
+		},
+	})
+	require.NoError(t, err)
+	err = store.Do().SetBill(&Bill{Id: moneyPartitionFeeBill.UnitId, OwnerPredicate: moneyPartitionFeeBill.OwnerPredicate, Value: 100}, nil)
+	require.NoError(t, err)
+
+	// create block processor
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// create block with reclaim tx
+	closeFCAttr := testfc.NewCloseFCAttr(
+		testfc.WithCloseFCAmount(194),
+		testfc.WithCloseFCTargetUnitID(unitID),
+	)
+	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(fcbID),
+	)
+	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+
+	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
+		testfc.WithReclaimFCClosureTx(closeFCRecord),
+	)
+	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(unitID),
+	)
+	reclaimFCRecord := &types.TransactionRecord{
+		TransactionOrder: reclaimFC,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	b := &types.Block{
+		Transactions:       []*types.TransactionRecord{reclaimFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
+	}
+
+	// process block
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify reclaimed target bill was unlocked
+	bill, err := store.Do().GetBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, bill)
+	require.EqualValues(t, 0, bill.Locked)
+}
+
+func TestLockFC_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+
+	// store existing fee credit bill for lockFC tx
+	unitID := newBillID(3)
+	err := store.Do().SetFeeCreditBill(&Bill{Id: unitID, Value: 100}, nil)
+	require.NoError(t, err)
+
+	// store system description records
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         money.NewBillID(nil, []byte{2}),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create block processor
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// create lockFC tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:   moneySystemID,
+				Type:       transactions.PayloadTypeLockFeeCredit,
+				UnitID:     unitID,
+				Attributes: marshalCbor(&transactions.LockFeeCreditAttributes{LockStatus: 1}),
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with lockFC tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// process lockFC tx
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify fee credit bill was locked
+	fcb, err := store.Do().GetFeeCreditBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 1, fcb.Locked)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.TxHash)
+}
+
+func TestUnlockFC_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+
+	// store existing locked fee credit bill for unlockFC tx
+	unitID := newBillID(3)
+	err := store.Do().SetFeeCreditBill(&Bill{Id: unitID, Locked: 1, Value: 100}, nil)
+	require.NoError(t, err)
+
+	// create unlockFC tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:   moneySystemID,
+				Type:       transactions.PayloadTypeUnlockFeeCredit,
+				UnitID:     unitID,
+				Attributes: marshalCbor(&transactions.UnlockFeeCreditAttributes{}),
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with unlockFC tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// create block processor
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// process block
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify fee credit bill was unlocked
+	fcb, err := store.Do().GetFeeCreditBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 0, fcb.Locked)
+	require.EqualValues(t, 99, fcb.Value)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.TxHash)
+}
+
 func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, b)
 	require.NotNil(t, txProof)
@@ -813,6 +1076,11 @@ func swapTxAttr(pubKeyHash []byte) []byte {
 		DcTransferProofs: []*types.TxProof{},
 		TargetValue:      100,
 	}
+	attrBytes, _ := cbor.Marshal(attr)
+	return attrBytes
+}
+
+func marshalCbor(attr interface{}) []byte {
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes
 }

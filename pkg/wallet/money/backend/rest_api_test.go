@@ -27,7 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -537,75 +536,6 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
 }
 
-func TestGetLockedFeeCreditRequest(t *testing.T) {
-	transferFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	systemID := []byte{0, 0, 0, 0}
-	targetUnitID := money.NewFeeCreditRecordID(nil, []byte{1})
-	walletBackend := newWalletBackend(t, withLockedFeeCredit(systemID, targetUnitID, transferFC))
-	port, _ := startServer(t, walletBackend)
-
-	response := &types.TransactionRecord{}
-	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%s", port, systemID, targetUnitID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, transferFC, response)
-
-	// verify missing systemID returns 404
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%s", port, []byte{1}, targetUnitID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
-
-	// verify missing unitID returns 404
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%s", port, systemID, money.NewFeeCreditRecordID(nil, []byte{2})), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
-
-	// verify invalid systemID returns 400 (removed 0x prefix)
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/%X/0x%s", port, systemID, targetUnitID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-
-	// verify invalid unitID returns 400 (removed 0x prefix)
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/%s", port, systemID, targetUnitID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-}
-
-func TestGetClosedFeeCreditRequest(t *testing.T) {
-	closeFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewCloseFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
-	walletBackend := newWalletBackend(t, withClosedFeeCredit(fcbID, closeFC))
-	port, _ := startServer(t, walletBackend)
-
-	response := &types.TransactionRecord{}
-	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%s", port, fcbID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, closeFC, response)
-
-	// verify missing fcb returns 404
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, []byte{0}), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
-
-	// verify invalid fcb returns 400 (removed 0x prefix)
-	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/%s", port, fcbID), response)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-}
-
 func TestInfoRequest_Ok(t *testing.T) {
 	service := newWalletBackend(t)
 	port, _ := startServer(t, service)
@@ -708,22 +638,6 @@ func withFeeCreditBills(bills ...*Bill) option {
 				}
 			}
 			return nil
-		})
-	}
-}
-
-func withLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) option {
-	return func(s *WalletBackend) error {
-		return s.store.WithTransaction(func(tx BillStoreTx) error {
-			return tx.SetLockedFeeCredit(systemID, fcbID, txr)
-		})
-	}
-}
-
-func withClosedFeeCredit(fcbID []byte, txr *types.TransactionRecord) option {
-	return func(s *WalletBackend) error {
-		return s.store.WithTransaction(func(tx BillStoreTx) error {
-			return tx.SetClosedFeeCredit(fcbID, txr)
 		})
 	}
 }

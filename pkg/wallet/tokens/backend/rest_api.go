@@ -30,7 +30,6 @@ type dataSource interface {
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
 	GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
-	GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error)
 }
 
 type abClient interface {
@@ -71,7 +70,6 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/closed-fee-credit/{unitId}", api.getClosedFeeCredit).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -322,26 +320,6 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	api.rw.WriteResponse(w, fcb.ToGenericBill())
-}
-
-func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
-	if err != nil {
-		api.rw.InvalidParamResponse(w, "unitId", err)
-		return
-	}
-	cfc, err := api.db.GetClosedFeeCredit(unitID)
-	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load closed fee credit for ID 0x%s: %w", unitID, err))
-		return
-	}
-	if cfc == nil {
-		w.WriteHeader(http.StatusNotFound)
-		api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "closed fee credit does not exist"})
-		return
-	}
-	api.rw.WriteCborResponse(w, cfc)
 }
 
 func (api *tokensRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {

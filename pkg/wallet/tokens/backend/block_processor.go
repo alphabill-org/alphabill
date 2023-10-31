@@ -330,10 +330,6 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		if err != nil {
 			return fmt.Errorf("unlock token tx: failed to get token with id=%X: %w", id, err)
 		}
-		attr := &tokens.UnlockTokenAttributes{}
-		if err := tx.UnmarshalAttributes(attr); err != nil {
-			return err
-		}
 		token.Locked = 0
 		token.TxHash = txHash
 		return p.saveToken(token, txProof)

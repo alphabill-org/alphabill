@@ -17,7 +17,7 @@ type (
 		TxHash               []byte `json:"txHash,omitempty"`
 		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
-		Locked               uint64 `json:"locked,omitempty"`
+		Locked               uint64 `json:"locked,omitempty,string"`
 	}
 )
 

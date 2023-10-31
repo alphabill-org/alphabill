@@ -268,6 +268,7 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	if n.network != nil {
 		return nil
 	}
+
 	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, network.DefaultValidatorNetOptions, n.log)
 	if err != nil {
 		return err

@@ -49,9 +49,6 @@ func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like new, combine, sign")
-		},
 	}
 	cmd.AddCommand(newGenesisCmd(config))
 	cmd.AddCommand(combineRootGenesisCmd(config))

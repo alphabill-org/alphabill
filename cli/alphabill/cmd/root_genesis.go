@@ -113,23 +113,23 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return fmt.Errorf("failed to read root chain keys from file '%s', error %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
-		return fmt.Errorf("failed to read partition genesis files, %w", err)
+		return fmt.Errorf("failed to read partition genesis files: %w", err)
 	}
 	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
 	if err != nil {
-		return fmt.Errorf("genesis partition record generation failed, %w", err)
+		return fmt.Errorf("genesis partition record generation failed: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
-		return fmt.Errorf("failed to extract root ID from publick key, %w", err)
+		return fmt.Errorf("failed to extract root ID from publick key: %w", err)
 	}
 	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
-		return fmt.Errorf("root public key conversion error, %w", err)
+		return fmt.Errorf("root public key conversion failed: %w", err)
 	}
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
@@ -142,15 +142,15 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 		rootgenesis.WithBlockRate(config.BlockRateMs),
 		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
 	if err != nil {
-		return fmt.Errorf("generate root genesis record failed, %w", err)
+		return fmt.Errorf("generate root genesis record failed: %w", err)
 	}
 	err = saveRootGenesisFile(rg, config.getOutputDir())
 	if err != nil {
-		return fmt.Errorf("root genesis save failed, %w", err)
+		return fmt.Errorf("root genesis save failed: %w", err)
 	}
 	err = savePartitionGenesisFiles(pg, config.getOutputDir())
 	if err != nil {
-		return fmt.Errorf("save partition genesis failed, %w", err)
+		return fmt.Errorf("save partition genesis failed: %w", err)
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 	for _, p := range paths {
 		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, fmt.Errorf("partition genesis file '%s', read error %w", p, err)
+			return nil, fmt.Errorf("read partition genesis file '%s' failed: %w", p, err)
 		}
 		pns = append(pns, pr)
 	}
@@ -176,7 +176,7 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 	for _, pg := range pgs {
 		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
-			return fmt.Errorf("failed to save partition %X genesis, %w", pg.SystemDescriptionRecord.SystemIdentifier, err)
+			return fmt.Errorf("save partition %X genesis failed: %w", pg.SystemDescriptionRecord.SystemIdentifier, err)
 		}
 	}
 	return nil

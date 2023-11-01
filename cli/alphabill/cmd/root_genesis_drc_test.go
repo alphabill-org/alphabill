@@ -84,7 +84,7 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis merge failed, not compatible root genesis files, consensus is different")
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis merge failed: not compatible root genesis files, consensus is different")
 }
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
@@ -171,7 +171,7 @@ func TestGenerateGenesisFilesAndSign_ErrTooMany(t *testing.T) {
 	cmd = New(logF)
 	args = "root-genesis sign --home " + homeDir + " -o " + outputDirNode3 + " -g" + " --root-genesis=" + filepath.Join(outputDirNode2, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis add signature error, genesis is already signed by maximum number of root nodes")
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis add signature failed: genesis is already signed by maximum number of root nodes")
 }
 
 func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams) []string {

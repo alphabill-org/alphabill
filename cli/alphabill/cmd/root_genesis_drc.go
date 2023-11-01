@@ -70,24 +70,24 @@ func combineRootGenesisRunFunc(config *combineGenesisConfig) error {
 		outputDir = config.OutputDir
 	}
 	if err := createOutputDir(outputDir); err != nil {
-		return fmt.Errorf("combine faild %w", err)
+		return fmt.Errorf("create dir '%s' failed: %w", outputDir, err)
 	}
 	rgs, err := loadRootGenesisFiles(config.RootGenesisFiles)
 	if err != nil {
-		return fmt.Errorf("failed to read root geresis files, %w", err)
+		return fmt.Errorf("failed to read root geresis files: %w", err)
 	}
 	// Combine root genesis files to single distributed genesis file
 	rg, pg, err := rootgenesis.MergeRootGenesisFiles(rgs)
 	if err != nil {
-		return fmt.Errorf("root genesis merge failed, %w", err)
+		return fmt.Errorf("root genesis merge failed: %w", err)
 	}
 	err = saveRootGenesisFile(rg, outputDir)
 	if err != nil {
-		return fmt.Errorf("root genesis save failed, %w", err)
+		return fmt.Errorf("root genesis save failed: %w", err)
 	}
 	err = savePartitionGenesisFiles(pg, outputDir)
 	if err != nil {
-		return fmt.Errorf("partition genesis file save failed, %w", err)
+		return fmt.Errorf("partition genesis file save failed: %w", err)
 	}
 	return nil
 }
@@ -135,33 +135,33 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 		}
 	}
 	if err := createOutputDir(outputDir); err != nil {
-		return fmt.Errorf("sign faild %w", err)
+		return fmt.Errorf("create dir '%s' failed: %w", outputDir, err)
 	}
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return fmt.Errorf("failed to read root chain keys from file '%s', %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
-		return fmt.Errorf("failed to extract peer id from key file %s, error %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to extract peer id from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
-		return fmt.Errorf("failed to extract encryption public key from key file %s, error %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to extract encryption public key from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	rg, err := util.ReadJsonFile(config.RootGenesisFile, &genesis.RootGenesis{})
 	if err != nil {
-		return fmt.Errorf("root genesis file %s read error %w", config.RootGenesisFile, err)
+		return fmt.Errorf("root genesis file '%s' read error: %w", config.RootGenesisFile, err)
 	}
 	// Combine root genesis files to single distributed genesis file
 	rg, err = rootgenesis.RootGenesisAddSignature(rg, peerID.String(), keys.SigningPrivateKey, encPubKeyBytes)
 	if err != nil {
-		return fmt.Errorf("root genesis add signature error, %w", err)
+		return fmt.Errorf("root genesis add signature failed: %w", err)
 	}
 	err = saveRootGenesisFile(rg, outputDir)
 	if err != nil {
-		return fmt.Errorf("root genesis save error %w", err)
+		return fmt.Errorf("root genesis save failed: %w", err)
 	}
 	return nil
 }

@@ -14,10 +14,6 @@ import (
 )
 
 const (
-	totalNodesCmdFlag      = "total-nodes"
-	consensusTmoCmdFlag    = "consensus-timeout"
-	quorumThresholdCmdFlag = "quorum-threshold"
-
 	partitionRecordFile = "partition-node-genesis-file"
 	rootGenesisFileName = "root-genesis.json"
 )
@@ -53,11 +49,10 @@ func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("error: must specify a subcommand, new")
-		},
 	}
 	cmd.AddCommand(newGenesisCmd(config))
+	cmd.AddCommand(combineRootGenesisCmd(config))
+	cmd.AddCommand(signRootGenesisCmd(config))
 	return cmd
 }
 
@@ -71,19 +66,16 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	}
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-	// Consensus params
-	cmd.Flags().Uint32Var(&config.TotalNodes, totalNodesCmdFlag, 1, "total number of root nodes")
-	cmd.Flags().MarkHidden(totalNodesCmdFlag)
-	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
-	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, consensusTmoCmdFlag, genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
-	cmd.Flags().MarkHidden(consensusTmoCmdFlag)
-	cmd.Flags().Uint32Var(&config.QuorumThreshold, quorumThresholdCmdFlag, 0, "define higher quorum threshold instead of calculated default")
-	cmd.Flags().MarkHidden(quorumThresholdCmdFlag)
-	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
 		panic(err)
 	}
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	// Consensus params
+	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
+	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
+	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
+	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
+	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 	return cmd
 }
 
@@ -93,12 +85,12 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	var outputDir string
 	if c.OutputDir != "" {
 		outputDir = c.OutputDir
+		// if key file path not set, then set it to the output path
+		if c.Keys.KeyFilePath == "" {
+			c.Keys.KeyFilePath = filepath.Join(c.OutputDir, defaultKeysFileName)
+		}
 	} else {
 		outputDir = c.Base.defaultRootGenesisDir()
-	}
-	// -rwx------
-	if err := os.MkdirAll(outputDir, 0700); err != nil {
-		panic(err)
 	}
 	return outputDir
 }
@@ -113,27 +105,31 @@ func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
 
 func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
-	_ = config.getOutputDir()
+	dir := config.getOutputDir()
+	// create directory -rwx------
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("genesis file directory create failed: %w", err)
+	}
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return fmt.Errorf("failed to read root chain keys from file '%s', error %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read partition genesis files: %w", err)
 	}
 	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
 	if err != nil {
-		return err
+		return fmt.Errorf("genesis partition record generation failed: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract root ID from publick key: %w", err)
 	}
 	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
-		return err
+		return fmt.Errorf("root public key conversion failed: %w", err)
 	}
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
@@ -145,17 +141,16 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
 		rootgenesis.WithBlockRate(config.BlockRateMs),
 		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
-
 	if err != nil {
-		return err
+		return fmt.Errorf("generate root genesis record failed: %w", err)
 	}
 	err = saveRootGenesisFile(rg, config.getOutputDir())
 	if err != nil {
-		return err
+		return fmt.Errorf("root genesis save failed: %w", err)
 	}
 	err = savePartitionGenesisFiles(pg, config.getOutputDir())
 	if err != nil {
-		return err
+		return fmt.Errorf("save partition genesis failed: %w", err)
 	}
 	return nil
 }
@@ -165,7 +160,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 	for _, p := range paths {
 		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to read partition node genesis file '%s', error %w", p, err)
+			return nil, fmt.Errorf("read partition genesis file '%s' failed: %w", p, err)
 		}
 		pns = append(pns, pr)
 	}
@@ -181,7 +176,7 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 	for _, pg := range pgs {
 		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
-			return err
+			return fmt.Errorf("save partition %X genesis failed: %w", pg.SystemDescriptionRecord.SystemIdentifier, err)
 		}
 	}
 	return nil

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -22,13 +24,50 @@ var (
 	errUnicitySealNoSignature    = errors.New("unicity seal is missing signature")
 )
 
+type SignatureMap map[string][]byte
 type UnicitySeal struct {
-	_                    struct{}          `cbor:",toarray"`
-	RootChainRoundNumber uint64            `json:"root_chain_round_number,omitempty"`
-	Timestamp            uint64            `json:"timestamp,omitempty"`
-	PreviousHash         []byte            `json:"previous_hash,omitempty"`
-	Hash                 []byte            `json:"hash,omitempty"`
-	Signatures           map[string][]byte `json:"signatures,omitempty"`
+	_                    struct{}     `cbor:",toarray"`
+	RootChainRoundNumber uint64       `json:"root_chain_round_number,omitempty"`
+	Timestamp            uint64       `json:"timestamp,omitempty"`
+	PreviousHash         []byte       `json:"previous_hash,omitempty"`
+	Hash                 []byte       `json:"hash,omitempty"`
+	Signatures           SignatureMap `json:"signatures,omitempty"`
+}
+
+// Signatures are serialized as alphabetically sorted CBOR array
+type signaturesCBOR []*signature
+type signature struct {
+	_         struct{} `cbor:",toarray"`
+	NodeID    string   `json:"node_id,omitempty"`
+	Signature []byte   `json:"signature,omitempty"`
+}
+
+func (s *SignatureMap) MarshalCBOR() ([]byte, error) {
+	// shallow copy
+	signatures := *s
+	authors := make([]string, 0, len(signatures))
+	for k := range *s {
+		authors = append(authors, k)
+	}
+	sort.Strings(authors)
+	sCBOR := make(signaturesCBOR, len(signatures))
+	for i, author := range authors {
+		sCBOR[i] = &signature{NodeID: author, Signature: signatures[author]}
+	}
+	return cbor.Marshal(sCBOR)
+}
+
+func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
+	var sCBOR signaturesCBOR
+	if err := cbor.Unmarshal(b, &sCBOR); err != nil {
+		return fmt.Errorf("cbor unmarshal failed, %w", err)
+	}
+	sigMap := make(SignatureMap)
+	for _, sig := range sCBOR {
+		sigMap[sig.NodeID] = sig.Signature
+	}
+	*s = sigMap
+	return nil
 }
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
@@ -57,7 +96,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
-	signature, err := signer.SignBytes(x.Bytes())
+	sig, err := signer.SignBytes(x.Bytes())
 	if err != nil {
 		return fmt.Errorf("sign failed, %w", err)
 	}
@@ -65,7 +104,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	if x.Signatures == nil {
 		x.Signatures = make(map[string][]byte)
 	}
-	x.Signatures[id] = signature
+	x.Signatures[id] = sig
 	return nil
 }
 

@@ -13,13 +13,11 @@ import (
 var (
 	ErrConsensusParamsIsNil          = errors.New("consensus record is nil")
 	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root nodes")
-	ErrConsensusNotSigned            = errors.New("consensus struct is not signed")
 	ErrBlockRateTooSmall             = errors.New("block rate too small")
 	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
 	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
 	ErrSignerIsNil                   = errors.New("signer is nil")
 	ErrRootValidatorInfoMissing      = errors.New("missing root node public info")
-	ErrConsensusIsNotSignedByAll     = errors.New("consensus is not signed by all root nodes")
 )
 
 const (

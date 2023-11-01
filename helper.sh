@@ -1,26 +1,5 @@
 #!/bin/bash
-
-# generate local addresses by incrementing port number
-# expects two arguments
-# $1 - path to key files
-# $2 - port number
-function generate_peer_addresses() {
-local port=$2
-local addresses=
-for keyfile in $1
-do
-  if [[ ! -f $keyfile ]]; then
-    echo "Key files do not exist, generate setup!" 1>&2
-    exit 1
-  fi
-  id=$(build/alphabill identifier -k "$keyfile" | tail -n1)
-  addresses="$addresses,$id=/ip4/127.0.0.1/tcp/$port";
-  ((port=port+1))
-done
-addresses="${addresses:1}"
-echo "$addresses"
-}
-
+# generate logger configuration file
 function generate_log_configuration() {
   # to iterate over all home directories
   for homedir in testab/*/; do
@@ -28,23 +7,24 @@ function generate_log_configuration() {
     cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
 outputPath:
-# Set to true to log in console optimized way. If false, uses JSON format.
-consoleFormat: true
-# Controls if the log caller file name and row number is added to log.
-showCaller: true
-# The time zone for log messages.
-timeLocation: UTC
 # Controls if goroutine ID is added to log.
 showGoroutineID: true
-# Controls if Node ID is added to log.
-showNodeID: true
 # The default log level for all loggers
 # Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
 defaultLevel: DEBUG
-# Override the logger level for each package. Use _ for separating directories and other special characters.
-# E.g. internal/txsystem/state becomes internal_txsystem_state.
-packageLevels:
-internal_txbuffer: WARNING
+# Output format for log records (text: "parser friendly" plain text;)
+format: text
+# Sets time format to use for log record timestamp. Uses Go time
+# format, ie "2006-01-02T15:04:05.0000Z0700" for more see
+# https://pkg.go.dev/time#pkg-constants
+# special value "none" can be used to disable logging timestamp;
+timeFormat: "2006-01-02T15:04:05.0000Z0700"
+# How to format peer ID values (ie node id):
+# - none: do not log peer id at all;
+# - short: log shortened id (middle part replaced with single *);
+# otherwise full peer id is logged.
+# This setting is not respected by ECS handler which always logs full ID.
+peerIdFormat: short
 EOT
   done
   return 0
@@ -99,12 +79,34 @@ function generate_root_genesis() {
     fi
     node_genesis_files="$node_genesis_files -p $file"
   done
-  build/alphabill root-genesis new --home testab/rootchain1 -g --total-nodes=1 $node_genesis_files
+  # generate individual root node genesis files
+  for i in $(seq 1 "$1")
+  do
+    build/alphabill root-genesis new --home testab/rootchain"$i" -g --total-nodes="$1" $node_genesis_files
+  done
+  # if only one root node, then we are done
+  if [ $1 == 1 ]; then
+    return 0
+  fi
+  # else combine to generate common root genesis
+  root_genesis_files=""
+  for file in testab/rootchain*/rootchain/root-genesis.json
+  do
+    root_genesis_files="$root_genesis_files --root-genesis=$file"
+  done
+  # merge root genesis files
+  for i in $(seq 1 "$1")
+  do
+  build/alphabill root-genesis combine --home testab/rootchain"$i" $root_genesis_files
+  done
 }
 
 function start_root_nodes() {
   local rPort=29666
   local pPort=26662
+  # create a bootnode
+  id=$(build/alphabill identifier -k testab/rootchain1/rootchain/keys.json | tail -n1)
+  bootNode="$id@/ip4/127.0.0.1/tcp/$rPort"
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -112,7 +114,7 @@ function start_root_nodes() {
       echo "Root genesis files do not exist, generate setup!" 1>&2
       exit 1
     fi
-    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" &>> testab/rootchain$i/rootchain/rootchain.log &
+    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" --root-listener="/ip4/127.0.0.1/tcp/$rPort" --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     ((rPort=rPort+1))
     ((pPort=pPort+1))
     ((i=i+1))
@@ -161,7 +163,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file &>> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))

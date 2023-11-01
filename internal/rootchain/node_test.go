@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
@@ -128,6 +129,34 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 
 	p := peer.CreatePeer(t, node.PeerConf)
 	validator, err := New(p, mockNet, partitionStore, cm, log)
+	require.NoError(t, err)
+	require.NotNil(t, validator)
+}
+
+func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	node := testutils.NewTestNode(t)
+	verifier := node.Verifier
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := node.PeerConf.ID
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	require.NoError(t, err)
+	partitionNetMock := testnetwork.NewMockNetwork()
+	rootHost := testutils.NewTestNode(t)
+	rootNetMock := testnetwork.NewMockNetwork()
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	log := testlogger.New(t).With(logger.NodeID(id))
+	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
+		rootGenesis,
+		partitionStore,
+		rootNetMock,
+		rootHost.Signer,
+		log)
+	require.NoError(t, err)
+	p := peer.CreatePeer(t, node.PeerConf)
+	validator, err := New(p, partitionNetMock, partitionStore, cm, log)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }

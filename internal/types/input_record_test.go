@@ -112,6 +112,116 @@ func TestInputRecord_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, hash)
 }
 
+func Test_InputRecord_Equal(t *testing.T) {
+	var irA = &InputRecord{
+		PreviousHash:    []byte{1, 1, 1},
+		Hash:            []byte{2, 2, 2},
+		BlockHash:       []byte{3, 3, 3},
+		SummaryValue:    []byte{4, 4, 4},
+		RoundNumber:     2,
+		SumOfEarnedFees: 33,
+	}
+
+	tests := []struct {
+		name string
+		ir   *InputRecord
+		want bool
+	}{
+		{
+			name: "equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     2,
+				SumOfEarnedFees: 33,
+			},
+			want: true,
+		},
+		{
+			name: "Previous hash not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     2,
+				SumOfEarnedFees: 33,
+			},
+			want: false,
+		},
+		{
+			name: "Hash not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2, 3},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     2,
+				SumOfEarnedFees: 33,
+			},
+			want: false,
+		},
+		{
+			name: "Block hash not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       nil,
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     2,
+				SumOfEarnedFees: 33,
+			},
+			want: false,
+		},
+		{
+			name: "Summary value not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{},
+				RoundNumber:     2,
+				SumOfEarnedFees: 33,
+			},
+			want: false,
+		},
+		{
+			name: "RoundNumber not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     1,
+				SumOfEarnedFees: 33,
+			},
+			want: false,
+		},
+		{
+			name: "SumOfEarnedFees not equal",
+			ir: &InputRecord{
+				PreviousHash:    []byte{1, 1, 1},
+				Hash:            []byte{2, 2, 2},
+				BlockHash:       []byte{3, 3, 3},
+				SummaryValue:    []byte{4, 4, 4},
+				RoundNumber:     2,
+				SumOfEarnedFees: 1,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := irA.Equal(tt.ir); got != tt.want {
+				t.Errorf("Equal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestInputRecord_NewRepeatUC(t *testing.T) {
 	repeatUC := ir.NewRepeatIR()
 	require.NotNil(t, repeatUC)

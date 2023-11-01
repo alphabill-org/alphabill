@@ -20,12 +20,12 @@ func TestNewNetwork_Ok(t *testing.T) {
 		},
 		systemIdentifier)
 	require.NoError(t, err)
-	abNetwork, err := NewAlphabillPartition([]*NodePartition{counterPartition})
+	abNetwork, err := NewMultiRootAlphabillPartition(3, []*NodePartition{counterPartition})
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start(t))
 	defer abNetwork.WaitClose(t)
 
-	require.Len(t, abNetwork.RootPartition.Nodes, 1)
+	require.Len(t, abNetwork.RootPartition.Nodes, 3)
 	require.Len(t, abNetwork.NodePartitions, 1)
 	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
 	require.NoError(t, err)

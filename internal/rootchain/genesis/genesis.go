@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -216,9 +217,17 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// if all requests match then consensus is present
 	sealFn := func(rootHash []byte) (*types.UnicitySeal, error) {
+		roundMeta := &abtypes.RoundInfo{
+			RoundNumber:       genesis.RootRound,
+			Epoch:             0,
+			Timestamp:         util.GenesisTime,
+			ParentRoundNumber: 0,
+			CurrentRootHash:   rootHash,
+		}
 		uSeal := &types.UnicitySeal{
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            util.GenesisTime,
+			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),
 			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
@@ -277,7 +286,6 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// sort genesis partition by system id
 	sort.Slice(genesisPartitions, func(i, j int) bool {
-
 		return util.BytesToUint32(genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier) < util.BytesToUint32(genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier)
 	})
 	// Sign the consensus and append signature
@@ -359,9 +367,9 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		return nil, nil, fmt.Errorf("invalid root genesis input: %w", err)
 	}
 	consensusBytes := rg.Root.Consensus.Bytes()
-	nodeIds := map[string]bool{}
+	nodeIds := map[string]struct{}{}
 	for _, v := range rg.Root.RootValidators {
-		nodeIds[v.NodeIdentifier] = true
+		nodeIds[v.NodeIdentifier] = struct{}{}
 	}
 	// Check and append
 	for _, appendGen := range rest {
@@ -388,7 +396,7 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 				continue
 			}
 			rg.Root.RootValidators = append(rg.Root.RootValidators, v)
-			nodeIds[v.NodeIdentifier] = true
+			nodeIds[v.NodeIdentifier] = struct{}{}
 		}
 		// Make sure that they have same the number of partitions
 		if len(rg.Partitions) != len(appendGen.Partitions) {

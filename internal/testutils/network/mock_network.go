@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -44,6 +46,26 @@ func NewMockNetwork() *MockNet {
 		{protocolID: network.ProtocolLedgerReplicationResp, msgStruct: replication.LedgerReplicationResponse{}},
 		{protocolID: network.ProtocolHandshake, msgStruct: handshake.Handshake{}},
 		{protocolID: network.ProtocolUnicityCertificates, msgStruct: types.UnicityCertificate{}},
+	})
+	if err != nil {
+		panic(fmt.Errorf("failed to register protocols: %w", err))
+	}
+	return mn
+}
+
+func NewRootMockNetwork() *MockNet {
+	mn := &MockNet{
+		MessageCh:    make(chan any, 100),
+		sentMessages: make(map[string][]PeerMessage),
+		protocols:    make(map[reflect.Type]string),
+	}
+	err := mn.registerSendProtocols([]msgProtocol{
+		{protocolID: network.ProtocolRootIrChangeReq, msgStruct: abtypes.IRChangeReq{}},
+		{protocolID: network.ProtocolRootProposal, msgStruct: abdrc.ProposalMsg{}},
+		{protocolID: network.ProtocolRootVote, msgStruct: abdrc.VoteMsg{}},
+		{protocolID: network.ProtocolRootTimeout, msgStruct: abdrc.TimeoutMsg{}},
+		{protocolID: network.ProtocolRootStateReq, msgStruct: abdrc.GetStateMsg{}},
+		{protocolID: network.ProtocolRootStateResp, msgStruct: abdrc.StateMsg{}},
 	})
 	if err != nil {
 		panic(fmt.Errorf("failed to register protocols: %w", err))

@@ -8,6 +8,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"

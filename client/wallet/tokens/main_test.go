@@ -719,12 +719,12 @@ func TestMintNFT(t *testing.T) {
 }
 
 func TestTransferNFT(t *testing.T) {
-	tokens := make(map[string]*backend.TokenUnit)
+	toks := make(map[string]*backend.TokenUnit)
 
 	recTxs := make(map[string]*types.TransactionOrder, 0)
 	be := &mockTokenBackend{
 		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
-			return tokens[string(id)], nil
+			return toks[string(id)], nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -774,7 +774,7 @@ func TestTransferNFT(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokens[string(tt.token.ID)] = tt.token
+			toks[string(tt.token.ID)] = tt.token
 			result, err := tw.TransferNFT(context.Background(), 1, tt.token.ID, tt.key, nil)
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -789,12 +789,12 @@ func TestTransferNFT(t *testing.T) {
 }
 
 func TestUpdateNFTData(t *testing.T) {
-	tokens := make(map[string]*backend.TokenUnit)
+	toks := make(map[string]*backend.TokenUnit)
 
 	recTxs := make(map[string]*types.TransactionOrder, 0)
 	be := &mockTokenBackend{
 		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
-			return tokens[string(id)], nil
+			return toks[string(id)], nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -823,7 +823,7 @@ func TestUpdateNFTData(t *testing.T) {
 	}
 
 	tok := &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), TxHash: test.RandomBytes(32)}
-	tokens[string(tok.ID)] = tok
+	toks[string(tok.ID)] = tok
 
 	// test data, backlink and predicate inputs are submitted correctly
 	data := test.RandomBytes(64)

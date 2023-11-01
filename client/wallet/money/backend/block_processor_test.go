@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/sdr"
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/client/wallet"
-	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
@@ -97,11 +97,11 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	err = store.Do().SetBill(&Bill{Id: tx4.TransactionOrder.UnitID(), OwnerPredicate: ownerCondition}, nil)
 	require.NoError(t, err)
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+	err = store.Do().SetSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         money2.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
@@ -262,11 +262,11 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	require.NoError(t, err)
 
 	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+	err = store.Do().SetSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
@@ -429,11 +429,11 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 
 	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
 	tokenPartitionFeeBillID := money2.NewBillID(nil, []byte{3})
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+	err = store.Do().SetSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
@@ -441,7 +441,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 		{
 			SystemIdentifier: tokenSystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         tokenPartitionFeeBillID,
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
@@ -622,11 +622,11 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	require.NoError(t, err)
 
 	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+	err = store.Do().SetSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         moneyPartitionFeeBillID,
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
@@ -726,11 +726,11 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 	// store existing bill for split
 	err = store.Do().SetBill(&Bill{Id: tx.TransactionOrder.UnitID(), OwnerPredicate: templates.AlwaysTrueBytes()}, nil)
 	require.NoError(t, err)
-	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+	err = store.Do().SetSystemDescriptionRecords([]*sdr.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
-			FeeCreditBill: &genesis.FeeCreditBill{
+			FeeCreditBill: &sdr.FeeCreditBill{
 				UnitId:         money2.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},

@@ -1,4 +1,4 @@
-package money
+package dc
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/testutil"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
@@ -29,7 +30,7 @@ func TestDC_OK(t *testing.T) {
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -57,7 +58,7 @@ func TestDCWontRunForSingleBill(t *testing.T) {
 	bills := []*wallet.Bill{createBill(1)}
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -82,7 +83,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	targetBill := bills[maxBillsPerDC-1]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -120,7 +121,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	backendMockWrapper := newBackendAPIMock(t, bills)
 
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -160,7 +161,7 @@ func TestExistingDC_OK(t *testing.T) {
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -204,7 +205,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -245,7 +246,7 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	proofs := []*wallet.Proof{createProofWithSwapTx(t, targetBill)}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
 		backendMockWrapper.accountKey.PubKey,
@@ -288,7 +289,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// lock target bill, but change tx hash so that locked unit is considered invalid
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -330,7 +331,7 @@ func TestExistingDC_DCOnSecondAccountDoesNotClearFirstAccountUnitLock(t *testing
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
 
-	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsForDustCollection, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// lock random bill before swap
 	lockedUnit := unitlock.NewLockedUnit([]byte{200}, []byte{1}, []byte{2}, money.DefaultSystemIdentifier, unitlock.LockReasonCollectDust)
@@ -374,7 +375,7 @@ func createDCBill(value uint64, targetBill *wallet.Bill) *wallet.Bill {
 
 type (
 	dustCollectionBackendMock struct {
-		backendMock *backendAPIMock
+		backendMock *testutil.BackendAPIMock
 		recordedTxs map[string]*types.TransactionOrder
 		accountKey  *account.AccountKey
 		signer      crypto.Signer
@@ -405,14 +406,14 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 		opt(options)
 	}
 
-	backendMock := &backendAPIMock{
-		getRoundNumber: func() (uint64, error) {
+	backendMock := &testutil.BackendAPIMock{
+		GetRoundNumberFn: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		ListBillsFn: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return &backend.ListBillsResponse{Bills: bills}, nil
 		},
-		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+		GetBillsFn: func(pubKey []byte) ([]*wallet.Bill, error) {
 			var nonDCBills []*wallet.Bill
 			for _, b := range bills {
 				if len(b.DCTargetUnitID) == 0 {
@@ -421,16 +422,16 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 			}
 			return nonDCBills, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		GetFeeCreditBillFn: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			return fcb, nil
 		},
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+		PostTransactionsFn: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recordedTxs[string(tx.UnitID())] = tx
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		GetTxProofFn: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, proof := range options.proofs {
 				if bytes.Equal(proof.TxRecord.TransactionOrder.UnitID(), unitID) {
 					return proof, nil

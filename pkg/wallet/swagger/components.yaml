@@ -31,6 +31,9 @@ schemas:
       targetUnitBacklink:
         type: string
         example: 'A19cILOb/nbHFGk62RSQ4UDINC15QcsThq2sKFpvFgA='
+      locked:
+        type: string
+        example: '1'
   UnitIDParam:
     type: string
     description: |-

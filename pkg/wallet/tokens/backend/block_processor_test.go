@@ -428,6 +428,64 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, notifyCalls)
 	})
+
+	t.Run("LockToken", func(t *testing.T) {
+		txAttr := &tokens.LockTokenAttributes{LockStatus: 1}
+		tx := randomTx(t, txAttr)
+		bp := &blockProcessor{
+			log: logger,
+			txs: txs,
+			store: &mockStorage{
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
+				getToken: func(id TokenID) (*TokenUnit, error) {
+					return &TokenUnit{ID: id, Kind: Fungible}, nil
+				},
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
+					require.EqualValues(t, tx.UnitID(), data.ID)
+					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
+					require.EqualValues(t, txAttr.LockStatus, data.Locked)
+					return nil
+				},
+			},
+		}
+		err = bp.ProcessBlock(context.Background(), &types.Block{
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("UnlockToken", func(t *testing.T) {
+		txAttr := &tokens.UnlockTokenAttributes{}
+		tx := randomTx(t, txAttr)
+		bp := &blockProcessor{
+			log: logger,
+			txs: txs,
+			store: &mockStorage{
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
+				getToken: func(id TokenID) (*TokenUnit, error) {
+					return &TokenUnit{ID: id, Kind: Fungible, Locked: 1}, nil
+				},
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
+					require.EqualValues(t, tx.UnitID(), data.ID)
+					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
+					require.EqualValues(t, 0, data.Locked)
+					return nil
+				},
+			},
+		}
+		err = bp.ProcessBlock(context.Background(), &types.Block{
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
+		})
+		require.NoError(t, err)
+	})
 }
 
 func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
@@ -472,6 +530,44 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.EqualValues(t, 39, fcb.GetValue())
 	closeFCHash := closeFC.Hash(crypto.SHA256)
 	require.Equal(t, closeFCHash, fcb.TxHash)
+
+	// when lockFC tx is processed
+	lockFC := testfc.NewLockFC(t, nil)
+	lockFCTxRecord := &types.TransactionRecord{TransactionOrder: lockFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Header:             &types.Header{},
+		Transactions:       []*types.TransactionRecord{lockFCTxRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 6}},
+	}
+	err = bp.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then fee credit bill is locked
+	fcb, err = bp.store.GetFeeCreditBill(fcb.Id)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 1, fcb.Locked)
+	require.EqualValues(t, lockFC.Hash(crypto.SHA256), fcb.TxHash)
+	require.EqualValues(t, 38, fcb.GetValue())
+
+	// when unlockFC tx is processed
+	unlockFC := testfc.NewUnlockFC(t, nil)
+	unlockFCTxRecord := &types.TransactionRecord{TransactionOrder: unlockFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Header:             &types.Header{},
+		Transactions:       []*types.TransactionRecord{unlockFCTxRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 7}},
+	}
+	err = bp.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then fee credit bill is unlocked
+	fcb, err = bp.store.GetFeeCreditBill(fcb.Id)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 0, fcb.Locked)
+	require.EqualValues(t, unlockFC.Hash(crypto.SHA256), fcb.TxHash)
+	require.EqualValues(t, 37, fcb.GetValue())
 }
 
 func createBlockProcessor(t *testing.T) *blockProcessor {

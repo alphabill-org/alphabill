@@ -138,8 +138,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
-		partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
-		cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
 		appStoppedWg := sync.WaitGroup{}
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -150,7 +149,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 			dbLocation := filepath.Join(rootDir)
 			rootKeyPath := filepath.Join(rootDir, defaultKeysFileName)
 			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
-			args := "root --home " + homeDir + " --db=" + dbLocation + " --genesis-file " + rootGenesis + " -k " + rootKeyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
+			args := "root --home " + homeDir + " --db=" + dbLocation + " --genesis-file " + rootGenesis + " -k " + rootKeyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 			err := cmd.addAndExecuteCommand(ctx)
 			require.ErrorIs(t, err, context.Canceled)
@@ -160,7 +159,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		log := logger.New(t)
 		cfg := &startNodeConfiguration{
 			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: cmListenAddr,
+			RootChainAddress: address,
 		}
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
@@ -173,7 +172,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, partListenddr)
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
@@ -270,8 +269,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
-		partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
-		cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
@@ -280,7 +278,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 			dbLocation := filepath.Join(homeDir, defaultRootChainDir+"1")
 			genesisPath := filepath.Join(homeDir, rootGenesisFileName)
 			keyPath := filepath.Join(homeDir, defaultRootChainDir+"1", defaultKeysFileName)
-			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
+			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 			err = cmd.addAndExecuteCommand(ctx)
 			require.ErrorIs(t, err, context.Canceled)
@@ -290,7 +288,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		log := logger.New(t)
 		cfg := &startNodeConfiguration{
 			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: cmListenAddr,
+			RootChainAddress: address,
 		}
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
@@ -303,7 +301,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, partListenddr)
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

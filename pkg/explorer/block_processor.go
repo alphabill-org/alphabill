@@ -1,11 +1,10 @@
-package backend
+package explorer
 
 import (
 	"context"
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -19,21 +18,22 @@ const (
 )
 
 type BlockProcessor struct {
-	store    BillStore
-	sdrs     map[string]*genesis.SystemDescriptionRecord
-	moneySDR *genesis.SystemDescriptionRecord
+	store BillStore
+	//sdrs     map[string]*genesis.SystemDescriptionRecord
+	//moneySDR *genesis.SystemDescriptionRecord
 }
 
 func NewBlockProcessor(store BillStore, moneySystemID []byte) (*BlockProcessor, error) {
-	sdrs, err := store.Do().GetSystemDescriptionRecords()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system description records: %w", err)
-	}
-	sdrsMap := map[string]*genesis.SystemDescriptionRecord{}
-	for _, sdr := range sdrs {
-		sdrsMap[string(sdr.SystemIdentifier)] = sdr
-	}
-	return &BlockProcessor{store: store, sdrs: sdrsMap, moneySDR: sdrsMap[string(moneySystemID)]}, nil
+	//sdrs, err := store.Do().GetSystemDescriptionRecords()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to get system description records: %w", err)
+	//}
+	//sdrsMap := map[string]*genesis.SystemDescriptionRecord{}
+	//for _, sdr := range sdrs {
+	//	sdrsMap[string(sdr.SystemIdentifier)] = sdr
+	//}
+	//, sdrs: sdrsMap, moneySDR: sdrsMap[string(moneySystemID)]
+	return &BlockProcessor{store: store}, nil
 }
 
 func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
@@ -310,12 +310,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		// 2. remove reclaimed amount from partition fee bill
-		err = p.removeReclaimedCreditFromPartitionFeeBill(dbTx, closeFCTXR, closeFCAttr, proof)
-		if err != nil {
-			return err
-		}
-		// 3. add reclaimFC tx fee to money partition fee bill
-		return p.addTxFeeToMoneyFeeBill(dbTx, txr, proof)
+		//err = p.removeReclaimedCreditFromPartitionFeeBill(dbTx, closeFCTXR, closeFCAttr, proof)
+		//if err != nil {
+		//	return err
+		//}
+		//// 3. add reclaimFC tx fee to money partition fee bill
+		//return p.addTxFeeToMoneyFeeBill(dbTx, txr, proof)
 	default:
 		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil
@@ -340,45 +340,45 @@ func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder,
 	return nil
 }
 
-func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof, actualFee uint64) error {
-	sdr, f := p.sdrs[string(tx.TargetSystemIdentifier)]
-	if !f {
-		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TargetSystemIdentifier)
-	}
-	partitionFeeBill, err := dbTx.GetBill(sdr.FeeCreditBill.UnitId)
-	if err != nil {
-		return err
-	}
-	if partitionFeeBill == nil {
-		return fmt.Errorf("partition fee bill not found: %x", sdr.FeeCreditBill.UnitId)
-	}
-	partitionFeeBill.Value += tx.Amount - actualFee
-	return dbTx.SetBill(partitionFeeBill, proof)
-}
-
-func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStoreTx, txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, proof *sdk.Proof) error {
-	txo := txr.TransactionOrder
-	sdr, f := p.sdrs[string(txo.SystemID())]
-	if !f {
-		return fmt.Errorf("received reclaimFC for unknown tx system: %x", txo.SystemID())
-	}
-	partitionFeeBill, err := dbTx.GetBill(sdr.FeeCreditBill.UnitId)
-	if err != nil {
-		return err
-	}
-	partitionFeeBill.Value -= attr.Amount
-	partitionFeeBill.Value += txr.ServerMetadata.ActualFee
-	return dbTx.SetBill(partitionFeeBill, proof)
-}
-
-func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord, proof *sdk.Proof) error {
-	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
-	if err != nil {
-		return err
-	}
-	moneyFeeBill.Value += tx.ServerMetadata.ActualFee
-	return dbTx.SetBill(moneyFeeBill, proof)
-}
+//func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof, actualFee uint64) error {
+//	sdr, f := p.sdrs[string(tx.TargetSystemIdentifier)]
+//	if !f {
+//		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TargetSystemIdentifier)
+//	}
+//	partitionFeeBill, err := dbTx.GetBill(sdr.FeeCreditBill.UnitId)
+//	if err != nil {
+//		return err
+//	}
+//	if partitionFeeBill == nil {
+//		return fmt.Errorf("partition fee bill not found: %x", sdr.FeeCreditBill.UnitId)
+//	}
+//	partitionFeeBill.Value += tx.Amount - actualFee
+//	return dbTx.SetBill(partitionFeeBill, proof)
+//}
+//
+//func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStoreTx, txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, proof *sdk.Proof) error {
+//	txo := txr.TransactionOrder
+//	sdr, f := p.sdrs[string(txo.SystemID())]
+//	if !f {
+//		return fmt.Errorf("received reclaimFC for unknown tx system: %x", txo.SystemID())
+//	}
+//	partitionFeeBill, err := dbTx.GetBill(sdr.FeeCreditBill.UnitId)
+//	if err != nil {
+//		return err
+//	}
+//	partitionFeeBill.Value -= attr.Amount
+//	partitionFeeBill.Value += txr.ServerMetadata.ActualFee
+//	return dbTx.SetBill(partitionFeeBill, proof)
+//}
+//
+//func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord, proof *sdk.Proof) error {
+//	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
+//	if err != nil {
+//		return err
+//	}
+//	moneyFeeBill.Value += tx.ServerMetadata.ActualFee
+//	return dbTx.SetBill(moneyFeeBill, proof)
+//}
 
 //func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecord) error {
 //	txo := txr.TransactionOrder

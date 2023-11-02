@@ -1,4 +1,4 @@
-package backend
+package explorer
 
 import (
 	"context"
@@ -82,17 +82,16 @@ type (
 	}
 
 	Config struct {
-		ABMoneySystemIdentifier  []byte
-		AlphabillUrl             string
-		ServerAddr               string
-		DbFile                   string
-		ListBillsPageLimit       int
-		InitialBill              InitialBill
-		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
+		ABMoneySystemIdentifier []byte
+		AlphabillUrl            string
+		ServerAddr              string
+		DbFile                  string
+		ListBillsPageLimit      int
+		//SystemDescriptionRecords []*genesis.SystemDescriptionRecord
 	}
 
 	InitialBill struct {
-		Id        []byte
+		ID        []byte
 		Value     uint64
 		Predicate []byte
 	}
@@ -103,46 +102,6 @@ func Run(ctx context.Context, config *Config) error {
 	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
-	}
-
-	// if first run:
-	// store initial bill to avoid some edge cases
-	// store system description records and partition fee bills to avoid providing them every run
-	err = store.WithTransaction(func(txc BillStoreTx) error {
-		blockNumber, err := txc.GetBlockNumber()
-		if err != nil {
-			return err
-		}
-		if blockNumber > 0 {
-			return nil
-		}
-		ib := config.InitialBill
-		err = txc.SetBill(&Bill{
-			Id:             ib.Id,
-			Value:          ib.Value,
-			OwnerPredicate: ib.Predicate,
-		}, nil)
-		if err != nil {
-			return fmt.Errorf("failed to store initial bill: %w", err)
-		}
-
-		err = txc.SetSystemDescriptionRecords(config.SystemDescriptionRecords)
-		if err != nil {
-			return fmt.Errorf("failed to store system description records: %w", err)
-		}
-		for _, sdr := range config.SystemDescriptionRecords {
-			err = txc.SetBill(&Bill{
-				Id:             sdr.FeeCreditBill.UnitId,
-				OwnerPredicate: sdr.FeeCreditBill.OwnerPredicate,
-			}, nil)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return err
 	}
 
 	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})

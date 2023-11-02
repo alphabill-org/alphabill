@@ -8,8 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
+// the same constants are used in server side locking
 const (
-	LockReasonAddFees LockReason = iota
+	LockReasonAddFees = 1 + iota
 	LockReasonReclaimFees
 	LockReasonCollectDust
 )

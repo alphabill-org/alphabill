@@ -89,11 +89,11 @@ func NewSplitTx(targetUnits []*money.TargetUnit, remainingValue uint64, k *accou
 	return signPayload(txPayload, k)
 }
 
-func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBill *wallet.Bill, timeout uint64) (*types.TransactionOrder, error) {
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBillID []byte, targetBillHash []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &money.TransferDCAttributes{
-		TargetUnitID:       targetBill.Id,
+		TargetUnitID:       targetBillID,
 		Value:              bill.Value,
-		TargetUnitBacklink: targetBill.TxHash,
+		TargetUnitBacklink: targetBillHash,
 		Backlink:           bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
@@ -138,6 +138,18 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		return nil, fmt.Errorf("failed to sign swap transaction: %w", err)
 	}
 	return payload, nil
+}
+
+func NewLockTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, lockStatus uint64, timeout uint64) (*types.TransactionOrder, error) {
+	attr := &money.LockAttributes{
+		LockStatus: lockStatus,
+		Backlink:   bill.TxHash,
+	}
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeLock, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, ac)
 }
 
 func NewTransferFCTx(amount uint64, targetRecordID []byte, targetUnitBacklink []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {

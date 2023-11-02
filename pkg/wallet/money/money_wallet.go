@@ -72,6 +72,11 @@ type (
 		GetUnits(accountID []byte) ([]*unitlock.LockedUnit, error)
 		Close() error
 	}
+
+	DustCollectionResult struct {
+		AccountIndex         uint64
+		DustCollectionResult *dc.DustCollectionResult // NB! can be nil
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -290,8 +295,8 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wa
 // together with account numbers, the proof can be nil if swap tx was not sent e.g. if there's not enough bills to swap.
 // If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
 // proof, the proof can be nil e.g. if there's not enough bills to swap.
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*dc.DustCollectionResult, error) {
-	var res []*dc.DustCollectionResult
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*DustCollectionResult, error) {
+	var res []*DustCollectionResult
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
 			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
@@ -302,8 +307,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*dc.D
 			if err != nil {
 				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
-			dcResult.AccountIndex = acc.AccountIndex
-			res = append(res, dcResult)
+			res = append(res, &DustCollectionResult{AccountIndex: acc.AccountIndex, DustCollectionResult: dcResult})
 		}
 	} else {
 		accKey, err := w.am.GetAccountKey(accountNumber - 1)
@@ -314,8 +318,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*dc.D
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		dcResult.AccountIndex = accountNumber - 1
-		res = append(res, dcResult)
+		res = append(res, &DustCollectionResult{AccountIndex: accountNumber - 1, DustCollectionResult: dcResult})
 	}
 	return res, nil
 }

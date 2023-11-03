@@ -65,8 +65,11 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := make([]types.SystemID32, 0, 2)
+	isPending := func(id types.SystemID32) bool {
+		return false
+	}
 	// no requests, generate payload
-	payload := reqBuffer.GeneratePayload(3, timeouts)
+	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Empty(t, payload.Requests)
 	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
 	// add request
@@ -90,10 +93,10 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"equivocating request for partition 00000001, reason has changed")
 	// Generate proposal payload, one request in buffer
-	payload = reqBuffer.GeneratePayload(3, timeouts)
+	payload = reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 1)
 	// generate payload again, but now it is empty
-	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts)
+	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts, isPending)
 	require.Empty(t, payloadNowEmpty.Requests)
 	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
 	// finally verify that we got the original message back
@@ -103,7 +106,10 @@ func TestIrReqBuffer_Add(t *testing.T) {
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
 	timeouts := []types.SystemID32{sysID1, sysID2}
-	payload := reqBuffer.GeneratePayload(3, timeouts)
+	isPending := func(id types.SystemID32) bool {
+		return false
+	}
+	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
 	require.Equal(t, sysID1, payload.Requests[0].SystemIdentifier)
@@ -129,9 +135,35 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := []types.SystemID32{sysID1}
+	isPending := func(id types.SystemID32) bool {
+		return false
+	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
-	payload := reqBuffer.GeneratePayload(3, timeouts)
+	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 1)
 	// if both then prefer to make progress over timeout
 	require.Equal(t, abtypes.Quorum, payload.Requests[0].CertReason)
+}
+
+func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
+	reqBuffer := NewIrReqBuffer(logger.New(t))
+	ver := NewAlwaysTrueIRReqVerifier()
+	// add a request that reached consensus
+	req1 := &certification.BlockCertificationRequest{
+		SystemIdentifier: sysID1.ToSystemID(),
+		NodeIdentifier:   "1",
+		InputRecord:      inputRecord1,
+	}
+	IrChReqMsg := &abtypes.IRChangeReq{
+		SystemIdentifier: sysID1,
+		CertReason:       abtypes.Quorum,
+		Requests:         []*certification.BlockCertificationRequest{req1},
+	}
+	timeouts := []types.SystemID32{sysID1}
+	isPending := func(id types.SystemID32) bool {
+		return true
+	}
+	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
+	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
+	require.Len(t, payload.Requests, 0)
 }

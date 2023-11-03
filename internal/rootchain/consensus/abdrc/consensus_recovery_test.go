@@ -688,7 +688,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
 		nodeID, signer, _, pubkey := generatePeerData(t)
-		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubkey, partitionRecs, genesis.WithTotalNodes(uint32(count)), genesis.WithConsensusTimeout(2500))
+		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubkey, partitionRecs, genesis.WithTotalNodes(uint32(count)), genesis.WithBlockRate(500), genesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)

@@ -137,7 +137,7 @@ func TestRootGenesis(t *testing.T) {
 	consensus := &ConsensusParams{
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
-		ConsensusTimeoutMs:  MinConsensusTimeout,
+		ConsensusTimeoutMs:  MinBlockRateMs + MinConsensusTimeout,
 		QuorumThreshold:     GetMinQuorumThreshold(1),
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 	}

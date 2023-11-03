@@ -52,3 +52,10 @@ func (x *Bill) GetTxHash() []byte {
 	}
 	return nil
 }
+
+func (x *Bill) IsLocked() bool {
+	if x != nil {
+		return x.Locked > 0
+	}
+	return false
+}

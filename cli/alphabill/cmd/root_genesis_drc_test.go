@@ -44,6 +44,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, partitionGenesis.RootValidators, 4)
 	trustBase, err := genesis.NewValidatorTrustBase(partitionGenesis.RootValidators)
+	require.NoError(t, err)
 	require.NoError(t, partitionGenesis.IsValid(trustBase, gocrypto.SHA256))
 	// iterate over key files and make sure that they are present
 	// FindPubKeyById returns matching PublicKeyInfo matching node id or nil if not found

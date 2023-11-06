@@ -11,8 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-const keysDir = "keys"
-
 func TestGenerateAndLoadKeys(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
 	keys, err := GenerateKeys()

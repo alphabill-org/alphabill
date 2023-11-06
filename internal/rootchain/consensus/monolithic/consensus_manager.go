@@ -109,7 +109,7 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*ty
 
 func (x *ConsensusManager) loop(ctx context.Context) error {
 	// start root round timer
-	ticker := time.NewTicker(x.params.BlockRateMs)
+	ticker := time.NewTicker(x.params.BlockRate)
 	defer ticker.Stop()
 
 	for {
@@ -207,7 +207,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				log.Warn(fmt.Sprintf("read certificate for %s", id), logger.Error(err))
 				continue
 			}
-			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
+			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRate >
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				log.Info(fmt.Sprintf("partition %s T2 timeout", id))

@@ -96,7 +96,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, cfg.Base.observe, log)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
@@ -107,5 +107,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, log)
+	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, cfg.Base.observe, log)
 }

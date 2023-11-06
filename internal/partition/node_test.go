@@ -18,6 +18,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -702,6 +703,7 @@ func Test_txProcessorForRound(t *testing.T) {
 			log:               logger.New(t),
 		}
 		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
+		require.NoError(t, n.initMetrics(observability.NOPMetrics()))
 
 		tx := testtransaction.NewTransactionOrder(t)
 		tx.Payload.ClientMetadata.Timeout = 25

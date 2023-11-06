@@ -407,11 +407,15 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	for _, dcResult := range dcResults {
-		if dcResult.SwapProof != nil {
+		if dcResult.DustCollectionResult != nil {
 			attr := &moneytx.SwapDCAttributes{}
-			err := dcResult.SwapProof.TxRecord.TransactionOrder.UnmarshalAttributes(attr)
+			err := dcResult.DustCollectionResult.SwapProof.TxRecord.TransactionOrder.UnmarshalAttributes(attr)
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
+			}
+			feeSum, err := dcResult.DustCollectionResult.GetFeeSum()
+			if err != nil {
+				return fmt.Errorf("failed to calculate fee sum: %w", err)
 			}
 			consoleWriter.Println(fmt.Sprintf(
 				"Dust collection finished successfully on account #%d. Joined %d bills with total value of %s "+
@@ -419,8 +423,8 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 				dcResult.AccountIndex+1,
 				len(attr.DcTransfers),
 				amountToString(attr.TargetValue, 8),
-				dcResult.SwapProof.TxRecord.TransactionOrder.UnitID(),
-				amountToString(dcResult.FeeSum, 8),
+				dcResult.DustCollectionResult.SwapProof.TxRecord.TransactionOrder.UnitID(),
+				amountToString(feeSum, 8),
 			))
 		} else {
 			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", dcResult.AccountIndex+1))

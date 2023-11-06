@@ -523,7 +523,7 @@ func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targe
 	if targetBill == nil {
 		targetBill = &wallet.Bill{Id: []byte{0}, TxHash: []byte{}}
 	}
-	dcTx, err := txbuilder.NewDustTx(k, w.SystemID(), b, targetBill, timeout)
+	dcTx, err := txbuilder.NewDustTx(k, w.SystemID(), b, targetBill.Id, targetBill.TxHash, timeout)
 	require.NoError(t, err)
 
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}

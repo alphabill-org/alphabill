@@ -21,7 +21,7 @@ var (
 )
 
 const (
-	MinBlockRateMs          = 500
+	MinBlockRateMs          = 100
 	DefaultBlockRateMs      = 900
 	MinConsensusTimeout     = 2000
 	DefaultConsensusTimeout = 10000
@@ -58,6 +58,10 @@ func (x *ConsensusParams) IsValid() error {
 	// If defined:  validate consensus timeout (only used in distributed set-up)
 	if x.ConsensusTimeoutMs < MinConsensusTimeout {
 		return ErrInvalidConsensusTimeout
+	}
+	// Timeout must be bigger than round min block-rate+2s
+	if x.BlockRateMs+MinConsensusTimeout > x.ConsensusTimeoutMs {
+		return fmt.Errorf("invalid timeout for block rate, must be at least %d", x.BlockRateMs+MinConsensusTimeout)
 	}
 	// Therefore, the defined quorum threshold must be same or higher
 	minQuorum := GetMinQuorumThreshold(x.TotalRootValidators)

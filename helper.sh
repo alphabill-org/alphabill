@@ -82,7 +82,7 @@ function generate_root_genesis() {
   # generate individual root node genesis files
   for i in $(seq 1 "$1")
   do
-    build/alphabill root-genesis new --home testab/rootchain"$i" -g --total-nodes="$1" $node_genesis_files
+    build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=300 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
   done
   # if only one root node, then we are done
   if [ $1 == 1 ]; then
@@ -103,9 +103,17 @@ function generate_root_genesis() {
 
 function start_root_nodes() {
   local port=26662
-  # create a bootnode
-  id=$(build/alphabill identifier -k testab/rootchain1/rootchain/keys.json | tail -n1)
-  bootNode="$id@/ip4/127.0.0.1/tcp/$port"
+  # create a bootnodes
+  local bootNodes=""
+  for keyf in testab/rootchain*/rootchain/keys.json
+  do
+    id=$(build/alphabill identifier -k $keyf | tail -n1)
+    bootNodes="$id@/ip4/127.0.0.1/tcp/$port,$bootNodes"
+    ((port=port+1))
+  done
+  bootNodes=${bootNodes::-1}
+  echo $bootNodes
+  port=26662
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -113,7 +121,7 @@ function start_root_nodes() {
       echo "Root genesis files do not exist, generate setup!" 1>&2
       exit 1
     fi
-    build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+    build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNodes" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     ((port=port+1))
     ((i=i+1))
   done

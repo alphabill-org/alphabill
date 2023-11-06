@@ -182,13 +182,13 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*ty
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
-	currentRound := x.pacemaker.GetCurrentRound()
-	x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		defer x.pacemaker.Stop()
 		x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
+		currentRound := x.pacemaker.GetCurrentRound()
+		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
 	})
 
@@ -681,8 +681,10 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds),
-			Qc:        x.blockStore.GetHighQc(),
+			Payload: x.irReqBuffer.GeneratePayload(round, timeoutIds, func(id types.SystemID32) bool {
+				return x.blockStore.IsChangeInProgress(id)
+			}),
+			Qc: x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}

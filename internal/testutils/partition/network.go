@@ -197,26 +197,12 @@ func (r *RootPartition) start(ctx context.Context) error {
 		peerIDs[i] = id
 	}
 	var rootPeers = make([]*network.Peer, rootNodes)
-	port, err := net.GetFreePort()
-	if err != nil {
-		return fmt.Errorf("failed to get free port, %w", err)
-	}
-	peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[0].EncKeyPair, nil, peerIDs)
-	if err != nil {
-		return fmt.Errorf("failed to create peer configuration: %w", err)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to create root peer node: %w", err)
-	}
-
-	rootPeers[0], err = network.NewPeer(ctx, peerConf, r.log)
-	if err != nil {
-		return fmt.Errorf("failed to create new peer node: %w", err)
-	}
-	for i := 1; i < len(peerIDs); i++ {
-		bootStrap := []peer.AddrInfo{{ID: rootPeers[0].ID(), Addrs: rootPeers[0].MultiAddresses()}}
-		peerConf, err = network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", r.Nodes[i].EncKeyPair, bootStrap, peerIDs)
+	for i := 0; i < len(peerIDs); i++ {
+		port, err := net.GetFreePort()
+		if err != nil {
+			return fmt.Errorf("failed to get free port, %w", err)
+		}
+		peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[i].EncKeyPair, nil, peerIDs)
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
@@ -230,8 +216,8 @@ func (r *RootPartition) start(ctx context.Context) error {
 		rootPeer := rootPeers[i]
 		log := r.log.With(logger.NodeID(rootPeer.ID()))
 		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
-		for _, rn := range r.Nodes {
-			rootPeer.Network().Peerstore().AddAddr(rn.id, rn.addr, peerstore.PermanentAddrTTL)
+		for _, p := range rootPeers {
+			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
 		}
 		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, log)
 		if err != nil {

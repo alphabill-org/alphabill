@@ -69,6 +69,10 @@ func (c *rootGenesisConf) isValid() error {
 	if c.blockRateMs < genesis.MinBlockRateMs {
 		return fmt.Errorf("invalid block rate, must be at least %v", genesis.MinBlockRateMs)
 	}
+	// Timeout must be bigger than round min block-rate+2s
+	if c.blockRateMs+genesis.MinConsensusTimeout > c.consensusTimeoutMs {
+		return fmt.Errorf("invalid timeout for block rate, must be at least %d", c.blockRateMs+genesis.MinConsensusTimeout)
+	}
 	return nil
 }
 
@@ -107,13 +111,13 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash.New(), utData)
 	if err != nil {
-		return nil, fmt.Errorf("unicity tree calculation failed, %w", err)
+		return nil, fmt.Errorf("unicity tree calculation failed: %w", err)
 	}
 	// create seal
 	rootHash := ut.GetRootHash()
 	seal, err := sealFn(rootHash)
 	if err != nil {
-		return nil, fmt.Errorf("unicity seal generation failed, %w", err)
+		return nil, fmt.Errorf("unicity seal generation failed: %w", err)
 	}
 	certs := make(map[types.SystemID32]*types.UnicityCertificate)
 	// extract certificates
@@ -144,7 +148,7 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 	var partitionNodesMap = make(map[string][]*genesis.PartitionNode)
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
-			return nil, fmt.Errorf("partition node %s validation failed, %w", n.NodeIdentifier, err)
+			return nil, fmt.Errorf("partition node %s validation failed: %w", n.NodeIdentifier, err)
 		}
 		si := string(n.BlockCertificationRequest.SystemIdentifier)
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
@@ -183,7 +187,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		c.quorumThreshold = genesis.GetMinQuorumThreshold(c.totalValidators)
 	}
 	if err := c.isValid(); err != nil {
-		return nil, nil, fmt.Errorf("consensus parameters validation failed, %w", err)
+		return nil, nil, fmt.Errorf("consensus parameters validation failed: %w", err)
 	}
 	ver, err := s.Verifier()
 	if err != nil {
@@ -235,7 +239,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// calculate unicity tree
 	certs, err := createUnicityCertificates(ucData, c.hashAlgorithm, sealFn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unicity certificate generation failed, %w", err)
+		return nil, nil, fmt.Errorf("unicity certificate generation failed: %w", err)
 	}
 	for sysId, uc := range certs {
 		// check the certificate
@@ -309,7 +313,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		Partitions: genesisPartitions,
 	}
 	if err = rootGenesis.IsValid(); err != nil {
-		return nil, nil, fmt.Errorf("root genesis validation failed, %w", err)
+		return nil, nil, fmt.Errorf("root genesis validation failed: %w", err)
 	}
 	partitionGenesis := partitionGenesisFromRoot(rootGenesis)
 	return rootGenesis, partitionGenesis, nil
@@ -439,15 +443,15 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s cryp
 		return nil, fmt.Errorf("genesis is already signed by node id %v", id)
 	}
 	if err := rootGenesis.Root.Consensus.Sign(id, s); err != nil {
-		return nil, fmt.Errorf("add signature failed %w", err)
+		return nil, fmt.Errorf("add signature failed: %w", err)
 	}
 	ver, err := s.Verifier()
 	if err != nil {
-		return nil, fmt.Errorf("get verifier failed, %w", err)
+		return nil, fmt.Errorf("get verifier failed: %w", err)
 	}
 	rootPublicKey, err := ver.MarshalPublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("marshal public key failed, %w", err)
+		return nil, fmt.Errorf("marshal public key failed: %w", err)
 	}
 	node := &genesis.PublicKeyInfo{
 		NodeIdentifier:      id,
@@ -458,7 +462,7 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s cryp
 	// Update partition records
 	for _, pr := range rootGenesis.Partitions {
 		if err = pr.Certificate.UnicitySeal.Sign(id, s); err != nil {
-			return nil, fmt.Errorf("failed to sign partition %X seal, %w", pr.SystemDescriptionRecord.SystemIdentifier, err)
+			return nil, fmt.Errorf("failed to sign partition %X seal: %w", pr.SystemDescriptionRecord.SystemIdentifier, err)
 		}
 	}
 	// make sure it what we signed is also valid

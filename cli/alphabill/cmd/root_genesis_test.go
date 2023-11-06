@@ -149,3 +149,121 @@ func TestGenerateGenesisFiles_ErrNoNodeGenesisFilesNorGenerateKeys(t *testing.T)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), `required flag(s) "partition-node-genesis-file"`)
 }
+
+func TestGenerateGenesis_ErrBlockRateInvalid(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create partition genesis file (e.g. money)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	// create root node 1 genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --block-rate=10" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid block rate, must be at least 100")
+}
+
+func TestGenerateGenesis_ErrTimeoutInvalid(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create partition genesis file (e.g. money)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	// create root node 1 genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --block-rate=500" +
+		" --consensus-timeout=200" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid consensus timeout, must be at least 2000")
+}
+
+func TestGenerateGenesis_ErrBlockRateBiggerThanTimeout(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create partition genesis file (e.g. money)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	// create root node 1 genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --block-rate=2500" +
+		" --consensus-timeout=2000" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid timeout for block rate, must be at least 4500")
+}
+
+func TestGenerateGenesis_ErrQuorumTooBig(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create partition genesis file (e.g. money)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	// create root node 1 genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --block-rate=500" +
+		" --consensus-timeout=2500" +
+		" --total-nodes=2" +
+		" --quorum-threshold=3" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid quorum threshold 3 is higher than total number of root nodes 2")
+}
+
+func TestGenerateGenesis_ErrQuorumTooLittle(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create partition genesis file (e.g. money)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	// create root node 1 genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --block-rate=500" +
+		" --consensus-timeout=2500" +
+		" --total-nodes=6" +
+		" --quorum-threshold=1" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid quorum threshold, for 6 nodes minimum quorum is 5")
+}

@@ -675,17 +675,16 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	if err != nil {
 		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err), logger.Round(round))
 	}
-	isPendingFn := func(id types.SystemID32) bool {
-		return x.blockStore.IsChangeInProgress(id)
-	}
 	proposalMsg := &abdrc.ProposalMsg{
 		Block: &abtypes.BlockData{
 			Author:    x.id.String(),
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, isPendingFn),
-			Qc:        x.blockStore.GetHighQc(),
+			Payload: x.irReqBuffer.GeneratePayload(round, timeoutIds, func(id types.SystemID32) bool {
+				return x.blockStore.IsChangeInProgress(id)
+			}),
+			Qc: x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}

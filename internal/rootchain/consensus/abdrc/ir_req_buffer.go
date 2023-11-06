@@ -90,6 +90,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32,
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
 		// if there is a change already in the pipeline for this system id
 		if x.IsChangeInBuffer(id) || inProgress(id) {
+			x.log.Debug(fmt.Sprintf("T2 timout request ignored, partition %s has change in progress", id))
 			continue
 		}
 		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Round(round))
@@ -102,6 +103,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32,
 		if inProgress(req.Req.SystemIdentifier) {
 			// if there is a pending block with the system id in progress then do not propose a change
 			// before last has been certified
+			x.log.Warn(fmt.Sprintf("partition %s request ignored, T2 timeout in progress", req.Req.SystemIdentifier))
 			continue
 		}
 		payload.Requests = append(payload.Requests, req.Req)

@@ -203,12 +203,12 @@ func verifyNoLinkHeader(t *testing.T, httpRes *http.Response) {
 }
 
 type (
-	option func(service *WalletBackend) error
+	option func(service *ExplorerBackend) error
 )
 
-func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
+func newWalletBackend(t *testing.T, options ...option) *ExplorerBackend {
 	storage := createTestBillStore(t)
-	service := &WalletBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -217,7 +217,7 @@ func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
 }
 
 func withBills(bills ...*Bill) option {
-	return func(s *WalletBackend) error {
+	return func(s *ExplorerBackend) error {
 		return s.store.WithTransaction(func(tx BillStoreTx) error {
 			for _, bill := range bills {
 				err := tx.SetBill(bill, nil)
@@ -236,7 +236,7 @@ type billProof struct {
 }
 
 func withBillProofs(bills ...*billProof) option {
-	return func(s *WalletBackend) error {
+	return func(s *ExplorerBackend) error {
 		return s.store.WithTransaction(func(tx BillStoreTx) error {
 			for _, bill := range bills {
 				err := tx.SetBill(bill.bill, bill.proof)
@@ -250,7 +250,7 @@ func withBillProofs(bills ...*billProof) option {
 }
 
 func withABClient(client client.ABClient) option {
-	return func(s *WalletBackend) error {
+	return func(s *ExplorerBackend) error {
 		s.sdk.AlphabillClient = client
 		return nil
 	}

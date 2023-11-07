@@ -28,7 +28,7 @@ type (
 		GetTxHistoryRecordsByKey(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
-	WalletBackend struct {
+	ExplorerBackend struct {
 		store BillStore
 		sdk   *sdk.Wallet
 	}
@@ -112,7 +112,7 @@ func Run(ctx context.Context, config *Config) error {
 
 	g.Go(func() error {
 		wlog.Info("money backend REST server starting on ", config.ServerAddr)
-		walletBackend := &WalletBackend{store: store, sdk: sdk.New().SetABClient(abc).Build()}
+		walletBackend := &ExplorerBackend{store: store, sdk: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.sdk.Shutdown()
 
 		handler := &moneyRestAPI{
@@ -169,25 +169,25 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 }
 
 // GetBill returns most recently seen bill with given unit id.
-func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
-	return w.store.Do().GetBill(unitID)
+func (ex *ExplorerBackend) GetBill(unitID []byte) (*Bill, error) {
+	return ex.store.Do().GetBill(unitID)
 }
 
-func (w *WalletBackend) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-	return w.store.Do().GetTxProof(unitID, txHash)
+func (ex *ExplorerBackend) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	return ex.store.Do().GetTxProof(unitID, txHash)
 }
 
 // GetRoundNumber returns latest round number.
-func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.sdk.GetRoundNumber(ctx)
+func (ex *ExplorerBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return ex.sdk.GetRoundNumber(ctx)
 }
 
-func (w *WalletBackend) GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
-	return w.store.Do().GetTxHistoryRecords(dbStartKey, count)
+func (ex *ExplorerBackend) GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	return ex.store.Do().GetTxHistoryRecords(dbStartKey, count)
 }
 
-func (w *WalletBackend) GetTxHistoryRecordsByKey(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
-	return w.store.Do().GetTxHistoryRecordsByKey(hash, dbStartKey, count)
+func (ex *ExplorerBackend) GetTxHistoryRecordsByKey(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	return ex.store.Do().GetTxHistoryRecordsByKey(hash, dbStartKey, count)
 }
 
 // extractOwnerFromP2pkh extracts owner from p2pkh predicate.

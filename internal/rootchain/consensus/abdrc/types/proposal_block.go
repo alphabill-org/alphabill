@@ -135,7 +135,7 @@ func (x *BlockData) String() string {
 	}
 	var changed []string
 	for _, req := range x.Payload.Requests {
-		changed = append(changed, fmt.Sprintf("%s", req))
+		changed = append(changed, req.String())
 	}
 	return fmt.Sprintf("round: %v, time: %v, payload: %s", x.Round, x.Timestamp, strings.Join(changed, ", "))
 }

@@ -89,7 +89,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		{
 			name: "error change in progress",
 			fields: fields{
-				c:        &consensus.Parameters{BlockRateMs: 500 * time.Millisecond},
+				c:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 				pInfo:    conf,
 				sMonitor: &MockState{inProgress: []types.SystemID32{sysID1}}},
 			args: args{round: 1, irChReq: &abtypes.IRChangeReq{
@@ -276,20 +276,20 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	}{
 		{
 			name:   "no timeout",
-			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
+			fields: fields{c: &consensus.Parameters{BlockRate: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
 			args:   args{currentRound: 11}, // last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
 			want:   []types.SystemID32{},
 		},
 		{
 			name:   "timeout - 6 round since last UC",
-			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
+			fields: fields{c: &consensus.Parameters{BlockRate: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
 			args:   args{currentRound: 12}, // last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 			want:   []types.SystemID32{sysID1},
 		},
 		{
 			name: "no timeout - 6 round since last UC, change already in progress",
 			fields: fields{
-				c:        &consensus.Parameters{BlockRateMs: 500 * time.Millisecond},
+				c:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 				pInfo:    conf,
 				sMonitor: &MockState{inProgress: []types.SystemID32{sysID1}}},
 			args: args{currentRound: 7},

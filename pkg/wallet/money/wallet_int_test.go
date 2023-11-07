@@ -22,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -451,7 +452,7 @@ func startRPCServer(t *testing.T, partition *testpartition.NodePartition) (addr 
 }
 
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
-	rpcServer, err := rpc.NewGRPCServer(node)
+	rpcServer, err := rpc.NewGRPCServer(node, observability.NOPMetrics())
 	if err != nil {
 		return nil, err
 	}

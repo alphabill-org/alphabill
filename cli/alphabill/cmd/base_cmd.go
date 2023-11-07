@@ -31,7 +31,13 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(ctx context.Context) error {
+func (a *alphabillApp) Execute(ctx context.Context) (err error) {
+	defer func() {
+		if a.baseConfig.observe != nil {
+			err = errors.Join(err, a.baseConfig.observe.Shutdown())
+		}
+	}()
+
 	return a.addAndExecuteCommand(ctx)
 }
 
@@ -74,8 +80,33 @@ func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
 	return baseCmd, config
 }
 
-// initializeConfig reads in config file and ENV variables if set.
 func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
+	var errs []error
+
+	if err := config.initializeConfig(cmd); err != nil {
+		errs = append(errs, fmt.Errorf("reading configuration: %w", err))
+	}
+
+	if err := config.initLogger(cmd); err != nil {
+		errs = append(errs, fmt.Errorf("initializing logger: %w", err))
+	}
+
+	metrics, err := cmd.Flags().GetString(keyMetrics)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("reading flag %q: %w", keyMetrics, err))
+	} else {
+		obs, err := newObservability(metrics)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("initializing observability: %w", err))
+		}
+		config.observe = obs
+	}
+
+	return errors.Join(errs...)
+}
+
+// initializeConfig reads in config file and ENV variables if set.
+func (config *baseConfiguration) initializeConfig(cmd *cobra.Command) error {
 	v := viper.New()
 
 	config.initConfigFileLocation()
@@ -108,10 +139,6 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 	// Bind the current command's flags to viper
 	if err := bindFlags(cmd, v); err != nil {
 		return fmt.Errorf("binding flags: %w", err)
-	}
-
-	if err := config.initLogger(cmd); err != nil {
-		return fmt.Errorf("initializing logger: %w", err)
 	}
 
 	return nil

@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
@@ -29,8 +28,6 @@ const (
 
 var (
 	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
-
-	openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
 )
 
 type (
@@ -56,21 +53,7 @@ type (
 		validators []peer.ID
 		dht        *dht.IpfsDHT
 	}
-
-	metricsNotifiee struct{}
 )
-
-func (m *metricsNotifiee) Listen(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) ListenClose(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) Connected(network.Network, network.Conn) {
-	openConnectionsCounter.Inc(1)
-}
-
-func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
-	openConnectionsCounter.Dec(1)
-}
 
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
@@ -107,7 +90,6 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*P
 	if err != nil {
 		return nil, err
 	}
-	h.Network().Notify(&metricsNotifiee{})
 
 	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
 	if err != nil {
@@ -234,11 +216,11 @@ func NewPeerConfiguration(
 	}
 
 	return &PeerConfiguration{
-		ID: peerID,
-		Address: addr,
-		KeyPair: keyPair,
+		ID:             peerID,
+		Address:        addr,
+		KeyPair:        keyPair,
 		BootstrapPeers: bootstrapPeers,
-		Validators: validators,
+		Validators:     validators,
 	}, nil
 }
 

@@ -489,15 +489,48 @@ func (s *boltBillStoreTx) storeTxHistoryRecord(tx *bolt.Tx, hash sdk.PubKeyHash,
 	return b.Put(util.Uint64ToBytes(id), recBytes)
 }
 
-func (s *boltBillStoreTx) GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) (res []*sdk.TxHistoryRecord, key []byte, err error) {
+func (s *boltBillStoreTx) GetTxHistoryRecords( dbStartKey []byte, count int) (res []*sdk.TxHistoryRecord, key []byte, err error) {
 	return res, key, s.withTx(s.tx, func(tx *bolt.Tx) error {
 		var err error
-		res, key, err = s.getTxHistoryRecords(tx, hash, dbStartKey, count)
+		res, key, err = s.getTxHistoryRecords(tx, dbStartKey, count)
 		return err
 	}, false)
 }
 
-func (s *boltBillStoreTx) getTxHistoryRecords(tx *bolt.Tx, hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+func (s *boltBillStoreTx) getTxHistoryRecords(tx *bolt.Tx, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	b := tx.Bucket(txHistoryBucket)
+	if b == nil {
+		return nil,nil, fmt.Errorf("bucket %s not found", txHistoryBucket)
+	}
+	c := b.Cursor()
+	if len(dbStartKey) == 0 {
+		dbStartKey, _ = c.Last()
+	}
+	var res []*sdk.TxHistoryRecord
+	var prevKey []byte
+	for k, v := c.Seek(dbStartKey); k != nil && count > 0; k, v = c.Prev() {
+		rec := &sdk.TxHistoryRecord{}
+		if err := cbor.Unmarshal(v, rec); err != nil {
+			return nil, nil, fmt.Errorf("failed to deserialize tx history record: %w", err)
+		}
+		res = append(res, rec)
+		if count--; count == 0 {
+			prevKey, _ = c.Prev()
+			break
+		}
+	}
+	return res, prevKey, nil
+}
+
+func (s *boltBillStoreTx) GetTxHistoryRecordsByKey(hash sdk.PubKeyHash, dbStartKey []byte, count int) (res []*sdk.TxHistoryRecord, key []byte, err error) {
+	return res, key, s.withTx(s.tx, func(tx *bolt.Tx) error {
+		var err error
+		res, key, err = s.getTxHistoryRecordsByKey(tx, hash, dbStartKey, count)
+		return err
+	}, false)
+}
+
+func (s *boltBillStoreTx) getTxHistoryRecordsByKey(tx *bolt.Tx, hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 	b, err := sdk.EnsureSubBucket(tx, txHistoryBucket, hash, true)
 	if err != nil {
 		return nil, nil, err

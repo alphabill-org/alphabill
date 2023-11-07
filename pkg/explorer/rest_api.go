@@ -66,15 +66,63 @@ func (api *moneyRestAPI) Router() *mux.Router {
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
-	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/tx-history", api.getTxHistory).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/tx-history/{pubkey}", api.getTxHistoryByKey).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.roundNumberFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
 	return router
 }
+func (api *moneyRestAPI) getTxHistory(w http.ResponseWriter, r *http.Request) {
 
-func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
+	qp := r.URL.Query()
+	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
+
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	recs, nextKey, err := api.Service.GetTxHistoryRecords(startKey, limit)
+	if err != nil {
+		log.Error("error on GET /tx-history: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))
+		return
+	}
+	// check if unconfirmed tx-s are now confirmed or failed
+	var roundNr uint64 = 0
+	for _, rec := range recs {
+		// TODO: update db if stage changes to confirmed or failed
+		if rec.State == sdk.UNCONFIRMED {
+			proof, err := api.Service.GetTxProof(rec.UnitID, rec.TxHash)
+			if err != nil {
+				api.rw.WriteErrorResponse(w, fmt.Errorf("failed to fetch tx proof: %w", err))
+			}
+			if proof != nil {
+				rec.State = sdk.CONFIRMED
+			} else {
+				if roundNr == 0 {
+					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					if err != nil {
+						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
+					}
+				}
+				if roundNr > rec.Timeout {
+					rec.State = sdk.FAILED
+				}
+			}
+		}
+	}
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	api.rw.WriteCborResponse(w, recs)
+}
+
+func (api *moneyRestAPI) getTxHistoryByKey(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
 	if err != nil {
@@ -93,7 +141,7 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
-	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
+	recs, nextKey, err := api.Service.GetTxHistoryRecordsByKey(senderPubkey.Hash(), startKey, limit)
 	if err != nil {
 		log.Error("error on GET /tx-history: ", err)
 		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))

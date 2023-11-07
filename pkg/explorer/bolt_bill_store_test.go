@@ -200,7 +200,7 @@ func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
 		require.NoError(t, err)
 	}
 	// verify tx history records are retrieved, two most recent records
-	actualTxHistoryRecords, key, err := bs.Do().GetTxHistoryRecords(randomBytes, nil, 2)
+	actualTxHistoryRecords, key, err := bs.Do().GetTxHistoryRecordsByKey(randomBytes, nil, 2)
 	require.NoError(t, err)
 	require.Len(t, actualTxHistoryRecords, 2)
 	require.EqualValues(t, actualTxHistoryRecords[0].UnitID, []byte{max})
@@ -210,7 +210,7 @@ func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
 	var allTxHistoryRecords []*sdk.TxHistoryRecord
 	key = nil
 	for {
-		actualTxHistoryRecords, key, err = bs.Do().GetTxHistoryRecords(randomBytes, key, 2)
+		actualTxHistoryRecords, key, err = bs.Do().GetTxHistoryRecordsByKey(randomBytes, key, 2)
 		require.NoError(t, err)
 		allTxHistoryRecords = append(allTxHistoryRecords, actualTxHistoryRecords...)
 		if key == nil {

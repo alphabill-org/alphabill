@@ -191,10 +191,11 @@ transferred bill is unchanged.
 
 ##### Split Bill
 
-This transaction splits a bill in two, creating a new bill with a new
-owner condition (*TargetOwner*) and value (*TargetValue*). The value
-of the bill being split is reduced by the value of the new bill and is
-specified in the *RemainingValue* attribute. The sum of *TargetValue*
+This transaction splits a bill into two or more bills, creating new
+bills with new owner conditions (*TargetUnit*.*TargetOwner*) and
+values (*TargetUnit*.*TargetValue*). The value of the bill being split
+is reduced by the values of the new bills and is specified in the
+*RemainingValue* attribute. The sums of *TargetUnit*.*TargetValue*s
 and *RemainingValue* must be equal to the value of the bill before the
 split.
 
@@ -202,19 +203,26 @@ split.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /splitAttributes/ [
-    /TargetValue/    99900000000,
-    /TargetOwner/    h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01',
+    /TargetUnits/    [
+        /TargetUnit/ [
+            /TargetValue/ 99900000000,
+            /TargetOwner/ h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01'
+        ]
+    ],
     /RemainingValue/ 999999899999999996,
     /Backlink/       h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
-1. *TargetValue* (unsigned integer) is the value of the new bill.
-2. *TargetOwner* (byte string) is the owner condition of the new bill.
-3. *RemainingValue* (unsigned integer) is the remaining value of the
+1. *TargetUnits* (array) is an array of *TargetUnit* data items. Each
+   *TargetUnit* is an array of two data items:
+   1. *TargetValue* (unsigned integer) is the value of the new bill.
+   2. *TargetOwner* (byte string) is the owner condition of the new bill.
+2. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
-4. *Backlink* (byte string) is the backlink to the previous
+3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill being split.
+
 
 ##### Lock Bill
 
@@ -911,7 +919,7 @@ Extended Diagnostic Notation to raw hex encoded CBOR format.
 
 Raw hex encoded transaction:
 ```
-838544000000006573706c69745821456c86861fe9bb62ed4d36fe57aade1575c4c3cbe36c6edeb126e5049abe1cf100841a0bebc200582a5376a8014f0162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d8769ac011a11e1a30158202e828d69bc994f51a24b593fd4a6745413a9ae8394ba3289b4a06711531401a5831820015821411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a0f5867535401497641466a5a7de02b34dc7f3da1a87861d89fba29bcd71f0d0814e50fefe23a5a3c58430873d0e790a6d8dbf5087bf8e80dbdf3ab56764d4c207802d62988440155010225fd546b19683bed7663a83f97b1a1545a52f180f432ee1748fc3b51090eba5cf6
+838544000000006573706c697458210000000000000000000000000000000000000000000000000000000000000001008382821a05f5e100582683000281582062c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d821a0bebc2005826830002815820411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a1b0de0b6b389969afd5820d064c1fb52b454760e29bf9c3012cb893bf8a4d633bc9a71b50ba51166b27c938319024f015821b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa00f5867825841d80b1a7b9777f00a7975a90a5d16773458678febbb3cef9e3d1e2df6659ed21d0295ea32b13843ffbd160f51813397c7c3217c5ea8b15955ac0c4378c16fe40b0058210227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
 ```
 
 Same hex encoded data with annotations:
@@ -923,21 +931,27 @@ Same hex encoded data with annotations:
       65                                # text(5)
          73706C6974                     # "split"
       58 21                             # bytes(33)
-         456C86861FE9BB62ED4D36FE57AADE1575C4C3CBE36C6EDEB126E5049ABE1CF100 # "El\x86\x86\u001F\xE9\xBBb\xEDM6\xFEW\xAA\xDE\u0015u\xC4\xC3\xCB\xE3lnޱ&\xE5\u0004\x9A\xBE\u001C\xF1\u0000"
-      84                                # array(4)
-         1A 0BEBC200                    # unsigned(200000000)
-         58 2A                          # bytes(42)
-            5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01 # "Sv\xA8\u0001O\u0001b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\x87i\xAC\u0001"
-         1A 11E1A301                    # unsigned(300000001)
-         58 20                          # bytes(32)
-            2E828D69BC994F51A24B593FD4A6745413A9AE8394BA3289B4A06711531401A5 # ".\x82\x8Di\xBC\x99OQ\xA2KY?ԦtT\u0013\xA9\xAE\x83\x94\xBA2\x89\xB4\xA0g\u0011S\u0014\u0001\xA5"
+         000000000000000000000000000000000000000000000000000000000000000100 # "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000"
       83                                # array(3)
-         18 20                          # unsigned(32)
+         82                             # array(2)
+            82                          # array(2)
+               1A 05F5E100              # unsigned(100000000)
+               58 26                    # bytes(38)
+                  83000281582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D # "\x83\u0000\u0002\x81X b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D"
+            82                          # array(2)
+               1A 0BEBC200              # unsigned(200000000)
+               58 26                    # bytes(38)
+                  830002815820411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A # "\x83\u0000\u0002\x81X A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:"
+         1B 0DE0B6B389969AFD            # unsigned(999999999499999997)
+         58 20                          # bytes(32)
+            D064C1FB52B454760E29BF9C3012CB893BF8A4D633BC9A71B50BA51166B27C93 # "\xD0d\xC1\xFBR\xB4Tv\u000E)\xBF\x9C0\u0012ˉ;\xF8\xA4\xD63\xBC\x9Aq\xB5\v\xA5\u0011f\xB2|\x93"
+      83                                # array(3)
+         19 024F                        # unsigned(591)
          01                             # unsigned(1)
          58 21                          # bytes(33)
-            411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F # "A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:\u000F"
+            B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA00F # "\xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ\u000F"
    58 67                                # bytes(103)
-      535401497641466A5A7DE02B34DC7F3DA1A87861D89FBA29BCD71F0D0814E50FEFE23A5A3C58430873D0E790A6D8DBF5087BF8E80DBDF3AB56764D4C207802D62988440155010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "ST\u0001IvAFjZ}\xE0+4\xDC\u007F=\xA1\xA8xa؟\xBA)\xBC\xD7\u001F\r\b\u0014\xE5\u000F\xEF\xE2:Z<XC\bs\xD0琦\xD8\xDB\xF5\b{\xF8\xE8\r\xBD\xF3\xABVvML x\u0002\xD6)\x88D\u0001U\u0001\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
+      825841D80B1A7B9777F00A7975A90A5D16773458678FEBBB3CEF9E3D1E2DF6659ED21D0295EA32B13843FFBD160F51813397C7C3217C5EA8B15955AC0C4378C16FE40B0058210227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C # "\x82XA\xD8\v\u001A{\x97w\xF0\nyu\xA9\n]\u0016w4Xg\x8F\xEB\xBB<\xEF\x9E=\u001E-\xF6e\x9E\xD2\u001D\u0002\x95\xEA2\xB18C\xFF\xBD\u0016\u000FQ\x813\x97\xC7\xC3!|^\xA8\xB1YU\xAC\fCx\xC1o\xE4\v\u0000X!\u0002'\xE8t\xB8\u0000\xCA1\x9B{Ä\xDF\xC6?\x91^\t\x84\u0017\xB5I\xED\xB45%\xAE\xE5\u0011\xA6۽\x9C"
    F6                                   # primitive(22)
 ```
 
@@ -947,20 +961,28 @@ Extended Diagnostic Notation with annotations:
     /Payload/ [
         /SystemIdentifier/ h'00000000',
         /Type/             "split",
-        /UnitID/           h'456C86861FE9BB62ED4D36FE57AADE1575C4C3CBE36C6EDEB126E5049ABE1CF100',
+        /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
         /splitAttributes/ [
-            /Amount/         200000000,
-            /TargetOwner/    h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01',
-            /RemainingValue/ 300000001,
-            /Backlink/       h'2E828D69BC994F51A24B593FD4A6745413A9AE8394BA3289B4A06711531401A5'
+            /TargetUnits/ [
+                /TargetUnit/ [
+                    /TargetValue/ 100000000,
+                    /TargetOwner/ h'83000281582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D'
+                ],
+                /TargetUnit/ [
+                    /TargetValue/ 200000000,
+                    /TargetOwner/ h'830002815820411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A'
+                ]
+            ],
+            /RemainingValue/ 999999999499999997,
+            /Backlink/       h'D064C1FB52B454760E29BF9C3012CB893BF8A4D633BC9A71B50BA51166B27C93'
         ],
         /ClientMetadata/ [
-            /Timeout/           32,
+            /Timeout/           591,
             /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F'
+            /FeeCreditRecordID/ h'B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA00F'
         ]
     ],
-    /OwnerProof/ h'535401497641466A5A7DE02B34DC7F3DA1A87861D89FBA29BCD71F0D0814E50FEFE23A5A3C58430873D0E790A6D8DBF5087BF8E80DBDF3AB56764D4C207802D62988440155010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C',
+    /OwnerProof/ h'825841D80B1A7B9777F00A7975A90A5D16773458678FEBBB3CEF9E3D1E2DF6659ED21D0295EA32B13843FFBD160F51813397C7C3217C5EA8B15955AC0C4378C16FE40B0058210227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C',
     /FeeProof/   null
 ]
 ```

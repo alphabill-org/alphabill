@@ -41,6 +41,53 @@ var (
 )
 
 func Test_txHistory(t *testing.T) {
+	pubkey1 := sdk.PubKey(test.RandomBytes(33))
+	pubkey2 := sdk.PubKey(test.RandomBytes(33))
+	explorerService := &explorerBackendServiceMock{
+		getTxHistoryRecords: func( dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+			return []*sdk.TxHistoryRecord{
+				{
+					Kind:         sdk.OUTGOING,
+					State:        sdk.UNCONFIRMED,
+					CounterParty: pubkey1.Hash(),
+				},
+				{
+					Kind:         sdk.OUTGOING,
+					State:        sdk.UNCONFIRMED,
+					CounterParty: pubkey2.Hash(),
+				},
+			}, nil, nil
+		},
+		getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+			return nil, nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 0, nil
+		},
+	}
+	port, api := startServer(t, explorerService)
+
+	makeTxHistoryRequest := func() *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history", port), nil)
+		w := httptest.NewRecorder()
+		api.getTxHistory(w, req)
+		return w.Result()
+	}
+	txHistResp := makeTxHistoryRequest()
+	require.Equal(t, http.StatusOK, txHistResp.StatusCode)
+
+	buf, err := io.ReadAll(txHistResp.Body)
+	require.NoError(t, err)
+	var txHistory []*sdk.TxHistoryRecord
+	require.NoError(t, cbor.Unmarshal(buf, &txHistory))
+	require.Len(t, txHistory, 2)
+	require.Equal(t, sdk.OUTGOING, txHistory[0].Kind)
+	require.Equal(t, sdk.UNCONFIRMED, txHistory[0].State)
+	require.EqualValues(t, pubkey1.Hash(), txHistory[0].CounterParty)
+	require.EqualValues(t, pubkey2.Hash(), txHistory[1].CounterParty)
+}
+
+func Test_txHistoryByKey(t *testing.T) {
 	explorerService := &explorerBackendServiceMock{
 		getTxHistoryRecordsByKey: func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 			return []*sdk.TxHistoryRecord{

@@ -5,7 +5,9 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"syscall"
@@ -14,6 +16,8 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -36,41 +40,47 @@ var (
 	feeCreditRecordID = money.NewFeeCreditRecordID(nil, []byte{1})
 )
 
-//func Test_txHistory(t *testing.T) {
-//	walletService := newWalletBackend(t)
-//	port, api := startServer(t, walletService)
-//
-//	makeTxHistoryRequest := func(pubkey sdk.PubKey) *http.Response {
-//		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history/0x%x", port, pubkey), nil)
-//		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(pubkey)})
-//		w := httptest.NewRecorder()
-//		api.txHistoryFunc(w, req)
-//		return w.Result()
-//	}
-//
-//	pubkey := sdk.PubKey(test.RandomBytes(33))
-//	pubkey2 := sdk.PubKey(test.RandomBytes(33))
-//	//bearerPredicate := script.PredicatePayToPublicKeyHashDefault(pubkey2.Hash())
-//	//attrs := &money.TransferAttributes{NewBearer: bearerPredicate}
-//	//b, err := cbor.Marshal(sdk.Transactions{Transactions: []*types.TransactionOrder{
-//	//	testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},
-//	//})
-//	//require.NoError(t, err)
-//	//resp := makePostTxRequest(pubkey, b)
-//	//require.Equal(t, http.StatusAccepted, resp.StatusCode)
-//
-//	txHistResp := makeTxHistoryRequest(pubkey)
-//	require.Equal(t, http.StatusOK, txHistResp.StatusCode)
-//
-//	buf, err := io.ReadAll(txHistResp.Body)
-//	require.NoError(t, err)
-//	var txHistory []*sdk.TxHistoryRecord
-//	require.NoError(t, cbor.Unmarshal(buf, &txHistory))
-//	require.Len(t, txHistory, 1)
-//	require.Equal(t, sdk.OUTGOING, txHistory[0].Kind)
-//	require.Equal(t, sdk.UNCONFIRMED, txHistory[0].State)
-//	require.EqualValues(t, pubkey2.Hash(), txHistory[0].CounterParty)
-//}
+func Test_txHistory(t *testing.T) {
+	walletService := &explorerBackendServiceMock{
+		getTxHistoryRecords: func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+			return []*sdk.TxHistoryRecord{
+				{
+					Kind:         sdk.OUTGOING,
+					State:        sdk.UNCONFIRMED,
+					CounterParty: hash,
+				},
+			}, nil, nil
+		},
+		getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+			return nil, nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 0, nil
+		},
+	}
+	port, api := startServer(t, walletService)
+
+	makeTxHistoryRequest := func(pubkey sdk.PubKey) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history/0x%x", port, pubkey), nil)
+		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(pubkey)})
+		w := httptest.NewRecorder()
+		api.txHistoryFunc(w, req)
+		return w.Result()
+	}
+
+	pubkey := sdk.PubKey(test.RandomBytes(33))
+	txHistResp := makeTxHistoryRequest(pubkey)
+	require.Equal(t, http.StatusOK, txHistResp.StatusCode)
+
+	buf, err := io.ReadAll(txHistResp.Body)
+	require.NoError(t, err)
+	var txHistory []*sdk.TxHistoryRecord
+	require.NoError(t, cbor.Unmarshal(buf, &txHistory))
+	require.Len(t, txHistory, 1)
+	require.Equal(t, sdk.OUTGOING, txHistory[0].Kind)
+	require.Equal(t, sdk.UNCONFIRMED, txHistory[0].State)
+	require.EqualValues(t, pubkey.Hash(), txHistory[0].CounterParty)
+}
 
 func TestProofRequest_Ok(t *testing.T) {
 	tr := testtransaction.NewTransactionRecord(t)
@@ -297,4 +307,31 @@ func startServer(t *testing.T, service ExplorerBackendService) (port int, api *m
 			t.Fatalf("http server didn't become available within timeout")
 		}
 	}
+}
+
+type explorerBackendServiceMock struct {
+	getRoundNumber      func(ctx context.Context) (uint64, error)
+	getTxProof          func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	getTxHistoryRecords func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
+}
+
+func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if m.getRoundNumber != nil {
+		return m.getRoundNumber(ctx)
+	}
+	return 0, errors.New("not implemented")
+}
+
+func (m *explorerBackendServiceMock) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	if m.getTxProof != nil {
+		return m.getTxProof(unitID, txHash)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *explorerBackendServiceMock) GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	if m.getTxHistoryRecords != nil {
+		return m.getTxHistoryRecords(hash, dbStartKey, count)
+	}
+	return nil, nil, errors.New("not implemented")
 }

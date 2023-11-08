@@ -53,8 +53,8 @@ type startNodeConfiguration struct {
 	LedgerReplicationMaxTx     uint32
 }
 
-func run(ctx context.Context, name string, node *partition.Node,
-	rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, proofStore keyvaluedb.KeyValueDB, log *slog.Logger) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration,
+	proofStore keyvaluedb.KeyValueDB, obs partition.Observability, log *slog.Logger) error {
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -62,7 +62,7 @@ func run(ctx context.Context, name string, node *partition.Node,
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initRPCServer(node, rpcServerConf)
+		grpcServer, err := initRPCServer(node, rpcServerConf, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
 		}
@@ -95,14 +95,15 @@ func run(ctx context.Context, name string, node *partition.Node,
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, proofStore, log),
-			rpc.MetricsEndpoints(),
+			rpc.NodeEndpoints(node, proofStore, obs, log),
+			rpc.MetricsEndpoints(obs.MetricsHandler()),
 			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
-		restServer := initRESTServer(restServerConf, routers...)
+		restServer := initRESTServer(restServerConf, obs, log, routers...)
+
 		errch := make(chan error, 1)
 		go func() {
 			log.Info("%s REST server starting on %s", name, restServer.Addr)
@@ -127,8 +128,8 @@ func run(ctx context.Context, name string, node *partition.Node,
 	return g.Wait()
 }
 
-func initRESTServer(conf *restServerConfiguration, routes ...rpc.Registrar) *http.Server {
-	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, routes...)
+func initRESTServer(conf *restServerConfiguration, obs partition.Observability, log *slog.Logger, routes ...rpc.Registrar) *http.Server {
+	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, obs, log, routes...)
 	rs.ReadTimeout = conf.ReadTimeout
 	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
 	rs.WriteTimeout = conf.WriteTimeout
@@ -179,7 +180,7 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	return network.NewPeerConfiguration(cfg.Address, pair, bootstrapPeers, validatorIdentifiers)
 }
 
-func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Server, error) {
+func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
 		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
@@ -187,7 +188,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
-	rpcServer, err := rpc.NewGRPCServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
+	rpcServer, err := rpc.NewGRPCServer(node, obs, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +198,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 }
 
 func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
-	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, log *slog.Logger) (*partition.Node, error) {
+	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, obs partition.Observability, log *slog.Logger) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -239,6 +240,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		txs,
 		pg,
 		nil,
+		obs,
 		log,
 		options...,
 	)

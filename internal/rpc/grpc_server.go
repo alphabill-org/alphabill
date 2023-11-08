@@ -4,22 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
+	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
-
-var receivedTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/received")
-var receivedInvalidTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/invalid")
 
 type (
 	grpcServer struct {
 		alphabill.UnimplementedAlphabillServiceServer
 		node                  partitionNode
 		maxGetBlocksBatchSize uint64
+
+		txCnt metric.Int64Counter
 	}
 
 	partitionNode interface {
@@ -33,7 +34,7 @@ type (
 	}
 )
 
-func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
+func NewGRPCServer(node partitionNode, obs Observability, opts ...Option) (*grpcServer, error) {
 	if node == nil {
 		return nil, fmt.Errorf("partition node which implements the service must be assigned")
 	}
@@ -46,24 +47,31 @@ func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 		return nil, fmt.Errorf("server-max-get-blocks-batch-size cannot be less than one, got %d", options.maxGetBlocksBatchSize)
 	}
 
+	mtr := obs.Meter("grpc_api")
+	txCnt, err := mtr.Int64Counter("tx.count", metric.WithUnit("{transaction}"), metric.WithDescription("Number of transactions submitted"))
+	if err != nil {
+		return nil, fmt.Errorf("creating tx.count metric: %w", err)
+	}
+
 	return &grpcServer{
 		node:                  node,
 		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
+		txCnt:                 txCnt,
 	}, nil
 }
 
 func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *alphabill.Transaction) (*emptypb.Empty, error) {
-	receivedTransactionsGRPCMeter.Inc(1)
 	txo := &types.TransactionOrder{}
 	if err := cbor.Unmarshal(tx.Order, txo); err != nil {
-		receivedInvalidTransactionsGRPCMeter.Inc(1)
+		r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.Key("status").String("cbor")))
 		return nil, err
 	}
 
 	if _, err := r.node.SubmitTx(ctx, txo); err != nil {
-		receivedInvalidTransactionsGRPCMeter.Inc(1)
+		r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.Key("tx").String(txo.PayloadType()), attribute.Key("status").String(statusCodeOfTxError(err))))
 		return nil, err
 	}
+	r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.Key("tx").String(txo.PayloadType()), attribute.Key("status").String("ok")))
 	return &emptypb.Empty{}, nil
 }
 

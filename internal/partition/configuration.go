@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -43,7 +42,6 @@ type (
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
-		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      crypto.Signer
@@ -165,10 +163,6 @@ func (c *configuration) initMissingDefaults(log *slog.Logger) error {
 	}
 
 	var err error
-	c.txBuffer, err = txbuffer.New(DefaultTxBufferSize, c.hashAlgorithm, log)
-	if err != nil {
-		return fmt.Errorf("tx buffer init error, %w", err)
-	}
 
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()

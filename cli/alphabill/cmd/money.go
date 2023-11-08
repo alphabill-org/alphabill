@@ -112,10 +112,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, cfg.Base.observe, log)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, proofStore, log)
+	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, proofStore, cfg.Base.observe, log)
 }

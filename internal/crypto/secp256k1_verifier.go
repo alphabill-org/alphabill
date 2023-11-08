@@ -3,7 +3,6 @@ package crypto
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"errors"
 	"fmt"
 
@@ -37,7 +36,7 @@ func NewVerifierSecp256k1(compressedPubKey []byte) (Verifier, error) {
 	if x == nil && y == nil {
 		return nil, fmt.Errorf("public key decompress faield")
 	}
-	pubkey := elliptic.Marshal(secp256k1.S256(), x, y)
+	pubkey := secp256k1.S256().Marshal(x, y)
 	return &verifierSecp256k1{pubkey}, nil
 }
 

@@ -29,6 +29,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -61,6 +62,7 @@ type NodePartition struct {
 	ctx              context.Context
 	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
+	obs              partition.Observability
 	log              *slog.Logger
 }
 
@@ -264,6 +266,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
+		obs:          observability.NOPMetrics(),
 		log:          testlogger.New(t),
 	}
 	// create peer configurations
@@ -360,6 +363,7 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode, log *s
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
 		nil,
+		n.obs,
 		log,
 		pn.confOpts...,
 	)

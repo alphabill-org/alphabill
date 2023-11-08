@@ -44,6 +44,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, partitionGenesis.RootValidators, 1)
 	trustBase, err := genesis.NewValidatorTrustBase(partitionGenesis.RootValidators)
+	require.NoError(t, err)
 	require.NoError(t, partitionGenesis.IsValid(trustBase, gocrypto.SHA256))
 	// verify root consensus parameters, using defaults
 	require.EqualValues(t, 1, rootGenesis.Root.Consensus.TotalRootValidators)

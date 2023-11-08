@@ -205,7 +205,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 			tx:                       testtransaction.NewTransactionOrder(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
-			errStr:                   "transaction has timed out: transaction timeout round is 10, current round is 11",
+			errStr:                   "transaction timeout round is 10, current round is 11: transaction has timed out",
 		},
 	}
 	for _, tt := range tests {

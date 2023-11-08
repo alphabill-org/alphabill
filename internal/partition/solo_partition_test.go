@@ -28,6 +28,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -49,6 +50,7 @@ type SingleNodePartition struct {
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
+	obs        Observability
 	log        *slog.Logger
 }
 
@@ -122,6 +124,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
+		obs:        observability.NOPMetrics(),
 		log:        testlogger.New(t).With(logger.NodeID(peerConf.ID)),
 	}
 	return partition
@@ -164,6 +167,7 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
 		sn.nodeDeps.net,
+		sn.obs,
 		sn.log,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),

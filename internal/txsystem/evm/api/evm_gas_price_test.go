@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/rpc"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -23,7 +25,7 @@ func TestAPI_GasPrice(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/evm/gasPrice", nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
 		_        struct{} `cbor:",toarray"`

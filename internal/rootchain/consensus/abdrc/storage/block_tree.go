@@ -240,10 +240,8 @@ func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
 		var n *node
 		// pop last node from blocks to check
 		n, blocksToCheck = blocksToCheck[len(blocksToCheck)-1], blocksToCheck[:len(blocksToCheck)-1]
-		for _, child := range n.child {
-			// append new node to check for root
-			blocksToCheck = append(blocksToCheck, child)
-		}
+		// append it's child nodes to check for root
+		blocksToCheck = append(blocksToCheck, n.child...)
 		// if this node was not the new root then append to pruned blocks
 		blocks = append(blocks, n.data)
 	}

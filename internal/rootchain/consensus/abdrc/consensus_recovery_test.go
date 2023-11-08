@@ -411,7 +411,7 @@ func Test_recoverState(t *testing.T) {
 			return from == blockedID1 || from == blockedID2
 		})
 		round := cms[0].pacemaker.GetCurrentRound()
-		time.Sleep(3 * cms[0].params.LocalTimeoutMs)
+		time.Sleep(3 * cms[0].params.LocalTimeout)
 		// instead of equal check use "LessOrEqual round+1" as there is a race - sometimes quorum votes
 		// is already sent (and system advances to next round) before firewall takes effect
 		require.LessOrEqual(t, cms[0].pacemaker.GetCurrentRound(), round+1, "round should not have been advanced as there is not enough nodes for a quorum")

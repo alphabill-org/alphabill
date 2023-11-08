@@ -47,7 +47,7 @@ func isMetricsEnabled() bool {
 	// enable the metrics system by peeking into the command line args for the metrics flag.
 	// Since we need this to run before any other code gets to create metrics, we'll actually do an ugly hack.
 	for _, arg := range os.Args {
-		flag := strings.TrimLeft(arg, "--")
+		flag := strings.TrimPrefix(arg, "--")
 		if flag == "metrics" {
 			return true
 		}

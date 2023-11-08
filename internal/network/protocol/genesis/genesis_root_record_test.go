@@ -195,6 +195,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	err = consensus.Sign("test2", signer2)
 	require.NoError(t, err)
 	pubKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 	x := &GenesisRootRecord{
 		RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 		Consensus:      consensus,
@@ -231,6 +232,32 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		Consensus:      consensus,
 	}
 	require.NoError(t, x.Verify())
+}
+
+func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
+	consensus := &ConsensusParams{
+		TotalRootValidators: totalNodes,
+		BlockRateMs:         blockRate,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
+		HashAlgorithm:       hashAlgo,
+	}
+	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
+	for i := range pubKeyInfo {
+		signer, verifier := testsig.CreateSignerAndVerifier(t)
+		err := consensus.Sign(fmt.Sprint(i), signer)
+		require.NoError(t, err)
+		pubKey, err := verifier.MarshalPublicKey()
+		require.NoError(t, err)
+		pubKeyInfo[i] = &PublicKeyInfo{NodeIdentifier: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+	}
+	// remove one signature
+	delete(consensus.Signatures, pubKeyInfo[0].NodeIdentifier)
+	x := &GenesisRootRecord{
+		RootValidators: pubKeyInfo,
+		Consensus:      consensus,
+	}
+	require.ErrorContains(t, x.Verify(), "not signed by all")
 }
 
 func TestGenesisRootRecord_Verify(t *testing.T) {

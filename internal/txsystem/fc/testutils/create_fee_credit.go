@@ -3,7 +3,7 @@ package testutils
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -22,30 +22,27 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 			WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitId(initialBillID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	moneyPartition, err := network.GetNodePartition([]byte{0, 0, 0, 0})
 	require.NoError(t, err)
-	err = moneyPartition.SubmitTx(transferFC)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC), 2*test.WaitDuration, 2*test.WaitTick)
+	require.NoError(t, moneyPartition.SubmitTx(transferFC))
 
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPartition, testpartition.ANY_VALIDATOR, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
 	// send addFC
-	_, transferFCProof, transferFCRecord, err := moneyPartition.GetTxProof(transferFC)
-	require.NoError(t, err)
 	addFC := NewAddFC(t, network.RootPartition.Nodes[0].RootSigner,
 		NewAddFCAttr(t, network.RootPartition.Nodes[0].RootSigner,
 			WithTransferFCTx(transferFCRecord),
 			WithTransferFCProof(transferFCProof),
-			WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+			WithFCOwnerCondition(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitId(fcrID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
-	err = moneyPartition.SubmitTx(addFC)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), 2*test.WaitDuration, 2*test.WaitTick)
+	require.NoError(t, moneyPartition.SubmitTx(addFC))
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), test.WaitDuration, test.WaitTick)
 	return transferFCRecord.TransactionOrder
 }

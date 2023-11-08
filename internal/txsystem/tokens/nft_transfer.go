@@ -14,7 +14,6 @@ import (
 
 func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
 		if err := validateTransferNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
 		}
@@ -53,6 +52,9 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	data, ok := u.Data().(*nonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
+	}
+	if data.locked != 0 {
+		return errors.New("token is locked")
 	}
 	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")

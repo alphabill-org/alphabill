@@ -5,21 +5,22 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
 	store  Storage
 	txs    txsystem.TransactionSystem
 	notify func(bearerPredicate []byte, msg broker.Message)
-	log    log.Logger
+	log    *slog.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error {
@@ -52,58 +53,14 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 	id := tx.UnitID()
 	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
-	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, tx.PayloadType()))
-
-	// handle fee credit txs
-	switch tx.Payload.Type {
-	case transactions.PayloadTypeAddFeeCredit:
-		addFeeCreditAttributes := &transactions.AddFeeCreditAttributes{}
-		if err = tx.UnmarshalAttributes(addFeeCreditAttributes); err != nil {
-			return err
-		}
-		transferFeeCreditAttributes := &transactions.TransferFeeCreditAttributes{}
-		if err = addFeeCreditAttributes.FeeCreditTransfer.TransactionOrder.UnmarshalAttributes(transferFeeCreditAttributes); err != nil {
-			return err
-		}
-		fcb, err := p.store.GetFeeCreditBill(id)
-		if err != nil {
-			return err
-		}
-		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:              id,
-			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
-			TxHash:          txHash,
-			LastAddFCTxHash: txHash,
-		}, txProof)
-	case transactions.PayloadTypeCloseFeeCredit:
-		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
-		if err = tx.UnmarshalAttributes(closeFeeCreditAttributes); err != nil {
-			return err
-		}
-		fcb, err := p.store.GetFeeCreditBill(id)
-		if err != nil {
-			return err
-		}
-		err = p.store.SetClosedFeeCredit(id, tr)
-		if err != nil {
-			return err
-		}
-		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:              id,
-			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:          txHash,
-			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
-		}, txProof)
-	default:
-		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-		if err := p.updateFCB(tr); err != nil {
-			return fmt.Errorf("failed to update fee credit bill %w", err)
-		}
-	}
+	p.log.Debug(fmt.Sprintf("process %s transaction", tx.PayloadType()), logger.UnitID(id))
 
 	// handle UT transactions
 	switch tx.Payload.Type {
 	case tokens.PayloadTypeCreateFungibleTokenType:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.CreateFungibleTokenTypeAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -122,6 +79,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TxHash:                   txHash,
 		}, txProof)
 	case tokens.PayloadTypeMintFungibleToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.MintFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -144,6 +104,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			},
 			txProof)
 	case tokens.PayloadTypeTransferFungibleToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.TransferFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -156,6 +119,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.Owner = attrs.NewBearer
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeSplitFungibleToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.SplitFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -193,6 +159,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.saveToken(newToken, txProof)
 	case tokens.PayloadTypeBurnFungibleToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.BurnFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -208,6 +177,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.Burned = true
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeJoinFungibleToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.JoinFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -237,8 +209,11 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			if !bytes.Equal(burnedToken.Owner, joinedToken.Owner) {
 				return fmt.Errorf("expected burned token's bearer '%X', got %X", joinedToken.Owner, burnedToken.Owner)
 			}
-			if !bytes.Equal(joinedToken.TxHash, burnTxAttr.Nonce) {
-				return fmt.Errorf("expected burned token's nonce '%X', got %X", joinedToken.TxHash, burnTxAttr.Nonce)
+			if !bytes.Equal(joinedToken.ID, burnTxAttr.TargetTokenID) {
+				return fmt.Errorf("expected burned token's target id '%X', got %X", joinedToken.ID, burnTxAttr.TargetTokenID)
+			}
+			if !bytes.Equal(joinedToken.TxHash, burnTxAttr.TargetTokenBacklink) {
+				return fmt.Errorf("expected burned token's target backlink '%X', got %X", joinedToken.TxHash, burnTxAttr.TargetTokenBacklink)
 			}
 			burnedTokensToRemove = append(burnedTokensToRemove, burnedID)
 			burnedValue += burnTxAttr.Value
@@ -255,6 +230,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return nil
 	case tokens.PayloadTypeCreateNFTType:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -273,6 +251,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TxHash:                   txHash,
 		}, txProof)
 	case tokens.PayloadTypeMintNFT:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.MintNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -297,6 +278,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.saveToken(newToken, txProof)
 	case tokens.PayloadTypeTransferNFT:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.TransferNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -309,6 +293,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.TxHash = txHash
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeUpdateNFT:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
 		attrs := &tokens.UpdateNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
@@ -320,8 +307,102 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.NftData = attrs.Data
 		token.TxHash = txHash
 		return p.saveToken(token, txProof)
+	case tokens.PayloadTypeLockToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
+		token, err := p.store.GetToken(id)
+		if err != nil {
+			return fmt.Errorf("lock token tx: failed to get token with id=%X: %w", id, err)
+		}
+		attr := &tokens.LockTokenAttributes{}
+		if err := tx.UnmarshalAttributes(attr); err != nil {
+			return err
+		}
+		token.Locked = attr.LockStatus
+		token.TxHash = txHash
+		return p.saveToken(token, txProof)
+	case tokens.PayloadTypeUnlockToken:
+		if err := p.updateFCB(tr); err != nil {
+			return fmt.Errorf("failed to update fee credit bill: %w", err)
+		}
+		token, err := p.store.GetToken(id)
+		if err != nil {
+			return fmt.Errorf("unlock token tx: failed to get token with id=%X: %w", id, err)
+		}
+		token.Locked = 0
+		token.TxHash = txHash
+		return p.saveToken(token, txProof)
+	case transactions.PayloadTypeAddFeeCredit:
+		addFeeCreditAttributes := &transactions.AddFeeCreditAttributes{}
+		if err = tx.UnmarshalAttributes(addFeeCreditAttributes); err != nil {
+			return err
+		}
+		transferFeeCreditAttributes := &transactions.TransferFeeCreditAttributes{}
+		if err = addFeeCreditAttributes.FeeCreditTransfer.TransactionOrder.UnmarshalAttributes(transferFeeCreditAttributes); err != nil {
+			return err
+		}
+		fcb, err := p.store.GetFeeCreditBill(id)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:     id,
+			Value:  fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
+			TxHash: txHash,
+		}, txProof)
+	case transactions.PayloadTypeCloseFeeCredit:
+		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
+		if err = tx.UnmarshalAttributes(closeFeeCreditAttributes); err != nil {
+			return err
+		}
+		fcb, err := p.store.GetFeeCreditBill(id)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:     id,
+			Value:  fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash: txHash,
+		}, txProof)
+	case transactions.PayloadTypeLockFeeCredit:
+		fcb, err := p.store.GetFeeCreditBill(tx.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to load fee credit bill: %w", err)
+		}
+		if fcb == nil {
+			return fmt.Errorf("fee credit bill not found: %X", tx.GetClientFeeCreditRecordID())
+		}
+		actualFee := tr.GetActualFee()
+		if fcb.Value < actualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, actualFee)
+		}
+		attr := &transactions.LockFeeCreditAttributes{}
+		if err := tx.UnmarshalAttributes(attr); err != nil {
+			return fmt.Errorf("failed to unmarshal lockFC attributes: %w", err)
+		}
+		fcb.Locked = attr.LockStatus
+		fcb.Value -= actualFee
+		fcb.TxHash = txHash
+		return p.store.SetFeeCreditBill(fcb, txProof)
+	case transactions.PayloadTypeUnlockFeeCredit:
+		fcb, err := p.store.GetFeeCreditBill(tx.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to load fee credit bill: %w", err)
+		}
+		if fcb == nil {
+			return fmt.Errorf("fee credit bill not found: %X", tx.GetClientFeeCreditRecordID())
+		}
+		actualFee := tr.GetActualFee()
+		if fcb.Value < actualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, actualFee)
+		}
+		fcb.Locked = 0
+		fcb.Value -= actualFee
+		fcb.TxHash = txHash
+		return p.store.SetFeeCreditBill(fcb, txProof)
 	default:
-		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))
+		p.log.Error(fmt.Sprintf("received unknown token transaction type %q, skipped processing", tx.Payload.Type), logger.UnitID(id))
 		return nil
 	}
 }
@@ -349,9 +430,10 @@ func (p *blockProcessor) updateFCB(tx *types.TransactionRecord) error {
 	if fcb == nil {
 		return fmt.Errorf("fee credit bill not found: %X", tx.TransactionOrder.GetClientFeeCreditRecordID())
 	}
-	if fcb.Value < tx.ServerMetadata.ActualFee {
-		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.ActualFee, fcb.Value)
+	actualFee := tx.GetActualFee()
+	if fcb.Value < actualFee {
+		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", actualFee, fcb.Value)
 	}
-	fcb.Value -= tx.ServerMetadata.ActualFee
+	fcb.Value -= actualFee
 	return p.store.SetFeeCreditBill(fcb, nil)
 }

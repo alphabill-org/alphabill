@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -19,7 +18,7 @@ const (
 
 type (
 	IRChangeRequest struct {
-		SystemIdentifier protocol.SystemIdentifier
+		SystemIdentifier types.SystemID32
 		Reason           CertReqReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -38,6 +37,9 @@ func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 		// Extending of unknown State.
 		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.InputRecord.PreviousHash)
+	} else if req.RootRoundNumber < luc.GetRootRoundNumber() {
+		// Stale request, it has been sent before most recent UC was issued
+		return fmt.Errorf("stale request, IR's root round number %v, last certified root round number %v", req.RootRoundNumber, luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return nil
 }

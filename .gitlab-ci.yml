@@ -4,7 +4,7 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY/alphabill/gitlab-ci-image:4b1c3577
+image: $CI_REGISTRY/alphabill/gitlab-ci-image:main
 
 # Debugging info and initialization goes here
 init:
@@ -12,10 +12,18 @@ init:
   script:
     - go env
 
-test:
+vet:
   stage: test
   script:
-    - gotestsum --junitfile report.xml --format standard-quiet -- ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
+    - go vet ./...
+
+test:
+  stage: test
+  needs:
+    # tests are expensive compared to vet so do not start tests unless vet job succeeded
+    - vet
+  script:
+    - gotestsum --junitfile report.xml --format standard-quiet -- ./... -race -count=1 -coverpkg=./... -coverprofile test-coverage.out
     - go tool cover -func test-coverage.out
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
   coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'

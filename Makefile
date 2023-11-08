@@ -12,7 +12,9 @@ test:
 	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
 
 build:
-	go build -o build/alphabill cli/alphabill/main.go
+    # cd to directory where main.go exits, hack fix for go bug to embed version control data
+    # https://github.com/golang/go/issues/51279
+	cd ./cli/alphabill && go build -o ../../build/alphabill
 
 build_scripts:
 	go build -o build/alphabill-spend-initial-bill scripts/money/spend_initial_bill.go

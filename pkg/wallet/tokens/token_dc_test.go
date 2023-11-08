@@ -8,14 +8,14 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFungibleTokenDC(t *testing.T) {
@@ -102,6 +102,11 @@ func TestFungibleTokenDC(t *testing.T) {
 					tok.Amount += burnedValues[string(pubKey)]
 					if bytes.Equal(pubKey1, pubKey) {
 						require.Equal(t, uint64(300), tok.Amount)
+					}
+					for i := 1; i < len(attrs.BurnTransactions); i++ {
+						prevID := attrs.BurnTransactions[i-1].TransactionOrder.UnitID()
+						currID := attrs.BurnTransactions[i].TransactionOrder.UnitID()
+						require.Equal(t, 1, currID.Compare(prevID), "invalid burn txs order in join tx")
 					}
 				default:
 					return errors.New("unexpected tx")

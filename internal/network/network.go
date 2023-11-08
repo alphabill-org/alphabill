@@ -1,257 +1,260 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
+	"slices"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/internal/types"
+	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
-var DefaultValidatorNetOptions = ValidatorNetOptions{
-	ResponseChannelCapacity:          1000,
-	ForwarderTimeout:                 300 * time.Millisecond,
-	BlockCertificationTimeout:        300 * time.Millisecond,
-	BlockProposalTimeout:             300 * time.Millisecond,
-	LedgerReplicationRequestTimeout:  300 * time.Millisecond,
-	LedgerReplicationResponseTimeout: 300 * time.Millisecond,
-	HandshakeTimeout:                 300 * time.Millisecond,
-}
-
 type (
-
-	// OutputMessage represents a message that will be sent to other nodes.
-	OutputMessage struct {
-		Protocol string // protocol to use to send the message
-		Message  any    // message to send
-	}
-
-	// ReceivedMessage represents a message received over the network.
-	ReceivedMessage struct {
-		From     peer.ID
-		Protocol string
-		Message  any
-	}
-
-	ValidatorNetOptions struct {
-		ResponseChannelCapacity          uint
-		ForwarderTimeout                 time.Duration
-		BlockCertificationTimeout        time.Duration
-		BlockProposalTimeout             time.Duration
-		LedgerReplicationRequestTimeout  time.Duration
-		LedgerReplicationResponseTimeout time.Duration
-		HandshakeTimeout                 time.Duration
-	}
-
 	sendProtocolDescription struct {
 		protocolID string
-		timeout    time.Duration
+		msgType    any           // value of the message type of the protocol
+		timeout    time.Duration // timeout per receiver
 	}
 
 	receiveProtocolDescription struct {
 		protocolID string
-		typeFn     TypeFunc[any]
+		// constructor which returns pointer to a data struct into which
+		// received message can be stored
+		typeFn func() any
+	}
+
+	sendProtocolData struct {
+		protocolID string
+		timeout    time.Duration // per receiver timeout, ie when sending batch this is for each msg!
 	}
 )
 
+/*
+LibP2PNetwork implements "alphabill network" using libp2p.
+
+Zero value is not useable, use one of the constructors to create network!
+*/
 type LibP2PNetwork struct {
-	self             *Peer
-	receiveProtocols map[string]*ReceiveProtocol[any]
-	sendProtocols    map[string]*SendProtocol
-	ReceivedMsgCh    chan ReceivedMessage // messages from LibP2PNetwork to other components.
+	self          *Peer
+	sendProtocols map[reflect.Type]*sendProtocolData
+	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
+	log           *slog.Logger
 }
 
-// NewLibP2PNetwork creates a new libP2P network without protocols.
-func NewLibP2PNetwork(self *Peer, capacity uint) (*LibP2PNetwork, error) {
+/*
+newLibP2PNetwork creates a new libp2p network without protocols (protocols need to be
+registered separately to make the network actually useful).
+
+In case of slow consumer up to "capacity" messages are buffered, after that messages will be dropped.
+
+Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
+*/
+func newLibP2PNetwork(self *Peer, capacity uint, log *slog.Logger) (*LibP2PNetwork, error) {
 	if self == nil {
 		return nil, errors.New("peer is nil")
 	}
-	receivedChannel := make(chan ReceivedMessage, capacity)
+
 	n := &LibP2PNetwork{
-		self:             self,
-		sendProtocols:    make(map[string]*SendProtocol),
-		receiveProtocols: make(map[string]*ReceiveProtocol[any]),
-		ReceivedMsgCh:    receivedChannel,
+		self:          self,
+		sendProtocols: make(map[reflect.Type]*sendProtocolData),
+		receivedMsgs:  make(chan any, capacity),
+		log:           log,
 	}
 	return n, nil
 }
 
-// NewLibP2PValidatorNetwork creates a new libp2p for a validator.
-func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNetwork, error) {
-	n, err := NewLibP2PNetwork(self, opts.ResponseChannelCapacity)
-	if err != nil {
-		return nil, err
-	}
-	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolBlockProposal, timeout: opts.BlockProposalTimeout},
-		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout},
-		{protocolID: ProtocolInputForward, timeout: opts.ForwarderTimeout},
-		{protocolID: ProtocolLedgerReplicationReq, timeout: opts.LedgerReplicationRequestTimeout},
-		{protocolID: ProtocolLedgerReplicationResp, timeout: opts.LedgerReplicationResponseTimeout},
-		{protocolID: ProtocolHandshake, timeout: opts.HandshakeTimeout},
-	}
-	err = initSendProtocols(self, sendProtocolDescriptions, n)
-	if err != nil {
-		return nil, err
-	}
-	receiveProtocolDescriptions := []receiveProtocolDescription{
-		{
-			protocolID: ProtocolBlockProposal,
-			typeFn:     func() any { return &blockproposal.BlockProposal{} },
-		},
-		{
-			protocolID: ProtocolInputForward,
-			typeFn:     func() any { return &types.TransactionOrder{} },
-		},
-		{
-			protocolID: ProtocolUnicityCertificates,
-			typeFn:     func() any { return &types.UnicityCertificate{} },
-		},
-		{
-			protocolID: ProtocolLedgerReplicationReq,
-			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
-		},
-		{
-			protocolID: ProtocolLedgerReplicationResp,
-			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
-		},
-	}
-	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)
-	if err != nil {
-		return nil, err
-	}
-	return n, nil
+func (n *LibP2PNetwork) ReceivedChannel() <-chan any {
+	return n.receivedMsgs
 }
 
-func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration) (*LibP2PNetwork, error) {
-	n, err := NewLibP2PNetwork(self, capacity)
-	if err != nil {
-		return nil, err
-	}
-	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolUnicityCertificates, timeout: sendCertificateTimeout},
-	}
-	err = initSendProtocols(self, sendProtocolDescriptions, n)
-	if err != nil {
-		return nil, err
-	}
-	receiveProtocolDescriptions := []receiveProtocolDescription{
-		{
-			protocolID: ProtocolBlockCertification,
-			typeFn:     func() any { return &certification.BlockCertificationRequest{} },
-		},
-		{
-			protocolID: ProtocolHandshake,
-			typeFn:     func() any { return &handshake.Handshake{} },
-		},
-	}
-	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)
-	if err != nil {
-		return nil, err
-	}
-	return n, nil
-}
-
-func (n *LibP2PNetwork) Close() {
-	close(n.ReceivedMsgCh)
-	for s := range n.receiveProtocols {
-		n.self.RemoveProtocolHandler(s)
-	}
-}
-
-func (n *LibP2PNetwork) ReceivedChannel() <-chan ReceivedMessage {
-	return n.ReceivedMsgCh
-}
-
-func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol[any]) error {
-	if receiveProtocol == nil {
-		return errors.New("receiver protocol is nil")
-	}
-	if _, f := n.receiveProtocols[receiveProtocol.ID()]; f {
-		return fmt.Errorf("protocol %v already registered", receiveProtocol.ID())
-	}
-	n.receiveProtocols[receiveProtocol.ID()] = receiveProtocol
-	return nil
-}
-
-func (n *LibP2PNetwork) registerSendProtocol(sendProtocol *SendProtocol) error {
-	if sendProtocol == nil {
-		return errors.New("send protocol is nil")
-	}
-	if _, f := n.sendProtocols[sendProtocol.ID()]; f {
-		return fmt.Errorf("protocol %v already registered", sendProtocol.ID())
-	}
-	n.sendProtocols[sendProtocol.ID()] = sendProtocol
-	return nil
-}
-
-func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
+func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID) error {
 	if len(receivers) == 0 {
 		return nil // no one to send message in single-node partition
+		// it seems that current codebase depends on this behavior (returning nil instead of error)
+		//return errors.New("at least one receiver ID must be provided")
 	}
-	p, f := n.sendProtocols[out.Protocol]
+
+	p, f := n.sendProtocols[reflect.TypeOf(msg)]
 	if !f {
-		return fmt.Errorf("protocol '%s' is not supported", out.Protocol)
+		return fmt.Errorf("no protocol registered for messages of type %T", msg)
 	}
-	go n.send(p, out.Message, receivers)
+	if err := n.send(ctx, p, msg, receivers); err != nil {
+		return fmt.Errorf("sending message: %w", err)
+	}
+
 	return nil
 }
 
-func (n *LibP2PNetwork) send(protocol *SendProtocol, m any, receivers []peer.ID) {
-	for _, receiver := range receivers {
-		err := protocol.Send(m, receiver)
-		if err != nil {
-			logger.Warning("Send error, message %v receiver: %v sender: %v, %v",
-				protocol.protocolID, receiver, n.self.ID(), err)
-			continue
+func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, msg any, receivers []peer.ID) error {
+	data, err := serializeMsg(msg)
+	if err != nil {
+		return fmt.Errorf("serializing message: %w", err)
+	}
+
+	// as of now we send messages for all the receivers in the single goroutine... consider
+	// sending each message in a separate goroutine (or if there is single receiver then do
+	// it in "sync mode"?)
+	go func() {
+		for _, receiver := range receivers {
+			// loop-back for self messages as libp2p would otherwise error:
+			// open stream error: failed to dial: dial to self attempted
+			if receiver == n.self.ID() {
+				n.receivedMsg(n.self.ID(), protocol.protocolID, msg)
+				continue
+			}
+
+			if err := n.sendMsg(ctx, data, protocol.protocolID, protocol.timeout, receiver); err != nil {
+				n.log.WarnContext(ctx, fmt.Sprintf("sending %s to %v", protocol.protocolID, receiver), logger.Error(err))
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (p *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID string, timeout time.Duration, receiverID peer.ID) (rErr error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	s, err := p.self.CreateStream(ctx, receiverID, protocolID)
+	if err != nil {
+		return fmt.Errorf("open p2p stream: %w", err)
+	}
+	defer func() {
+		if err := s.Close(); err != nil {
+			rErr = errors.Join(rErr, fmt.Errorf("closing p2p stream: %w", err))
+		}
+	}()
+
+	if _, err := s.Write(data); err != nil {
+		return fmt.Errorf("writing data to p2p stream: %w", err)
+	}
+
+	return nil
+}
+
+/*
+streamHandlerForProtocol returns libp2p stream handler for given protocolID.
+The "ctor" is constructor which returns pointer to a data struct into which
+incoming message can be stored.
+*/
+func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any) libp2pNetwork.StreamHandler {
+	return func(s libp2pNetwork.Stream) {
+		defer func() {
+			if err := s.Close(); err != nil {
+				n.log.Warn(fmt.Sprintf("closing p2p stream %q", protocolID), logger.Error(err))
+			}
+		}()
+
+		msg := ctor()
+		if err := deserializeMsg(s, msg); err != nil {
+			n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))
+			return
+		}
+		n.receivedMsg(s.Conn().RemotePeer(), protocolID, msg)
+	}
+}
+
+func (n *LibP2PNetwork) receivedMsg(from peer.ID, protocolID string, msg any) {
+	select {
+	case n.receivedMsgs <- msg:
+	default:
+		n.log.Warn(fmt.Sprintf("dropping %s message from %s because of slow consumer", protocolID, from))
+	}
+}
+
+func (n *LibP2PNetwork) registerReceiveProtocols(protocols []receiveProtocolDescription) error {
+	if len(protocols) == 0 {
+		return errors.New("at least one protocol description must be given")
+	}
+
+	for _, p := range protocols {
+		if err := n.registerReceiveProtocol(p); err != nil {
+			return fmt.Errorf("registering protocol %q: %w", p.protocolID, err)
 		}
 	}
+
+	return nil
 }
 
-func initReceiveProtocols(self *Peer, n *LibP2PNetwork, receiveProtocolDescriptions []receiveProtocolDescription) error {
-	for _, d := range receiveProtocolDescriptions {
-		err := initReceiveProtocol(self, d.protocolID, d.typeFn, n)
-		if err != nil {
-			return fmt.Errorf("receive protocol %v init failed, %w", d.protocolID, err)
+func (n *LibP2PNetwork) registerReceiveProtocol(protoc receiveProtocolDescription) error {
+	if protoc.protocolID == "" {
+		return errors.New("protocol ID must be assigned")
+	}
+	if slices.Contains(n.self.host.Mux().Protocols(), protocol.ID(protoc.protocolID)) {
+		return fmt.Errorf("protocol %q is already registered", protoc.protocolID)
+	}
+
+	if protoc.typeFn == nil {
+		return errors.New("data struct constructor must be assigned")
+	}
+	msg := protoc.typeFn()
+	if msg == nil {
+		return errors.New("data struct constructor returns nil")
+	}
+	switch typ := reflect.TypeOf(msg); typ.Kind() {
+	case reflect.Pointer:
+		if typ.Elem().Kind() != reflect.Struct {
+			return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
+		}
+		if reflect.ValueOf(msg).IsNil() {
+			return fmt.Errorf("data struct constructor returns uninitialized pointer")
+		}
+	default:
+		return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
+	}
+
+	n.self.RegisterProtocolHandler(protoc.protocolID, n.streamHandlerForProtocol(protoc.protocolID, protoc.typeFn))
+	return nil
+}
+
+/*
+registerSendProtocols allows to register multiple send protocols with single call.
+It calls "registerSendProtocol" for each element in the "protocols" parameter.
+*/
+func (n *LibP2PNetwork) registerSendProtocols(protocols []sendProtocolDescription) error {
+	if len(protocols) == 0 {
+		return errors.New("at least one protocol description must be given")
+	}
+
+	for _, pd := range protocols {
+		if err := n.registerSendProtocol(pd); err != nil {
+			return fmt.Errorf("registering protocol %q: %w", pd.protocolID, err)
 		}
 	}
 	return nil
 }
 
-func initReceiveProtocol(self *Peer, protocolID string, typeFn TypeFunc[any], n *LibP2PNetwork) error {
-	p, err := NewReceiverProtocol(self, protocolID, n.ReceivedMsgCh, typeFn)
-	if err != nil {
-		return fmt.Errorf("new receive protocol error, %w", err)
+func (n *LibP2PNetwork) registerSendProtocol(protocol sendProtocolDescription) error {
+	if protocol.protocolID == "" {
+		return errors.New("protocol ID must be assigned")
 	}
-	err = n.registerReceiveProtocol(p)
-	if err != nil {
-		return fmt.Errorf("failed to register receive protocol, %w", err)
-	}
-	return nil
-}
 
-func initSendProtocols(self *Peer, sendProtocolDescriptions []sendProtocolDescription, n *LibP2PNetwork) error {
-	for _, pd := range sendProtocolDescriptions {
-		err := initSendProtocol(pd.protocolID, self, pd.timeout, n)
-		if err != nil {
-			return fmt.Errorf("send protocol %v init failed, %w", pd.protocolID, err)
-		}
+	if protocol.timeout < 0 {
+		return fmt.Errorf("negative duration is not allowed for timeout, got %s for %s", protocol.timeout, protocol.protocolID)
 	}
-	return nil
-}
 
-func initSendProtocol(protocolID string, peer *Peer, timeout time.Duration, n *LibP2PNetwork) error {
-	p, err := NewSendProtocol(peer, protocolID, timeout)
-	if err != nil {
-		return fmt.Errorf("new send protocol error, %w", err)
+	typ := reflect.TypeOf(protocol.msgType)
+	if typ == nil {
+		return errors.New("message data type must be assigned")
 	}
-	if err = n.registerSendProtocol(p); err != nil {
-		return fmt.Errorf("failed to register send protocol, %w", err)
+	if typ.Kind() != reflect.Struct {
+		return fmt.Errorf("message data type must be struct, got %T", protocol.msgType)
 	}
+
+	if spd, ok := n.sendProtocols[typ]; ok {
+		return fmt.Errorf("data type %s has been already registered for protocol %s", typ, spd.protocolID)
+	}
+
+	spx := &sendProtocolData{protocolID: protocol.protocolID, timeout: protocol.timeout}
+	n.sendProtocols[typ] = spx
+	n.sendProtocols[reflect.PointerTo(typ)] = spx
 	return nil
 }

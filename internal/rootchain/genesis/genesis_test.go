@@ -29,7 +29,7 @@ func getPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, err
 	return pubKey, verifier, nil
 }
 
-func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
+func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -49,7 +49,7 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 	}
 }
 
-func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -64,7 +64,7 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 	}
 }
 
-func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
@@ -110,7 +110,7 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				signer:                sig,
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
+				consensusTimeoutMs:    genesis.MinBlockRateMs + genesis.MinConsensusTimeout,
 				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
@@ -219,7 +219,7 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				signer:                sig,
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs - 1,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
+				consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
 				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
@@ -257,8 +257,6 @@ func TestNewGenesis_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	//rootChainVerifier, err := rootChainSigner.Verifier()
-	require.NoError(t, err)
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -294,7 +292,6 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	}
 	partition.Validators = append(partition.Validators, pr)
 
-	require.NoError(t, err)
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
@@ -309,6 +306,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partitionSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
 
 	pn1 := createPartitionNode(t, id, "1", partitionSigner)
 	pn2 := createPartitionNode(t, id, "2", partitionSigner2)
@@ -438,7 +436,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 		[]*genesis.PartitionRecord{partition},
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
-		WithConsensusTimeout(genesis.MinConsensusTimeout))
+		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
 	require.NoError(t, err)
 	require.NoError(t, rg1.IsValid())
 	// generate genesis 2
@@ -453,7 +451,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 		[]*genesis.PartitionRecord{partition},
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
-		WithConsensusTimeout(genesis.MinConsensusTimeout))
+		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
 	require.NoError(t, err)
 	require.NoError(t, rg2.IsValid())
 	geneses := []*genesis.RootGenesis{rg1, rg2}

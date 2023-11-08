@@ -185,54 +185,6 @@ paths:
                 $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /locked-fee-credit/{systemId}/{unitId}:
-    get:
-      summary: Get the last transferFC transaction for the given partition and fee credit bill
-      description: Get the last transferFC transaction for the given partition and fee credit bill
-      parameters:
-        - name: systemId
-          description: Target fee credit system ID of the transferFC transaction (hex)
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: unitId
-          description: Target fee credit bill ID (hex)
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            application/cbor:
-              schema:
-                type: string
-                format: binary
-        default:
-          $ref: 'components.yaml#/responses/ErrorResponse'
-  /closed-fee-credit/{unitId}:
-    get:
-      summary: Get the last seen closeFC transaction for the given fee credit bill
-      description: Get the last seen closeFC transaction for the given fee credit bill
-      parameters:
-        - name: unitId
-          description: Target fee credit bill ID (hex)
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            application/cbor:
-              schema:
-                type: string
-                format: binary
-        default:
-          $ref: 'components.yaml#/responses/ErrorResponse'
   /transactions/{pubkey}:
     post:
       summary: Forward transactions to partition node
@@ -260,6 +212,18 @@ paths:
           $ref: 'components.yaml#/responses/PostTransactionsErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
+  /info:
+    get:
+      summary: Get info about the partition
+      description: |-
+        Returns static info about the partition such as partition system identifier etc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
 components:
   schemas:
     BalanceResponse:
@@ -275,3 +239,12 @@ components:
           type: array
           items:
             $ref: 'components.yaml#/schemas/Bill'
+    InfoResponse:
+      type: object
+      properties:
+        system_id:
+          type: string
+          example: '00000000'
+        name:
+          type: string
+          example: 'money backend'

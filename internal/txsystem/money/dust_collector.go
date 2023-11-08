@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -13,10 +13,10 @@ const defaultDustBillDeletionTimeout uint64 = 65536
 
 var (
 	// The ID of the dust collector money supply
-	dustCollectorMoneySupplyID types.UnitID = NewBillID(nil, nil)
+	dustCollectorMoneySupplyID = NewBillID(nil, nil)
 
 	// Dust collector predicate
-	dustCollectorPredicate = script.PredicatePayToPublicKeyHash(script.HashAlgSha256, abHasher.Sum256([]byte("dust collector")), script.SigSchemeSecp256k1)
+	dustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(abHasher.Sum256([]byte("dust collector")))
 )
 
 type DustCollector struct {

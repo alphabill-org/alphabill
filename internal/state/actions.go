@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -25,7 +26,7 @@ type (
 )
 
 // AddUnit adds a new unit with given identifier, owner condition, unit data.
-func AddUnit(id types.UnitID, bearer Predicate, data UnitData) Action {
+func AddUnit(id types.UnitID, bearer predicates.PredicateBytes, data UnitData) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
@@ -81,7 +82,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 }
 
 // SetOwner changes the owner of the item, leaves data as is
-func SetOwner(id types.UnitID, bearer Predicate) Action {
+func SetOwner(id types.UnitID, bearer predicates.PredicateBytes) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
@@ -91,8 +92,9 @@ func SetOwner(id types.UnitID, bearer Predicate) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		u.bearer = bearer
-		if err = s.Update(id, u); err != nil {
+		cloned := u.Clone()
+		cloned.bearer = bearer
+		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}
 		return nil

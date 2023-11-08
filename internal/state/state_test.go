@@ -5,7 +5,7 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -386,8 +386,13 @@ func TestState_GetUnit(t *testing.T) {
 
 	u2, err := s.GetUnit(unitID, true)
 	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, u, u2)
+	require.NotNil(t, u2)
+	// subtree hash and summaryCalculated do not get cloned - rest must match
+	require.Equal(t, u.logs, u2.logs)
+	require.Equal(t, u.logRoot, u2.logRoot)
+	require.Equal(t, u.bearer, u2.bearer)
+	require.Equal(t, u.data, u2.data)
+	require.Equal(t, u.subTreeSummaryValue, u2.subTreeSummaryValue)
 }
 
 func TestState_AddUnitLog_OK(t *testing.T) {
@@ -483,8 +488,8 @@ func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
 }
 
 func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
-	s, stateRootHash, summaryValue := prepareState(t)
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	s, _, _ := prepareState(t)
+	stateRootHash, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(5510), summaryValue)
 
 	for _, id := range unitIdentifiers {
@@ -505,16 +510,16 @@ func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
 }
 
 func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
-	s, stateRootHash, summaryValue := prepareState(t)
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	s, _, _ := prepareState(t)
+	_, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(5510), summaryValue)
 	for _, id := range unitIdentifiers {
 		require.NoError(t, s.PruneLog(id))
 	}
-	summaryValue, stateRootHash, err := s.CalculateRoot()
+	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	stateRootHash, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(55100), summaryValue)
 
 	for _, id := range unitIdentifiers {
@@ -548,17 +553,17 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	//			└───┤ key=00000001
 	//				└───┤ key=00000000
 	require.NoError(t, s.Apply(
-		AddUnit([]byte{0, 0, 0, 1}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 10}),
-		AddUnit([]byte{0, 0, 0, 6}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 60}),
-		AddUnit([]byte{0, 0, 0, 2}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 20}),
-		AddUnit([]byte{0, 0, 0, 3}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 30}),
-		AddUnit([]byte{0, 0, 0, 7}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 70}),
-		AddUnit([]byte{0, 0, 0, 4}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 40}),
-		AddUnit([]byte{0, 0, 1, 0}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 100}),
-		AddUnit([]byte{0, 0, 0, 8}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 80}),
-		AddUnit([]byte{0, 0, 0, 5}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 50}),
-		AddUnit([]byte{0, 0, 0, 9}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 90}),
-		AddUnit([]byte{0, 0, 0, 0}, script.PredicateAlwaysTrue(), &pruneUnitData{i: 1}),
+		AddUnit([]byte{0, 0, 0, 1}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 10}),
+		AddUnit([]byte{0, 0, 0, 6}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 60}),
+		AddUnit([]byte{0, 0, 0, 2}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 20}),
+		AddUnit([]byte{0, 0, 0, 3}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 30}),
+		AddUnit([]byte{0, 0, 0, 7}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 70}),
+		AddUnit([]byte{0, 0, 0, 4}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 40}),
+		AddUnit([]byte{0, 0, 1, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 100}),
+		AddUnit([]byte{0, 0, 0, 8}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 80}),
+		AddUnit([]byte{0, 0, 0, 5}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 50}),
+		AddUnit([]byte{0, 0, 0, 9}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 90}),
+		AddUnit([]byte{0, 0, 0, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 1}),
 	))
 	txrHash := test.RandomBytes(32)
 
@@ -574,7 +579,7 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	return s, rootHash, sum
 }
 
-func updateUnits(t *testing.T, s *State, summaryValue uint64, stateRootHash []byte) ([]byte, uint64) {
+func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 	require.NoError(t, s.Apply(
 		UpdateUnitData([]byte{0, 0, 0, 6}, multiply(10)),
 		UpdateUnitData([]byte{0, 0, 0, 1}, multiply(10)),

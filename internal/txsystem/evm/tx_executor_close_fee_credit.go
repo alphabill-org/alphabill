@@ -1,9 +1,11 @@
 package evm
 
 import (
+	"crypto"
 	"fmt"
+	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -13,11 +15,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
+func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing closeFC %v", tx)
-		stateDB := statedb.NewStateDB(tree)
-		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 		}
@@ -25,25 +25,31 @@ func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.De
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
 		}
-		abFeeBillData := stateDB.GetAlphaBillData(addr)
-		var u *state.Unit = nil
-		if abFeeBillData != nil {
+		txHash := tx.Hash(hashAlgorithm)
+		unitID := addr.Bytes()
+		u, _ := tree.GetUnit(unitID, false)
+		// hack to be able to use a common validator for now
+		var feeCreditRecordUnit *state.Unit = nil
+		if u != nil {
+			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
-				Balance: weiToAlpha(stateDB.GetBalance(addr)),
-				Hash:    abFeeBillData.TxHash,
-				Timeout: abFeeBillData.Timeout,
+				Balance:  weiToAlpha(stateObj.Account.Balance),
+				Backlink: txHash,
+				Timeout:  stateObj.AlphaBill.Timeout,
 			}
-			u = state.NewUnit(
-				abFeeBillData.Bearer,
+			feeCreditRecordUnit = state.NewUnit(
+				u.Bearer(),
 				data,
 			)
 		}
-		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: u}); err != nil {
+		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: feeCreditRecordUnit}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
-		// decrement credit
-		stateDB.SubBalance(addr, alphaToWei(attr.Amount))
-		// calculate actual tx fee cost
+
+		// decrement credit and update AB FCR bill backlink
+		if err = tree.Apply(statedb.UpdateEthAccountCloseCredit(unitID, alphaToWei(attr.Amount), txHash)); err != nil {
+			return nil, fmt.Errorf("closeFC state update failed: %w", err)
+		}
 		return &types.ServerMetadata{ActualFee: calcFee(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

@@ -12,7 +12,6 @@ import (
 
 func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing transferDC %v", tx)
 		if err := validateTransferDCTx(tx, attr, s); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}

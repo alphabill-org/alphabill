@@ -3,10 +3,10 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -16,17 +16,19 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func Test_restAPI_endpoints(t *testing.T) {
@@ -74,6 +76,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	// valid request body with single create-nft-type tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+	pb, _ := createNTFTypeTx.PayloadBytes()
+	sig, pk := testsig.SignBytes(t, pb)
+	createNTFTypeTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, pk)
 	createNTFTypeMsg, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
@@ -126,7 +131,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 				},
 			},
 		}
-		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
+		rsp := makeRequest(api, hexutil.Encode(pk), createNTFTypeMsg)
 		if rsp.StatusCode != http.StatusAccepted {
 			b, err := httputil.DumpResponse(rsp, true)
 			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
@@ -135,16 +140,56 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
 	})
 
-	t.Run("valid non-type-creation request", func(t *testing.T) {
-		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
-			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
-		}}
-		message, err := cbor.Marshal(txs)
+	t.Run("one valid type-creation transaction without an owner is sent", func(t *testing.T) {
+		tx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+		tx.Payload.Type = tokens.PayloadTypeCreateNFTType
+		tx.OwnerProof = templates.AlwaysTrueBytes()
+
+		message, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{tx}})
 		require.NoError(t, err)
 
-		if err != nil {
-			t.Fatalf("failed to create token tx system: %v", err)
+		var saveTypeCalls, sendTxCalls int32
+		api := &tokensRestAPI{
+			ab: &mockABClient{
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
+					atomic.AddInt32(&sendTxCalls, 1)
+					return nil
+				},
+			},
+			db: &mockStorage{
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator sdk.PubKey) error {
+					atomic.AddInt32(&saveTypeCalls, 1)
+					if !bytes.Equal(id, tx.UnitID()) {
+						t.Errorf("unexpected unit ID %x", id)
+					}
+					return nil
+				},
+			},
 		}
+
+		rsp := makeRequest(api, hexutil.Encode(pk), message)
+		if rsp.StatusCode != http.StatusAccepted {
+			b, err := httputil.DumpResponse(rsp, true)
+			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
+		}
+		require.EqualValues(t, 1, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
+		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+
+	t.Run("valid non-type-creation request with ownership validation", func(t *testing.T) {
+		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+			testtransaction.NewTransactionOrder(t,
+				testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+				testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+			),
+		}}
+		txBytes, err := txs.Transactions[0].PayloadBytes()
+		require.NoError(t, err)
+		sigData, pubKey := testsig.SignBytes(t, txBytes)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
+
+		message, err := cbor.Marshal(txs)
+		require.NoError(t, err)
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &tokensRestAPI{
@@ -161,13 +206,34 @@ func Test_restAPI_postTransaction(t *testing.T) {
 				},
 			},
 		}
-		rsp := makeRequest(api, ownerIDstr, message)
+
+		rsp := makeRequest(api, hexutil.Encode(pubKey), message)
 		if rsp.StatusCode != http.StatusAccepted {
 			b, err := httputil.DumpResponse(rsp, true)
 			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
 		}
 		require.EqualValues(t, 0, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+
+	t.Run("invalid transaction owner", func(t *testing.T) {
+		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
+		}}
+		txBytes, err := txs.Transactions[0].PayloadBytes()
+		require.NoError(t, err)
+		sigData, pubKey := testsig.SignBytes(t, txBytes)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
+
+		message, err := cbor.Marshal(txs)
+		require.NoError(t, err)
+
+		rsp := makeRequest(&tokensRestAPI{}, ownerIDstr, message)
+		er := &sdk.ErrorResponse{}
+		if err := decodeResponse(t, rsp, http.StatusBadRequest, &er); err != nil {
+			t.Fatal(err.Error())
+		}
+		require.Contains(t, er.Message, fmt.Sprintf(`transaction with unitID %v in request body does not match provided pubKey parameter`, txs.Transactions[0].UnitID()))
 	})
 }
 
@@ -207,6 +273,7 @@ func Test_restAPI_getToken(t *testing.T) {
 			ID:     test.RandomBytes(32),
 			Kind:   NonFungible,
 			Amount: 42,
+			Locked: 1,
 		}
 		api := &tokensRestAPI{db: &mockStorage{
 			getToken: func(id TokenID) (*TokenUnit, error) {
@@ -291,7 +358,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 		ds := &mockStorage{
 			queryTokens: func(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
-				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}
@@ -792,10 +859,9 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		fcb := &FeeCreditBill{
-			Id:              []byte{1},
-			Value:           2,
-			TxHash:          []byte{3},
-			LastAddFCTxHash: []byte{4},
+			Id:     []byte{1},
+			Value:  2,
+			TxHash: []byte{3},
 		}
 		fcbProof := &sdk.Proof{}
 		api := &tokensRestAPI{
@@ -820,52 +886,27 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 	})
 }
 
-func Test_restAPI_getClosedCredit(t *testing.T) {
+func Test_restAPI_getInfo(t *testing.T) {
 	t.Parallel()
 
-	makeRequest := func(api *tokensRestAPI, unitID string) *http.Response {
-		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/closed-fee-credit/%s", unitID), nil)
-		req = mux.SetURLVars(req, map[string]string{"unitId": unitID})
+	makeRequest := func(api *tokensRestAPI) *http.Response {
+		req := httptest.NewRequest("GET", "http://ab.com/api/v1/info", nil)
 		w := httptest.NewRecorder()
-		api.getClosedFeeCredit(w, req)
+		api.getInfo(w, req)
 		return w.Result()
 	}
 
-	t.Run("400 'unitId' query param not in hex format", func(t *testing.T) {
-		rsp := makeRequest(&tokensRestAPI{}, "foo")
-		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "unitId": hex string without 0x prefix`)
-	})
-
-	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
-		api := &tokensRestAPI{
-			db: &mockStorage{
-				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
-					return nil, errors.New("error fetching closed fee credit")
-				},
-			},
-		}
-		rsp := makeRequest(api, "0x01")
-		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load closed fee credit for ID 0x01: error fetching closed fee credit")
-	})
-
 	t.Run("ok", func(t *testing.T) {
-		fcbID := []byte{1}
-		closedFCTx := &types.TransactionRecord{}
-		api := &tokensRestAPI{
-			db: &mockStorage{
-				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
-					return closedFCTx, nil
-				},
-			},
-		}
-		rsp := makeRequest(api, sdk.EncodeHex(fcbID))
+		api := &tokensRestAPI{systemID: tokens.DefaultSystemIdentifier}
+		rsp := makeRequest(api)
 		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
 		defer rsp.Body.Close()
 
-		closedFCFromAPI := closedFCTx
-		if err := cbor.NewDecoder(rsp.Body).Decode(closedFCFromAPI); err != nil {
+		var res *sdk.InfoResponse
+		if err := json.NewDecoder(rsp.Body).Decode(&res); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
-		require.Equal(t, closedFCTx, closedFCFromAPI)
+		require.Equal(t, "00000002", res.SystemID)
+		require.Equal(t, "tokens backend", res.Name)
 	})
 }

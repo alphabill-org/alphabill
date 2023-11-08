@@ -41,7 +41,7 @@ func (c *genesisConf) isValid() error {
 	if len(c.encryptionPubKeyBytes) == 0 {
 		return ErrEncryptionPubKeyIsNil
 	}
-	if len(c.systemIdentifier) == 0 {
+	if len(c.systemIdentifier) != types.SystemIdentifierLength {
 		return errInvalidSystemIdentifier
 	}
 	return nil
@@ -140,6 +140,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			RoundNumber:  pg.PartitionRoundNumber,
 			SummaryValue: summaryValue,
 		},
+		RootRoundNumber: pg.RootRoundNumber,
 	}
 	err = blockCertificationRequest.Sign(c.signer)
 	if err != nil {

@@ -89,6 +89,8 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.systemID, m.hashAlgorithm, m.trustBase, m.feeCalculator),
+		PayloadTypeLock:     handleLockTx(m.state, m.hashAlgorithm, m.feeCalculator),
+		PayloadTypeUnlock:   handleUnlockTx(m.state, m.hashAlgorithm, m.feeCalculator),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),

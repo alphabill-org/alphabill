@@ -37,7 +37,7 @@ func (x *GenesisRootRecord) IsValid() error {
 	// 2. Check the consensus structure
 	err = x.Consensus.IsValid()
 	if err != nil {
-		return fmt.Errorf("consnesus parameters not valid, %w", err)
+		return fmt.Errorf("consensus parameters not valid: %w", err)
 	}
 	// 3. Verify that all signatures are valid and from known authors
 	verifiers, err := NewValidatorTrustBase(x.RootValidators)

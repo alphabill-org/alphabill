@@ -6,39 +6,40 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func Test_Run(t *testing.T) {
 	t.Parallel()
 
 	t.Run("failure to get storage", func(t *testing.T) {
-		cfg := &mockCfg{} // no db cfg assigned, should cause error before subprocesses start
+		cfg := &mockCfg{log: logger.New(t)} // no db cfg assigned, should cause error before subprocesses start
 		err := Run(context.Background(), cfg)
 		require.EqualError(t, err, `failed to get storage: neither db file name nor mock is assigned`)
 	})
 
-	loggerForTest := func(t *testing.T) (log.Logger, *bytes.Buffer) {
+	loggerForTest := func(t *testing.T) (*slog.Logger, *bytes.Buffer) {
 		buf := bytes.NewBuffer(nil)
-		l, err := log.New(log.DEBUG, buf)
-		require.NoError(t, err)
-		return l, buf
+		return slog.New(slog.NewTextHandler(buf, nil)), buf
 	}
 
 	t.Run("failure to get starting block number from storage", func(t *testing.T) {
@@ -127,15 +128,13 @@ func Test_Run(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 		}
 
-		require.Contains(t, logBuf.String(), `synchronizing blocks returned error: context canceled`)
+		require.Contains(t, logBuf.String(), `synchronizing blocks returned error`)
+		require.Contains(t, logBuf.String(), `err="context canceled"`)
 	})
 }
 
 func Test_Run_API(t *testing.T) {
 	t.Parallel()
-
-	logger, err := log.New(log.DEBUG, nil)
-	require.NoError(t, err)
 
 	var currentRoundNumber atomic.Uint64
 	syncing := make(chan *types.TransactionOrder, 1)
@@ -144,16 +143,15 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:              tokens.NewFeeCreditRecordID(nil, []byte{1}),
-		Value:           10000000,
-		TxHash:          []byte{1},
-		LastAddFCTxHash: []byte{2},
+		Id:     tokens.NewFeeCreditRecordID(nil, []byte{1}),
+		Value:  10000000,
+		TxHash: []byte{1},
 	}, nil)
 	require.NoError(t, err)
 
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		log: logger,
+		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		db:  boltStore,
 		abc: &mockABClient{
 			sendTransaction: func(ctx context.Context, tx *types.TransactionOrder) error {
@@ -274,7 +272,7 @@ func Test_Run_API(t *testing.T) {
 	pubKeyHex := hexutil.Encode(ownerID)
 	tx := randomTx(t,
 		&tokens.MintNonFungibleTokenAttributes{
-			Bearer:    script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
+			Bearer:    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
 		})
 	tx.Payload.Type = tokens.PayloadTypeMintNFT

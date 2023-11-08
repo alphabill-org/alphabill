@@ -8,10 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	log "github.com/alphabill-org/alphabill/pkg/logger"
 )
-
-var logger = log.CreateForPackage()
 
 type CounterTxSystem struct {
 	InitCount       uint64
@@ -41,12 +38,10 @@ type Summary struct {
 }
 
 func (s *Summary) Root() []byte {
-	logger.Debug("CounterTxSystem: Root(): %X", s.root)
 	return s.root
 }
 
 func (s *Summary) Summary() []byte {
-	logger.Debug("CounterTxSystem: Summary(): %X", s.summary)
 	return s.summary
 }
 
@@ -64,7 +59,6 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 		state += m.EndBlockCount
 	}
 	binary.LittleEndian.PutUint64(bytes, state)
-	logger.Debug("CounterTxSystem: State(%d): %X", m.blockNo, bytes)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
@@ -72,15 +66,12 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
 	m.blockNo = nr
-	summary, _ := m.StateSummary()
-	logger.Debug("CounterTxSystem: BeginBlock(%d), from state: %X", m.blockNo, summary.Root())
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
 	return nil
 }
 
 func (m *CounterTxSystem) Revert() {
-	logger.Debug("CounterTxSystem: Revert(%d)", m.blockNo)
 	m.ExecuteCountDelta = 0
 	m.EndBlockCountDelta = 0
 	m.BeginBlockCountDelta = 0
@@ -97,7 +88,6 @@ func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 		state += m.EndBlockCount + m.EndBlockCountDelta
 	}
 	binary.LittleEndian.PutUint64(bytes, state)
-	logger.Debug("CounterTxSystem: EndBlock(%d), resulting state: %X", m.blockNo, bytes)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
@@ -108,13 +98,10 @@ func (m *CounterTxSystem) Commit() error {
 	m.EndBlockCount += m.EndBlockCountDelta
 	m.BeginBlockCount += m.BeginBlockCountDelta
 	m.uncommitted = false
-	summary, _ := m.StateSummary()
-	logger.Debug("CounterTxSystem: Commit(%d), state: %X", m.blockNo, summary.Root())
 	return nil
 }
 
 func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
-	logger.Debug("CounterTxSystem: Execute()")
 	m.ExecuteCountDelta++
 	m.uncommitted = true
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil

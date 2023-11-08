@@ -34,7 +34,6 @@ type (
 
 func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing swap %v", tx)
 		c := &swapValidationContext{
 			tx:            tx,
 			attr:          attr,
@@ -74,6 +73,7 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 				bd.V += attr.TargetValue
 				bd.T = currentBlockNumber
 				bd.Backlink = h
+				bd.Locked = 0
 				return bd, nil
 			})
 		if err := s.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {

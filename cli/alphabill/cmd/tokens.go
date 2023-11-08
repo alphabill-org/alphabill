@@ -2,11 +2,15 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
+	"fmt"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/spf13/cobra"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -47,20 +51,48 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading partition genesis: %w", err)
 	}
 
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating trustbase: %w", err)
 	}
+
+	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
+	if err != nil {
+		return fmt.Errorf("failed to load node keys: %w", err)
+	}
+
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+
+	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
+
+	blockStore, err := initStore(cfg.Node.DbFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
+	proofStore, err := initStore(cfg.Node.TxIndexerDBFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize proof DB: %w", err)
+	}
+
 	txs, err := tokens.NewTxSystem(
+		log,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
-		tokens.WithHashAlgorithm(gocrypto.SHA256),
+		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tx system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, log)
+	if err != nil {
+		return fmt.Errorf("creating node: %w", err)
+	}
+	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, proofStore, log)
 }

@@ -26,7 +26,7 @@ var (
 type (
 	LedgerReplicationRequest struct {
 		_                struct{} `cbor:",toarray"`
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID
 		NodeIdentifier   string
 		BeginBlockNumber uint64
 		EndBlockNumber   uint64
@@ -48,14 +48,22 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	if r.Message != "" {
 		return fmt.Sprintf("status: %s, message: %s, %v blocks", r.Status.String(), r.Message, count)
 	}
-	return fmt.Sprintf("status: %s, %v blocks", r.Status.String(), count)
+	blockInfo := ""
+	if count > 0 {
+		fb := r.Blocks[0]
+		lb := r.Blocks[count-1]
+		if fb != nil && lb != nil {
+			blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fb.GetRoundNumber(), fb.UnicityCertificate.GetStateHash(), lb.GetRoundNumber(), lb.UnicityCertificate.GetStateHash())
+		}
+	}
+	return fmt.Sprintf("status: %s, %v blocks%s", r.Status.String(), count, blockInfo)
 }
 
 func (r *LedgerReplicationResponse) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationRespIsNil
 	}
-	if r.Blocks == nil {
+	if r.Status == Ok && r.Blocks == nil {
 		return ErrLedgerResponseBlocksIsNil
 	}
 	return nil
@@ -65,7 +73,7 @@ func (r *LedgerReplicationRequest) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationReqIsNil
 	}
-	if len(r.SystemIdentifier) != 4 {
+	if len(r.SystemIdentifier) != types.SystemIdentifierLength {
 		return ErrInvalidSystemIdentifier
 	}
 	if r.NodeIdentifier == "" {

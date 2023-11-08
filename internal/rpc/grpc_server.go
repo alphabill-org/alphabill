@@ -6,8 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -26,9 +26,10 @@ type (
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		GetLatestBlock() (*types.Block, error)
-		GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error)
+		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
+		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*state.UnitDataAndProof, error)
 	}
 )
 
@@ -99,8 +100,8 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 		return nil, err
 	}
 
-	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
-	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestRn)
+	maxBlockCount := min(req.BlockCount, r.maxGetBlocksBatchSize)
+	batchMaxBlockNumber := min(req.BlockNumber+maxBlockCount-1, latestRn)
 	batchSize := uint64(0)
 	if batchMaxBlockNumber >= req.BlockNumber {
 		batchSize = batchMaxBlockNumber - req.BlockNumber + 1

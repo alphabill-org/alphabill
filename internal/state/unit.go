@@ -5,18 +5,20 @@ import (
 	"crypto"
 	"fmt"
 	"hash"
+
+	"github.com/alphabill-org/alphabill/internal/predicates"
 )
 
 type (
 
 	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
 	Unit struct {
-		logs                logs      // state changes of the unit.
-		logRoot             []byte    // root value of the hash tree built on the state log.
-		bearer              Predicate // current bearer condition
-		data                UnitData  // current data of the unit
-		subTreeSummaryValue uint64    // current summary value of the sub-tree rooted at this node
-		subTreeSummaryHash  []byte    // summary hash of the sub-tree rooted at this node
+		logs                logs                      // state changes of the unit.
+		logRoot             []byte                    // root value of the hash tree built on the state log.
+		bearer              predicates.PredicateBytes // current bearer condition
+		data                UnitData                  // current data of the unit
+		subTreeSummaryValue uint64                    // current summary value of the sub-tree rooted at this node
+		subTreeSummaryHash  []byte                    // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
 	}
 
@@ -31,17 +33,16 @@ type (
 	Log struct {
 		txRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		unitLedgerHeadHash []byte // the new head hash of the unit ledger
-		newBearer          Predicate
+		newBearer          predicates.PredicateBytes
 		newUnitData        UnitData
 	}
 
 	// logs contains a state changes of the unit during the current round.
 	logs []*Log
-
-	Predicate []byte
+	//Predicate []byte
 )
 
-func NewUnit(bearer Predicate, data UnitData) *Unit {
+func NewUnit(bearer predicates.PredicateBytes, data UnitData) *Unit {
 	return &Unit{
 		bearer: bearer,
 		data:   data,
@@ -66,7 +67,7 @@ func (u *Unit) String() string {
 	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
 }
 
-func (u *Unit) Bearer() Predicate {
+func (u *Unit) Bearer() predicates.PredicateBytes {
 	return bytes.Clone(u.bearer)
 }
 

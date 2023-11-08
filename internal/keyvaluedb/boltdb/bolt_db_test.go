@@ -1,34 +1,29 @@
 package boltdb
 
 import (
-	gocrypto "crypto"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-
-	"github.com/alphabill-org/alphabill/internal/types"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	round uint64 = 1
-)
+type testStruct struct {
+	Name   string
+	Data   []byte
+	Params struct{ Value []byte }
+}
 
-var sysID = protocol.SystemIdentifier([]byte{0, 0, 0, 1})
-var unicityMap = map[protocol.SystemIdentifier]*types.UnicityCertificate{
-	sysID: {
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier:      []byte(sysID),
-			SiblingHashes:         nil,
-			SystemDescriptionHash: nil,
-		},
-		UnicitySeal: &types.UnicitySeal{
-			RootChainRoundNumber: round,
-			Hash:                 make([]byte, gocrypto.SHA256.Size()),
+var testDataStruct = map[uint32]*testStruct{
+	1: {
+		Name: "test",
+		Data: []byte{1, 2, 3},
+		Params: struct {
+			Value []byte
+		}{
+			Value: []byte{9, 1, 1},
 		},
 	},
 }
@@ -65,34 +60,38 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 
 func TestBoltDB_InvalidPath(t *testing.T) {
 	// provide a file that is not a DB file
-	store, err := New("testdata/invalid-root-key.json")
+	tmpDir := t.TempDir()
+	file := filepath.Join(tmpDir, "data.txt")
+	// write some text file
+	err := os.WriteFile(file, []byte("this is obviously not a DB file"), 0)
+	store, err := New(file)
 	require.Error(t, err)
 	require.Nil(t, store)
 }
 
 func TestBoltDB_TestEmptyValue(t *testing.T) {
 	db := initBoltDB(t)
-	var uc types.UnicityCertificate
-	found, err := db.Read([]byte("certificate"), &uc)
+	var data testStruct
+	found, err := db.Read([]byte("data"), &data)
 	require.NoError(t, err)
 	require.False(t, found)
-	require.NoError(t, db.Write([]byte("certificate"), &uc))
-	var back types.UnicityCertificate
-	found, err = db.Read([]byte("certificate"), &back)
+	require.NoError(t, db.Write([]byte("data"), &testDataStruct))
+	var back map[uint32]*testStruct
+	found, err = db.Read([]byte("data"), &back)
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, &uc, &back)
+	require.Equal(t, testDataStruct, back)
 }
 
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	db := initBoltDB(t)
 	require.NotNil(t, db)
-	var uc *types.UnicityCertificate = nil
-	require.Error(t, db.Write([]byte("certificate"), uc))
+	var data *testStruct = nil
+	require.Error(t, db.Write([]byte("data"), data))
 	require.Error(t, db.Write([]byte(""), nil))
 	var value uint64 = 1
 	require.Error(t, db.Write(nil, value))
-	found, err := db.Read(nil, uc)
+	found, err := db.Read(nil, data)
 	require.Error(t, err)
 	require.False(t, found)
 	found, err = db.Read(nil, &value)
@@ -161,29 +160,29 @@ func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
-	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
-	ucs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
-	present, err := db.Read([]byte("certificates"), &ucs)
+	require.NoError(t, db.Write([]byte("data"), testDataStruct))
+	readData := make(map[uint32]*testStruct)
+	present, err := db.Read([]byte("data"), &readData)
 	require.NoError(t, err)
 	require.True(t, present)
 	// check that initial state was saved as intended
-	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ := ucs[sysID]
-	original, _ := unicityMap[sysID]
-	require.Equal(t, original, uc)
+	require.Len(t, testDataStruct, 1)
+	require.Contains(t, readData, uint32(1))
+	value := readData[1]
+	original := testDataStruct[1]
+	require.Equal(t, original, value)
 	// update
-	uc.UnicitySeal.Hash = []byte{1}
-	newUC := map[protocol.SystemIdentifier]*types.UnicityCertificate{sysID: uc}
-	err = db.Write([]byte("certificates"), newUC)
+	value.Data = []byte{1}
+	newData := map[uint32]*testStruct{1: value}
+	err = db.Write([]byte("data"), newData)
 	require.NoError(t, err)
-	present, err = db.Read([]byte("certificates"), &ucs)
+	present, err = db.Read([]byte("data"), &readData)
 	require.NoError(t, err)
 	require.True(t, present)
-	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ = ucs[sysID]
-	require.Equal(t, []byte{1}, uc.UnicitySeal.Hash)
+	require.Len(t, readData, 1)
+	require.Contains(t, readData, uint32(1))
+	value = readData[1]
+	require.Equal(t, []byte{1}, value.Data)
 }
 
 func TestBoltDB_StartTxNil(t *testing.T) {

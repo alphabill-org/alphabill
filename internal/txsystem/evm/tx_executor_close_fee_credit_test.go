@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -31,7 +32,7 @@ func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCredit
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubKeyBytes),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKeyBytes),
 	}
 }
 
@@ -55,7 +56,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(amount), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
@@ -81,8 +82,10 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	backlink := addFeeCredit(t, stateTree, signer, 100)
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		logger.New(t))
 
 	tests := []struct {
 		name       string
@@ -97,13 +100,13 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		{
 			name:       "err - attr:nil - amount is 0 and not 98",
 			args:       args{order: newCloseFCTx(t, privKeyHash, nil, signer, 7), blockNumber: 5},
-			wantErrStr: "closeFC: tx validation failed: invalid amount: amount=0 fcr.Balance=98",
+			wantErrStr: "closeFC: tx validation failed: invalid amount: amount=0 fcr.Balance=97",
 		},
 		{
 			name: "err - no unit (no credit has been added)",
 			args: args{order: newCloseFCTx(t,
 				test.RandomBytes(32),
-				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(98)),
+				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(97)),
 					testfc.WithCloseFCTargetUnitID(privKeyHash), testfc.WithCloseFCTargetUnitBacklink(backlink)),
 				signer,
 				7,
@@ -134,7 +137,8 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	require.NoError(t, err)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	backlink := addFeeCredit(t, stateTree, signer, 100)
-	stateDB := statedb.NewStateDB(stateTree)
+	log := logger.New(t)
+	stateDB := statedb.NewStateDB(stateTree, log)
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
@@ -142,8 +146,10 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// close fee credit
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		log)
 	// create close order
 	closeOrder := newCloseFCTx(t, test.RandomBytes(32), testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(balanceAlpha),
@@ -159,4 +165,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// verify balance
 	balance = stateDB.GetBalance(addr)
 	require.EqualValues(t, 0, balance.Uint64())
+	// verify backlink
+	alphaBillData := stateDB.GetAlphaBillData(addr)
+	require.Equal(t, closeOrder.Hash(crypto.SHA256), alphaBillData.TxHash)
 }

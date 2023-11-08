@@ -14,21 +14,22 @@ import (
 )
 
 var (
-	ErrTxNil                     = errors.New("tx is nil")
-	ErrBillNil                   = errors.New("bill is nil")
-	ErrTargetSystemIdentifierNil = errors.New("TargetSystemIdentifier is nil")
-	ErrTargetRecordIDNil         = errors.New("TargetRecordID is nil")
-	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
-	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
-	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
-	ErrInvalidFCValue            = errors.New("the amount to transfer cannot exceed the value of the bill")
-	ErrInvalidFeeValue           = errors.New("the transaction max fee cannot exceed the transferred amount")
-	ErrInvalidBacklink           = errors.New("the transaction backlink is not equal to unit backlink")
+	ErrTxNil                       = errors.New("tx is nil")
+	ErrTxAttrNil                   = errors.New("tx attributes is nil")
+	ErrBillNil                     = errors.New("bill is nil")
+	ErrBillLocked                  = errors.New("bill is already locked")
+	ErrTargetSystemIdentifierEmpty = errors.New("TargetSystemIdentifier is empty")
+	ErrTargetRecordIDEmpty         = errors.New("TargetRecordID is empty")
+	ErrAdditionTimeInvalid         = errors.New("EarliestAdditionTime is greater than LatestAdditionTime")
+	ErrRecordIDExists              = errors.New("fee tx cannot contain fee credit reference")
+	ErrFeeProofExists              = errors.New("fee tx cannot contain fee authorization proof")
+	ErrInvalidFCValue              = errors.New("the amount to transfer cannot exceed the value of the bill")
+	ErrInvalidFeeValue             = errors.New("the transaction max fee cannot exceed the transferred amount")
+	ErrInvalidBacklink             = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
 func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing transferFC %v", tx)
 		unitID := tx.UnitID()
 		unit, _ := s.GetUnit(unitID, false)
 		if unit == nil {
@@ -76,11 +77,14 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if bd == nil {
 		return ErrBillNil
 	}
-	if attr.TargetSystemIdentifier == nil {
-		return ErrTargetSystemIdentifierNil
+	if len(attr.TargetSystemIdentifier) == 0 {
+		return ErrTargetSystemIdentifierEmpty
 	}
-	if attr.TargetRecordID == nil {
-		return ErrTargetRecordIDNil
+	if len(attr.TargetRecordID) == 0 {
+		return ErrTargetRecordIDEmpty
+	}
+	if bd.IsLocked() {
+		return ErrBillLocked
 	}
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid

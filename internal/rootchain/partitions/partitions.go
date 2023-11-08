@@ -1,8 +1,8 @@
 package partitions
 
 import (
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -13,6 +13,6 @@ type (
 	}
 
 	PartitionConfiguration interface {
-		GetInfo(id protocol.SystemIdentifier) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error)
+		GetInfo(id types.SystemID32) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error)
 	}
 )

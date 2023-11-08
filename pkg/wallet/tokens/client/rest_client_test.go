@@ -11,16 +11,15 @@ import (
 	"path"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_setPaginationParams(t *testing.T) {
@@ -81,11 +80,7 @@ func Test_get(t *testing.T) {
 		}
 
 		var data int
-		pos, err := cli.get(
-			context.Background(),
-			&url.URL{Scheme: "http", Host: "localhost:8000", Path: "api/v1/path", RawQuery: "queryParam=foo"},
-			&data,
-			true)
+		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost:8000", Path: "api/v1/path", RawQuery: "queryParam=foo"}, &data, true)
 		require.NoError(t, err)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -140,7 +135,7 @@ func Test_get(t *testing.T) {
 		cli := createClient(t, http.StatusBadRequest, `{"message":"not good"}`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
-		require.ErrorIs(t, err, ErrInvalidRequest)
+		require.ErrorIs(t, err, sdk.ErrInvalidRequest)
 		require.EqualError(t, err, `backend responded 400 Bad Request: not good: invalid request`)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -150,7 +145,7 @@ func Test_get(t *testing.T) {
 		cli := createClient(t, http.StatusInternalServerError, `{"message":"not good"}`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
-		require.NotErrorIs(t, err, ErrInvalidRequest, "server side error shouldn't be reported as invalid request error")
+		require.NotErrorIs(t, err, sdk.ErrInvalidRequest, "server side error shouldn't be reported as invalid request error")
 		require.EqualError(t, err, `backend responded 500 Internal Server Error: not good`)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -257,50 +252,6 @@ func Test_GetRoundNumber(t *testing.T) {
 	})
 }
 
-func Test_GetClosedFeeCredit(t *testing.T) {
-	t.Parallel()
-
-	createClient := func(t *testing.T, status int, respBody []byte) *TokenBackend {
-		t.Helper()
-		return &TokenBackend{
-			hc: &http.Client{
-				Transport: &mockRoundTripper{
-					do: func(r *http.Request) (*http.Response, error) {
-						w := httptest.NewRecorder()
-						if status > 0 {
-							w.WriteHeader(status)
-						}
-						if _, err := w.Write(respBody); err != nil {
-							t.Errorf("failed to write response body: %v", err)
-						}
-						return w.Result(), nil
-					},
-				},
-			},
-		}
-	}
-
-	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
-		notExistsJson, _ := json.Marshal(sdk.ErrorResponse{Message: "closed fee credit does not exist"})
-		api := createClient(t, 404, notExistsJson)
-		rn, err := api.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
-		require.NoError(t, err)
-		require.Nil(t, rn)
-	})
-
-	t.Run("ok", func(t *testing.T) {
-		closeFC := testutils.NewCloseFC(t, nil)
-		closeFCTxr := &types.TransactionRecord{TransactionOrder: closeFC}
-		txBytes, err := json.Marshal(closeFCTxr)
-		require.NoError(t, err)
-
-		cli := createClient(t, 200, txBytes)
-		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
-		require.NoError(t, err)
-		require.Equal(t, closeFCTxr, closedFeeCredit)
-	})
-}
-
 func Test_GetToken(t *testing.T) {
 	t.Parallel()
 
@@ -355,7 +306,7 @@ func Test_GetToken(t *testing.T) {
 		cli := createClient(t, nil)
 		data, err := cli.GetToken(context.Background(), test.RandomBytes(32))
 		require.EqualError(t, err, `get token request failed: no token with this id: not found`)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, sdk.ErrNotFound)
 		require.Empty(t, data)
 	})
 
@@ -557,7 +508,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		cli := createClient(t, nil)
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.EqualError(t, err, `get token type hierarchy request failed: no type with this id: not found`)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, sdk.ErrNotFound)
 		require.Empty(t, data)
 	})
 
@@ -718,7 +669,7 @@ func Test_PostTransactions(t *testing.T) {
 
 		err := cli.PostTransactions(context.Background(), ownerID, &sdk.Transactions{})
 		require.EqualError(t, err, `failed to send transactions: backend responded 400 Bad Request: something is wrong: invalid request`)
-		require.ErrorIs(t, err, ErrInvalidRequest)
+		require.ErrorIs(t, err, sdk.ErrInvalidRequest)
 	})
 
 	t.Run("processing tx failed", func(t *testing.T) {
@@ -823,6 +774,36 @@ func Test_extractOffsetMarker(t *testing.T) {
 		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)
+	})
+}
+
+func Test_Info(t *testing.T) {
+	t.Parallel()
+
+	createClient := func(t *testing.T, respBody string) *TokenBackend {
+		t.Helper()
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if _, err := w.WriteString(respBody); err != nil {
+							t.Errorf("failed to write response body: %v", err)
+						}
+						return w.Result(), nil
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		cli := createClient(t, `{"system_id": "00000002", "name": "tokens backend"}`)
+		res, err := cli.GetInfo(context.Background())
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.LessOrEqual(t, "00000002", res.SystemID)
+		require.LessOrEqual(t, "tokens backend", res.Name)
 	})
 }
 

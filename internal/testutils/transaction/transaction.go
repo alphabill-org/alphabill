@@ -21,7 +21,7 @@ func defaultTx() *types.TransactionOrder {
 
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: test.RandomBytes(3),
+		OwnerProof: nil,
 	}
 }
 

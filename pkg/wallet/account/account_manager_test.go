@@ -21,7 +21,6 @@ const (
 	testPubKey2Hex               = "02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
 	testPrivKey0Hex              = "70096ea8536cfba71203a959ed7de2a5900c5547762606f73b2aa078a66e355f"
 	testPubKey0HashSha256Hex     = "f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
-	testPubKey0HashSha512Hex     = "9254c2cb897e4b458ba51eb200015e301d578cd5572b75068dfd1332f8200d15b2642f623d5a5d8e8174508e93b22c75801ea95bf9be479de90aaf2776171251"
 	testAccountKeyDerivationPath = "m/44'/634'/0'/0/0"
 )
 
@@ -104,7 +103,6 @@ func verifyAccount(t *testing.T, m *managerImpl) {
 	require.Equal(t, testPubKey0Hex, hex.EncodeToString(ac.PubKey))
 	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
 	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
-	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }
 
 func copyWalletDB(t *testing.T, srcDir string) string {

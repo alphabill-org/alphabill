@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
@@ -29,12 +30,14 @@ type UnitDataAndProof struct {
 type ProofIndexer struct {
 	unitProofStorage keyvaluedb.KeyValueDB
 	historySize      uint64 // number of rounds for which the history of unit states is kept
+	log              *slog.Logger
 }
 
-func NewProofIndexer(unitProofStorage keyvaluedb.KeyValueDB, historySize uint64) *ProofIndexer {
+func NewProofIndexer(unitProofStorage keyvaluedb.KeyValueDB, historySize uint64, l *slog.Logger) *ProofIndexer {
 	return &ProofIndexer{
 		unitProofStorage: unitProofStorage,
 		historySize:      historySize,
+		log:              l,
 	}
 }
 
@@ -46,14 +49,14 @@ func (p *ProofIndexer) Handle(e *event.Event) {
 			State *State
 		})
 		if !ok {
-			log.Warning("Invalid BlockFinalized event data. Expected %T got %T", &struct {
+			p.log.Warn(fmt.Sprintf("Invalid BlockFinalized event data. Expected %T got %T", &struct {
 				Block *types.Block
 				State *State
-			}{}, e.Content)
+			}{}, e.Content))
 			return
 		}
 		if err := p.create(&BlockAndState{Block: bas.Block, State: bas.State}); err != nil {
-			log.Warning("Unable to index unit proofs for block %d: %v", bas.Block.GetRoundNumber(), err)
+			p.log.Warn(fmt.Sprintf("Unable to index unit proofs for block %d: %v", bas.Block.GetRoundNumber(), err))
 		}
 	}
 }
@@ -61,10 +64,10 @@ func (p *ProofIndexer) Handle(e *event.Event) {
 func (p *ProofIndexer) create(bas *BlockAndState) error {
 	block := bas.Block
 	if block.GetRoundNumber() < p.latestIndexedBlockNumber() {
-		log.Debug("Block %d already indexed", block.GetRoundNumber())
+		p.log.Debug(fmt.Sprintf("Block %d already indexed", block.GetRoundNumber()))
 		return nil
 	}
-	log.Debug("Starting to generate unit proofs for block %d", bas.Block.GetRoundNumber())
+	p.log.Debug(fmt.Sprintf("Starting to generate unit proofs for block %d", bas.Block.GetRoundNumber()))
 	dbtx, err := p.unitProofStorage.StartTx()
 	if err != nil {
 		return fmt.Errorf("unable to start DB transaction: %w", err)
@@ -73,7 +76,7 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 	defer func() {
 		if err != nil {
 			if e := dbtx.Rollback(); e != nil {
-				log.Warning("unable to rollback unit proof index transaction: %v", err)
+				p.log.Warn(fmt.Sprintf("unable to rollback unit proof index transaction: %v", err))
 				return
 			}
 		}
@@ -92,7 +95,8 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 				return fmt.Errorf("unable to load unit: %w", err)
 			}
 			logs := u.Logs()
-			log.Trace("Generating %d proof(s) for unit %X", len(logs), id)
+			// todo: was trace
+			p.log.Debug(fmt.Sprintf("Generating %d proof(s) for unit %X", len(logs), id))
 			for i, l := range logs {
 				if !bytes.Equal(l.txRecordHash, trHash) {
 					continue
@@ -139,12 +143,11 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 			if err := dbtx.Delete(key); err != nil {
 				return fmt.Errorf("unable to delete index: %w", err)
 			}
-
 		}
-		log.Debug("Removed old proofs from block %d, index size %d", d, len(indexToDelete))
+		p.log.Debug(fmt.Sprintf("Removed old proofs from block %d, index size %d", d, len(indexToDelete)))
 	}
 
-	log.Debug("Done generating proofs for block %d", roundNumber)
+	p.log.Debug(fmt.Sprintf("Done generating proofs for block %d", roundNumber))
 	return nil
 }
 

@@ -56,6 +56,13 @@ func (t *TransactionRecord) UnmarshalProcessingDetails(v any) error {
 	return t.ServerMetadata.UnmarshalDetails(v)
 }
 
+func (t *TransactionRecord) GetActualFee() uint64 {
+	if t == nil {
+		return 0
+	}
+	return t.ServerMetadata.GetActualFee()
+}
+
 func (sm *ServerMetadata) GetActualFee() uint64 {
 	if sm == nil {
 		return 0

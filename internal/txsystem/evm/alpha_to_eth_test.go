@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -76,11 +76,11 @@ func Test_getAddressFromPredicateArg(t *testing.T) {
 		{
 			name:       "error - nil",
 			args:       args{predArg: nil},
-			wantErrStr: "predicate argument is nil",
+			wantErrStr: "empty predicate signature",
 		},
 		{
 			name: "ok",
-			args: args{predArg: script.PredicateArgumentPayToPublicKeyHashDefault(test.RandomBytes(65), pubKey[:])},
+			args: args{predArg: templates.NewP2pkh256SignatureBytes(test.RandomBytes(65), pubKey[:])},
 			want: common.HexToAddress("0x276B52B4808893d1e2Affd5310898818E8e7699d"),
 		},
 	}
@@ -190,11 +190,64 @@ func Test_weiToAlpha(t *testing.T) {
 			args: args{wei: bigIntFromString(t, "120000000000")},
 			want: 12,
 		},
+		{
+			name: "default gas price",
+			args: args{wei: new(big.Int).Mul(big.NewInt(DefaultGasPrice), big.NewInt(1000))},
+			want: 21,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := weiToAlpha(tt.args.wei); got != tt.want {
 				t.Errorf("weiToAlpha() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_weiToAlphaWithReminder(t *testing.T) {
+	type args struct {
+		wei *big.Int
+	}
+	tests := []struct {
+		name      string
+		args      args
+		amount    *big.Int
+		remainder *big.Int
+	}{
+		{
+			name:      "1 wei is 0 alpha",
+			args:      args{wei: bigIntFromString(t, "1")},
+			amount:    big.NewInt(0),
+			remainder: big.NewInt(1),
+		},
+		{
+			name:      "10 wei is 0 alpha",
+			args:      args{wei: bigIntFromString(t, "10")},
+			amount:    big.NewInt(0),
+			remainder: big.NewInt(10),
+		},
+		{
+			name:      "4410000000000 wei is 0 alpha",
+			args:      args{wei: bigIntFromString(t, "4410000000000")},
+			amount:    big.NewInt(441),
+			remainder: big.NewInt(0),
+		},
+		{
+			name:      "4412000000000 wei is 0 alpha",
+			args:      args{wei: bigIntFromString(t, "4412000000001")},
+			amount:    big.NewInt(441),
+			remainder: big.NewInt(2000000001),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := weiToAlphaWithReminder(tt.args.wei)
+			if !reflect.DeepEqual(got, tt.amount) {
+				t.Errorf("weiToAlphaWithReminder() got = %v, want %v", got, tt.amount)
+			}
+			if !reflect.DeepEqual(got1, tt.remainder) {
+				t.Errorf("weiToAlphaWithReminder() got1 = %v, want %v", got1, tt.remainder)
 			}
 		})
 	}

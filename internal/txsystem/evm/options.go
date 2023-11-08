@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/state"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -24,6 +25,7 @@ type (
 		initialAccountBalance   *big.Int
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
+		blockDB                 keyvaluedb.KeyValueDB
 	}
 
 	Option func(*Options)
@@ -35,10 +37,14 @@ func DefaultOptions() *Options {
 		state:                   state.NewEmptyState(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
-		initialAccountAddress:   make([]byte, 20),
-		initialAccountBalance:   big.NewInt(100000000000),
 		blockGasLimit:           DefaultBlockGasLimit,
 		gasUnitPrice:            big.NewInt(DefaultGasPrice),
+	}
+}
+
+func WithBlockDB(blockDB keyvaluedb.KeyValueDB) Option {
+	return func(c *Options) {
+		c.blockDB = blockDB
 	}
 }
 

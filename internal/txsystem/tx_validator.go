@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -45,8 +45,9 @@ func ValidateGenericTransaction(ctx *TxValidationContext) error {
 			return fmt.Errorf("failed to marshal payload bytes: %w", err)
 		}
 
-		if err = script.RunScript(ctx.Tx.OwnerProof, ctx.Unit.Bearer(), payloadBytes); err != nil {
-			return fmt.Errorf("invalid owner proof: %w", err)
+		if err = predicates.RunPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, payloadBytes); err != nil {
+			return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
+				err, ctx.Tx.OwnerProof, ctx.Unit.Bearer(), payloadBytes)
 		}
 	}
 	return nil

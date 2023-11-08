@@ -14,7 +14,7 @@ import (
 const keysDir = "keys"
 
 func TestGenerateAndLoadKeys(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	keys, err := GenerateKeys()
 	require.NoError(t, err)
 	err = keys.WriteTo(file)
@@ -26,14 +26,14 @@ func TestGenerateAndLoadKeys(t *testing.T) {
 }
 
 func TestLoadKeys_FileNotFound(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, fmt.Sprintf("keys file %s not found", file))
 	require.Nil(t, keys)
 }
 
 func TestLoadKeys_ForceGeneration(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	keys, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
 	require.NotNil(t, keys)
@@ -54,7 +54,7 @@ func TestLoadKeys_ForceGeneration(t *testing.T) {
 }
 
 func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	kf := &keyFile{
 		SigningPrivateKey: key{
 			Algorithm:  "invalid_algo",
@@ -69,7 +69,7 @@ func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
 }
 
 func TestLoadKeys_InvalidEncryptionKeyAlgorithm(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestLoadKeys_InvalidEncryptionKeyAlgorithm(t *testing.T) {
 }
 
 func TestLoadKeys_InvalidEncryptionKey(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestLoadKeys_InvalidEncryptionKey(t *testing.T) {
 }
 
 func TestLoadKeys_InvalidSigningKey(t *testing.T) {
-	file := filepath.Join(setupTestDir(t, keysDir), "keys.json")
+	file := filepath.Join(t.TempDir(), "keys.json")
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)

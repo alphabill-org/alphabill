@@ -7,8 +7,12 @@
     - [Money Partition](#money-partition)
       - [Transfer Bill](#transfer-bill)
       - [Split Bill](#split-bill)
+      - [Lock Bill](#lock-bill)
+      - [Unlock Bill](#unlock-bill)
       - [Transfer Bill to Dust Collector](#transfer-bill-to-dust-collector)
       - [Swap Bills With Dust Collector](#swap-bills-with-dust-collector)
+      - [Lock Fee Credit](#lock-fee-credit)
+      - [Unlock Fee Credit](#unlock-fee-credit)
       - [Transfer to Fee Credit](#transfer-to-fee-credit)
       - [Add Fee Credit](#add-fee-credit)
       - [Close Fee Credit](#close-fee-credit)
@@ -212,6 +216,52 @@ split.
 4. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill being split.
 
+##### Lock Bill
+
+This transaction locks the specified bill, making the bill impossible 
+to spend before unlocking it first. The unlocking can happen manually
+with the [Unlock](#unlock-bill) transaction or automatically on 
+certain transactions e.g.
+[Swap with Dust Collector](#swap-bills-with-dust-collector) or
+[Reclaim Fee Credit](#reclaim-fee-credit).
+Locking of the bills is optional, however, it is necessary in order to 
+prevent failures due to concurrent modifications by other transactions.
+The specified lock status must be non-zero value and the targeted bill
+must be unlocked.
+
+*TransactionOrder*.*Payload*.*Type* = "lock"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockAttributes/ [
+    /LockStatus/ 1,
+    /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
+]
+```
+
+1. *LockStatus* (uint64) is the status of the lock, 
+   must be non-zero value.
+2. *Backlink* (byte string) is the backlink to the previous
+   transaction with the bill.
+
+##### Unlock Bill
+
+This transaction unlocks the specified bill, making the bill spendable
+again. The unlocking can also happen automatically on certain transactions 
+e.g. [Swap with Dust Collector](#swap-bills-with-dust-collector) or
+[Reclaim Fee Credit](#reclaim-fee-credit). The targeted bill must be
+in locked status.
+
+*TransactionOrder*.*Payload*.*Type* = "unlock"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockAttributes/ [
+    /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
+]
+```
+
+1. *Backlink* (byte string) is the backlink to the previous
+   transaction with the bill.
+
 ##### Transfer Bill to Dust Collector
 
 This transaction transfers a bill to a special owner - Dust Collector
@@ -219,6 +269,8 @@ This transaction transfers a bill to a special owner - Dust Collector
 can be joined into an existing bill DC with the [Swap Bills With Dust
 Collector](#swap-bills-with-dust-collector) transaction. The target bill 
 must be chosen beforehand and should not be used between the transactions.
+To ensure that, the target bill should be locked using a 
+[Lock Bill](#lock-bill) transaction.
 
 Dust is not defined, any bills can be transferred to DC and joined into
 a larger-value bill.
@@ -249,6 +301,8 @@ a larger-value bill.
 
 This transaction joins the bills previously [transferred to
 DC](#transfer-bill-to-dust-collector) into a target bill.
+It also unlocks the target bill, if it was previously locked 
+with [Lock Bill](#lock-bill) transaction.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -274,6 +328,73 @@ DC](#transfer-bill-to-dust-collector) into a target bill.
    and must be equal to the sum of the values of the bills transferred to
    DC for this swap.
 
+##### Lock Fee Credit
+
+Adding and reclaiming fee credits are multistep protocols, and it’s advisable 
+to lock the target unit to prevent failures due to concurrent modifications by other transactions.
+
+More specifically, for adding fee credits:
+* If the target fee credit record exists, it should be locked using a lockFC transaction in
+the target partition.
+* The amount to be added to fee credits should be paid using a transFC transaction in
+the money partition. To prevent replay attacks, the transFC transaction must identify
+the target record and its current state.
+* The transferred value is added to the target record using an addFC transaction in the
+target partition. As this transaction completes the fee transfer process, it also unlocks
+the target record.
+
+And for reclaiming fee credits:
+* The target bill should be locked using a [Lock Bill](#lock-bill) transaction in the money partition.
+* The fee credit should be closed using a [Close Fee Credit](#close-fee-credit) transaction in the target partition.
+To prevent replay attacks, the [Close Fee Credit](#close-fee-credit) transaction must 
+identify the target bill and its current state.
+* The reclaimed value is added to the target bill using a [Reclaim Fee Credit](#reclaim-fee-credit)
+transaction in the money partition. As this transaction completes the fee transfer process, it also 
+unlocks the target bill.
+
+*TransactionOrder*.*FeeProof* = `null`\
+*TransactionOrder*.*Payload*.*Type* = "lockFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockFCAttributes/ [
+    /LockStatus/ 1,
+    /Backlink/   h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
+]
+```
+
+1. *LockStatus* (uint64) is the new lock status. Must be non-zero value.
+2. *Backlink* (byte string) is the last hash of 
+   [Lock Fee Credit](#lock-fee-credit), 
+   [Unlock Fee Credit](#unlock-fee-credit),
+   [Add Fee Credit](#add-fee-credit) or
+   [Close Fee Credit](#close-fee-credit)
+   transaction with the bill.
+
+##### Unlock Fee Credit
+
+This transaction unlocks the specified fee credit record. 
+Note that it's not required to manually unlock the unit 
+as the fee credit record is automatically unlocked on 
+[Add Fee Credit](#add-fee-credit) transaction.
+
+*TransactionOrder*.*FeeProof* = `null`\
+*TransactionOrder*.*Payload*.*Type* = "unlockFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockFCAttributes/ [
+    /Backlink/   h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
+]
+```
+
+1. *Backlink* (byte string) is the last hash of
+   [Lock Fee Credit](#lock-fee-credit),
+   [Unlock Fee Credit](#unlock-fee-credit),
+   [Add Fee Credit](#add-fee-credit) or
+   [Close Fee Credit](#close-fee-credit) 
+   transaction with the fee credit record.
+
 ##### Transfer to Fee Credit
 
 This transaction reserves money on the money partition to be paid as
@@ -282,9 +403,10 @@ partition. A bill can be transferred to fee credit partially.
 
 To bootstrap a fee credit record on the money partition, the fee for
 this transaction is handled outside the fee credit system. That is,
-the value of the bill used to make this transfer is reduced by the
-*Amount* transferred **and** the transaction fee. If the remaining
-value is 0, the bill is deleted.
+the fee for this transaction is taken directly from the transferred
+*Amount* and the amount available for the fee credit record in the
+target partition is reduced
+accordingly. *ClientMetadata*.*MaxTransactionFee* still applies.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
@@ -300,7 +422,7 @@ Fee Credit](#add-fee-credit) transaction.
 /transFCAttributes/ [
     /Amount/                 100000000,
     /TargetSystemIdentifier/ h'00000002',
-    /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
+    /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
     /TargetUnitBacklink/     null,
@@ -309,12 +431,11 @@ Fee Credit](#add-fee-credit) transaction.
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
-   paying fees in the target partition. Has to be less than the value
-   of the bill +
-   *TransactionOrder*.*Payload*.*ClientMetadata*.*MaxTransactionFee*.
+   paying fees in the target partition. A bill can be transferred to
+   partially.
 2. *TargetSystemIdentifier* (byte string) is the system identifier of
    the target partition where the *Amount* can be spent on fees.
-3. *TargetRecordID* (byte string) is the target fee credit record
+3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
    Credit](#add-fee-credit) transaction).
 4. *EarliestAdditionTime* (unsigned integer) is the earliest round
@@ -325,10 +446,9 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
-   Credit](#add-fee-credit) transaction executed for the
-   *TargetRecordID* in the target partition, or `null` if it does not
-   exist yet.
+6. *TargetUnitBacklink* (byte string) is the hash of the last fee credit 
+   transaction (addFC, closeFC, lockFC, unlockFC) executed for the
+   *TargetUnitID* in the target partition, or `null` if it does not exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
 
@@ -407,6 +527,8 @@ the bill would invalidate that backlink.
 This transaction reclaims the fee credit, previously closed with a
 [Close Fee Credit](#close-fee-credit) transaction in a target
 partition, to an existing bill in the money partition.
+It also unlocks the target bill, if it was previously locked
+with [Lock Bill](#lock-bill) transaction.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "reclFC"\
@@ -633,7 +755,7 @@ This transaction creates a new fungible token.
    the new token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
-3. *TargetValue* (unsinged integer) is the value of the new token.
+3. *TargetValue* (unsigned integer) is the value of the new token.
 4. *TokenCreationPredicateSignatures* (array of byte string) is an
    array of inputs to satisfy the token creation predicates of all
    parent types.
@@ -718,7 +840,8 @@ Token](#join-fungible-tokens) transaction.
 /burnFTokenAttributes/ [
     /TypeID/                       h'',
     /Value/                        999,
-    /TargetBacklink/               h'',
+    /TargetTokenID/                h'',
+    /TargetTokenBacklink/          h'',
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -726,12 +849,14 @@ Token](#join-fungible-tokens) transaction.
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *TargetBacklink* (byte string) is the backlink to the previous
+3. *TargetTokenID* (byte string) is the token id of the target token 
+   that this burn is to be [joined into](#join-fungible-tokens).
+4. *TargetTokenBacklink* (byte string) is the backlink to the previous
    transaction with the fungible token that this burn is to be [joined
    into](#join-fungible-tokens).
-4. *Backlink* (byte string) is the backlink to the previous
+5. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
-5. *InvariantPredicateSignatures* (array of byte strings) is an array
+6. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
 
@@ -744,19 +869,22 @@ tokens](#burn-fungible-token) into a target token of the same type.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /joinFTokenAttributes/ [
-    /Burns/                        [/omitted/],
-    /BurnProofs/                   [/omitted/],
+    /BurnTransactions/             [/omitted/],
+    /BurnTransactionProofs/        [/omitted/],
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
-1. *Burns* (array) is an array of [Burn Fungible
+1. *BurnTransactions* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction records.
-2. *BurnProofs* (array) is an array of [Burn Fungible
+   The transactions must be listed in strictly increasing
+   order of token identifiers to ensure that no source token can be
+   included multiple times.
+2. *BurnTransactionProofs* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction proofs. The order of this
-   array must match the order of *Burns* array, so that a transaction
-   and its corresponding proof have the same index.
+   array must match the order of *BurnTransactions* array, so that a 
+   transaction and its corresponding proof have the same index.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the target token.
 4. *InvariantPredicateSignatures* (array of byte strings) is an array

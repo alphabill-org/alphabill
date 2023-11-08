@@ -3,7 +3,7 @@ package testhttp
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2"
@@ -57,7 +57,7 @@ func doGet(url string) (*http.Response, []byte, error) {
 	defer func() {
 		_ = httpRes.Body.Close()
 	}()
-	resBytes, err := ioutil.ReadAll(httpRes.Body)
+	resBytes, err := io.ReadAll(httpRes.Body)
 	if err != nil {
 		return nil, nil, err
 	}

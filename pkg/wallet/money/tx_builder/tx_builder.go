@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
-	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -21,6 +20,9 @@ import (
 
 const MaxFee = uint64(1)
 
+// CreateTransactions creates 1 to N P2PKH transactions from given bills until target amount is reached.
+// If there exists a bill with value equal to the given amount then transfer transaction is created using that bill,
+// otherwise bills are selected in the given order.
 func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
 	billIndex := slices.IndexFunc(bills, func(b *wallet.Bill) bool { return b.Value == amount })
 	if billIndex >= 0 {
@@ -47,16 +49,22 @@ func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*
 	return nil, fmt.Errorf("insufficient balance for transaction, trying to send %d have %d", amount, accumulatedSum)
 }
 
+// CreateTransaction creates a P2PKH transfer or split transaction using the given bill.
 func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint64, systemID []byte, b *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	if b.Value <= amount {
 		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
-	return NewSplitTx(amount, receiverPubKey, k, systemID, b, timeout, fcrID)
+	targetUnits := []*money.TargetUnit{
+		{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKey(receiverPubKey)},
+	}
+	remainingValue := b.Value - amount
+	return NewSplitTx(targetUnits, remainingValue, k, systemID, b, timeout, fcrID)
 }
 
+// NewTransferTx creates a P2PKH transfer transaction.
 func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
+		NewBearer:   templates.NewP2pkh256BytesFromKey(receiverPubKey),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
 	}
@@ -67,11 +75,11 @@ func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte
 	return signPayload(txPayload, k)
 }
 
-func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+// NewSplitTx creates a P2PKH split transaction.
+func NewSplitTx(targetUnits []*money.TargetUnit, remainingValue uint64, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.SplitAttributes{
-		Amount:         amount,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		RemainingValue: bill.Value - amount,
+		TargetUnits:    targetUnits,
+		RemainingValue: remainingValue,
 		Backlink:       bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)
@@ -81,11 +89,11 @@ func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []
 	return signPayload(txPayload, k)
 }
 
-func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBill *wallet.Bill, timeout uint64) (*types.TransactionOrder, error) {
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBillID []byte, targetBillHash []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &money.TransferDCAttributes{
-		TargetUnitID:       targetBill.Id,
+		TargetUnitID:       targetBillID,
 		Value:              bill.Value,
-		TargetUnitBacklink: targetBill.TxHash,
+		TargetUnitBacklink: targetBillHash,
 		Backlink:           bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
@@ -116,7 +124,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		billValueSum += attr.Value
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(k.PubKeyHash.Sha256),
 		DcTransfers:      dustTransferRecords,
 		DcTransferProofs: dustTransferProofs,
 		TargetValue:      billValueSum,
@@ -130,6 +138,18 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		return nil, fmt.Errorf("failed to sign swap transaction: %w", err)
 	}
 	return payload, nil
+}
+
+func NewLockTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, lockStatus uint64, timeout uint64) (*types.TransactionOrder, error) {
+	attr := &money.LockAttributes{
+		LockStatus: lockStatus,
+		Backlink:   bill.TxHash,
+	}
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeLock, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, ac)
 }
 
 func NewTransferFCTx(amount uint64, targetRecordID []byte, targetUnitBacklink []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
@@ -151,7 +171,7 @@ func NewTransferFCTx(amount uint64, targetRecordID []byte, targetUnitBacklink []
 
 func NewAddFCTx(unitID []byte, fcProof *wallet.Proof, ac *account.AccountKey, systemID []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &transactions.AddFeeCreditAttributes{
-		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
+		FeeCreditOwnerCondition: templates.NewP2pkh256BytesFromKeyHash(ac.PubKeyHash.Sha256),
 		FeeCreditTransfer:       fcProof.TxRecord,
 		FeeCreditTransferProof:  fcProof.TxProof,
 	}
@@ -221,6 +241,6 @@ func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, ac.PubKey),
 	}, nil
 }

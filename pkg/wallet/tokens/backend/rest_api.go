@@ -10,13 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -31,7 +30,6 @@ type dataSource interface {
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
 	GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
-	GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error)
 }
 
 type abClient interface {
@@ -44,6 +42,7 @@ type tokensRestAPI struct {
 	ab        abClient
 	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	rw        sdk.ResponseWriter
+	systemID  []byte
 }
 
 const maxResponseItems = 100
@@ -71,7 +70,7 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/closed-fee-credit/{unitId}", api.getClosedFeeCredit).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initializer := "swagger/swagger-initializer-tokens.js"
@@ -126,8 +125,8 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 
 	data, next, err := api.db.QueryTokens(
 		kind,
-		script.PredicatePayToPublicKeyHashDefault(hash.Sum256(owner)),
-		TokenID(startKey),
+		sdk.Predicate(templates.NewP2pkh256BytesFromKey(owner)),
+		startKey,
 		limit)
 	if err != nil {
 		api.rw.WriteErrorResponse(w, err)
@@ -256,9 +255,17 @@ func (api *tokensRestAPI) postTransactions(w http.ResponseWriter, r *http.Reques
 		api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("request body contained no transactions to process"))
 		return
 	}
+	for _, tx := range txs.Transactions {
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
+		// if owner proof does not contain a pubKey (for txs in which ownership is not defined, like token type creation), ownership validation is skipped
+		if err == nil && pubKey != nil && !bytes.Equal(owner, pubKey) {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("transaction with unitID %v in request body does not match provided pubKey parameter", tx.Payload.UnitID))
+			return
+		}
+	}
 
 	if errs := api.saveTxs(r.Context(), txs.Transactions, owner); len(errs) > 0 {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusAccepted)
 		api.rw.WriteResponse(w, errs)
 		return
 	}
@@ -315,24 +322,13 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 	api.rw.WriteResponse(w, fcb.ToGenericBill())
 }
 
-func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
-	if err != nil {
-		api.rw.InvalidParamResponse(w, "unitId", err)
-		return
+func (api *tokensRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {
+	systemID := hex.EncodeToString(api.systemID)
+	res := sdk.InfoResponse{
+		SystemID: systemID,
+		Name:     "tokens backend",
 	}
-	cfc, err := api.db.GetClosedFeeCredit(unitID)
-	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load closed fee credit for ID 0x%s: %w", unitID, err))
-		return
-	}
-	if cfc == nil {
-		w.WriteHeader(http.StatusNotFound)
-		api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "closed fee credit does not exist"})
-		return
-	}
-	api.rw.WriteCborResponse(w, cfc)
+	api.rw.WriteResponse(w, res)
 }
 
 func (api *tokensRestAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {

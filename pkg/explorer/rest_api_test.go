@@ -41,8 +41,8 @@ var (
 )
 
 func Test_txHistory(t *testing.T) {
-	walletService := &explorerBackendServiceMock{
-		getTxHistoryRecords: func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	explorerService := &explorerBackendServiceMock{
+		getTxHistoryRecordsByKey: func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 			return []*sdk.TxHistoryRecord{
 				{
 					Kind:         sdk.OUTGOING,
@@ -58,13 +58,13 @@ func Test_txHistory(t *testing.T) {
 			return 0, nil
 		},
 	}
-	port, api := startServer(t, walletService)
+	port, api := startServer(t, explorerService)
 
 	makeTxHistoryRequest := func(pubkey sdk.PubKey) *http.Response {
 		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history/0x%x", port, pubkey), nil)
 		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(pubkey)})
 		w := httptest.NewRecorder()
-		api.txHistoryFunc(w, req)
+		api.getTxHistoryByKey(w, req)
 		return w.Result()
 	}
 
@@ -310,9 +310,10 @@ func startServer(t *testing.T, service ExplorerBackendService) (port int, api *m
 }
 
 type explorerBackendServiceMock struct {
-	getRoundNumber      func(ctx context.Context) (uint64, error)
-	getTxProof          func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
-	getTxHistoryRecords func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
+	getRoundNumber           func(ctx context.Context) (uint64, error)
+	getTxProof               func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	getTxHistoryRecords      func(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
+	getTxHistoryRecordsByKey func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 }
 
 func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {
@@ -328,10 +329,16 @@ func (m *explorerBackendServiceMock) GetTxProof(unitID types.UnitID, txHash sdk.
 	}
 	return nil, errors.New("not implemented")
 }
-
-func (m *explorerBackendServiceMock) GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+func (m *explorerBackendServiceMock) GetTxHistoryRecords( dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 	if m.getTxHistoryRecords != nil {
-		return m.getTxHistoryRecords(hash, dbStartKey, count)
+		return m.getTxHistoryRecords(dbStartKey, count)
+	}
+	return nil, nil, errors.New("not implemented")
+}
+
+func (m *explorerBackendServiceMock) GetTxHistoryRecordsByKey(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	if m.getTxHistoryRecordsByKey != nil {
+		return m.getTxHistoryRecordsByKey(hash, dbStartKey, count)
 	}
 	return nil, nil, errors.New("not implemented")
 }

@@ -98,16 +98,23 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")
 	}
-	var rootNode *node = nil
-	treeNodes := make(map[uint64]*node)
-	for i, block := range blocks {
-		// last root
-		if i == 0 {
-			rootNode = newNode(block)
-			hQC = rootNode.data.Qc
-			treeNodes = map[uint64]*node{block.GetRound(): rootNode}
-			continue
+	// find root
+	rootIdx := 0
+	for i := len(blocks) - 1; i >= 0; i-- {
+		if blocks[i].CommitQc != nil {
+			rootIdx = i
+			break
 		}
+	}
+	rootNode := newNode(blocks[rootIdx])
+	// sanity check, root node must be a committed block
+	if rootNode.data.CommitQc == nil {
+		return nil, fmt.Errorf("invalid root node, not a committed block")
+	}
+	hQC = rootNode.data.Qc
+	treeNodes := map[uint64]*node{blocks[rootIdx].GetRound(): rootNode}
+	for i := rootIdx + 1; i < len(blocks); i++ {
+		block := blocks[i]
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[block.GetParentRound()]
 		if !found {

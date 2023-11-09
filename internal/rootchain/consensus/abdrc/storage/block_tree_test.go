@@ -366,7 +366,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 		Qc:        qcBlock2,
-		CommitQc:  qcBlock2,
+		CommitQc:  nil,
 	}
 	block3 := &ExecutedBlock{
 		BlockData: &abtypes.BlockData{

@@ -208,7 +208,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
-		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log)
+		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -146,7 +147,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root genesis verification failed: %w", err)
 	}
 	// Process partition node network
-	host, err := createHost(ctx, keys, config, config.Base.Logger)
+	host, err := createHost(ctx, keys, config, config.Base.Logger, config.Base.observe.PrometheusRegisterer())
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
@@ -212,7 +213,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	return node.Run(ctx)
 }
 
-func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger) (*network.Peer, error) {
+func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger, prom prometheus.Registerer) (*network.Peer, error) {
 	bootNodes, err := cfg.getBootStrapNodes()
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -226,7 +227,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.
 		return nil, err
 	}
 
-	return network.NewPeer(ctx, peerConf, log)
+	return network.NewPeer(ctx, peerConf, log, prom)
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

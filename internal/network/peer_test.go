@@ -23,7 +23,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 func TestNewPeer_PeerConfigurationIsNil(t *testing.T) {
-	p, err := NewPeer(context.Background(), nil, nil)
+	p, err := NewPeer(context.Background(), nil, nil, nil)
 	require.ErrorIs(t, err, ErrPeerConfigurationIsNil)
 	require.Nil(t, p)
 }
@@ -43,7 +43,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 		},
 	}
 
-	_, err := NewPeer(context.Background(), conf, logger.New(t))
+	_, err := NewPeer(context.Background(), conf, logger.New(t), nil)
 	require.ErrorContains(t, err, "invalid private key: expected secp256k1 data size to be 32")
 }
 
@@ -56,7 +56,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 			PublicKey:  test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(context.Background(), conf, logger.New(t))
+	_, err := NewPeer(context.Background(), conf, logger.New(t), nil)
 	require.ErrorContains(t, err, "invalid public key: malformed public key: invalid length: 30")
 }
 
@@ -73,7 +73,7 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 		},
 		Address: randomTestAddressStr,
 	}
-	peer, err := NewPeer(context.Background(), conf, logger.New(t))
+	peer, err := NewPeer(context.Background(), conf, logger.New(t), nil)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, peer.Close()) }()
 	p := peer.host.Peerstore().PeersWithKeys()[0]
@@ -91,7 +91,7 @@ func TestBootstrapNodes(t *testing.T) {
 	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
 
-	peer1, err := NewPeer(context.Background(), peerConf1, log)
+	peer1, err := NewPeer(context.Background(), peerConf1, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
@@ -99,7 +99,7 @@ func TestBootstrapNodes(t *testing.T) {
 	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
 
-	peer2, err := NewPeer(context.Background(), peerConf2, log)
+	peer2, err := NewPeer(context.Background(), peerConf2, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
@@ -117,7 +117,7 @@ func createPeer(t *testing.T) *Peer {
 	peerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
 	require.NoError(t, err)
 
-	p, err := NewPeer(context.Background(), peerConf, logger.New(t))
+	p, err := NewPeer(context.Background(), peerConf, logger.New(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, p.Close()) })
 	return p

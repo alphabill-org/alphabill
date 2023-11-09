@@ -93,6 +93,9 @@ func (e *evmClientMock) GetBalance(ctx context.Context, ethAddr []byte) (string,
 	if e.SimulateErr != nil {
 		return "", nil, e.SimulateErr
 	}
+	if e.noFcb {
+		return "", nil, evmclient.ErrNotFound
+	}
 	return "100000", test.RandomBytes(32), nil
 }
 

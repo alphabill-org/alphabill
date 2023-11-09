@@ -43,29 +43,17 @@ var (
 func Test_txHistory(t *testing.T) {
 	pubkey1 := sdk.PubKey(test.RandomBytes(33))
 	pubkey2 := sdk.PubKey(test.RandomBytes(33))
-	explorerService := &explorerBackendServiceMock{
-		getTxHistoryRecords: func( dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
-			return []*sdk.TxHistoryRecord{
-				{
-					Kind:         sdk.OUTGOING,
-					State:        sdk.UNCONFIRMED,
-					CounterParty: pubkey1.Hash(),
-				},
-				{
-					Kind:         sdk.OUTGOING,
-					State:        sdk.UNCONFIRMED,
-					CounterParty: pubkey2.Hash(),
-				},
-			}, nil, nil
-		},
-		getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-			return nil, nil
-		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 0, nil
-		},
-	}
-	port, api := startServer(t, explorerService)
+
+	storage := createTestBillStore(t)
+	rec := &sdk.TxHistoryRecord{
+        Kind:         sdk.OUTGOING,
+        State:        sdk.UNCONFIRMED,
+        CounterParty: pubkey2.Hash(),
+    }
+	storage.Do().StoreTxHistoryRecord(pubkey1.Hash() , rec)
+	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+
+	port, api := startServer(t, service)
 
 	makeTxHistoryRequest := func() *http.Response {
 		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history", port), nil)
@@ -80,11 +68,10 @@ func Test_txHistory(t *testing.T) {
 	require.NoError(t, err)
 	var txHistory []*sdk.TxHistoryRecord
 	require.NoError(t, cbor.Unmarshal(buf, &txHistory))
-	require.Len(t, txHistory, 2)
+	require.Len(t, txHistory, 1)
 	require.Equal(t, sdk.OUTGOING, txHistory[0].Kind)
 	require.Equal(t, sdk.UNCONFIRMED, txHistory[0].State)
-	require.EqualValues(t, pubkey1.Hash(), txHistory[0].CounterParty)
-	require.EqualValues(t, pubkey2.Hash(), txHistory[1].CounterParty)
+	require.EqualValues(t, pubkey2.Hash(), txHistory[0].CounterParty)
 }
 
 func Test_txHistoryByKey(t *testing.T) {
@@ -146,7 +133,7 @@ func TestProofRequest_Ok(t *testing.T) {
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 		},
 	}
-	walletBackend := newWalletBackend(t, withBillProofs(&billProof{b, p}))
+	walletBackend := newExplorerBackend(t, withBillProofs(&billProof{b, p}))
 	port, _ := startServer(t, walletBackend)
 
 	response := &sdk.Proof{}
@@ -161,7 +148,7 @@ func TestProofRequest_Ok(t *testing.T) {
 }
 
 func TestProofRequest_InvalidBillIdLength(t *testing.T) {
-	port, _ := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newExplorerBackend(t))
 
 	// verify bill id larger than 33 bytes returns error
 	res := &sdk.ErrorResponse{}
@@ -187,7 +174,7 @@ func TestProofRequest_InvalidBillIdLength(t *testing.T) {
 }
 
 func TestProofRequest_ProofDoesNotExist(t *testing.T) {
-	port, _ := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newExplorerBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/0x%s/transactions/0x00/proof", port, billID), res)
@@ -201,7 +188,7 @@ func TestRoundNumberRequest_Ok(t *testing.T) {
 	alphabillClient := clientmock.NewMockAlphabillClient(
 		clientmock.WithMaxRoundNumber(roundNumber),
 	)
-	service := newWalletBackend(t, withABClient(alphabillClient))
+	service := newExplorerBackend(t, withABClient(alphabillClient))
 	port, _ := startServer(t, service)
 
 	res := &RoundNumberResponse{}
@@ -212,7 +199,7 @@ func TestRoundNumberRequest_Ok(t *testing.T) {
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {
-	port, _ := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newExplorerBackend(t))
 
 	// verify request to to non-existent /api2 endpoint returns 404
 	httpRes, err := http.Get(fmt.Sprintf("http://localhost:%d/api2/v1/list-bills", port))
@@ -226,7 +213,7 @@ func TestInvalidUrl_NotFound(t *testing.T) {
 }
 
 func TestInfoRequest_Ok(t *testing.T) {
-	service := newWalletBackend(t)
+	service := newExplorerBackend(t)
 	port, _ := startServer(t, service)
 
 	var res *sdk.InfoResponse
@@ -263,7 +250,7 @@ type (
 	option func(service *ExplorerBackend) error
 )
 
-func newWalletBackend(t *testing.T, options ...option) *ExplorerBackend {
+func newExplorerBackend(t *testing.T, options ...option) *ExplorerBackend {
 	storage := createTestBillStore(t)
 	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 	for _, o := range options {

@@ -19,6 +19,7 @@ import (
 const BoltExplorerStoreFileName = "explorer.db"
 
 var (
+	blockBucket           = []byte("BlockBucket")           // block_number => Block
 	unitsBucket           = []byte("unitsBucket")           // unitID => unit_bytes
 	predicatesBucket      = []byte("predicatesBucket")      // predicate => bucket[unitID]nil
 	metaBucket            = []byte("metaBucket")            // block_number_key => block_number_val
@@ -61,6 +62,7 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 	}
 	s := &boltBillStore{db: db}
 	err = sdk.CreateBuckets(db.Update,
+		blockBucket,
 		unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket,
 		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, txProofsBucket, txHistoryBucket,
 	)
@@ -101,6 +103,35 @@ func (s *boltBillStoreTx) GetBill(unitID []byte) (*Bill, error) {
 		return nil, err
 	}
 	return unit, nil
+}
+
+func (s *boltBillStoreTx) GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error) {
+	var b *types.Block
+	blockNumberBytes := util.Uint64ToBytes(blockNumber)
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		blockBytes := tx.Bucket(blockBucket).Get(blockNumberBytes)
+		return json.Unmarshal(blockBytes, &b)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b , nil
+}
+
+func (s *boltBillStoreTx) SetBlock(b *types.Block) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
+		blockNumberBytes := util.Uint64ToBytes(blockNumber)
+		blockBytes, err := json.Marshal(b)
+		if err != nil {
+			return err
+		}
+		err = tx.Bucket(blockBucket).Put(blockNumberBytes, blockBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, true)
 }
 
 func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {
@@ -501,7 +532,7 @@ func (s *boltBillStoreTx) GetTxHistoryRecords(dbStartKey []byte, count int) (res
 func (s *boltBillStoreTx) getTxHistoryRecords(tx *bolt.Tx, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 	pb := tx.Bucket(txHistoryBucket)
 	if pb == nil {
-		return nil,nil, fmt.Errorf("bucket %s not found", txHistoryBucket)
+		return nil, nil, fmt.Errorf("bucket %s not found", txHistoryBucket)
 	}
 
 	var res []*sdk.TxHistoryRecord
@@ -530,7 +561,7 @@ func (s *boltBillStoreTx) getTxHistoryRecords(tx *bolt.Tx, dbStartKey []byte, co
 	})
 
 	if err != nil {
-		return nil,nil, err
+		return nil, nil, err
 	}
 
 	return res, prevKey, nil

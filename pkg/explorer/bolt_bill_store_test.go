@@ -21,6 +21,21 @@ func TestBillStore_CanBeCreated(t *testing.T) {
 	require.NotNil(t, bs)
 }
 
+func TestBillStore_SetBlock_GetBlockByBlockNumber(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	bs := createTestBillStore(t)
+	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}
+
+	// set block
+	err:= bs.Do().SetBlock(b)
+	require.NoError(t, err)
+
+	// get block
+	block, err:= bs.Do().GetBlockByBlockNumber(blockNumber)
+	require.NoError(t, err)
+	require.EqualValues(t, block.UnicityCertificate.InputRecord.RoundNumber, blockNumber)
+}
+
 func TestBillStore_GetSetBlockNumber(t *testing.T) {
 	bs := createTestBillStore(t)
 

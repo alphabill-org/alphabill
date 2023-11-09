@@ -63,6 +63,8 @@ type (
 
 	// BillStoreTx type for managing units by their ID and owner condition
 	BillStoreTx interface {
+		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
+		SetBlock(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)

@@ -98,7 +98,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	if bDB == nil {
 		return nil, fmt.Errorf("block tree init failed, database is nil")
 	}
-	var hQC *abdrc.QuorumCert = nil
+	var hQC *abdrc.QuorumCert
 	blocks, err := readBlocksFromDB(bDB)
 	if err != nil {
 		return nil, fmt.Errorf("root DB read error: %w", err)

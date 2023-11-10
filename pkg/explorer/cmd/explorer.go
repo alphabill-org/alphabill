@@ -17,7 +17,8 @@ func main() {
 		fmt.Println("Usage: explorer <AB Partition url> <AB Explorer url>")
 		return
 	}
-	workDir := filepath.Dir(args[0])
+	workDir :=  "/tmp/" //filepath.Dir(args[0])
+	fmt.Printf("filepath: %s\n", filepath.Dir(args[0]))
 	fmt.Printf("AB Partition url: %s\n", args[1])
 	fmt.Printf("AB Explorer url: %s\n", args[2])
 	err := explorer.Run(context.Background(), &explorer.Config{

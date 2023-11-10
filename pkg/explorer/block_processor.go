@@ -52,6 +52,11 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 				return fmt.Errorf("failed to process transaction: %w", err)
 			}
 		}
+		err = saveBlockToStorage(dbTx, b)
+		if err != nil {
+			return err
+		}
+		//fmt.Printf("roundNumber: %d	, count: %d 	", roundNumber , len(b.Transactions))
 		return dbTx.SetBlockNumber(roundNumber)
 	})
 }
@@ -334,6 +339,16 @@ func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder,
 			Kind:         sdk.INCOMING,
 			CounterParty: extractOwnerKeyFromProof(txo.OwnerProof),
 		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func saveBlockToStorage(dbTx BillStoreTx, b *types.Block) error {
+	if b != nil {
+		err := dbTx.SetBlock(b)
+		if err != nil{
 			return err
 		}
 	}

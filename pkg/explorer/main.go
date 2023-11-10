@@ -22,6 +22,7 @@ import (
 
 type (
 	ExplorerBackendService interface {
+		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
@@ -114,11 +115,11 @@ func Run(ctx context.Context, config *Config) error {
 
 	g.Go(func() error {
 		wlog.Info("money backend REST server starting on ", config.ServerAddr)
-		walletBackend := &ExplorerBackend{store: store, sdk: sdk.New().SetABClient(abc).Build()}
-		defer walletBackend.sdk.Shutdown()
+		explorerBackend := &ExplorerBackend{store: store, sdk: sdk.New().SetABClient(abc).Build()}
+		defer explorerBackend.sdk.Shutdown()
 
 		handler := &moneyRestAPI{
-			Service:            walletBackend,
+			Service:            explorerBackend,
 			ListBillsPageLimit: config.ListBillsPageLimit,
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: wlog.Error},
@@ -168,6 +169,12 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 	// on bootstrap storage returns 0 as current block and as block numbering
 	// starts from 1 by adding 1 to it we start with the first block
 	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
+}
+
+
+// GetBlockByBlockNumber returns block with given block number.
+func (ex *ExplorerBackend) GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error) {
+	return ex.store.Do().GetBlockByBlockNumber(blockNumber)
 }
 
 // GetBill returns most recently seen bill with given unit id.

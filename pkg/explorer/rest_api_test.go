@@ -40,17 +40,38 @@ var (
 	feeCreditRecordID = money.NewFeeCreditRecordID(nil, []byte{1})
 )
 
+func Test_getBlockByBlockNumber(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	storage := createTestBillStore(t)
+
+	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}
+
+	// set block
+	err := storage.Do().SetBlock(b)
+	require.NoError(t, err)
+
+	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	port, _ := startServer(t, service)
+
+	res := &types.Block{}
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocks/%d", port, blockNumber), res)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, blockNumber, res.UnicityCertificate.InputRecord.RoundNumber)
+}
+
 func Test_txHistory(t *testing.T) {
 	pubkey1 := sdk.PubKey(test.RandomBytes(33))
 	pubkey2 := sdk.PubKey(test.RandomBytes(33))
 
 	storage := createTestBillStore(t)
 	rec := &sdk.TxHistoryRecord{
-        Kind:         sdk.OUTGOING,
-        State:        sdk.UNCONFIRMED,
-        CounterParty: pubkey2.Hash(),
-    }
-	storage.Do().StoreTxHistoryRecord(pubkey1.Hash() , rec)
+		Kind:         sdk.OUTGOING,
+		State:        sdk.UNCONFIRMED,
+		CounterParty: pubkey2.Hash(),
+	}
+	storage.Do().StoreTxHistoryRecord(pubkey1.Hash(), rec)
 	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 
 	port, api := startServer(t, service)
@@ -350,6 +371,11 @@ type explorerBackendServiceMock struct {
 	getTxHistoryRecordsByKey func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 }
 
+func (m *explorerBackendServiceMock) GetBlockByBlockNumber(blocknumber uint64) (*types.Block, error) {
+	//TODO
+	return nil, errors.New("not implemented")
+}
+
 func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	if m.getRoundNumber != nil {
 		return m.getRoundNumber(ctx)
@@ -363,7 +389,7 @@ func (m *explorerBackendServiceMock) GetTxProof(unitID types.UnitID, txHash sdk.
 	}
 	return nil, errors.New("not implemented")
 }
-func (m *explorerBackendServiceMock) GetTxHistoryRecords( dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+func (m *explorerBackendServiceMock) GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
 	if m.getTxHistoryRecords != nil {
 		return m.getTxHistoryRecords(dbStartKey, count)
 	}

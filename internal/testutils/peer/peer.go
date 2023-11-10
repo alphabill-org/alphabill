@@ -19,7 +19,7 @@ func CreatePeerConfiguration(t *testing.T) *network.PeerConfiguration {
 }
 
 func CreatePeer(t *testing.T, peerConf *network.PeerConfiguration) *network.Peer {
-	peer, err := network.NewPeer(context.Background(), peerConf, logger.New(t))
+	peer, err := network.NewPeer(context.Background(), peerConf, logger.New(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peer.Close()) })
 	return peer

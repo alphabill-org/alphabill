@@ -50,14 +50,14 @@ func submitTransaction(node partitionNode, mtr metric.Meter, log *slog.Logger) h
 	return func(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
 		if _, err := buf.ReadFrom(r.Body); err != nil {
-			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("read")))
+			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.read")))
 			util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
 			return
 		}
 
 		tx := &types.TransactionOrder{}
 		if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
-			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("cbor")))
+			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.cbor")))
 			util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 			return
 		}

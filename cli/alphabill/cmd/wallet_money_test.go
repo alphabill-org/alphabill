@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -229,11 +230,11 @@ func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *te
 
 func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
 	for _, n := range partition.Nodes {
-		n.AddrGRPC = startRPCServer(t, n.Node)
+		n.AddrGRPC = startRPCServer(t, n.Node, logger.NOP())
 	}
 }
 
-func startRPCServer(t *testing.T, node *partition.Node) string {
+func startRPCServer(t *testing.T, node *partition.Node, log *slog.Logger) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -242,7 +243,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
-	}, testobserv.NOPMetrics())
+	}, testobserv.NOPMetrics(), log)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

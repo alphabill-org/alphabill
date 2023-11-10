@@ -59,7 +59,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initRPCServer(node, rpcServerConf, obs)
+		grpcServer, err := initRPCServer(node, rpcServerConf, obs, log)
 		if err != nil {
 			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
 		}
@@ -177,11 +177,12 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	return network.NewPeerConfiguration(cfg.Address, pair, bootstrapPeers, validatorIdentifiers)
 }
 
-func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability) (*grpc.Server, error) {
+func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
 		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
+		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 

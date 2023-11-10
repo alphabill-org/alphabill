@@ -148,6 +148,28 @@ func (o *observability) initMeterProvider(exporter string, res *resource.Resourc
 					},
 				},
 			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{
+					Name:  "duration",
+					Scope: instrumentation.Scope{Name: "grpc_api"},
+				},
+				sdkmetric.Stream{
+					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+						Boundaries: []float64{100 * μs, 200 * μs, 400 * μs, 800 * μs, 0.0016, 0.01, 0.05, 0.1},
+					},
+				},
+			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{
+					Name:  "duration",
+					Scope: instrumentation.Scope{Name: "rest_api"},
+				},
+				sdkmetric.Stream{
+					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+						Boundaries: []float64{100 * μs, 200 * μs, 400 * μs, 800 * μs, 0.0016, 0.01, 0.05, 0.1},
+					},
+				},
+			),
 		),
 	), nil
 }

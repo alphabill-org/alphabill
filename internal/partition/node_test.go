@@ -665,6 +665,8 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 }
 
 func Test_txProcessorForRound(t *testing.T) {
+	nopObservability := observability.NOPMetrics()
+
 	t.Run("unknown leader", func(t *testing.T) {
 		n := &Node{log: logger.New(t)}
 		require.Nil(t, n.txProcessorForRound(22, UnknownLeader))
@@ -676,12 +678,11 @@ func Test_txProcessorForRound(t *testing.T) {
 		n := &Node{
 			configuration: &configuration{hashAlgorithm: gocrypto.SHA256},
 			network:       nw,
-			observe:       observability.NOPMetrics(),
 			log:           logger.New(t),
 		}
 		// inits n.peer but does not override n.network
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
-		require.NoError(t, n.initMetrics(n.observe))
+		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t), nopObservability))
+		require.NoError(t, n.initMetrics(nopObservability))
 
 		f := n.txProcessorForRound(22, "leaderNodeID")
 		require.NotNil(t, f)
@@ -702,11 +703,10 @@ func Test_txProcessorForRound(t *testing.T) {
 			configuration:     &configuration{hashAlgorithm: gocrypto.SHA256},
 			transactionSystem: txSys,
 			txValidator:       txVal,
-			observe:           observability.NOPMetrics(),
 			log:               logger.New(t),
 		}
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
-		require.NoError(t, n.initMetrics(n.observe))
+		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t), nopObservability))
+		require.NoError(t, n.initMetrics(nopObservability))
 
 		tx := testtransaction.NewTransactionOrder(t)
 		tx.Payload.ClientMetadata.Timeout = 25

@@ -80,20 +80,28 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	}, nil
 }
 
-func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
-	if bDB == nil {
-		return nil, fmt.Errorf("block tree init failed, database is nil")
-	}
+func readBlocksFromDB(bDB keyvaluedb.KeyValueDB) (_ []*ExecutedBlock, err error) {
 	itr := bDB.Find([]byte(blockPrefix))
 	defer func() { err = errors.Join(err, itr.Close()) }()
 	var blocks []*ExecutedBlock
-	var hQC *abdrc.QuorumCert = nil
 	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
 		var b ExecutedBlock
 		if err = itr.Value(&b); err != nil {
 			return nil, fmt.Errorf("read block %v from db failed, %w", itr.Key(), err)
 		}
 		blocks = append(blocks, &b)
+	}
+	return blocks, nil
+}
+
+func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
+	if bDB == nil {
+		return nil, fmt.Errorf("block tree init failed, database is nil")
+	}
+	var hQC *abdrc.QuorumCert = nil
+	blocks, err := readBlocksFromDB(bDB)
+	if err != nil {
+		return nil, fmt.Errorf("root DB read error: %w", err)
 	}
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")

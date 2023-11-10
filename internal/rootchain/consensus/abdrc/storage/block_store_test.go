@@ -3,6 +3,7 @@ package storage
 import (
 	gocrypto "crypto"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
@@ -103,12 +104,24 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	require.NoError(t, err)
 	// although store contains more than one root, the latest is preferred
 	require.EqualValues(t, 8, bStore.GetRoot().GetRound())
+	// first root is cleaned up
+	itr := db.Find([]byte(blockPrefix))
+	defer func() { require.NoError(t, itr.Close()) }()
+	i := 0
+	// the db now contains blocks 8,9,10 the old blocks have been cleaned up
+	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
+		var b ExecutedBlock
+		require.NoError(t, itr.Value(&b))
+		require.EqualValues(t, 8+i, b.GetRound())
+		i++
+	}
+	require.EqualValues(t, 3, i)
 }
 
 func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	db := memorydb.New()
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
-	// create second root
+	// create a second chain, that has no root
 	b10 := fakeBlock(10, &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	b9 := fakeBlock(9, &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 8}})

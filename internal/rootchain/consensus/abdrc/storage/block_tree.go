@@ -129,6 +129,14 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 			hQC = n.data.Qc
 		}
 	}
+	// clear all blocks until new root if any
+	for _, b := range blocks {
+		if b.GetRound() < rootNode.data.GetRound() {
+			if err = bDB.Delete(blockKey(b.GetRound())); err != nil {
+				return nil, fmt.Errorf("failed to clean old round from DB")
+			}
+		}
+	}
 	return &BlockTree{
 		roundToNode: treeNodes,
 		root:        rootNode,

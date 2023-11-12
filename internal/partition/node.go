@@ -1178,6 +1178,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
+	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
 	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
 }
 
@@ -1243,7 +1244,6 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-	n.blockSize.Add(ctx, int64(len(pendingProposal.Transactions)))
 
 	return n.network.Send(ctx, req, n.configuration.rootChainID)
 }

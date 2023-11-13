@@ -102,7 +102,6 @@ type (
 		recoveryLastProp            *blockproposal.BlockProposal
 		log                         *slog.Logger
 
-		observe    Observability
 		txFwdBy    metric.Int64Counter
 		txFwdTo    metric.Int64Counter
 		execTxCnt  metric.Int64Counter
@@ -164,7 +163,6 @@ func NewNode(
 		eventHandler:                conf.eventHandler,
 		network:                     net,
 		lastLedgerReqTime:           time.Time{},
-		observe:                     observe,
 		log:                         log,
 	}
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
@@ -186,7 +184,7 @@ func NewNode(
 		return nil, fmt.Errorf("node state initialization failed: %w", err)
 	}
 
-	if err = n.initNetwork(ctx, peerConf); err != nil {
+	if err = n.initNetwork(ctx, peerConf, observe); err != nil {
 		return nil, fmt.Errorf("node network initialization failed: %w", err)
 	}
 
@@ -196,11 +194,14 @@ func NewNode(
 func (n *Node) initMetrics(observe Observability) (err error) {
 	m := observe.Meter("partition.node")
 
-	m.Int64ObservableCounter("round", metric.WithDescription("current round"),
+	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
 			io.Observe(int64(n.getCurrentRound()))
 			return nil
 		}))
+	if err != nil {
+		return fmt.Errorf("creating counter for round number: %w", err)
+	}
 
 	n.leaderCnt, err = m.Int64Counter("round.leader", metric.WithDescription("Number of times node has been round leader"))
 	if err != nil {
@@ -325,8 +326,8 @@ func (n *Node) initState(ctx context.Context) (err error) {
 	return err
 }
 
-func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration) (err error) {
-	n.peer, err = network.NewPeer(ctx, peerConf, n.log, n.observe.PrometheusRegisterer())
+func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration, observe Observability) (err error) {
+	n.peer, err = network.NewPeer(ctx, peerConf, n.log, observe.PrometheusRegisterer())
 	if err != nil {
 		return err
 	}
@@ -1177,6 +1178,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
+	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
 	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
 }
 
@@ -1242,7 +1244,6 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-	n.blockSize.Add(ctx, int64(len(pendingProposal.Transactions)))
 
 	return n.network.Send(ctx, req, n.configuration.rootChainID)
 }

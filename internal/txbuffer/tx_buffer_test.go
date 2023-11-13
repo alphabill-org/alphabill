@@ -13,7 +13,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const (
@@ -115,7 +114,7 @@ func Test_TxBuffer_removeFromIndex(t *testing.T) {
 	})
 }
 
-func Test_TxBuffer_Process(t *testing.T) {
+func Test_TxBuffer_Remove(t *testing.T) {
 	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 
@@ -134,9 +133,14 @@ func Test_TxBuffer_Process(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+		for {
+			_, err := buffer.Remove(ctx)
+			if err != nil {
+				return
+			}
+
 			atomic.AddUint32(&c, 1)
-		})
+		}
 	}()
 
 	require.Eventually(t, func() bool { return atomic.LoadUint32(&c) == 3 }, test.WaitDuration, test.WaitTick)
@@ -176,9 +180,13 @@ func Test_TxBuffer_concurrency(t *testing.T) {
 	var processedCnt atomic.Int32
 	go func() {
 		defer close(done)
-		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+		for {
+			_, err := buffer.Remove(ctx)
+			if err != nil {
+				return
+			}
 			processedCnt.Add(1)
-		})
+		}
 	}()
 
 	// wait until consumer has seen the same amount of txs we generated

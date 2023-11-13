@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	ErrTxBufferFull   = errors.New("tx buffer is full")
-	ErrInvalidMaxSize = errors.New("invalid maximum size")
-	ErrTxIsNil        = errors.New("tx is nil")
-	ErrTxInBuffer     = errors.New("tx already in tx buffer")
+	ErrTxBufferFull         = errors.New("tx buffer is full")
+	ErrInvalidMaxSize       = errors.New("invalid maximum size")
+	ErrInvalidHashAlgorithm = errors.New("invalid maximum size")
+	ErrTxIsNil              = errors.New("tx is nil")
+	ErrTxInBuffer           = errors.New("tx already in tx buffer")
 
 	transactionsCounter          = metrics.GetOrRegisterCounter("transaction/buffer/size")
 	transactionsRejectedCounter  = metrics.GetOrRegisterCounter("transaction/buffer/rejected/full")
@@ -33,18 +34,18 @@ type (
 		hashAlgorithm  crypto.Hash
 		log            *slog.Logger
 	}
-
-	// TxHandler processes an transaction.
-	TxHandler func(ctx context.Context, tx *types.TransactionOrder)
 )
 
 /*
 New creates a new instance of the TxBuffer.
 MaxSize specifies the total number of transactions the TxBuffer may contain.
 */
-func New(maxSize uint32, hashAlgorithm crypto.Hash, log *slog.Logger) (*TxBuffer, error) {
+func New(maxSize uint, hashAlgorithm crypto.Hash, log *slog.Logger) (*TxBuffer, error) {
 	if maxSize < 1 {
 		return nil, ErrInvalidMaxSize
+	}
+	if hashAlgorithm == 0 {
+		return nil, ErrInvalidHashAlgorithm
 	}
 	return &TxBuffer{
 		hashAlgorithm:  hashAlgorithm,
@@ -88,22 +89,18 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 	return txHash, nil
 }
 
-/*
-Process calls the "process" callback for each transaction in the buffer until
-ctx is cancelled.
-After callback returns the tx is always removed from internal buffer (ie the
-callback can't add the tx back to buffer, it would be rejected as duplicate).
-*/
-func (t *TxBuffer) Process(ctx context.Context, process TxHandler) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case tx := <-t.transactionsCh:
-			process(ctx, tx)
-			t.removeFromIndex(string(tx.Hash(t.hashAlgorithm)))
-		}
+func (t *TxBuffer) Remove(ctx context.Context) (*types.TransactionOrder, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case tx := <-t.transactionsCh:
+		t.removeFromIndex(string(tx.Hash(t.hashAlgorithm)))
+		return tx, nil
 	}
+}
+
+func (t *TxBuffer) HashAlgorithm() crypto.Hash {
+	return t.hashAlgorithm
 }
 
 /*

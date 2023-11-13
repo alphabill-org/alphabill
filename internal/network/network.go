@@ -27,7 +27,8 @@ type (
 		protocolID string
 		// constructor which returns pointer to a data struct into which
 		// received message can be stored
-		typeFn func() any
+		typeFn     func() any
+		handler    libp2pNetwork.StreamHandler
 	}
 
 	sendProtocolData struct {
@@ -192,8 +193,13 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc receiveProtocolDescriptio
 		return fmt.Errorf("protocol %q is already registered", protoc.protocolID)
 	}
 
+	if protoc.handler != nil {
+		n.self.RegisterProtocolHandler(protoc.protocolID, protoc.handler)
+		return nil
+	}
+
 	if protoc.typeFn == nil {
-		return errors.New("data struct constructor must be assigned")
+		return errors.New("data struct constructor or handler must be assigned")
 	}
 	msg := protoc.typeFn()
 	if msg == nil {

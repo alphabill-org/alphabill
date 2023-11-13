@@ -25,7 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
-	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -64,10 +63,14 @@ var (
 )
 
 type (
-	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
-	Net interface {
+	// ValidatorNetwork provides an interface for sending and receiving validator network messages.
+	ValidatorNetwork interface {
 		Send(ctx context.Context, msg any, receivers ...peer.ID) error
 		ReceivedChannel() <-chan any
+
+		AddTransaction(tx *types.TransactionOrder) ([]byte, error)
+		ForwardTransactions(ctx context.Context, receiver peer.ID)
+		ProcessTransactions(ctx context.Context, txProcessor network.TxProcessor)
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -87,11 +90,10 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
-		txBuffer                    *txbuffer.TxBuffer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
-		network                     Net
+		network                     ValidatorNetwork
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
@@ -126,12 +128,12 @@ func NewNode(
 	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
 	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
-	net Net, // network layer of the node
+	network ValidatorNetwork, // network layer of the validator node
 	log *slog.Logger,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, net, log, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, log, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
@@ -145,10 +147,9 @@ func NewNode(
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
 		txIndexer:                   conf.txIndexer,
-		txBuffer:                    conf.txBuffer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
-		network:                     net,
+		network:                     network,
 		lastLedgerReqTime:           time.Time{},
 		log:                         log,
 	}
@@ -269,7 +270,10 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 		return nil
 	}
 
-	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, network.DefaultValidatorNetOptions, n.log)
+	opts := network.DefaultValidatorNetworkOptions
+	opts.TxBufferHashAlgorithm = n.configuration.hashAlgorithm
+
+	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, opts, n.log)
 	if err != nil {
 		return err
 	}
@@ -387,12 +391,6 @@ func (n *Node) loop(ctx context.Context) error {
 			}
 			n.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("received %T", m), logger.Data(m))
 			switch mt := m.(type) {
-			case *types.TransactionOrder:
-				if err := n.handleTxMessage(mt); err != nil {
-					n.log.Warn("invalid transaction", logger.Error(err), logger.UnitID(mt.UnitID()))
-					invalidTransactionsCounter.Inc(1)
-					n.sendEvent(event.Error, err)
-				}
 			case *types.UnicityCertificate:
 				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
 					n.log.Warn("Unicity Certificate processing failed", logger.Error(err))
@@ -445,16 +443,9 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 	}
 }
 
-func (n *Node) handleTxMessage(tx *types.TransactionOrder) error {
-	if _, err := n.txBuffer.Add(tx); err != nil {
-		return fmt.Errorf("failed to add transaction into buffer: %w", err)
-	}
-	return nil
-}
-
-func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
+func (n *Node) process(tx *types.TransactionOrder) error {
 	defer trackExecutionTime(time.Now(), "Processing transaction", n.log)
-	sm, err := n.validateAndExecuteTx(tx, round)
+	sm, err := n.validateAndExecuteTx(tx, n.getCurrentRound())
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
@@ -547,7 +538,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("tx system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
-		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
+		if err = n.process(tx.TransactionOrder); err != nil {
 			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
@@ -1156,7 +1147,7 @@ func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (txOrderH
 	if err = n.txValidator.Validate(tx, rn); err != nil {
 		return nil, err
 	}
-	return n.txBuffer.Add(tx)
+	return n.network.AddTransaction(tx)
 }
 
 func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error) {
@@ -1250,8 +1241,9 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
 
-	processTx := n.txProcessorForRound(n.getCurrentRound(), n.leaderSelector.GetLeader())
-	if processTx == nil {
+	leader := n.leaderSelector.GetLeader()
+	if leader == UnknownLeader {
+		n.log.Warn("unknown round leader", logger.Round(n.getCurrentRound()))
 		return
 	}
 
@@ -1266,7 +1258,12 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 
 	go func() {
 		defer wg.Done()
-		n.txBuffer.Process(txCtx, processTx)
+
+		if leader == n.peer.ID() {
+			n.network.ProcessTransactions(txCtx, n.process)
+		} else {
+			n.network.ForwardTransactions(txCtx, leader)
+		}
 	}()
 
 	go func() {
@@ -1282,30 +1279,6 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 		case <-txCtx.Done():
 		}
 	}()
-}
-
-func (n *Node) txProcessorForRound(round uint64, leader peer.ID) txbuffer.TxHandler {
-	log := n.log.With(logger.Round(round))
-
-	switch leader {
-	case UnknownLeader:
-		log.Warn("unknown round leader")
-		return nil
-	case n.peer.ID():
-		return func(ctx context.Context, tx *types.TransactionOrder) {
-			if err := n.process(tx, round); err != nil {
-				log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-			}
-		}
-	default:
-		return func(ctx context.Context, tx *types.TransactionOrder) {
-			msg := fmt.Sprintf("forward tx %X to %v", tx.Hash(n.configuration.hashAlgorithm), leader)
-			log.DebugContext(ctx, msg, logger.UnitID(tx.UnitID()))
-			if err := n.network.Send(ctx, tx, leader); err != nil {
-				log.WarnContext(ctx, "failed to "+msg, logger.Error(err), logger.UnitID(tx.UnitID()))
-			}
-		}
-	}
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {

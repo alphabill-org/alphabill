@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -22,9 +21,8 @@ import (
 
 const (
 	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultTxBufferSize                = 1000
 	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10 * DefaultTxBufferSize
+	DefaultReplicationMaxTx     uint32 = 10000
 )
 
 var (
@@ -43,7 +41,6 @@ type (
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
-		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      crypto.Signer
@@ -127,7 +124,7 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}
@@ -163,16 +160,11 @@ func (c *configuration) initMissingDefaults(log *slog.Logger) error {
 	if c.blockStore == nil {
 		c.blockStore = memorydb.New()
 	}
-
-	var err error
-	c.txBuffer, err = txbuffer.New(DefaultTxBufferSize, c.hashAlgorithm, log)
-	if err != nil {
-		return fmt.Errorf("tx buffer init error, %w", err)
-	}
-
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
+
+	var err error
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return fmt.Errorf("root trust base init error, %w", err)

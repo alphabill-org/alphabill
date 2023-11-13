@@ -169,7 +169,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
@@ -298,7 +298,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)

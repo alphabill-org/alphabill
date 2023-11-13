@@ -67,6 +67,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/blocks/{blockNumber}", api.getBlockByBlockNumber).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/blocks", api.getBlocks).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history", api.getTxHistory).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history/{pubkey}", api.getTxHistoryByKey).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
@@ -92,7 +93,7 @@ func (api *moneyRestAPI) getBlockByBlockNumber(w http.ResponseWriter, r *http.Re
 
 	block, err := api.Service.GetBlockByBlockNumber(blockNumber)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load block with block number %d : %w", blockNumber , err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load block with block number %d : %w", blockNumber, err))
 		return
 	}
 
@@ -102,6 +103,30 @@ func (api *moneyRestAPI) getBlockByBlockNumber(w http.ResponseWriter, r *http.Re
 	}
 
 	api.rw.WriteResponse(w, block)
+}
+
+func (api *moneyRestAPI) getBlocks(w http.ResponseWriter, r *http.Request) {
+
+	qp := r.URL.Query()
+	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
+
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	recs, nextKey, err := api.Service.GetBlocks(startKey, limit)
+	if err != nil {
+		log.Error("error on GET /blocks: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch blocks: %w", err))
+		return
+	}
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	api.rw.WriteCborResponse(w, recs)
 }
 
 func (api *moneyRestAPI) getTxHistory(w http.ResponseWriter, r *http.Request) {

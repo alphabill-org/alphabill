@@ -210,13 +210,13 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 		data, err := serializeMsg(tx)
 		if err != nil {
 			n.log.WarnContext(ctx, "serializing tx", logger.Error(err), logger.UnitID(tx.UnitID()))
-			addToMetric("err")
+			addToMetric("err.serialize")
 			continue
 		}
 
 		if _, err := stream.Write(data); err != nil {
 			n.log.WarnContext(ctx, "writing data to p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
-			addToMetric("err")
+			addToMetric("err.write")
 			continue
 		}
 

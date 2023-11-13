@@ -209,7 +209,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 		data, err := serializeMsg(tx)
 		if err != nil {
 			n.log.WarnContext(ctx, "serializing tx", logger.Error(err), logger.UnitID(tx.UnitID()))
-			addToMetric("err")
+			addToMetric("err.serialize")
 			continue
 		}
 

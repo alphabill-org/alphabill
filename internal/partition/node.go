@@ -95,6 +95,7 @@ type (
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
+		rootNodes                   peer.IDSlice
 		network                     Net
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
@@ -145,11 +146,14 @@ func NewNode(
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, net, log, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, log, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
-
+	rn, err := conf.getRootNodes()
+	if err != nil {
+		return nil, fmt.Errorf("genesis error, invalid rootnodes: %w", err)
+	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -161,6 +165,7 @@ func NewNode(
 		txIndexer:                   conf.txIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
+		rootNodes:                   rn,
 		network:                     net,
 		lastLedgerReqTime:           time.Time{},
 		log:                         log,
@@ -331,10 +336,13 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	if err != nil {
 		return err
 	}
-
-	if n.configuration.rootChainAddress != nil {
-		// add rootchain address to the peer store. this enables us to send receivedMessages to the rootchain.
-		n.peer.Network().Peerstore().AddAddr(n.configuration.rootChainID, n.configuration.rootChainAddress, peerstore.PermanentAddrTTL)
+	// add bootstrap address to the peer store
+	if peerConf.BootstrapPeers != nil {
+		for _, info := range peerConf.BootstrapPeers {
+			for _, addr := range info.Addrs {
+				n.peer.Network().Peerstore().AddAddr(info.ID, addr, peerstore.PermanentAddrTTL)
+			}
+		}
 	}
 
 	if n.network != nil {
@@ -355,12 +363,16 @@ func (n *Node) getCurrentRound() uint64 {
 
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "Sending handshake to root chain")
+	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
+	if err != nil {
+		n.log.WarnContext(ctx, "root node selection error: %w", err)
+	}
 	if err := n.network.Send(ctx,
 		handshake.Handshake{
 			SystemIdentifier: n.configuration.GetSystemIdentifier(),
 			NodeIdentifier:   n.peer.ID().String(),
 		},
-		n.configuration.rootChainID); err != nil {
+		rootIDs...); err != nil {
 		n.log.ErrorContext(ctx, "error sending handshake", logger.Error(err))
 	}
 }
@@ -1244,8 +1256,12 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-
-	return n.network.Send(ctx, req, n.configuration.rootChainID)
+	n.blockSize.Add(ctx, int64(len(pendingProposal.Transactions)))
+	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
+	if err != nil {
+		n.log.WarnContext(ctx, "root node selection error: %w", err)
+	}
+	return n.network.Send(ctx, req, rootIDs...)
 }
 
 func (n *Node) resetProposal() {

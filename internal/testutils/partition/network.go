@@ -325,7 +325,9 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			return fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
-		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
+		// set root node as bootstrap peer
+		nd.peerConf.BootstrapPeers = []peer.AddrInfo{{rootID, []multiaddr.Multiaddr{rootAddr}}}
+		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
 			partition.WithTxIndexer(txIndexer),
@@ -581,7 +583,6 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 					}
 				}
 			}
-
 		}
 		return false
 	}

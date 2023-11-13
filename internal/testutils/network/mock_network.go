@@ -21,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -39,7 +40,8 @@ type PeerMessage struct {
 }
 
 func NewMockNetwork(t *testing.T) *MockNet {
-	txBuffer, err := txbuffer.New(100, crypto.SHA256, testlogger.New(t))
+	obs := observability.NOPMetrics()
+	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs, testlogger.New(t))
 	require.NoError(t, err)
 
 	mn := &MockNet{
@@ -130,9 +132,9 @@ func (m *MockNet) ReceivedChannel() <-chan any {
 	return m.MessageCh
 }
 
-func (m *MockNet) AddTransaction(tx *types.TransactionOrder) ([]byte, error) {
+func (m *MockNet) AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
 	if m.txBuffer != nil {
-		return m.txBuffer.Add(tx)
+		return m.txBuffer.Add(ctx, tx)
 	}
 	return nil, nil
 }
@@ -143,7 +145,7 @@ func (m *MockNet) ProcessTransactions(ctx context.Context, txProcessor network.T
 		if err != nil {
 			return
 		}
-		if err := txProcessor(tx); err != nil {
+		if err := txProcessor(ctx, tx); err != nil {
 			continue
 		}
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -17,8 +18,8 @@ import (
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
@@ -29,8 +30,6 @@ const (
 
 var (
 	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
-
-	openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
 )
 
 type (
@@ -56,26 +55,12 @@ type (
 		validators []peer.ID
 		dht        *dht.IpfsDHT
 	}
-
-	metricsNotifiee struct{}
 )
-
-func (m *metricsNotifiee) Listen(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) ListenClose(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) Connected(network.Network, network.Conn) {
-	openConnectionsCounter.Inc(1)
-}
-
-func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
-	openConnectionsCounter.Dec(1)
-}
 
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
-func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*Peer, error) {
+func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, prom prometheus.Registerer) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
@@ -97,17 +82,19 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*P
 		return nil, err
 	}
 
-	// create a new libp2p Host
-	h, err := libp2p.New(
+	opts := []config.Option{
 		libp2p.ListenAddrStrings(address),
 		libp2p.Identity(privateKey),
 		libp2p.Peerstore(peerStore),
 		libp2p.Ping(true), // make sure ping service is enabled
-	)
+	}
+	if prom != nil {
+		opts = append(opts, libp2p.PrometheusRegisterer(prom))
+	}
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
-	h.Network().Notify(&metricsNotifiee{})
 
 	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
 	if err != nil {
@@ -234,11 +221,11 @@ func NewPeerConfiguration(
 	}
 
 	return &PeerConfiguration{
-		ID: peerID,
-		Address: addr,
-		KeyPair: keyPair,
+		ID:             peerID,
+		Address:        addr,
+		KeyPair:        keyPair,
 		BootstrapPeers: bootstrapPeers,
-		Validators: validators,
+		Validators:     validators,
 	}, nil
 }
 

@@ -14,6 +14,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserv "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -167,9 +168,10 @@ func Test_StartMonolithicNode(t *testing.T) {
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, log)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
+		require.NoError(t, err)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
@@ -296,9 +298,10 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, log)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
+		require.NoError(t, err)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)

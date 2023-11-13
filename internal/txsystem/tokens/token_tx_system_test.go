@@ -34,7 +34,6 @@ var (
 var (
 	unitID                   = NewNonFungibleTokenID(nil, []byte{1})
 	symbol                   = "TEST"
-	name                     = "Long name for " + symbol
 	subTypeCreationPredicate = []byte{4}
 	tokenCreationPredicate   = []byte{5}
 	invariantPredicate       = []byte{6}
@@ -1235,6 +1234,7 @@ func TestUpdateNFT_InvalidBacklink(t *testing.T) {
 func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := createNFTTypeAndMintToken(t, txs, nftTypeID2, nil)
+	require.NotNil(t, tx)
 
 	// mint NFT
 	tx = testtransaction.NewTransactionOrder(

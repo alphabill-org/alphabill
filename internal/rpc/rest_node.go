@@ -8,11 +8,16 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/txbuffer"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -21,16 +26,10 @@ const (
 	pathLatestRoundNumber    = "/rounds/latest"
 )
 
-var (
-	receivedTransactionsRESTMeter        = metrics.GetOrRegisterCounter("transactions/rest/received")
-	receivedInvalidTransactionsRESTMeter = metrics.GetOrRegisterCounter("transactions/rest/invalid")
-)
-
-func NodeEndpoints(node partitionNode, log *slog.Logger) RegistrarFunc {
+func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) RegistrarFunc {
 	return func(r *mux.Router) {
-
 		// submit transaction
-		r.HandleFunc(pathTransactions, submitTransaction(node, log)).Methods(http.MethodPost, http.MethodOptions)
+		r.HandleFunc(pathTransactions, submitTransaction(node, obs.Meter(metricsScopeRESTAPI), log)).Methods(http.MethodPost, http.MethodOptions)
 
 		// get transaction record and execution proof
 		r.HandleFunc(pathGetTransactionRecord, getTransactionRecord(node, log)).Methods(http.MethodGet, http.MethodOptions)
@@ -40,29 +39,52 @@ func NodeEndpoints(node partitionNode, log *slog.Logger) RegistrarFunc {
 	}
 }
 
-func submitTransaction(node partitionNode, log *slog.Logger) http.HandlerFunc {
+func submitTransaction(node partitionNode, mtr metric.Meter, log *slog.Logger) http.HandlerFunc {
+	const txStatusKey = attribute.Key("status")
+
+	txCnt, err := mtr.Int64Counter("tx.count", metric.WithUnit("{transaction}"), metric.WithDescription("Number of transactions submitted"))
+	if err != nil {
+		log.Error("creating tx.count metric", logger.Error(err))
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		receivedTransactionsRESTMeter.Inc(1)
 		buf := new(bytes.Buffer)
 		if _, err := buf.ReadFrom(r.Body); err != nil {
-			receivedInvalidTransactionsRESTMeter.Inc(1)
+			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.read")))
 			util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
 			return
 		}
 
 		tx := &types.TransactionOrder{}
 		if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
-			receivedInvalidTransactionsRESTMeter.Inc(1)
+			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.cbor")))
 			util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 			return
 		}
 		txOrderHash, err := node.SubmitTx(r.Context(), tx)
+		txCnt.Add(r.Context(), 1, metric.WithAttributes(attribute.Key("tx").String(tx.PayloadType()), txStatusKey.String(statusCodeOfTxError(err))))
 		if err != nil {
-			receivedInvalidTransactionsRESTMeter.Inc(1)
 			util.WriteCBORError(w, err, http.StatusBadRequest, log)
 			return
 		}
 		util.WriteCBORResponse(w, txOrderHash, http.StatusAccepted, log)
+	}
+}
+
+func statusCodeOfTxError(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, txbuffer.ErrTxBufferFull):
+		return "buf.full"
+	case errors.Is(err, txbuffer.ErrTxInBuffer):
+		return "buf.double"
+	case errors.Is(err, txbuffer.ErrTxIsNil):
+		return "nil"
+	case errors.Is(err, partition.ErrTxTimeout):
+		return "tx.timeout"
+	default:
+		return "err"
 	}
 }
 

@@ -57,6 +57,8 @@ type (
 	}
 )
 
+var ErrTxTimeout = errors.New("transaction has timed out")
+
 // NewDefaultTxValidator creates a new instance of default TxValidator.
 func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
 	if len(systemIdentifier) != 4 {
@@ -78,7 +80,7 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 
 	if tx.Timeout() <= latestBlockNumber {
 		// transaction is expired
-		return fmt.Errorf("transaction has timed out: transaction timeout round is %d, current round is %d", tx.Timeout(), latestBlockNumber)
+		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
 	}
 	return nil
 }

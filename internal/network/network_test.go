@@ -10,10 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
-	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, logger.New(t))
+	obs := observability.NOPMetrics()
+	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, obs, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)

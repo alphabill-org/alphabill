@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -170,12 +170,20 @@ func (w *Wallet) GetBalance(ctx context.Context, accNr uint64) (*big.Int, error)
 
 // make sure wallet has enough fee credit to perform transaction
 func (w *Wallet) verifyFeeCreditBalance(ctx context.Context, acc *account.AccountKey, maxGas uint64) error {
-	fcb, err := w.restCli.GetFeeCreditBill(ctx, evm.NewFeeCreditRecordID(nil, acc.PubKeyHash.Sha256))
+	from, err := generateAddress(acc.PubKey)
 	if err != nil {
+		return fmt.Errorf("generating address: %w", err)
+	}
+	balanceStr, _, err := w.restCli.GetBalance(ctx, from.Bytes())
+	if err != nil {
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no fee credit in evm wallet")
+		}
 		return err
 	}
-	if fcb == nil {
-		return fmt.Errorf("no fee credit in evm wallet")
+	balance, ok := new(big.Int).SetString(balanceStr, 10)
+	if !ok {
+		return fmt.Errorf("balance %s to base 10 conversion failed: %w", balanceStr, err)
 	}
 	gasPriceStr, err := w.restCli.GetGasPrice(ctx)
 	if err != nil {
@@ -185,7 +193,7 @@ func (w *Wallet) verifyFeeCreditBalance(ctx context.Context, acc *account.Accoun
 	if !ok {
 		return fmt.Errorf("gas price string %s to base 10 conversion failed: %w", gasPriceStr, err)
 	}
-	if fcb.Value < new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(maxGas)).Uint64() {
+	if balance.Cmp(new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(maxGas))) == -1 {
 		return fmt.Errorf("insufficient fee credit balance for transaction")
 	}
 	return nil

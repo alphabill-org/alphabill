@@ -3,22 +3,29 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
+	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
-
-var receivedTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/received")
-var receivedInvalidTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/invalid")
 
 type (
 	grpcServer struct {
 		alphabill.UnimplementedAlphabillServiceServer
 		node                  partitionNode
 		maxGetBlocksBatchSize uint64
+
+		txCnt metric.Int64Counter
 	}
 
 	partitionNode interface {
@@ -31,7 +38,7 @@ type (
 	}
 )
 
-func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
+func NewGRPCServer(node partitionNode, obs Observability, opts ...Option) (*grpcServer, error) {
 	if node == nil {
 		return nil, fmt.Errorf("partition node which implements the service must be assigned")
 	}
@@ -44,22 +51,29 @@ func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 		return nil, fmt.Errorf("server-max-get-blocks-batch-size cannot be less than one, got %d", options.maxGetBlocksBatchSize)
 	}
 
+	mtr := obs.Meter(MetricsScopeGRPCAPI)
+	txCnt, err := mtr.Int64Counter("tx.count", metric.WithUnit("{transaction}"), metric.WithDescription("Number of transactions submitted"))
+	if err != nil {
+		return nil, fmt.Errorf("creating tx.count metric: %w", err)
+	}
+
 	return &grpcServer{
 		node:                  node,
 		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
+		txCnt:                 txCnt,
 	}, nil
 }
 
 func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *alphabill.Transaction) (*emptypb.Empty, error) {
-	receivedTransactionsGRPCMeter.Inc(1)
 	txo := &types.TransactionOrder{}
 	if err := cbor.Unmarshal(tx.Order, txo); err != nil {
-		receivedInvalidTransactionsGRPCMeter.Inc(1)
+		r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "err.cbor")))
 		return nil, err
 	}
 
-	if _, err := r.node.SubmitTx(ctx, txo); err != nil {
-		receivedInvalidTransactionsGRPCMeter.Inc(1)
+	_, err := r.node.SubmitTx(ctx, txo)
+	r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("tx", txo.PayloadType()), attribute.String("status", statusCodeOfTxError(err))))
+	if err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
@@ -130,4 +144,37 @@ func verifyRequest(req *alphabill.GetBlocksRequest) error {
 		return fmt.Errorf("block count cannot be less than one, got %d", req.BlockCount)
 	}
 	return nil
+}
+
+func InstrumentMetricsUnaryServerInterceptor(mtr metric.Meter, log *slog.Logger) grpc.UnaryServerInterceptor {
+	callCnt, err := mtr.Int64Counter("calls", metric.WithDescription("How many times the endpoint has been called"))
+	if err != nil {
+		log.Error("creating calls counter", logger.Error(err))
+		return passthroughUnaryServerInterceptor
+	}
+	callDur, err := mtr.Float64Histogram("duration",
+		metric.WithDescription("How long it took to serve the request"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1))
+
+	if err != nil {
+		log.Error("creating duration histogram", logger.Error(err))
+		return passthroughUnaryServerInterceptor
+	}
+
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		start := time.Now()
+		rsp, err := handler(ctx, req)
+
+		s, _ := status.FromError(err)
+		attrSet := attribute.NewSet(semconv.RPCMethod(info.FullMethod), semconv.RPCGRPCStatusCodeKey.Int(int(s.Code())))
+		callCnt.Add(ctx, 1, metric.WithAttributeSet(attrSet))
+		callDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attrSet))
+
+		return rsp, err
+	}
+}
+
+func passthroughUnaryServerInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	return handler(ctx, req)
 }

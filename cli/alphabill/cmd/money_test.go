@@ -201,6 +201,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			// do not compare logger/loggerBuilder
 			actualConfig.Base.Logger = nil
 			actualConfig.Base.loggerBuilder = nil
+			actualConfig.Base.observe = nil
 			require.Equal(t, tt.expectedConfig, actualConfig)
 		})
 	}
@@ -243,6 +244,7 @@ logger-config: "` + logCfgFilename + `"
 	// do not compare logger/loggerBuilder
 	actualConfig.Base.Logger = nil
 	actualConfig.Base.loggerBuilder = nil
+	actualConfig.Base.observe = nil
 	require.Equal(t, expectedConfig, actualConfig)
 }
 

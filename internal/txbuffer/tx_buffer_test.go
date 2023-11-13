@@ -12,6 +12,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 )
 
@@ -20,14 +21,16 @@ const (
 )
 
 func Test_TxBuffer_New(t *testing.T) {
+	obs := observability.NOPMetrics()
+
 	t.Run("invalid buffer size", func(t *testing.T) {
-		buffer, err := New(0, crypto.SHA256, logger.New(t))
-		require.ErrorIs(t, err, ErrInvalidMaxSize)
+		buffer, err := New(0, crypto.SHA256, obs, logger.New(t))
+		require.EqualError(t, err, `buffer max size must be greater than zero, got 0`)
 		require.Nil(t, buffer)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
 		require.NotNil(t, buffer)
 		require.Equal(t, crypto.SHA256, buffer.hashAlgorithm)
@@ -35,14 +38,18 @@ func Test_TxBuffer_New(t *testing.T) {
 		require.EqualValues(t, testBufferSize, cap(buffer.transactionsCh))
 		require.NotNil(t, buffer.transactions)
 		require.NotNil(t, buffer.log)
+		require.NotNil(t, buffer.mCount)
+		require.NotNil(t, buffer.mDur)
 	})
 }
 
 func Test_TxBuffer_Add(t *testing.T) {
+	obs := observability.NOPMetrics()
+
 	t.Run("nil tx is rejected", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
-		txh, err := buffer.Add(nil)
+		txh, err := buffer.Add(context.Background(), nil)
 		require.ErrorIs(t, err, ErrTxIsNil)
 		require.Nil(t, txh)
 		require.Empty(t, buffer.transactions)
@@ -50,18 +57,18 @@ func Test_TxBuffer_Add(t *testing.T) {
 	})
 
 	t.Run("tx already in buffer", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
 
 		tx := testtransaction.NewTransactionOrder(t)
-		txh, err := buffer.Add(tx)
+		txh, err := buffer.Add(context.Background(), tx)
 		require.NoError(t, err)
 		require.NotEmpty(t, txh)
 		require.Len(t, buffer.transactions, 1)
 		require.Len(t, buffer.transactionsCh, 1)
 		require.Contains(t, buffer.transactions, string(txh))
 
-		_, err = buffer.Add(tx)
+		_, err = buffer.Add(context.Background(), tx)
 		require.ErrorIs(t, err, ErrTxInBuffer)
 		require.Len(t, buffer.transactions, 1)
 		require.Len(t, buffer.transactionsCh, 1)
@@ -69,15 +76,15 @@ func Test_TxBuffer_Add(t *testing.T) {
 	})
 
 	t.Run("buffer is full", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
 
 		for i := 0; i < int(testBufferSize); i++ {
-			_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+			_, err = buffer.Add(context.Background(), testtransaction.NewTransactionOrder(t))
 			require.NoError(t, err)
 		}
 
-		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+		_, err = buffer.Add(context.Background(), testtransaction.NewTransactionOrder(t))
 		require.ErrorIs(t, err, ErrTxBufferFull)
 		require.Len(t, buffer.transactions, testBufferSize)
 		require.Len(t, buffer.transactionsCh, testBufferSize)
@@ -85,29 +92,31 @@ func Test_TxBuffer_Add(t *testing.T) {
 }
 
 func Test_TxBuffer_removeFromIndex(t *testing.T) {
+	obs := observability.NOPMetrics()
+
 	t.Run("tx id not in the index", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(t)
-		txh, err := buffer.Add(tx)
+		txh, err := buffer.Add(context.Background(), tx)
 		require.NoError(t, err)
 
-		buffer.removeFromIndex("1")
+		buffer.removeFromIndex(context.Background(), "1")
 		require.Len(t, buffer.transactionsCh, 1)
 		require.Len(t, buffer.transactions, 1)
 		require.Contains(t, buffer.transactions, string(txh))
 	})
 
 	t.Run("tx id is in the index", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+		buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 		require.NoError(t, err)
 
 		tx := testtransaction.NewTransactionOrder(t)
-		txh, err := buffer.Add(tx)
+		txh, err := buffer.Add(context.Background(), tx)
 		require.NoError(t, err)
 		require.NotEmpty(t, txh)
 
-		buffer.removeFromIndex(string(txh))
+		buffer.removeFromIndex(context.Background(), string(txh))
 		// the tx is removed from the index map but is still in chan!
 		require.Len(t, buffer.transactions, 0)
 		require.Len(t, buffer.transactionsCh, 1)
@@ -115,20 +124,22 @@ func Test_TxBuffer_removeFromIndex(t *testing.T) {
 }
 
 func Test_TxBuffer_Remove(t *testing.T) {
-	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
+	obs := observability.NOPMetrics()
+	buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 	require.NoError(t, err)
 
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	ctx, cancel := context.WithCancel(context.Background())
+
+	_, err = buffer.Add(ctx, testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(ctx, testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
-	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(ctx, testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
 
 	require.Len(t, buffer.transactionsCh, 3)
 	require.Len(t, buffer.transactions, 3)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	var c uint32
 	done := make(chan struct{})
 	go func() {
@@ -158,13 +169,15 @@ func Test_TxBuffer_Remove(t *testing.T) {
 func Test_TxBuffer_concurrency(t *testing.T) {
 	const totalTxCnt = 20 // how many transactions to process
 
-	buffer, err := New(10, crypto.SHA256, logger.New(t))
+	obs := observability.NOPMetrics()
+	buffer, err := New(10, crypto.SHA256, obs, logger.New(t))
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	// add "totalTxCnt" transactions into buffer (do not fail the test on "buffer full" error)
 	go func() {
 		for cnt := 0; cnt < totalTxCnt; {
-			if _, err := buffer.Add(testtransaction.NewTransactionOrder(t)); err != nil {
+			if _, err := buffer.Add(ctx, testtransaction.NewTransactionOrder(t)); err != nil {
 				if !errors.Is(err, ErrTxBufferFull) {
 					t.Errorf("failed to add tx: %v", err)
 				}
@@ -175,7 +188,6 @@ func Test_TxBuffer_concurrency(t *testing.T) {
 	}()
 
 	// consume transactions from the buffer
-	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	var processedCnt atomic.Int32
 	go func() {

@@ -3,12 +3,15 @@ package network
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -30,6 +33,7 @@ const (
 var DefaultValidatorNetworkOptions = ValidatorNetworkOptions{
 	ReceivedChannelCapacity:          1000,
 	TxBufferSize:                     1000,
+	TxBufferHashAlgorithm:            crypto.SHA256,
 	BlockCertificationTimeout:        300 * time.Millisecond,
 	BlockProposalTimeout:             300 * time.Millisecond,
 	LedgerReplicationRequestTimeout:  300 * time.Millisecond,
@@ -59,23 +63,25 @@ type ValidatorNetworkOptions struct {
 
 type validatorNetwork struct {
 	txBuffer       *txbuffer.TxBuffer
+	txFwdBy        metric.Int64Counter
+	txFwdTo        metric.Int64Counter
 	*LibP2PNetwork
 }
 
-type TxProcessor func(tx *types.TransactionOrder) error
+type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
 
 /*
 NewLibP2PValidatorNetwork creates a new LibP2PNetwork based validator network.
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, log *slog.Logger) (*validatorNetwork, error) {
+func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Observability, log *slog.Logger) (*validatorNetwork, error) {
 	base, err := newLibP2PNetwork(self, opts.ReceivedChannelCapacity, log)
 	if err != nil {
 		return nil, err
 	}
 
-	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, log)
+	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs, log)
 	if err != nil {
 		return nil, fmt.Errorf("tx buffer init error, %w", err)
 	}
@@ -122,11 +128,37 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, log *sl
 		return nil, err
 	}
 
+	if err := n.initMetrics(obs); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
+	}
+
 	return n, nil
 }
 
-func (n *validatorNetwork) AddTransaction(tx *types.TransactionOrder) ([]byte, error) {
-	return n.txBuffer.Add(tx)
+func (n *validatorNetwork) initMetrics(obs Observability) (err error) {
+	m := obs.Meter("partition.node.network")
+
+	if n.txFwdTo, err = m.Int64Counter(
+		"fwd.to.tx.count",
+		metric.WithDescription("Number of transactions forwarded to the node by peers"),
+		metric.WithUnit("{transaction}"),
+	); err != nil {
+		return fmt.Errorf("creating counter for forwarded tx: %w", err)
+	}
+
+	if n.txFwdBy, err = m.Int64Counter(
+		"fwd.by.tx.count",
+		metric.WithDescription("Number of transactions forwarded by the node (to the leader)"),
+		metric.WithUnit("{transaction}"),
+	); err != nil {
+		return fmt.Errorf("creating counter for forwarded tx: %w", err)
+	}
+
+	return nil
+}
+
+func (n *validatorNetwork) AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	return n.txBuffer.Add(ctx, tx)
 }
 
 func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor TxProcessor) {
@@ -136,7 +168,7 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 			n.log.WarnContext(ctx, "getting transaction from buffer", logger.Error(err))
 			return
 		}
-		if err := txProcessor(tx); err != nil {
+		if err := txProcessor(ctx, tx); err != nil {
 			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
 		}
 	}
@@ -151,6 +183,11 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 			return
 		}
 
+		addToMetric := func(status string) {
+			n.txFwdBy.Add(ctx, 1, metric.WithAttributeSet(
+				attribute.NewSet(attribute.String("tx", tx.PayloadType()), attribute.String("status", status))))
+		}
+
 		msg := fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver)
 		n.log.DebugContext(ctx,	msg, logger.UnitID(tx.UnitID()))
 
@@ -159,6 +196,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 			stream, err = n.self.CreateStream(ctx, receiver, ProtocolInputForward)
 			if err != nil {
 				n.log.WarnContext(ctx, "opening p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
+				addToMetric("err")
 				return
 			}
 			defer func() {
@@ -171,13 +209,17 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 		data, err := serializeMsg(tx)
 		if err != nil {
 			n.log.WarnContext(ctx, "serializing tx", logger.Error(err), logger.UnitID(tx.UnitID()))
+			addToMetric("err")
 			continue
 		}
 
 		if _, err := stream.Write(data); err != nil {
 			n.log.WarnContext(ctx, "writing data to p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
+			addToMetric("err")
 			continue
 		}
+
+		addToMetric("ok")
 	}
 }
 
@@ -195,8 +237,30 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 			return
 		}
 
-		if _, err := n.txBuffer.Add(tx); err != nil {
+		ctx := context.Background()
+		_, err := n.txBuffer.Add(ctx, tx)
+
+		if err != nil {
 			n.log.Warn("adding tx to buffer", logger.Error(err))
 		}
+
+		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("tx", tx.PayloadType()),
+			attribute.String("status", statusCodeOfTxBufferError(err))))
+	}
+}
+
+func statusCodeOfTxBufferError(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, txbuffer.ErrTxIsNil):
+		return "nil"
+	case errors.Is(err, txbuffer.ErrTxInBuffer):
+		return "buf.double"
+	case errors.Is(err, txbuffer.ErrTxBufferFull):
+		return "buf.full"
+	default:
+		return "err"
 	}
 }

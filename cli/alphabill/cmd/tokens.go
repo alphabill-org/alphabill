@@ -80,9 +80,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, nil, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, nil, cfg.Base.observe, log)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, log)
+	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, cfg.Base.observe, log)
 }

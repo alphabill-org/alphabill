@@ -1,23 +1,27 @@
 package rpc
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
 	headerContentType = "Content-Type"
 	applicationJson   = "application/json"
 	applicationCBOR   = "application/cbor"
+
+	metricsScopeRESTAPI = "rest_api"
+	MetricsScopeGRPCAPI = "grpc_api"
 )
 
 var allowedCORSHeaders = []string{"Accept", "Accept-Language", "Content-Language", "Origin", headerContentType}
 
 type (
-
 	// Registrar registers new HTTP handlers for given router.
 	Registrar interface {
 		Register(r *mux.Router)
@@ -25,13 +29,20 @@ type (
 
 	// RegistrarFunc type is an adapter to allow the use of ordinary function as Registrar.
 	RegistrarFunc func(r *mux.Router)
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		MetricsHandler() http.Handler
+	}
 )
 
-func NewRESTServer(addr string, maxBodySize int64, registrars ...Registrar) *http.Server {
+func NewRESTServer(addr string, maxBodySize int64, obs Observability, log *slog.Logger, registrars ...Registrar) *http.Server {
+	mtr := obs.Meter(metricsScopeRESTAPI)
+
 	r := mux.NewRouter()
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 	apiV1Router := r.PathPrefix("/api/v1").Subrouter()
-	apiV1Router.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)))
+	apiV1Router.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(mtr, log))
 
 	for _, registrar := range registrars {
 		registrar.Register(apiV1Router)

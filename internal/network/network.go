@@ -12,6 +12,7 @@ import (
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -34,6 +35,10 @@ type (
 	sendProtocolData struct {
 		protocolID string
 		timeout    time.Duration // per receiver timeout, ie when sending batch this is for each msg!
+	}
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
 	}
 )
 

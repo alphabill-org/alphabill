@@ -165,7 +165,7 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 	for {
 		tx, err := n.txBuffer.Remove(ctx)
 		if err != nil {
-			n.log.WarnContext(ctx, "getting transaction from buffer", logger.Error(err))
+			// context cancelled, no need to log
 			return
 		}
 		if err := txProcessor(ctx, tx); err != nil {
@@ -179,7 +179,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 	for {
 		tx, err := n.txBuffer.Remove(ctx)
 		if err != nil {
-			n.log.WarnContext(ctx, "getting transaction from buffer", logger.Error(err))
+			// context cancelled, no need to log
 			return
 		}
 
@@ -188,8 +188,9 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 				attribute.NewSet(attribute.String("tx", tx.PayloadType()), attribute.String("status", status))))
 		}
 
-		msg := fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver)
-		n.log.DebugContext(ctx,	msg, logger.UnitID(tx.UnitID()))
+		n.log.DebugContext(ctx,
+			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
+			logger.UnitID(tx.UnitID()))
 
 		if stream == nil {
 			var err error
@@ -201,7 +202,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 			}
 			defer func() {
 				if err := stream.Close(); err != nil {
-					n.log.WarnContext(ctx, "opening p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
+					n.log.WarnContext(ctx, "closing p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
 				}
 			}()
 		}
@@ -230,6 +231,7 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 		}
 	}()
 
+	ctx := context.Background()
 	for {
 		tx := &types.TransactionOrder{}
 		if err := deserializeMsg(stream, tx); err != nil {
@@ -237,9 +239,7 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 			return
 		}
 
-		ctx := context.Background()
 		_, err := n.txBuffer.Add(ctx, tx)
-
 		if err != nil {
 			n.log.Warn("adding tx to buffer", logger.Error(err))
 		}

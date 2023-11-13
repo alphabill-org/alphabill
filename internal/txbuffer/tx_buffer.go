@@ -16,11 +16,9 @@ import (
 )
 
 var (
-	ErrInvalidMaxSize       = errors.New("invalid maximum size")
-	ErrInvalidHashAlgorithm = errors.New("invalid tx hash algorithm")
-	ErrTxIsNil              = errors.New("tx is nil")
-	ErrTxInBuffer           = errors.New("tx already in tx buffer")
-	ErrTxBufferFull         = errors.New("tx buffer is full")
+	ErrTxIsNil      = errors.New("tx is nil")
+	ErrTxInBuffer   = errors.New("tx already in tx buffer")
+	ErrTxBufferFull = errors.New("tx buffer is full")
 )
 
 type (
@@ -49,8 +47,8 @@ func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability, log *slog.L
 	if maxSize < 1 {
 		return nil, fmt.Errorf("buffer max size must be greater than zero, got %d", maxSize)
 	}
-	if hashAlgorithm == 0 {
-		return nil, ErrInvalidHashAlgorithm
+	if !hashAlgorithm.Available() {
+		return nil, fmt.Errorf("buffer hash algorithm not available")
 	}
 
 	buf := &TxBuffer{

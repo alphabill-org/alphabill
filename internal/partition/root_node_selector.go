@@ -12,7 +12,6 @@ import (
 const defaultNofRootNodes = 2
 
 func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {
-	chosen := make(peer.IDSlice, 0, upToNodes)
 	if luc == nil {
 		return nil, fmt.Errorf("UC is nil")
 	}
@@ -24,6 +23,7 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 	if upToNodes >= rootNodes {
 		return nodes, nil
 	}
+	chosen := make(peer.IDSlice, 0, upToNodes)
 	hash := sha256.Sum256(luc.Bytes())
 	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hash[:]), big.NewInt(int64(rootNodes))).Int64())
 	// choose upToNodes from index

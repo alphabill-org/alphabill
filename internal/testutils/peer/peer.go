@@ -7,6 +7,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -23,6 +25,15 @@ func CreatePeer(t *testing.T, peerConf *network.PeerConfiguration) *network.Peer
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peer.Close()) })
 	return peer
+}
+
+func GeneratePeerIDs(t *testing.T, count int) peer.IDSlice {
+	t.Helper()
+	var peers = make(peer.IDSlice, count)
+	for i := 0; i < count; i++ {
+		peers[i], _ = p2ptest.RandPeerID()
+	}
+	return peers
 }
 
 func generateKeyPair(t *testing.T) *network.PeerKeyPair {

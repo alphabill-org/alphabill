@@ -31,7 +31,9 @@ func GeneratePeerIDs(t *testing.T, count int) peer.IDSlice {
 	t.Helper()
 	var peers = make(peer.IDSlice, count)
 	for i := 0; i < count; i++ {
-		peers[i], _ = p2ptest.RandPeerID()
+		id, err := p2ptest.RandPeerID()
+		require.NoError(t, err)
+		peers[i] = id
 	}
 	return peers
 }

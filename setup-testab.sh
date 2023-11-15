@@ -3,20 +3,19 @@
 money_nodes=3
 token_nodes=3
 evm_nodes=3
-root_nodes=1
+root_nodes=3
 reset_db_only=false
 # exit on error
 set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes] [-c reset all DB files]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes]  [-r number of root nodes] [-c reset all DB files]"
   exit 0
 }
-
 # handle arguments
 # NB! add check to make parameter is numeric
-while getopts "chd:m:t:e:" o; do
+while getopts "chd:m:t:r:e:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -26,6 +25,9 @@ while getopts "chd:m:t:e:" o; do
     ;;
   t)
     token_nodes=${OPTARG}
+    ;;
+  r)
+    root_nodes=${OPTARG}
     ;;
   e)
     evm_nodes=${OPTARG}

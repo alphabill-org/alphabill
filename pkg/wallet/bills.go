@@ -17,10 +17,7 @@ type (
 		TxHash               []byte `json:"txHash,omitempty"`
 		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
-
-		// fcb specific fields
-		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
+		Locked               uint64 `json:"locked,omitempty,string"`
 	}
 )
 
@@ -56,9 +53,9 @@ func (x *Bill) GetTxHash() []byte {
 	return nil
 }
 
-func (x *Bill) GetLastAddFCTxHash() []byte {
+func (x *Bill) IsLocked() bool {
 	if x != nil {
-		return x.LastAddFCTxHash
+		return x.Locked > 0
 	}
-	return nil
+	return false
 }

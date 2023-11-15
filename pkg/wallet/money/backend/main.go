@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -32,8 +32,6 @@ type (
 		GetBills(pubKey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
-		GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -62,10 +60,7 @@ type (
 		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
 		OwnerPredicate       []byte `json:"ownerPredicate"`
-
-		// fcb specific fields
-		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
+		Locked               uint64 `json:"locked"`
 	}
 
 	Pubkey struct {
@@ -91,10 +86,6 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
-		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
-		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
-		GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error)
-		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -105,7 +96,6 @@ type (
 
 	p2pkhOwnerPredicates struct {
 		sha256 []byte
-		sha512 []byte
 	}
 
 	Config struct {
@@ -175,7 +165,10 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err := abc.Close(); err != nil {
 			config.Logger.Warn("closing AB client", logger.Error(err))
@@ -192,15 +185,16 @@ func Run(ctx context.Context, config *Config) error {
 			ListBillsPageLimit: config.ListBillsPageLimit,
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
+			log:                config.Logger,
 		}
 
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.ServerAddr,
 				Handler:           handler.Router(),
-				ReadTimeout:       3 * time.Second,
+				ReadTimeout:       5 * time.Second,
 				ReadHeaderTimeout: time.Second,
-				WriteTimeout:      5 * time.Second,
+				WriteTimeout:      10 * time.Second,
 				IdleTimeout:       30 * time.Second,
 			},
 			httpsrv.ShutdownTimeout(5*time.Second),
@@ -251,7 +245,7 @@ func (w *WalletBackend) GetBills(pubkey []byte, includeDCBills bool, offsetKey [
 	ownerPredicates := newOwnerPredicates(keyHashes)
 	nextKey := offsetKey
 	bills := make([]*Bill, 0, limit)
-	for _, predicate := range [][]byte{ownerPredicates.sha256, ownerPredicates.sha512} {
+	for _, predicate := range [][]byte{ownerPredicates.sha256} {
 		remainingLimit := limit - len(bills)
 		batch, batchNextKey, err := w.store.Do().GetBills(predicate, includeDCBills, nextKey, remainingLimit)
 		if err != nil {
@@ -280,16 +274,6 @@ func (w *WalletBackend) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk
 // GetFeeCreditBill returns most recently seen fee credit bill with given unit id.
 func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
-}
-
-// GetLockedFeeCredit returns most recently seen transferFC transaction for given system ID and fee credit bill ID.
-func (w *WalletBackend) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
-	return w.store.Do().GetLockedFeeCredit(systemID, fcbID)
-}
-
-// GetClosedFeeCredit returns most recently seen closeFC transaction for given fee credit bill ID.
-func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error) {
-	return w.store.Do().GetClosedFeeCredit(fcbID)
 }
 
 // GetRoundNumber returns latest round number.
@@ -379,25 +363,13 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 
 // extractOwnerFromP2pkh extracts owner from p2pkh predicate.
 func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
-	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
-	if len(bearer) != 42 && len(bearer) != 74 {
-		return nil
-	}
-	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
-	hashAlgo := bearer[5]
-	if hashAlgo == script.HashAlgSha256 {
-		return sdk.PubKeyHash(bearer[6:38])
-	} else if hashAlgo == script.HashAlgSha512 {
-		return sdk.PubKeyHash(bearer[6:70])
-	}
-	return nil
+	pkh, _ := templates.ExtractPubKeyHash(bearer)
+	return pkh
 }
 
 func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
-	if len(signature) == 103 && signature[68] == script.OpPushPubKey && signature[69] == script.SigSchemeSecp256k1 {
-		return sdk.PubKey(signature[70:])
-	}
-	return nil
+	pk, _ := templates.ExtractPubKey(signature)
+	return pk
 }
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
@@ -407,7 +379,7 @@ func (b *Bill) ToGenericBill() *sdk.Bill {
 		TxHash:               b.TxHash,
 		DCTargetUnitID:       b.DCTargetUnitID,
 		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
-		LastAddFCTxHash:      b.LastAddFCTxHash,
+		Locked:               b.Locked,
 	}
 }
 
@@ -426,13 +398,6 @@ func (b *Bill) getValue() uint64 {
 	return 0
 }
 
-func (b *Bill) getLastAddFCTxHash() []byte {
-	if b != nil {
-		return b.LastAddFCTxHash
-	}
-	return nil
-}
-
 func (b *Bill) IsDCBill() bool {
 	if b != nil {
 		return len(b.DCTargetUnitID) > 0
@@ -441,8 +406,5 @@ func (b *Bill) IsDCBill() bool {
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
-	return &p2pkhOwnerPredicates{
-		sha256: script.PredicatePayToPublicKeyHash(script.HashAlgSha256, hashes.Sha256, script.SigSchemeSecp256k1),
-		sha512: script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hashes.Sha512, script.SigSchemeSecp256k1),
-	}
+	return &p2pkhOwnerPredicates{sha256: templates.NewP2pkh256BytesFromKeyHash(hashes.Sha256)}
 }

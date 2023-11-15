@@ -3,20 +3,23 @@ package partition
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -56,18 +59,19 @@ func (s status) String() string {
 const proposalKey = uint32(0)
 const ledgerReplicationTimeout = 1500 * time.Millisecond
 
-var (
-	ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
-
-	validTransactionsCounter   = metrics.GetOrRegisterCounter("partition/node/transactions/valid")
-	invalidTransactionsCounter = metrics.GetOrRegisterCounter("partition/node/transactions/invalid")
-)
+var ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
 
 type (
 	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
 	Net interface {
 		Send(ctx context.Context, msg any, receivers ...peer.ID) error
 		ReceivedChannel() <-chan any
+	}
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		PrometheusRegisterer() prometheus.Registerer
+		MetricsHandler() http.Handler
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -88,16 +92,25 @@ type (
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
+		stopTxProcessor             atomic.Value
+		t1event                     chan struct{}
+		peer                        *network.Peer
+		rootNodes                   peer.IDSlice
 		network                     Net
-		txCancel                    context.CancelFunc
-		txWaitGroup                 *sync.WaitGroup
-		txCh                        chan *types.TransactionOrder
-		timeoutCh                   chan struct{}
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
 		log                         *slog.Logger
+
+		txFwdBy    metric.Int64Counter
+		txFwdTo    metric.Int64Counter
+		execTxCnt  metric.Int64Counter
+		execTxDur  metric.Float64Histogram
+		leaderCnt  metric.Int64Counter
+		blockSize  metric.Int64Counter
+		execMsgCnt metric.Int64Counter
+		execMsgDur metric.Float64Histogram
 	}
 
 	pendingBlockProposal struct {
@@ -113,41 +126,34 @@ type (
 	status int
 )
 
-// New creates a new instance of the partition node. All parameters expect the nodeOptions are required. Functions
-// implementing the NodeOption interface can be used to override default configuration values:
-//
-//	  n, err := New(
-//	 	peer,
-//			signer,
-//			txSystem,
-//			genesis,
-//			net,
-//			WithTxValidator(myTxValidator)),
-//			WithUnicityCertificateValidator(ucValidator),
-//			WithBlockProposalValidator(blockProposalValidator),
-//			WithLeaderSelector(leaderSelector),
-//			WithBlockStore(blockStore),
-//			WithT1Timeout(250*time.Millisecond),
-//	  )
-//
-// The following restrictions apply to the inputs:
-//   - the network peer and signer must use the same keys that were used to generate node genesis file;
-//   - the state of the transaction system must be equal to the state that was used to generate genesis file.
-func New(
-	peer *network.Peer, // P2P peer for the node
+/*
+NewNode creates a new instance of the partition node. All parameters expect the nodeOptions are required.
+Functions implementing the NodeOption interface can be used to override default configuration values.
+
+The following restrictions apply to the inputs:
+  - the network peer and signer must use the same keys that were used to generate node genesis file;
+  - the state of the transaction system must be equal to the state that was used to generate genesis file.
+*/
+func NewNode(
+	ctx context.Context,
+	peerConf *network.PeerConfiguration,
 	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
 	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
 	net Net, // network layer of the node
+	observe Observability,
 	log *slog.Logger,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(peer, signer, genesis, txSystem, net, log, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, log, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
-
+	rn, err := conf.getRootNodes()
+	if err != nil {
+		return nil, fmt.Errorf("genesis error, invalid rootnodes: %w", err)
+	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -157,26 +163,88 @@ func New(
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
 		txIndexer:                   conf.txIndexer,
-		txBuffer:                    conf.txBuffer,
+		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
+		rootNodes:                   rn,
 		network:                     net,
-		txWaitGroup:                 &sync.WaitGroup{},
 		lastLedgerReqTime:           time.Time{},
-		txCh:                        make(chan *types.TransactionOrder, conf.txBuffer.Capacity()),
-		timeoutCh:                   make(chan struct{}, 1),
 		log:                         log,
 	}
-
+	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
+
+	if err := n.initMetrics(observe); err != nil {
+		return nil, fmt.Errorf("initialize metrics: %w", err)
+	}
+
+	if n.txBuffer, err = txbuffer.New(DefaultTxBufferSize, conf.hashAlgorithm, observe, log); err != nil {
+		return nil, fmt.Errorf("creating tx buffer: %w", err)
+	}
 
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
 	}
 
-	if err = initState(n); err != nil {
-		return nil, fmt.Errorf("node init failed: %w", err)
+	if err = n.initState(ctx); err != nil {
+		return nil, fmt.Errorf("node state initialization failed: %w", err)
 	}
+
+	if err = n.initNetwork(ctx, peerConf, observe); err != nil {
+		return nil, fmt.Errorf("node network initialization failed: %w", err)
+	}
+
 	return n, nil
+}
+
+func (n *Node) initMetrics(observe Observability) (err error) {
+	m := observe.Meter("partition.node")
+
+	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
+		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
+			io.Observe(int64(n.getCurrentRound()))
+			return nil
+		}))
+	if err != nil {
+		return fmt.Errorf("creating counter for round number: %w", err)
+	}
+
+	n.leaderCnt, err = m.Int64Counter("round.leader", metric.WithDescription("Number of times node has been round leader"))
+	if err != nil {
+		return fmt.Errorf("creating counter for leader count: %w", err)
+	}
+	n.blockSize, err = m.Int64Counter("block.size", metric.WithDescription("Number of transactions in the proposal made by the node"), metric.WithUnit("{transaction}"))
+	if err != nil {
+		return fmt.Errorf("creating counter for block size: %w", err)
+	}
+
+	n.execTxCnt, err = m.Int64Counter("exec.tx.count", metric.WithDescription("Number of transactions processed by the node"), metric.WithUnit("{transaction}"))
+	if err != nil {
+		return fmt.Errorf("creating counter for processed tx: %w", err)
+	}
+	n.execTxDur, err = m.Float64Histogram("exec.tx.time", metric.WithUnit("s"), metric.WithDescription("How long it took to process tx (validate and execute)"))
+	if err != nil {
+		return fmt.Errorf("creating histogram for processed tx: %w", err)
+	}
+
+	n.txFwdTo, err = m.Int64Counter("fwd.to.tx.count", metric.WithDescription("Number of transactions forwarded to the node by peers"), metric.WithUnit("{transaction}"))
+	if err != nil {
+		return fmt.Errorf("creating counter for forwarded tx: %w", err)
+	}
+	n.txFwdBy, err = m.Int64Counter("fwd.by.tx.count", metric.WithDescription("Number of transactions forwarded by the node (to the leader)"), metric.WithUnit("{transaction}"))
+	if err != nil {
+		return fmt.Errorf("creating counter for forwarded tx: %w", err)
+	}
+
+	n.execMsgCnt, err = m.Int64Counter("exec.msg.count", metric.WithDescription("Number of messages processed by the node"))
+	if err != nil {
+		return fmt.Errorf("creating counter for processed messages: %w", err)
+	}
+	n.execMsgDur, err = m.Float64Histogram("exec.msg.time", metric.WithUnit("s"), metric.WithDescription("How long it took to process AB network message"))
+	if err != nil {
+		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	return nil
 }
 
 func (n *Node) Run(ctx context.Context) error {
@@ -201,24 +269,13 @@ func (n *Node) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (n *Node) getCurrentRound() uint64 {
-	return n.luc.Load().GetRoundNumber() + 1
+func (n *Node) GetPeer() *network.Peer {
+	return n.peer
 }
 
-func (n *Node) sendHandshake(ctx context.Context) {
-	n.log.DebugContext(ctx, "Sending handshake to root chain")
-	if err := n.network.Send(ctx,
-		handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.leaderSelector.SelfID().String(),
-		},
-		n.configuration.rootChainID); err != nil {
-		n.log.ErrorContext(ctx, "error sending handshake", logger.Error(err))
-	}
-}
-
-func initState(n *Node) (err error) {
+func (n *Node) initState(ctx context.Context) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state", n.log)
+
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	empty, err := keyvaluedb.IsEmpty(n.blockStore)
@@ -252,7 +309,7 @@ func initState(n *Node) (err error) {
 		}
 		var state txsystem.State
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 		}
@@ -269,8 +326,55 @@ func initState(n *Node) (err error) {
 	// update luc to last known uc
 	n.luc.Store(prevBlock.UnicityCertificate)
 	n.lastStoredBlock = prevBlock
-	n.restoreBlockProposal(prevBlock)
+	n.restoreBlockProposal(ctx, prevBlock)
+
 	return err
+}
+
+func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration, observe Observability) (err error) {
+	n.peer, err = network.NewPeer(ctx, peerConf, n.log, observe.PrometheusRegisterer())
+	if err != nil {
+		return err
+	}
+	// add bootstrap address to the peer store
+	if peerConf.BootstrapPeers != nil {
+		for _, info := range peerConf.BootstrapPeers {
+			for _, addr := range info.Addrs {
+				n.peer.Network().Peerstore().AddAddr(info.ID, addr, peerstore.PermanentAddrTTL)
+			}
+		}
+	}
+
+	if n.network != nil {
+		return nil
+	}
+
+	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, network.DefaultValidatorNetOptions, n.log)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Node) getCurrentRound() uint64 {
+	return n.luc.Load().GetRoundNumber() + 1
+}
+
+func (n *Node) sendHandshake(ctx context.Context) {
+	n.log.DebugContext(ctx, "Sending handshake to root chain")
+	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
+	if err != nil {
+		n.log.WarnContext(ctx, "root node selection error: %w", err)
+	}
+	if err := n.network.Send(ctx,
+		handshake.Handshake{
+			SystemIdentifier: n.configuration.GetSystemIdentifier(),
+			NodeIdentifier:   n.peer.ID().String(),
+		},
+		rootIDs...); err != nil {
+		n.log.ErrorContext(ctx, "error sending handshake", logger.Error(err))
+	}
 }
 
 func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
@@ -287,15 +391,16 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 	return nil
 }
 
-func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
+func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
 	var sumOfEarnedFees uint64
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
 	}
 	for _, tx := range txs {
-		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
+		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
 		if err != nil {
-			return nil, 0, fmt.Errorf("tx '%v' execution error, %w", tx, err)
+			n.log.Warn("processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.TransactionOrder.UnitID(), err)
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
@@ -306,7 +411,7 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 	return state, sumOfEarnedFees, nil
 }
 
-func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
+func (n *Node) restoreBlockProposal(ctx context.Context, prevBlock *types.Block) {
 	pr := &pendingBlockProposal{}
 	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), pr)
 	if err != nil {
@@ -325,7 +430,7 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 	// apply stored proposal to current state
 	n.log.Debug("Stored block proposal extends the previous state")
 	roundNo := prevBlock.GetRoundNumber() + 1
-	state, sumOfEarnedFees, err := n.applyBlockTransactions(roundNo, pr.Transactions)
+	state, sumOfEarnedFees, err := n.applyBlockTransactions(ctx, roundNo, pr.Transactions)
 	if err != nil {
 		n.log.Warn("Block proposal recovery failed", logger.Error(err))
 		n.revertState()
@@ -350,60 +455,66 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 	n.pendingBlockProposal = pr
 }
 
-// loop handles receivedMessages from different goroutines.
+/*
+loop runs the main loop of validator node.
+It handles messages received from other AB network nodes and coordinates
+timeout and communication with rootchain.
+*/
 func (n *Node) loop(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var lastRootMsgTime time.Time
+	var lastUCReceived time.Time
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case tx := <-n.txCh:
-			if err := n.process(tx, n.getCurrentRound()); err != nil {
-				n.log.Warn("failed to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-			}
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
 				return errors.New("network received channel is closed")
 			}
 			n.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("received %T", m), logger.Data(m))
-			switch mt := m.(type) {
-			case *types.TransactionOrder:
-				if err := n.handleTxMessage(mt); err != nil {
-					n.log.Warn("invalid transaction", logger.Error(err), logger.UnitID(mt.UnitID()))
-					invalidTransactionsCounter.Inc(1)
-					n.sendEvent(event.Error, err)
-				}
-			case *types.UnicityCertificate:
-				lastRootMsgTime = time.Now()
-				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
-					n.log.Warn("Unicity Certificate processing failed", logger.Error(err))
-					n.sendEvent(event.Error, err)
-				}
-				n.sendEvent(event.UnicityCertificateHandled, mt)
-			case *blockproposal.BlockProposal:
-				if err := n.handleBlockProposal(ctx, mt); err != nil {
-					n.log.Warn("Block proposal processing failed", logger.Error(err))
-					n.sendEvent(event.Error, err)
-				}
-			case *replication.LedgerReplicationRequest:
-				if err := n.handleLedgerReplicationRequest(ctx, mt); err != nil {
-					n.log.Warn("Ledger replication request failed", logger.Error(err))
-				}
-			case *replication.LedgerReplicationResponse:
-				if err := n.handleLedgerReplicationResponse(ctx, mt); err != nil {
-					n.log.Warn("Ledger replication response failed", logger.Error(err))
-				}
-			default:
-				n.log.Warn(fmt.Sprintf("unknown message: %T", mt))
+			if err := n.handleMessage(ctx, m); err != nil {
+				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err))
+			} else if _, ok := m.(*types.UnicityCertificate); ok {
+				lastUCReceived = time.Now()
 			}
-		case <-n.timeoutCh:
+		case <-n.t1event:
 			n.handleT1TimeoutEvent(ctx)
 		case <-ticker.C:
-			n.handleMonitoring(ctx, lastRootMsgTime)
+			n.handleMonitoring(ctx, lastUCReceived)
 		}
+	}
+}
+
+/*
+handleMessage processes message received from AB network (ie from other partition nodes or rootchain).
+*/
+func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
+	defer func(start time.Time) {
+		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+		status := "ok"
+		if rErr != nil {
+			n.sendEvent(event.Error, rErr)
+			status = "err"
+		}
+		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
+		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+	}(time.Now())
+
+	switch mt := msg.(type) {
+	case *types.TransactionOrder:
+		return n.handleTxMessage(ctx, mt)
+	case *types.UnicityCertificate:
+		return n.handleUnicityCertificate(ctx, mt)
+	case *blockproposal.BlockProposal:
+		return n.handleBlockProposal(ctx, mt)
+	case *replication.LedgerReplicationRequest:
+		return n.handleLedgerReplicationRequest(ctx, mt)
+	case *replication.LedgerReplicationResponse:
+		return n.handleLedgerReplicationResponse(ctx, mt)
+	default:
+		return fmt.Errorf("unknown message: %T", mt)
 	}
 }
 
@@ -428,36 +539,44 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 	}
 }
 
-func (n *Node) handleTxMessage(tx *types.TransactionOrder) error {
-	if _, err := n.txBuffer.Add(tx); err != nil {
+/*
+handleTxMessage processes tx forwarded by peer.
+*/
+func (n *Node) handleTxMessage(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
+	defer func() {
+		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(attribute.String("tx", tx.PayloadType()), attribute.String("status", statusCodeOfTxError(rErr))))
+	}()
+
+	if _, err := n.txBuffer.Add(ctx, tx); err != nil {
 		return fmt.Errorf("failed to add transaction into buffer: %w", err)
 	}
 	return nil
 }
 
-func (n *Node) handleOrForwardTransaction(ctx context.Context, tx *types.TransactionOrder) bool {
-	rn := n.getCurrentRound()
-	if err := n.txValidator.Validate(tx, rn); err != nil {
-		n.log.WarnContext(ctx, "invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return true
+func statusCodeOfTxError(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, txbuffer.ErrBufferIsFull):
+		return "buf.full"
+	case errors.Is(err, txbuffer.ErrTxInBuffer):
+		return "buf.double"
+	case errors.Is(err, txbuffer.ErrTxIsNil):
+		return "nil"
+	case errors.Is(err, ErrTxTimeout):
+		return "tx.timeout"
+	case errors.Is(err, errInvalidSystemIdentifier):
+		return "invalid.sysid"
+	default:
+		return "err"
 	}
-	leader := n.leaderSelector.GetLeaderID()
-	if leader == n.leaderSelector.SelfID() {
-		n.txCh <- tx
-		return true
-	}
-	n.log.DebugContext(ctx, fmt.Sprintf("forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader))
-	err := n.network.Send(ctx, tx, leader)
-	// TODO unreported error?
-	return err == nil
 }
 
-func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
-	defer trackExecutionTime(time.Now(), "Processing transaction", n.log)
-	sm, err := n.validateAndExecuteTx(tx, round)
+func (n *Node) process(ctx context.Context, tx *types.TransactionOrder, round uint64) (rErr error) {
+	sm, err := n.validateAndExecuteTx(ctx, tx, round)
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
-		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
+		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
@@ -466,20 +585,19 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 	return nil
 }
 
-func (n *Node) validateAndExecuteTx(tx *types.TransactionOrder, round uint64) (sm *types.ServerMetadata, err error) {
-	defer func() {
-		if err != nil {
-			invalidTransactionsCounter.Inc(1)
-		}
-	}()
-	if err = n.txValidator.Validate(tx, round); err != nil {
-		n.log.Warn("invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return nil, fmt.Errorf("invalid, %w", err)
+func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.ServerMetadata, rErr error) {
+	defer func(start time.Time) {
+		txtattr := attribute.String("tx", tx.PayloadType())
+		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txtattr, attribute.String("status", statusCodeOfTxError(rErr)))))
+		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txtattr)))
+	}(time.Now())
+
+	if err := n.txValidator.Validate(tx, round); err != nil {
+		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	sm, err = n.transactionSystem.Execute(tx)
+	sm, err := n.transactionSystem.Execute(tx)
 	if err != nil {
-		n.log.Warn("TxSystem was unable to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return nil, fmt.Errorf("execute error, %w", err)
+		return nil, fmt.Errorf("executing transaction in tx system: %w", err)
 	}
 	return sm, nil
 }
@@ -504,7 +622,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		n.recoveryLastProp = prop
 		return fmt.Errorf("node is in recovery status")
 	}
-	defer trackExecutionTime(time.Now(), "Handling BlockProposal", n.log)
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
@@ -523,7 +640,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() < lucRoundNumber {
 		return fmt.Errorf("outdated block proposal for round %v, LUC round %v", uc.GetRoundNumber(), lucRoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFunc(uc)
+	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.peer.Validators())
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
@@ -549,8 +666,8 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("tx system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
-		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
-			return fmt.Errorf("transaction error %w", err)
+		if err = n.process(ctx, tx.TransactionOrder, n.getCurrentRound()); err != nil {
+			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
 	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier); err != nil {
@@ -590,12 +707,13 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
 		n.log.DebugContext(ctx, "DB proposal delete failed", logger.Error(err))
 	}
-	n.leaderSelector.UpdateLeader(uc)
-	if n.leaderSelector.IsCurrentNodeLeader() {
+	n.leaderSelector.UpdateLeader(uc, n.peer.Validators())
+	if n.leaderSelector.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
 		if err := n.transactionSystem.BeginBlock(newRoundNr); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNr, err)
 		}
+		n.leaderCnt.Add(ctx, 1)
 	}
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
@@ -641,7 +759,6 @@ func (n *Node) startRecovery(ctx context.Context, uc *types.UnicityCertificate) 
 //
 // See algorithm 5 "Processing a received Unicity Certificate" in Yellowpaper for more details
 func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCertificate) error {
-	defer trackExecutionTime(time.Now(), "Handling unicity certificate", n.log)
 	if uc == nil {
 		return fmt.Errorf("unicity certificate is nil")
 	}
@@ -800,7 +917,6 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
-	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil
 }
@@ -808,7 +924,7 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
 	defer func() {
-		n.leaderSelector.UpdateLeader(nil)
+		n.leaderSelector.UpdateLeader(nil, n.peer.Validators())
 	}()
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -816,7 +932,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 	n.log.InfoContext(ctx, "Handling T1 timeout")
 	// if node is not leader, then do not do anything
-	if !n.leaderSelector.IsCurrentNodeLeader() {
+	if !n.leaderSelector.IsLeader(n.peer.ID()) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
@@ -825,16 +941,16 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
 		return
 	}
-	if err := n.sendCertificationRequest(ctx, n.leaderSelector.SelfID().String()); err != nil {
+	if err := n.sendCertificationRequest(ctx, n.peer.ID().String()); err != nil {
 		n.log.WarnContext(ctx, "Failed to send certification request", logger.Error(err))
 	}
 }
 
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
-func (n *Node) handleMonitoring(ctx context.Context, lastRootMsgTime time.Time) {
+func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived time.Time) {
 	// check if we have not heard from root validator for a long time
-	if time.Since(lastRootMsgTime) > 2*n.configuration.GetT2Timeout() {
+	if time.Since(lastUCReceived) > 2*n.configuration.GetT2Timeout() {
 		// subscribe again
 		n.sendHandshake(ctx)
 	}
@@ -853,7 +969,7 @@ func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replicati
 	}
 
 	if err = n.network.Send(ctx, msg, recoveringNodeID); err != nil {
-		return fmt.Errorf("sending replication response %s: %w", msg.Pretty(), err)
+		return fmt.Errorf("sending replication response: %w", err)
 	}
 	n.sendEvent(event.ReplicationResponseSent, msg)
 	return nil
@@ -987,7 +1103,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			return onError(latestProcessedRoundNumber, fmt.Errorf("received block does not extend last unicity certificate"))
 		}
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestProcessedRoundNumber+1, b.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, latestProcessedRoundNumber+1, b.Transactions)
 		if err != nil {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err))
 		}
@@ -1030,11 +1146,11 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr uint64) {
 	req := &replication.LedgerReplicationRequest{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
-		NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		NodeIdentifier:   n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
-	peers := n.configuration.peer.Validators()
+	peers := n.peer.Validators()
 	if len(peers) == 0 {
 		n.log.WarnContext(ctx, "Error sending ledger replication request, no peers")
 		return
@@ -1042,7 +1158,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 
 	// send Ledger Replication request to a first alive randomly chosen node
 	for _, p := range util.ShuffleSliceCopy(peers) {
-		if n.leaderSelector.SelfID() == p {
+		if n.peer.ID() == p {
 			continue
 		}
 		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request to %v", p))
@@ -1063,7 +1179,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 func (n *Node) sendBlockProposal(ctx context.Context) error {
 	defer trackExecutionTime(time.Now(), "Sending BlockProposal", n.log)
 	systemIdentifier := n.configuration.GetSystemIdentifier()
-	nodeId := n.leaderSelector.SelfID()
+	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
 		SystemIdentifier:   systemIdentifier,
 		NodeIdentifier:     nodeId.String(),
@@ -1074,7 +1190,8 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	return n.network.Send(ctx, prop, n.configuration.peer.FilterValidators(nodeId)...)
+	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
+	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
 }
 
 func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
@@ -1087,7 +1204,7 @@ func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
 func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string) error {
 	defer trackExecutionTime(time.Now(), "Sending CertificationRequest", n.log)
 	systemIdentifier := n.configuration.GetSystemIdentifier()
-	nodeId := n.leaderSelector.SelfID()
+	nodeId := n.peer.ID()
 	luc := n.luc.Load()
 	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
@@ -1139,8 +1256,11 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-
-	return n.network.Send(ctx, req, n.configuration.rootChainID)
+	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
+	if err != nil {
+		n.log.WarnContext(ctx, "root node selection error: %w", err)
+	}
+	return n.network.Send(ctx, req, rootIDs...)
 }
 
 func (n *Node) resetProposal() {
@@ -1148,17 +1268,12 @@ func (n *Node) resetProposal() {
 	n.pendingBlockProposal = nil
 }
 
-func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {
-	defer func() {
-		if err != nil {
-			invalidTransactionsCounter.Inc(1)
-		}
-	}()
+func (n *Node) SubmitTx(ctx context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {
 	rn := n.getCurrentRound()
 	if err = n.txValidator.Validate(tx, rn); err != nil {
 		return nil, err
 	}
-	return n.txBuffer.Add(tx)
+	return n.txBuffer.Add(ctx, tx)
 }
 
 func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error) {
@@ -1246,47 +1361,72 @@ func (n *Node) SystemIdentifier() []byte {
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
-	if n.txCancel != nil {
-		txCancel := n.txCancel
-		n.txCancel = nil
-		txCancel()
-		n.txWaitGroup.Wait()
-		// clear the channel and add unprocessed transactions back to buffer
-		for {
-			select {
-			case tx := <-n.txCh:
-				n.log.Warn("Stop forward or handle tx, adding tx back to the buffer", logger.UnitID(tx.UnitID()))
-				// add can only fail if this is a duplicate
-				_, _ = n.txBuffer.Add(tx)
-			default:
-				return
-			}
-		}
-	}
+	n.stopTxProcessor.Load().(func())()
 }
 
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
-	if n.leaderSelector.GetLeaderID() == UnknownLeader {
+
+	processTx := n.txProcessorForRound(n.getCurrentRound(), n.leaderSelector.GetLeader())
+	if processTx == nil {
 		return
 	}
 
 	txCtx, txCancel := context.WithCancel(ctx)
-	n.txCancel = txCancel
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	n.txWaitGroup.Add(1)
+	n.stopTxProcessor.Store(func() {
+		txCancel()
+		wg.Wait()
+	})
+
 	go func() {
-		defer n.txWaitGroup.Done()
-		n.txBuffer.Process(txCtx, n.handleOrForwardTransaction)
+		defer wg.Done()
+		n.txBuffer.Process(txCtx, processTx)
 	}()
 
 	go func() {
+		defer wg.Done()
 		select {
 		case <-time.After(n.configuration.t1Timeout):
-			n.timeoutCh <- struct{}{}
+			// Rather than call handleT1TimeoutEvent directly send signal to main
+			// loop - helps to avoid concurrency issues with (repeat) UC handling.
+			select {
+			case n.t1event <- struct{}{}:
+			case <-txCtx.Done():
+			}
 		case <-txCtx.Done():
 		}
 	}()
+}
+
+func (n *Node) txProcessorForRound(round uint64, leader peer.ID) txbuffer.TxHandler {
+	log := n.log.With(logger.Round(round))
+
+	switch leader {
+	case UnknownLeader:
+		log.Warn("unknown round leader")
+		return nil
+	case n.peer.ID():
+		return func(ctx context.Context, tx *types.TransactionOrder) {
+			if err := n.process(ctx, tx, round); err != nil {
+				log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
+			}
+		}
+	default:
+		return func(ctx context.Context, tx *types.TransactionOrder) {
+			msg := fmt.Sprintf("forward tx %X to %v", tx.Hash(n.configuration.hashAlgorithm), leader)
+			log.DebugContext(ctx, msg, logger.UnitID(tx.UnitID()))
+			status := "ok"
+			err := n.network.Send(ctx, tx, leader)
+			if err != nil {
+				log.WarnContext(ctx, "failed to "+msg, logger.Error(err), logger.UnitID(tx.UnitID()))
+				status = "err"
+			}
+			n.txFwdBy.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("tx", tx.PayloadType()), attribute.String("status", status))))
+		}
+	}
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {

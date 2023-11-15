@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -32,7 +32,7 @@ func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCredit
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubKeyBytes),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKeyBytes),
 	}
 }
 
@@ -56,7 +56,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(amount), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
@@ -82,6 +82,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	backlink := addFeeCredit(t, stateTree, signer, 100)
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
 		logger.New(t))
@@ -145,6 +146,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// close fee credit
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
 		log)
@@ -163,4 +165,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// verify balance
 	balance = stateDB.GetBalance(addr)
 	require.EqualValues(t, 0, balance.Uint64())
+	// verify backlink
+	alphaBillData := stateDB.GetAlphaBillData(addr)
+	require.Equal(t, closeOrder.Hash(crypto.SHA256), alphaBillData.TxHash)
 }

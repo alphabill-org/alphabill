@@ -5,7 +5,6 @@ const (
 	TransactionProcessed
 	TransactionFailed
 	NewRoundStarted
-	UnicityCertificateHandled
 	BlockFinalized
 	RecoveryStarted
 	RecoveryFinished

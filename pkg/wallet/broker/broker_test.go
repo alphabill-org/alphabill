@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -292,7 +293,7 @@ func Test_broker_broadcastPing(t *testing.T) {
 
 	go b.broadcastPing(pingInterval)
 
-	msgCnt := 0
+	var msgCnt atomic.Uint32
 	go func() {
 		defer close(quitBroker)
 		for msg := range messages {
@@ -300,7 +301,7 @@ func Test_broker_broadcastPing(t *testing.T) {
 			require.NoError(t, msg.WriteSSE(buf))
 			require.Equal(t, "event: ping\n\n", buf.String())
 
-			if msgCnt++; msgCnt == pingCount {
+			if msgCnt.Add(1) == pingCount {
 				return
 			}
 		}
@@ -308,9 +309,9 @@ func Test_broker_broadcastPing(t *testing.T) {
 
 	select {
 	case <-quitBroker:
-		require.Equal(t, pingCount, msgCnt, "expected to receive %d messages, got %d", pingCount, msgCnt)
+		require.EqualValues(t, pingCount, msgCnt.Load(), "expected to receive %d messages, got %d", pingCount, msgCnt.Load())
 	case <-time.After((pingCount + 2) * pingInterval):
-		t.Fatalf("broker wasn't shut down within timeout, have received %d messages so far", msgCnt)
+		t.Fatalf("broker wasn't shut down within timeout, have received %d messages so far", msgCnt.Load())
 	}
 
 	// shouldn't get any more messages, broker was shut down

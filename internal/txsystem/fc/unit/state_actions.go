@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 // AddCredit adds a new credit record
-func AddCredit(id types.UnitID, owner state.Predicate, data *FeeCreditRecord) state.Action {
+func AddCredit(id types.UnitID, owner predicates.PredicateBytes, data *FeeCreditRecord) state.Action {
 	return state.AddUnit(id, owner, data)
 }
 
@@ -27,9 +27,10 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecord
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
 		return &FeeCreditRecord{
-			Balance: fcr.Balance + value,
-			Hash:    bytes.Clone(transactionRecordHash), //
-			Timeout: util.Max(fcr.Timeout, timeout),
+			Balance:  fcr.Balance + value,
+			Backlink: bytes.Clone(transactionRecordHash),
+			Timeout:  max(fcr.Timeout, timeout),
+			Locked:   0,
 		}, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)
@@ -42,11 +43,12 @@ func DecrCredit(id types.UnitID, value uint64) state.Action {
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
-		// note that hash and timeout remain unchanged in this operation
+		// note that only balance field changes in this operation
 		return &FeeCreditRecord{
-			Balance: fcr.Balance - value,
-			Hash:    fcr.Hash,
-			Timeout: fcr.Timeout,
+			Balance:  fcr.Balance - value,
+			Backlink: fcr.Backlink,
+			Timeout:  fcr.Timeout,
+			Locked:   fcr.Locked,
 		}, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)

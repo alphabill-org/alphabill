@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -18,8 +18,8 @@ import (
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
@@ -30,14 +30,12 @@ const (
 
 var (
 	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
-
-	openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
 )
 
 type (
-
 	// PeerConfiguration includes single peer configuration values.
 	PeerConfiguration struct {
+		ID             peer.ID         // peer identifier derived from the KeyPair.PublicKey.
 		Address        string          // address to listen for incoming connections. Uses libp2p multiaddress format.
 		KeyPair        *PeerKeyPair    // keypair for the peer.
 		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
@@ -57,31 +55,17 @@ type (
 		validators []peer.ID
 		dht        *dht.IpfsDHT
 	}
-
-	metricsNotifiee struct{}
 )
-
-func (m *metricsNotifiee) Listen(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) ListenClose(network.Network, ma.Multiaddr) {}
-
-func (m *metricsNotifiee) Connected(network.Network, network.Conn) {
-	openConnectionsCounter.Inc(1)
-}
-
-func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
-	openConnectionsCounter.Dec(1)
-}
 
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
-func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*Peer, error) {
+func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, prom prometheus.Registerer) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readOrGenerateKeyPair(conf, log)
+	privateKey, _, err := readKeyPair(conf, log)
 	if err != nil {
 		return nil, err
 	}
@@ -98,17 +82,19 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*P
 		return nil, err
 	}
 
-	// create a new libp2p Host
-	h, err := libp2p.New(
+	opts := []config.Option{
 		libp2p.ListenAddrStrings(address),
 		libp2p.Identity(privateKey),
 		libp2p.Peerstore(peerStore),
 		libp2p.Ping(true), // make sure ping service is enabled
-	)
+	}
+	if prom != nil {
+		opts = append(opts, libp2p.PrometheusRegisterer(prom))
+	}
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
-	h.Network().Notify(&metricsNotifiee{})
 
 	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
 	if err != nil {
@@ -219,6 +205,30 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 	return peers[index]
 }
 
+func NewPeerConfiguration(
+	addr string,
+	keyPair *PeerKeyPair,
+	bootstrapPeers []peer.AddrInfo,
+	validators []peer.ID) (*PeerConfiguration, error) {
+
+	if keyPair == nil {
+		return nil, fmt.Errorf("missing key pair")
+	}
+
+	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key pair: %w", err)
+	}
+
+	return &PeerConfiguration{
+		ID:             peerID,
+		Address:        addr,
+		KeyPair:        keyPair,
+		BootstrapPeers: bootstrapPeers,
+		Validators:     validators,
+	}, nil
+}
+
 func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
 	pub, err := crypto.UnmarshalSecp256k1PublicKey(pubKey)
 	if err != nil {
@@ -250,10 +260,9 @@ func newPeerStore() (peerstore.Peerstore, error) {
 	return peerStore, nil
 }
 
-func readOrGenerateKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
+func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
-		log.Warn("peer has no key configured, generating a new random key")
-		return crypto.GenerateSecp256k1Key(rand.Reader)
+		return nil, nil, fmt.Errorf("missing peer key")
 	}
 
 	privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)

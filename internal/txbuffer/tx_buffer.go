@@ -7,127 +7,146 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var (
-	ErrTxBufferFull   = errors.New("tx buffer is full")
-	ErrInvalidMaxSize = errors.New("invalid maximum size")
-	ErrTxIsNil        = errors.New("tx is nil")
-	ErrTxInBuffer     = errors.New("tx already in tx buffer")
-
-	transactionsCounter          = metrics.GetOrRegisterCounter("transaction/buffer/size")
-	transactionsRejectedCounter  = metrics.GetOrRegisterCounter("transaction/buffer/rejected/full")
-	transactionsDuplicateCounter = metrics.GetOrRegisterCounter("transaction/buffer/rejected/duplicate")
+	ErrBufferIsFull = errors.New("tx buffer is full")
+	ErrTxIsNil      = errors.New("tx is nil")
+	ErrTxInBuffer   = errors.New("tx already in the buffer")
 )
 
 type (
 	// TxBuffer is an in-memory data structure containing the set of unconfirmed transactions.
 	TxBuffer struct {
 		mutex          sync.Mutex
-		transactions   map[string]*types.TransactionOrder // map containing valid pending transactions.
+		transactions   map[string]time.Time // index of pending transactions, hash->added_ts
 		transactionsCh chan *types.TransactionOrder
 		hashAlgorithm  crypto.Hash
 		log            *slog.Logger
+
+		mCount metric.Int64UpDownCounter
+		mDur   metric.Float64Histogram
 	}
 
-	// TxHandler handles the transaction. Return value should indicate whether the tx was processed
-	// successfully (and thus removed from buffer) but currently this value is ignored - after callback
-	// returns the tx is always removed from internal buffer.
-	TxHandler func(ctx context.Context, tx *types.TransactionOrder) bool
+	// TxHandler processes an transaction.
+	TxHandler func(ctx context.Context, tx *types.TransactionOrder)
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+	}
 )
 
-// New creates a new instance of the TxBuffer. MaxSize specifies the total number of transactions the TxBuffer may
-// contain.
-func New(maxSize uint32, hashAlgorithm crypto.Hash, log *slog.Logger) (*TxBuffer, error) {
+/*
+New creates a new instance of the TxBuffer.
+MaxSize specifies the total number of transactions the TxBuffer may contain.
+*/
+func New(maxSize uint32, hashAlgorithm crypto.Hash, obs Observability, log *slog.Logger) (*TxBuffer, error) {
 	if maxSize < 1 {
-		return nil, ErrInvalidMaxSize
+		return nil, fmt.Errorf("buffer max size must be greater than zero, got %d", maxSize)
 	}
-	return &TxBuffer{
+
+	buf := &TxBuffer{
 		hashAlgorithm:  hashAlgorithm,
-		transactions:   make(map[string]*types.TransactionOrder),
+		transactions:   make(map[string]time.Time),
 		transactionsCh: make(chan *types.TransactionOrder, maxSize),
 		log:            log,
-	}, nil
+	}
+	if err := buf.initMetrics(obs); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
+	}
+
+	return buf, nil
 }
 
-func (t *TxBuffer) Close() {
-	close(t.transactionsCh)
-}
-
-func (t *TxBuffer) Capacity() uint32 {
-	return uint32(cap(t.transactionsCh))
-}
-
-// Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
-// already present in the TxBuffer, or TxBuffer is full.
-func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
+/*
+Add adds the given transaction into the transaction buffer.
+Returns an error if the transaction is nil, is already present in the TxBuffer,
+or TxBuffer is full.
+*/
+func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
 	if tx == nil {
 		return nil, ErrTxIsNil
 	}
 
-	txHash := tx.Hash(t.hashAlgorithm)
-	t.log.Debug(fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
+	txHash := tx.Hash(buf.hashAlgorithm)
+	buf.log.Debug(fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
 	txId := string(txHash)
 
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	buf.mutex.Lock()
+	defer buf.mutex.Unlock()
 
-	if _, found := t.transactions[txId]; found {
-		transactionsDuplicateCounter.Inc(1)
+	if _, found := buf.transactions[txId]; found {
 		return nil, ErrTxInBuffer
 	}
 
 	select {
-	case t.transactionsCh <- tx:
-		transactionsCounter.Inc(1)
-		t.transactions[txId] = tx
+	case buf.transactionsCh <- tx:
+		buf.mCount.Add(ctx, 1)
+		buf.transactions[txId] = time.Now()
 	default:
-		transactionsRejectedCounter.Inc(1)
-		return nil, ErrTxBufferFull
+		return nil, ErrBufferIsFull
 	}
 
 	return txHash, nil
 }
 
 /*
-Process calls the "process" callback for a transaction. Return value of the callback should indicate
-whether the tx was processed successfully or not but currently this value is ignored - after callback
-returns the tx is always removed from internal buffer.
+Process calls the "process" callback for each transaction in the buffer until
+ctx is cancelled.
+After callback returns the tx is always removed from internal buffer (ie the
+callback can't add the tx back to buffer, it would be rejected as duplicate).
 */
-func (t *TxBuffer) Process(ctx context.Context, process TxHandler) {
+func (buf *TxBuffer) Process(ctx context.Context, process TxHandler) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case tx, ok := <-t.transactionsCh:
-			if !ok {
-				return
-			}
+		case tx := <-buf.transactionsCh:
+			buf.mCount.Add(ctx, -1)
 			process(ctx, tx)
-			t.removeFromIndex(string(tx.Hash(t.hashAlgorithm)))
+			buf.removeFromIndex(ctx, string(tx.Hash(buf.hashAlgorithm)))
 		}
 	}
 }
 
-// removeFromIndex deletes the transaction with given id from the index (note that
-// tx still might be in the channel!)
-func (t *TxBuffer) removeFromIndex(id string) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+/*
+removeFromIndex deletes the transaction with given id from the index.
+*/
+func (buf *TxBuffer) removeFromIndex(ctx context.Context, id string) {
+	buf.mutex.Lock()
+	defer buf.mutex.Unlock()
 
-	if _, found := t.transactions[id]; found {
-		delete(t.transactions, id)
-		transactionsCounter.Dec(1)
+	if added, found := buf.transactions[id]; found {
+		buf.mDur.Record(ctx, time.Since(added).Seconds())
+		delete(buf.transactions, id)
 	}
 }
 
-// Count returns the total number of transactions in the TxBuffer.
-func (t *TxBuffer) Count() uint32 {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	return uint32(len(t.transactionsCh))
+func (buf *TxBuffer) initMetrics(obs Observability) (err error) {
+	m := obs.Meter("txbuffer")
+
+	if buf.mCount, err = m.Int64UpDownCounter(
+		"count",
+		metric.WithDescription(`Number of transactions in the buffer.`),
+		metric.WithUnit("{transaction}"),
+	); err != nil {
+		return fmt.Errorf("creating tx counter: %w", err)
+	}
+
+	if buf.mDur, err = m.Float64Histogram(
+		"queued",
+		metric.WithDescription("For how long transaction was in the buffer before being processed."),
+		metric.WithUnit("s"),
+		//metric.WithExplicitBucketBoundaries(...), // will be in v1.20?
+	); err != nil {
+		return fmt.Errorf("creating duration histogram: %w", err)
+	}
+
+	return nil
 }

@@ -23,7 +23,8 @@ type (
 		CfgFile string
 		// Logger configuration file URL.
 		LogCfgFile string
-		Metrics    bool
+
+		observe *observability
 
 		Logger        *slog.Logger
 		loggerBuilder LoggerFactory
@@ -57,7 +58,8 @@ const (
 func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
-	cmd.PersistentFlags().BoolVar(&r.Metrics, keyMetrics, false, "Enables metrics collection.")
+
+	cmd.PersistentFlags().String(keyMetrics, "", "metrics exporter, disabled when not set. One of: stdout, prometheus")
 
 	cmd.PersistentFlags().StringVar(&r.LogCfgFile, flagNameLoggerCfgFile, defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
 	// do not set default values for these flags as then we can easily determine whether to load the value from cfg file or not

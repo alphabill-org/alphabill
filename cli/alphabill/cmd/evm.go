@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +48,7 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config.RESTServer.addConfigurationFlags(nodeCmd)
 	// mark the --tb-tx flag as mandatory for EVM nodes
 	if err := nodeCmd.MarkFlagRequired("tx-db"); err != nil {
-		return nil
+		panic(err)
 	}
 	return nodeCmd
 }
@@ -71,11 +72,17 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
-	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
 	if err != nil {
-		return fmt.Errorf("creating network peer: %w", err)
+		return fmt.Errorf("failed to load node keys: %w", err)
 	}
-	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+
+	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
 
 	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
@@ -89,7 +96,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	node, err := createNode(ctx, peer, txs, cfg.Node, blockStore, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, cfg.Base.observe, log)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
@@ -100,5 +107,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
+	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, cfg.Base.observe, log)
 }

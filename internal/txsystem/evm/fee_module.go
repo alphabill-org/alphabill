@@ -73,7 +73,7 @@ func (m FeeAccount) TxExecutors() map[string]txsystem.TxExecutor {
 	return map[string]txsystem.TxExecutor{
 		//  fee credit transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator),
-		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.feeCalculator, m.txValidator, m.log),
+		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log),
 	}
 }
 

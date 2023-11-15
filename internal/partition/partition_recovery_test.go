@@ -158,10 +158,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 	require.NoError(t, tp.SubmitTxFromRPC(testtransaction.NewTransactionOrder(t)))
 	require.Eventually(t, func() bool {
@@ -205,10 +211,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// create new block
@@ -240,10 +252,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// create new block
@@ -641,9 +659,15 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	genesisBlock := tp.GetLatestBlock(t)
 	system := &testtxsystem.CounterTxSystem{}
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
@@ -704,9 +728,15 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
 	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
@@ -778,8 +808,15 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// node sends a handshake to root and subscribes to UC messages
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
@@ -851,8 +888,15 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// node sends a handshake to root and subscribes to UC messages
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
@@ -995,7 +1039,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	//send replication request, it will hit tx replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
 		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 	})
@@ -1006,7 +1050,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	require.Equal(t, replication.Ok, resp.Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
+	require.Equal(t, tp.nodeDeps.peerConf.ID.String(), resp.ID.String())
 	require.Equal(t, 2, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 
 	tp.eh.Reset()
@@ -1014,7 +1058,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.partition.configuration.replicationConfig.maxBlocks = 1
 	//send replication request, it will hit block replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
 		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 	})
@@ -1023,7 +1067,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	require.Equal(t, replication.Ok, resp.Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
+	require.Equal(t, tp.nodeDeps.peerConf.ID.String(), resp.ID.String())
 	require.Equal(t, 1, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 }
 
@@ -1055,7 +1099,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 	// does not have the block 11
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 11,
 		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 	})
@@ -1070,7 +1114,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// system id is valid, but does not match
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 2,
 		SystemIdentifier: []byte{0xFF, 0xFF, 0xFF, 0xFF},
 	})
@@ -1085,13 +1129,13 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	// cases where node does not even respond
 	// system id is nil
 	req := &replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 2,
 		SystemIdentifier: nil,
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid system identifier")
 	req = &replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 5,
 		EndBlockNumber:   3,
 		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),

@@ -10,11 +10,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -256,54 +254,6 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 	require.Equal(t, sdrs, actualSDRs)
 }
 
-func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
-	bs := createTestBillStore(t)
-	systemID := []byte{0, 0, 0, 0}
-	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
-
-	// verify GetLockedFeeCredit no result returns no error
-	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
-	require.NoError(t, err)
-	require.Nil(t, lfc)
-
-	// add locked fee credit
-	transferFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
-	require.NoError(t, err)
-
-	// verify GetFeeCreditBill is not nil
-	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
-	require.NoError(t, err)
-	require.Equal(t, lfc, transferFC)
-}
-
-func TestBillStore_GetSetClosedFeeCredit(t *testing.T) {
-	bs := createTestBillStore(t)
-	systemID := []byte{0, 0, 0, 0}
-	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
-
-	// verify GetLockedFeeCredit no result returns no error
-	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
-	require.NoError(t, err)
-	require.Nil(t, lfc)
-
-	// add locked fee credit
-	transferFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
-	require.NoError(t, err)
-
-	// verify GetFeeCreditBill is not nil
-	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
-	require.NoError(t, err)
-	require.Equal(t, lfc, transferFC)
-}
-
 func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
 	bs := createTestBillStore(t)
 	randomBytes := test.RandomBytes(32)
@@ -447,7 +397,7 @@ func createTestBillStore(t *testing.T) *boltBillStore {
 
 func getOwnerPredicate(pubkey string) []byte {
 	pubKey, _ := hexutil.Decode(pubkey)
-	return script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey))
+	return templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey))
 }
 
 func newBillWithValueAndOwner(val byte, ownerPredicate []byte) *Bill {

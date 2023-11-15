@@ -2,7 +2,7 @@ package testutils
 
 import (
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
@@ -10,7 +10,7 @@ import (
 
 func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &moneytx.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
 	}
@@ -30,6 +30,6 @@ func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, bill
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}, nil
 }

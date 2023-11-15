@@ -79,8 +79,6 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/locked-fee-credit/{systemId}/{billId}", api.getLockedFeeCreditFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/closed-fee-credit/{billId}", api.getClosedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
@@ -339,7 +337,10 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+		for k, v := range errs {
+			err = fmt.Errorf("%s: %s", k, v)
+			api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return
@@ -351,54 +352,6 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
-}
-
-func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	systemID, err := sdk.ParseHex[types.SystemID](vars["systemId"], true)
-	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /locked-fee-credit request systemId param", logger.Error(err))
-		api.rw.InvalidParamResponse(w, "systemId", err)
-		return
-	}
-	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
-	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /fee-credit-bills request billId param", logger.Error(err))
-		api.rw.InvalidParamResponse(w, "billId", err)
-		return
-	}
-	lfc, err := api.Service.GetLockedFeeCredit(systemID, fcbID)
-	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /locked-fee-credit", logger.Error(err))
-		api.rw.WriteErrorResponse(w, err)
-		return
-	}
-	if lfc == nil {
-		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("locked fee credit does not exist"))
-		return
-	}
-	api.rw.WriteCborResponse(w, lfc)
-}
-
-func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
-	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "parsing GET /closed-fee-credit request billId param", logger.Error(err))
-		api.rw.InvalidParamResponse(w, "billId", err)
-		return
-	}
-	cfc, err := api.Service.GetClosedFeeCredit(fcbID)
-	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /closed-fee-credit", logger.Error(err))
-		api.rw.WriteErrorResponse(w, err)
-		return
-	}
-	if cfc == nil {
-		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("closed fee credit does not exist"))
-		return
-	}
-	api.rw.WriteCborResponse(w, cfc)
 }
 
 func (api *moneyRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {

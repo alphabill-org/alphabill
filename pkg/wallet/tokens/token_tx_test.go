@@ -63,7 +63,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			if getRoundNumberCalled == 1 {
 				return 100, nil
 			}
-			return 102, nil
+			return 103, nil
 		},
 		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled++

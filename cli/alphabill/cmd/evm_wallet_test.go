@@ -59,6 +59,7 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 		balance:  "15000000000000000000", // balance is returned by EVM in wei 10^-18
 		backlink: make([]byte, 32),
 		nonce:    1,
+		gasPrice: "10000",
 		serverMeta: &types.ServerMetadata{
 			ActualFee:         21000,
 			TargetUnits:       []types.UnitID{test.RandomBytes(20)},
@@ -95,7 +96,7 @@ func Test_evmCmdExecute_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	logF := testlogger.LoggerBuilder(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32), gasPrice: "20000000000000000000"}, logF)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm execute --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\", \"max-gas\" not set")
@@ -107,6 +108,8 @@ func Test_evmCmdExecute_error_cases(t *testing.T) {
 	require.ErrorContains(t, err, "invalid address aabbccddeeff, address must be 20 bytes")
 	_, err = execCommand(logF, homedir, "evm execute --max-gas 1000 --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data aabbkccdd --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "failed to read 'data' parameter: hex decode error: encoding/hex: invalid byte: U+006B 'k'")
+	_, err = execCommand(logF, homedir, "evm execute --max-gas 1 --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data aabbccdd --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "insufficient fee credit balance for transaction")
 }
 
 func Test_evmCmdExecute_ok(t *testing.T) {
@@ -121,6 +124,7 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 		balance:  "15000000000000000000", // balance is returned by EVM in wei 10^-18
 		backlink: make([]byte, 32),
 		nonce:    1,
+		gasPrice: "10000",
 		serverMeta: &types.ServerMetadata{
 			ActualFee:         21000,
 			TargetUnits:       []types.UnitID{test.RandomBytes(20)},
@@ -265,6 +269,7 @@ type clientMockConf struct {
 	backlink   []byte
 	round      uint64
 	nonce      uint64
+	gasPrice   string
 	receivedTx *types.TransactionOrder
 	serverMeta *types.ServerMetadata
 	callReq    *api.CallEVMRequest
@@ -301,6 +306,13 @@ func mockClientCalls(br *clientMockConf, logF func(*logger.LogConfiguration) (*s
 				return
 			}
 			util.WriteCBORResponse(w, br.callResp, http.StatusOK, log)
+		case strings.Contains(r.URL.Path, "/api/v1/evm/gasPrice"):
+			util.WriteCBORResponse(w, &struct {
+				_        struct{} `cbor:",toarray"`
+				GasPrice string
+			}{
+				GasPrice: br.gasPrice,
+			}, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/rounds/latest"):
 			util.WriteCBORResponse(w, br.round, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/transactions"):

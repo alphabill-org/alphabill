@@ -2,14 +2,16 @@ package evm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/types"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 	"github.com/fxamacker/cbor/v2"
@@ -23,6 +25,8 @@ type (
 		Call(ctx context.Context, callAttr *evmclient.CallAttributes) (*evmclient.ProcessingDetails, error)
 		GetTransactionCount(ctx context.Context, ethAddr []byte) (uint64, error)
 		GetBalance(ctx context.Context, ethAddr []byte) (string, []byte, error)
+		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error)
+		GetGasPrice(ctx context.Context) (string, error)
 	}
 	Wallet struct {
 		systemID []byte
@@ -78,6 +82,9 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	roundNumber, err := w.restCli.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("evm current round number read failed: %w", err)
+	}
+	if err := w.verifyFeeCreditBalance(ctx, acc, attrs.Gas); err != nil {
+		return nil, err
 	}
 	// verify account exists and get transaction count
 	nonce, err := w.restCli.GetTransactionCount(ctx, from.Bytes())
@@ -161,6 +168,37 @@ func (w *Wallet) GetBalance(ctx context.Context, accNr uint64) (*big.Int, error)
 	return balance, nil
 }
 
+// make sure wallet has enough fee credit to perform transaction
+func (w *Wallet) verifyFeeCreditBalance(ctx context.Context, acc *account.AccountKey, maxGas uint64) error {
+	from, err := generateAddress(acc.PubKey)
+	if err != nil {
+		return fmt.Errorf("generating address: %w", err)
+	}
+	balanceStr, _, err := w.restCli.GetBalance(ctx, from.Bytes())
+	if err != nil {
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no fee credit in evm wallet")
+		}
+		return err
+	}
+	balance, ok := new(big.Int).SetString(balanceStr, 10)
+	if !ok {
+		return fmt.Errorf("balance %s to base 10 conversion failed: %w", balanceStr, err)
+	}
+	gasPriceStr, err := w.restCli.GetGasPrice(ctx)
+	if err != nil {
+		return err
+	}
+	gasPrice, ok := new(big.Int).SetString(gasPriceStr, 10)
+	if !ok {
+		return fmt.Errorf("gas price string %s to base 10 conversion failed: %w", gasPriceStr, err)
+	}
+	if balance.Cmp(new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(maxGas))) == -1 {
+		return fmt.Errorf("insufficient fee credit balance for transaction")
+	}
+	return nil
+}
+
 func newTxPayload(systemID []byte, txType string, unitID []byte, timeout uint64, attr interface{}) (*types.Payload, error) {
 	attrBytes, err := cbor.Marshal(attr)
 	if err != nil {
@@ -192,6 +230,6 @@ func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, ac.PubKey),
 	}, nil
 }

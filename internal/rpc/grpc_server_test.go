@@ -8,8 +8,10 @@ import (
 	"net"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
@@ -68,21 +70,25 @@ func (mn *MockNode) SystemIdentifier() []byte {
 	return []byte{0, 1, 0, 0}
 }
 
+func (mn *MockNode) GetPeer() *network.Peer {
+	return nil
+}
+
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
-	p, err := NewGRPCServer(nil)
+	p, err := NewGRPCServer(nil, nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
 	assert.EqualError(t, err, `partition node which implements the service must be assigned`)
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{})
+	p, err := NewGRPCServer(&MockNode{}, observability.NOPMetrics())
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12, maxRoundNumber: 12})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12, maxRoundNumber: 12}, observability.NOPMetrics())
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
@@ -91,7 +97,7 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1, maxRoundNumber: 1})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1, maxRoundNumber: 1}, observability.NOPMetrics())
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
@@ -100,7 +106,7 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksMostlyEmpty(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 5, maxRoundNumber: 100})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 5, maxRoundNumber: 100}, observability.NOPMetrics())
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 50})
 	require.NoError(t, err)
@@ -111,7 +117,7 @@ func TestRpcServer_GetBlocksMostlyEmpty(t *testing.T) {
 }
 
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7, maxRoundNumber: 7})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7, maxRoundNumber: 7}, observability.NOPMetrics())
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
@@ -143,7 +149,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	rpcServer, _ := NewGRPCServer(&MockNode{})
+	rpcServer, _ := NewGRPCServer(&MockNode{}, observability.NOPMetrics())
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
@@ -164,7 +170,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: 1,
 		Backlink:    nil,
 	}

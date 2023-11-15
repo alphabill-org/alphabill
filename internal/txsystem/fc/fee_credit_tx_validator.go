@@ -14,8 +14,8 @@ import (
 )
 
 type (
-	// DefaultFeeCreditTxValidator default validator for partition specific
-	// "add fee credit" and "close fee credit" transactions
+	// DefaultFeeCreditTxValidator default validator for partition specific add/close/lock/unlock fee credit
+	// transactions
 	DefaultFeeCreditTxValidator struct {
 		moneySystemID           []byte
 		systemID                []byte
@@ -32,6 +32,18 @@ type (
 
 	CloseFCValidationContext struct {
 		Tx   *types.TransactionOrder
+		Unit *state.Unit
+	}
+
+	LockFCValidationContext struct {
+		Tx   *types.TransactionOrder
+		Attr *transactions.LockFeeCreditAttributes
+		Unit *state.Unit
+	}
+
+	UnlockFCValidationContext struct {
+		Tx   *types.TransactionOrder
+		Attr *transactions.UnlockFeeCreditAttributes
 		Unit *state.Unit
 	}
 )
@@ -122,8 +134,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit backlink
-	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetHash()) {
-		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetHash())
+	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetBacklink()) {
+		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetBacklink())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -173,6 +185,11 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 		return errors.New("unit data is not of type fee credit record")
 	}
 
+	// verify the fee credit record is not locked
+	if fcr.IsLocked() {
+		return errors.New("fee credit record is locked")
+	}
+
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
 	closeFCAttributes := &transactions.CloseFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(closeFCAttributes); err != nil {
@@ -191,6 +208,67 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
 	if tx.GetClientMaxTxFee() > fcr.Balance {
 		return fmt.Errorf("invalid fee: max_fee=%d fcr.Balance=%d", tx.GetClientMaxTxFee(), fcr.Balance)
+	}
+	return nil
+}
+
+func (v *DefaultFeeCreditTxValidator) ValidateLockFC(ctx *LockFCValidationContext) error {
+	// nil checks
+	if err := ctx.isValid(); err != nil {
+		return err
+	}
+	// tx unit id identifies an existing fee credit record
+	fcr, err := v.parseFeeCreditRecord(ctx.Tx, ctx.Unit)
+	if err != nil {
+		return fmt.Errorf("fee credit record not found for given unit id: %w", err)
+	}
+	// verify fcr is not already locked
+	if fcr.IsLocked() {
+		return errors.New("fee credit record is already locked")
+	}
+	// verify lock status is non-zero i.e. "locked"
+	if ctx.Attr.LockStatus == 0 {
+		return errors.New("lock status must be non-zero value")
+	}
+	return v.validateLockTxs(ctx.Tx, fcr, ctx.Attr.Backlink)
+}
+
+func (v *DefaultFeeCreditTxValidator) ValidateUnlockFC(ctx *UnlockFCValidationContext) error {
+	// nil checks
+	if err := ctx.isValid(); err != nil {
+		return err
+	}
+	// tx unit id identifies an existing fee credit record
+	fcr, err := v.parseFeeCreditRecord(ctx.Tx, ctx.Unit)
+	if err != nil {
+		return fmt.Errorf("fee credit record not found for given unit id: %w", err)
+	}
+	// verify fcr is not already unlocked
+	if !fcr.IsLocked() {
+		return errors.New("fee credit record is already unlocked")
+	}
+	return v.validateLockTxs(ctx.Tx, fcr, ctx.Attr.Backlink)
+}
+
+func (v *DefaultFeeCreditTxValidator) validateLockTxs(tx *types.TransactionOrder, fcr *unit.FeeCreditRecord, txBacklink []byte) error {
+	// the transaction follows the previous valid transaction with the record
+	if !bytes.Equal(txBacklink, fcr.GetBacklink()) {
+		return fmt.Errorf("the transaction backlink does not match with fee credit record backlink: "+
+			"got %x expected %x", txBacklink, fcr.GetBacklink())
+	}
+
+	// the transaction fees can’t exceed the fee credit record balance
+	if tx.GetClientMaxTxFee() > fcr.Balance {
+		return fmt.Errorf("max fee cannot exceed fee credit record balance: tx.maxFee=%d fcr.Balance=%d",
+			tx.GetClientMaxTxFee(), fcr.Balance)
+	}
+
+	// there’s no fee credit reference or separate fee authorization proof
+	if tx.GetClientFeeCreditRecordID() != nil {
+		return errors.New("fee tx cannot contain fee credit reference")
+	}
+	if tx.FeeProof != nil {
+		return errors.New("fee tx cannot contain fee authorization proof")
 	}
 	return nil
 }
@@ -228,4 +306,49 @@ func (c *CloseFCValidationContext) isValid() error {
 		return errors.New("tx client metadata is nil")
 	}
 	return nil
+}
+
+func (c *LockFCValidationContext) isValid() error {
+	if c == nil {
+		return errors.New("validation context is nil")
+	}
+	if c.Unit == nil {
+		return errors.New("unit is nil")
+	}
+	if c.Tx == nil {
+		return errors.New("tx is nil")
+	}
+	if c.Attr == nil {
+		return errors.New("tx attributes is nil")
+	}
+	return nil
+}
+
+func (c *UnlockFCValidationContext) isValid() error {
+	if c == nil {
+		return errors.New("validation context is nil")
+	}
+	if c.Unit == nil {
+		return errors.New("unit is nil")
+	}
+	if c.Tx == nil {
+		return errors.New("tx is nil")
+	}
+	if c.Attr == nil {
+		return errors.New("tx attributes is nil")
+	}
+	return nil
+}
+
+func (v *DefaultFeeCreditTxValidator) parseFeeCreditRecord(tx *types.TransactionOrder, u *state.Unit) (*unit.FeeCreditRecord, error) {
+	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
+		return nil, errors.New("invalid unit identifier: type is not fee credit record")
+	}
+	var fcr *unit.FeeCreditRecord
+	var ok bool
+	fcr, ok = u.Data().(*unit.FeeCreditRecord)
+	if !ok {
+		return nil, errors.New("invalid unit type: unit is not fee credit record")
+	}
+	return fcr, nil
 }

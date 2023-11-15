@@ -20,6 +20,7 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	accountID := []byte{4}
 	account2ID := []byte{5}
 	txHash := []byte{6}
+	systemID := []byte{0, 0, 0, 0}
 
 	// verify missing account for unit returns nil and no error
 	unit, err := s.GetUnit(accountID, unitID)
@@ -27,7 +28,7 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	require.Nil(t, unit)
 
 	// store units
-	unit = NewLockedUnit(accountID, unitID, txHash, LockReasonCollectDust, &Transaction{
+	unit = NewLockedUnit(accountID, unitID, txHash, systemID, LockReasonCollectDust, &Transaction{
 		TxOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				Type:           money.PayloadTypeTransDC,
@@ -39,7 +40,7 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	err = s.PutUnit(unit)
 	require.NoError(t, err)
 
-	unit2 := NewLockedUnit(accountID, unit2ID, txHash, LockReasonCollectDust, &Transaction{
+	unit2 := NewLockedUnit(accountID, unit2ID, txHash, systemID, LockReasonCollectDust, &Transaction{
 		TxOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				Type:           money.PayloadTypeTransDC,
@@ -82,7 +83,7 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 
-	unit3 := NewLockedUnit(account2ID, unit3ID, txHash, LockReasonCollectDust, &Transaction{
+	unit3 := NewLockedUnit(account2ID, unit3ID, txHash, systemID, LockReasonCollectDust, &Transaction{
 		TxOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				Type:           money.PayloadTypeTransDC,

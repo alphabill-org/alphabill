@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,8 +20,9 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserv "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -190,7 +192,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount uint8) *testpartition.NodePartition {
 	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			logger.New(t),
@@ -203,7 +205,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
 						UnitId:         money.NewBillID(nil, []byte{2}),
-						OwnerPredicate: script.PredicateAlwaysTrue(),
+						OwnerPredicate: templates.AlwaysTrueBytes(),
 					},
 				},
 			}),
@@ -221,20 +223,18 @@ func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *te
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start(t))
+	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	t.Cleanup(func() {
-		require.NoError(t, abNetwork.Close())
-	})
 	return abNetwork
 }
 
 func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
 	for _, n := range partition.Nodes {
-		n.AddrGRPC = startRPCServer(t, n.Node)
+		n.AddrGRPC = startRPCServer(t, n.Node, logger.NOP())
 	}
 }
 
-func startRPCServer(t *testing.T, node *partition.Node) string {
+func startRPCServer(t *testing.T, node *partition.Node, log *slog.Logger) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -243,7 +243,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
-	})
+	}, testobserv.NOPMetrics(), log)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

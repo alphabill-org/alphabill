@@ -208,9 +208,9 @@ func (cfg *LogConfiguration) logLevel() slog.Level {
 
 func filenameToWriter(name string) (io.Writer, error) {
 	switch strings.ToLower(name) {
-	case "stdout", "":
+	case "stdout":
 		return os.Stdout, nil
-	case "stderr":
+	case "stderr", "":
 		return os.Stderr, nil
 	case "discard", os.DevNull:
 		return io.Discard, nil

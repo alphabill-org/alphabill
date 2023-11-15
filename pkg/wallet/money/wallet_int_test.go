@@ -17,11 +17,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -48,7 +49,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	abNet := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
@@ -73,7 +74,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: script.PredicateAlwaysTrue(),
+					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: createSDRs(),
 				Logger:                   log,
@@ -163,7 +164,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
@@ -185,7 +186,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: script.PredicateAlwaysTrue(),
+					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: createSDRs(),
 				Logger:                   log,
@@ -278,7 +279,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
@@ -300,7 +301,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: script.PredicateAlwaysTrue(),
+					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: createSDRs(),
 				Logger:                   log,
@@ -393,7 +394,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		attrs := &money.SwapDCAttributes{}
 		err = txo.UnmarshalAttributes(attrs)
 		require.NoError(t, err)
-		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
+		require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
 
 		return false
 	})()
@@ -427,9 +428,8 @@ func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *money.InitialBi
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{mPart})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
-	t.Cleanup(func() {
-		_ = abNet.Close()
-	})
+	t.Cleanup(func() { abNet.WaitClose(t) })
+
 	return abNet
 }
 
@@ -452,7 +452,7 @@ func startRPCServer(t *testing.T, partition *testpartition.NodePartition) (addr 
 }
 
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
-	rpcServer, err := rpc.NewGRPCServer(node)
+	rpcServer, err := rpc.NewGRPCServer(node, observability.NOPMetrics())
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +468,7 @@ func createSDRs() []*genesis.SystemDescriptionRecord {
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
 			UnitId:         money.NewBillID(nil, []byte{2}),
-			OwnerPredicate: script.PredicateAlwaysTrue(),
+			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}
 }

@@ -76,10 +76,9 @@ func (e *EvmClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (
 		return nil, fmt.Errorf("account %s has invalid balance %v", hexutil.Encode(unitID), balanceStr)
 	}
 	return &sdk.Bill{
-		Id:              unitID,
-		Value:           WeiToAlpha(balanceWei),
-		TxHash:          nil,
-		LastAddFCTxHash: backlink,
+		Id:     unitID,
+		Value:  WeiToAlpha(balanceWei),
+		TxHash: backlink,
 	}, nil
 }
 
@@ -207,6 +206,20 @@ func (e *EvmClient) Call(ctx context.Context, callAttr *CallAttributes) (*Proces
 		return nil, fmt.Errorf("transaction send failed: %w", err)
 	}
 	return callEVMResponse.Details, nil
+}
+
+// GetGasPrice returns gas price
+func (e *EvmClient) GetGasPrice(ctx context.Context) (string, error) {
+	resp := &struct {
+		_        struct{} `cbor:",toarray"`
+		GasPrice string
+	}{}
+	addr := e.getURL(apiPathPrefix, evmApiSubPrefix, "gasPrice")
+	err := e.get(ctx, addr, &resp, false)
+	if err != nil {
+		return "", fmt.Errorf("gas price request failed: %w", err)
+	}
+	return resp.GasPrice, nil
 }
 
 func (e *EvmClient) getURL(pathElements ...string) *url.URL {

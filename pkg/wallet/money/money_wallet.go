@@ -10,15 +10,17 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/dc"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
@@ -33,7 +35,7 @@ type (
 		feeManager    *fees.FeeManager
 		TxPublisher   *TxPublisher
 		unitLocker    UnitLocker
-		dustCollector *DustCollector
+		dustCollector *dc.DustCollector
 		log           *slog.Logger
 	}
 
@@ -43,8 +45,6 @@ type (
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
-		GetLockedFeeCredit(ctx context.Context, systemID []byte, unitID []byte) (*types.TransactionRecord, error)
-		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -64,6 +64,19 @@ type (
 		AccountIndex uint64
 		CountDCBills bool
 	}
+
+	UnitLocker interface {
+		LockUnit(lockedBill *unitlock.LockedUnit) error
+		UnlockUnit(accountID, unitID []byte) error
+		GetUnit(accountID, unitID []byte) (*unitlock.LockedUnit, error)
+		GetUnits(accountID []byte) ([]*unitlock.LockedUnit, error)
+		Close() error
+	}
+
+	DustCollectionResult struct {
+		AccountIndex         uint64
+		DustCollectionResult *dc.DustCollectionResult // NB! can be nil
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -77,7 +90,7 @@ func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend Backe
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend, log)
 	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
-	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker, log)
+	dustCollector := dc.NewDustCollector(moneySystemID, maxBillsForDustCollection, txTimeoutBlockCount, backend, unitLocker, log)
 	return &Wallet{
 		am:            am,
 		backend:       backend,
@@ -199,7 +212,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		for _, r := range cmd.Receivers {
 			targetUnits = append(targetUnits, &money.TargetUnit{
 				Amount:         r.Amount,
-				OwnerCondition: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(r.PubKey)),
+				OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(r.PubKey)),
 			})
 		}
 		remainingValue := largestBill.Value - totalAmount
@@ -294,8 +307,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*Dust
 			if err != nil {
 				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
-			dcResult.AccountIndex = acc.AccountIndex
-			res = append(res, dcResult)
+			res = append(res, &DustCollectionResult{AccountIndex: acc.AccountIndex, DustCollectionResult: dcResult})
 		}
 	} else {
 		accKey, err := w.am.GetAccountKey(accountNumber - 1)
@@ -306,8 +318,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*Dust
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		dcResult.AccountIndex = accountNumber - 1
-		res = append(res, dcResult)
+		res = append(res, &DustCollectionResult{AccountIndex: accountNumber - 1, DustCollectionResult: dcResult})
 	}
 	return res, nil
 }

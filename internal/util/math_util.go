@@ -1,24 +1,9 @@
 package util
 
 import (
-	"cmp"
 	"fmt"
 	"math"
 )
-
-func Min[T cmp.Ordered](a, b T) T {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func Max[T cmp.Ordered](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
-}
 
 // AddUint64 adds a list of uint64s together, returning an error and a boolean indicator if the sum overflows uint64.
 func AddUint64(ns ...uint64) (sum uint64, overflow bool, err error) {

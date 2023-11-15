@@ -34,5 +34,6 @@ func (a *API) Register(r *mux.Router) {
 	evmRouter.HandleFunc("/call", a.CallEVM).Methods(http.MethodPost, http.MethodOptions)
 	evmRouter.HandleFunc("/estimateGas", a.EstimateGas).Methods(http.MethodPost, http.MethodOptions)
 	evmRouter.HandleFunc("/balance/{address}", a.Balance).Methods(http.MethodGet, http.MethodOptions)
+	evmRouter.HandleFunc("/gasPrice", a.GasPrice).Methods(http.MethodGet, http.MethodOptions)
 	evmRouter.HandleFunc("/transactionCount/{address}", a.TransactionCount).Methods(http.MethodGet, http.MethodOptions)
 }

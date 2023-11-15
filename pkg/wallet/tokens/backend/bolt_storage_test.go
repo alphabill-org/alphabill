@@ -10,10 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
@@ -62,10 +60,6 @@ func Test_storage(t *testing.T) {
 
 	t.Run("fee credits", func(t *testing.T) {
 		testFeeCredits(t, db)
-	})
-
-	t.Run("closed fee credits", func(t *testing.T) {
-		testClosedFeeCredits(t, db)
 	})
 }
 
@@ -132,8 +126,8 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.Nil(t, tokenFromDB)
 
-	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token := randomToken(owner, Fungible)
+	owner := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token := randomToken(sdk.Predicate(owner), Fungible)
 	proof := &sdk.Proof{}
 
 	require.NoError(t, db.SaveToken(token, proof))
@@ -143,8 +137,8 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.Equal(t, token, tokenFromDB)
 
 	// change ownership
-	owner2 := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token.Owner = owner2
+	owner2 := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token.Owner = sdk.Predicate(owner2)
 	err = db.SaveToken(token, proof)
 	require.NoError(t, err)
 
@@ -165,8 +159,8 @@ func testRemoveToken(t *testing.T, db *storage) {
 	err = db.RemoveToken(test.RandomBytes(32))
 	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 
-	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token := randomToken(owner, Fungible)
+	owner := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token := randomToken(sdk.Predicate(owner), Fungible)
 	require.NoError(t, db.SaveToken(token, &sdk.Proof{}))
 
 	tokenFromDB, err := db.GetToken(token.ID)
@@ -245,36 +239,6 @@ func testFeeCredits(t *testing.T, db *storage) {
 		actualFCB, err := db.GetFeeCreditBill(expectedFCB.Id)
 		require.NoError(t, err)
 		require.Equal(t, expectedFCB, actualFCB)
-	}
-}
-
-func testClosedFeeCredits(t *testing.T, db *storage) {
-	// nil key returns nil
-	fcb, err := db.GetClosedFeeCredit(nil)
-	require.NoError(t, err)
-	require.Nil(t, fcb)
-
-	// unknown key returns nil
-	fcb, err = db.GetClosedFeeCredit([]byte{0})
-	require.NoError(t, err)
-	require.Nil(t, fcb)
-
-	// set close fee credit txs
-	closeFCTxs := []*types.TransactionRecord{
-		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{1}))},
-		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{2}))},
-		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{3}))},
-	}
-	for _, closeFC := range closeFCTxs {
-		err = db.SetClosedFeeCredit(closeFC.TransactionOrder.UnitID(), closeFC)
-		require.NoError(t, err)
-	}
-
-	// verify close fee credit txs
-	for _, expectedTx := range closeFCTxs {
-		actualTx, err := db.GetClosedFeeCredit(expectedTx.TransactionOrder.UnitID())
-		require.NoError(t, err)
-		require.Equal(t, expectedTx, actualTx)
 	}
 }
 
@@ -360,8 +324,8 @@ func Test_storage_QueryTokens(t *testing.T) {
 	db := initTestStorage(t)
 
 	proof := &sdk.Proof{}
-	ownerA := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	ownerB := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
+	ownerA := sdk.Predicate(templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)))
+	ownerB := sdk.Predicate(templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)))
 
 	// empty db, expect nothing to be found
 	data, next, err := db.QueryTokens(Any, ownerA, nil, 10)

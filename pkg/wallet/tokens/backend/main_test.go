@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -143,10 +143,9 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:              tokens.NewFeeCreditRecordID(nil, []byte{1}),
-		Value:           10000000,
-		TxHash:          []byte{1},
-		LastAddFCTxHash: []byte{2},
+		Id:     tokens.NewFeeCreditRecordID(nil, []byte{1}),
+		Value:  10000000,
+		TxHash: []byte{1},
 	}, nil)
 	require.NoError(t, err)
 
@@ -273,7 +272,7 @@ func Test_Run_API(t *testing.T) {
 	pubKeyHex := hexutil.Encode(ownerID)
 	tx := randomTx(t,
 		&tokens.MintNonFungibleTokenAttributes{
-			Bearer:    script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
+			Bearer:    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
 		})
 	tx.Payload.Type = tokens.PayloadTypeMintNFT

@@ -3,14 +3,13 @@ package rpc
 import (
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/gorilla/mux"
 )
 
-func MetricsEndpoints() RegistrarFunc {
+func MetricsEndpoints(h http.Handler) RegistrarFunc {
 	return func(r *mux.Router) {
-		if metrics.Enabled() {
-			r.Handle("/metrics", metrics.PrometheusHandler()).Methods(http.MethodGet, http.MethodOptions)
+		if h != nil {
+			r.Handle("/metrics", h).Methods(http.MethodGet, http.MethodOptions)
 		}
 	}
 }

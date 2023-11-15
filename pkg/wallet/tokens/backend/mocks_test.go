@@ -115,8 +115,8 @@ type mockCfg struct {
 	systemID []byte
 }
 
-func (c *mockCfg) BatchSize() int   { return 50 }
-func (c *mockCfg) Client() ABClient { return c.abc }
+func (c *mockCfg) BatchSize() int            { return 50 }
+func (c *mockCfg) Client() (ABClient, error) { return c.abc, nil }
 
 func (c *mockCfg) Logger() *slog.Logger { return c.log }
 
@@ -283,18 +283,4 @@ func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) er
 		return ms.setFeeCreditBill(fcb, proof)
 	}
 	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
-}
-
-func (ms *mockStorage) GetClosedFeeCredit(unitID types.UnitID) (*types.TransactionRecord, error) {
-	if ms.getClosedFC != nil {
-		return ms.getClosedFC(unitID)
-	}
-	return nil, fmt.Errorf("unexpected GetClosedFeeCredit call")
-}
-
-func (ms *mockStorage) SetClosedFeeCredit(fcbID types.UnitID, tx *types.TransactionRecord) error {
-	if ms.getClosedFC != nil {
-		return ms.setClosedFC(fcbID, tx)
-	}
-	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcbID)
 }

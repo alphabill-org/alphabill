@@ -69,9 +69,12 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 }
 
 func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
+	}
+	if d.locked != 0 {
+		return errors.New("token is locked")
 	}
 	if attr.TargetValue == 0 {
 		return errors.New("when splitting a token the value assigned to the new token must be greater than zero")

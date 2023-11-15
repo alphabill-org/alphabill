@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
@@ -24,7 +23,8 @@ func TestRaceConditions(t *testing.T) {
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	abclient, err := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = abclient.Close() })
 
 	// do async operations on abclient
@@ -145,7 +145,7 @@ func createRandomTx() *types.TransactionOrder {
 			UnitID:         hash.Sum256([]byte{0x00}),
 			ClientMetadata: &types.ClientMetadata{Timeout: 1000},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 }
 
@@ -156,7 +156,8 @@ func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceS
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	abclient, err := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = abclient.Close() })
 	return serviceServer, abclient
 }

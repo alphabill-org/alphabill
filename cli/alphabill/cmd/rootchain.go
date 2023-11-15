@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -18,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -27,17 +31,18 @@ import (
 const (
 	boltRootChainStoreFileName = "rootchain.db"
 	rootPortCmdFlag            = "root-listener"
-	defaultNetworkTimeout      = 300 * time.Millisecond
+	rootBootStrapNodesCmdFlag  = "bootnodes"
+	defaultNetworkTimeout      = 1 * time.Second
 )
 
 type rootNodeConfig struct {
-	Base              *baseConfiguration
-	KeyFile           string // path to rootchain chain key file
-	GenesisFile       string // path to rootchain-genesis.json file
-	PartitionListener string // partition validator node address (libp2p multiaddress format)
-	RootListener      string // Root validator node address (libp2p multiaddress format)
-	StoragePath       string // path to Bolt storage file
-	MaxRequests       uint   // validator partition certification request channel capacity
+	Base               *baseConfiguration
+	KeyFile            string // path to rootchain chain key file
+	GenesisFile        string // path to rootchain-genesis.json file
+	Address            string // node address (libp2p multiaddress format)
+	StoragePath        string // path to Bolt storage file
+	MaxRequests        uint   // validator partition certification request channel capacity
+	BootStrapAddresses string // boot strap addresses (libp2p multiaddress format)
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -54,13 +59,23 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to node validator key file  (default $AB_HOME/rootchain/"+defaultKeysFileName+")")
-	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
-	cmd.Flags().StringVarP(&config.StoragePath, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
-	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
-	cmd.Flags().StringVar(&config.RootListener, rootPortCmdFlag, "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
-	cmd.Flags().MarkHidden(rootPortCmdFlag)
+	cmd.Flags().StringVar(&config.GenesisFile, "genesis-file", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
+	cmd.Flags().StringVar(&config.StoragePath, "db", "", "persistent store path (default: $AB_HOME/rootchain/)")
+	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
+	cmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	return cmd
+}
+
+// splitAndTrim splits input separated by a comma and trims excessive white space from the substrings.
+func splitAndTrim(input string) (ret []string) {
+	l := strings.Split(input, ",")
+	for _, r := range l {
+		if r = strings.TrimSpace(r); r != "" {
+			ret = append(ret, r)
+		}
+	}
+	return ret
 }
 
 // getGenesisFilePath returns genesis file path if provided, otherwise $AB_HOME/rootchain/root-genesis.json
@@ -86,6 +101,31 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
+func getBootStrapNodes(bootNodesStr string) ([]peer.AddrInfo, error) {
+	if bootNodesStr == "" {
+		return []peer.AddrInfo{}, nil
+	}
+	nodeStrings := splitAndTrim(bootNodesStr)
+	bootNodes := make([]peer.AddrInfo, len(nodeStrings))
+	for i, str := range nodeStrings {
+		l := strings.Split(str, "@")
+		if len(l) != 2 {
+			return nil, fmt.Errorf("invalid bootstrap node parameter: %s", str)
+		}
+		id, err := peer.Decode(l[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid bootstrap node id: %s", l[0])
+		}
+		addr, err := ma.NewMultiaddr(l[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid bootstrap node address: %s", l[1])
+		}
+		bootNodes[i].ID = id
+		bootNodes[i].Addrs = []ma.Multiaddr{addr}
+	}
+	return bootNodes, nil
+}
+
 func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
 	if dbPath != "" {
 		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
@@ -96,56 +136,73 @@ func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
 func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
-		return fmt.Errorf("failed to open root node genesis file %s, %w", config.getGenesisFilePath(), err)
+		return fmt.Errorf("loading root node genesis file %s: %w", config.getGenesisFilePath(), err)
 	}
 	keys, err := LoadKeys(config.getKeyFilePath(), false, false)
 	if err != nil {
-		return fmt.Errorf("failed to read key file %s, %w", config.KeyFile, err)
+		return fmt.Errorf("loading keys from %s: %w", config.KeyFile, err)
 	}
 	// check if genesis file is valid and exit early if is not
 	if err = rootGenesis.Verify(); err != nil {
-		return fmt.Errorf("root genesis verification failed, %w", err)
+		return fmt.Errorf("root genesis verification failed: %w", err)
 	}
 	// Process partition node network
-	prtHost, err := createHost(ctx, config.PartitionListener, keys.EncryptionPrivateKey, config.Base.Logger)
+	host, err := createHost(ctx, keys, config, config.Base.Logger, config.Base.observe.PrometheusRegisterer())
 	if err != nil {
-		return fmt.Errorf("partition host error, %w", err)
+		return fmt.Errorf("creating partition host: %w", err)
 	}
-	log := config.Base.Logger.With(logger.NodeID(prtHost.ID()))
-	partitionNet, err := network.NewLibP2PRootChainNetwork(prtHost, config.MaxRequests, defaultNetworkTimeout, log)
+	log := config.Base.Logger.With(logger.NodeID(host.ID()))
+	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
 	ver, err := keys.SigningPrivateKey.Verifier()
 	if err != nil {
-		return fmt.Errorf("invalid root node sign key error, %w", err)
+		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
-	if verifyKeyPresentInGenesis(prtHost, rootGenesis.Root, ver) != nil {
-		return fmt.Errorf("error root node key not found in genesis file")
+	if err = verifyKeyPresentInGenesis(host, rootGenesis.Root, ver); err != nil {
+		return fmt.Errorf("root node key not found in genesis: %w", err)
 	}
-	// Initiate partition store
+	// initiate partition store
 	partitionCfg, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	if err != nil {
-		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
+		return fmt.Errorf("failed to extract partition info from genesis file %s: %w", config.getGenesisFilePath(), err)
 	}
 	// Initiate root storage
 	store, err := initRootStore(config.getStoragePath())
 	if err != nil {
-		return fmt.Errorf("root store init failed, %w", err)
+		return fmt.Errorf("root store init failed: %w", err)
 	}
-	// use monolithic consensus algorithm
-	cm, err := monolithic.NewMonolithicConsensusManager(
-		prtHost.ID().String(),
-		rootGenesis,
-		partitionCfg,
-		keys.SigningPrivateKey,
-		log,
-		consensus.WithStorage(store))
+	var cm consensus.Manager
+	if len(rootGenesis.Root.RootValidators) == 1 {
+		// use monolithic consensus algorithm
+		cm, err = monolithic.NewMonolithicConsensusManager(
+			host.ID().String(),
+			rootGenesis,
+			partitionCfg,
+			keys.SigningPrivateKey,
+			log,
+			consensus.WithStorage(store))
+	} else {
+		var rootNet *network.LibP2PNetwork
+		rootNet, err = network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
+		if err != nil {
+			return fmt.Errorf("failed initiate root network, %w", err)
+		}
+		// Create distributed consensus manager function
+		cm, err = abdrc.NewDistributedAbConsensusManager(host.ID(),
+			rootGenesis,
+			partitionCfg,
+			rootNet,
+			keys.SigningPrivateKey,
+			log,
+			consensus.WithStorage(store))
+	}
 	if err != nil {
-		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
+		return fmt.Errorf("failed initiate consensus manager: %w", err)
 	}
 	node, err := rootchain.New(
-		prtHost,
+		host,
 		partitionNet,
 		partitionCfg,
 		cm,
@@ -156,38 +213,35 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	return node.Run(ctx)
 }
 
-func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey, log *slog.Logger) (*network.Peer, error) {
-	privateKeyBytes, err := encPrivate.Raw()
+func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger, prom prometheus.Registerer) (*network.Peer, error) {
+	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
+	if err != nil {
+		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
+	}
+	keyPair, err := keys.getEncryptionKeyPair()
+	if err != nil {
+		return nil, fmt.Errorf("get key pair failed: %w", err)
+	}
+	peerConf, err := network.NewPeerConfiguration(cfg.Address, keyPair, bootNodes, nil)
 	if err != nil {
 		return nil, err
 	}
-	publicKeyBytes, err := encPrivate.GetPublic().Raw()
-	if err != nil {
-		return nil, err
-	}
-	keyPair := &network.PeerKeyPair{
-		PublicKey:  publicKeyBytes,
-		PrivateKey: privateKeyBytes,
-	}
-	conf := &network.PeerConfiguration{
-		Address: address,
-		KeyPair: keyPair,
-	}
-	return network.NewPeer(ctx, conf, log)
+
+	return network.NewPeer(ctx, peerConf, log, prom)
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
 	nodeInfo := rg.FindPubKeyById(peer.ID().String())
 	if nodeInfo == nil {
-		return fmt.Errorf("invalid root node encode key")
+		return fmt.Errorf("node id/encode key not found in genesis")
 	}
 	signPubKeyBytes, err := ver.MarshalPublicKey()
 	if err != nil {
-		return fmt.Errorf("invalid root node sign key, cannot start")
+		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
 	// verify that the same public key is present in the genesis file
 	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
-		return fmt.Errorf("invalid root node sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
+		return fmt.Errorf("signing key not found in genesis file")
 	}
 	return nil
 }

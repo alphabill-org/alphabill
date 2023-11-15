@@ -2,6 +2,7 @@ package boltdb
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -59,7 +60,12 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 
 func TestBoltDB_InvalidPath(t *testing.T) {
 	// provide a file that is not a DB file
-	store, err := New("testdata/invalid-root-key.json")
+	tmpDir := t.TempDir()
+	file := filepath.Join(tmpDir, "data.txt")
+	// write some text file
+	err := os.WriteFile(file, []byte("this is obviously not a DB file"), 0)
+	require.NoError(t, err)
+	store, err := New(file)
 	require.Error(t, err)
 	require.Nil(t, store)
 }

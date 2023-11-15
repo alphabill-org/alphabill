@@ -16,13 +16,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -78,7 +78,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 	pb, _ := createNTFTypeTx.PayloadBytes()
 	sig, pk := testsig.SignBytes(t, pb)
-	createNTFTypeTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, pk)
+	createNTFTypeTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, pk)
 	createNTFTypeMsg, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
@@ -143,7 +143,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	t.Run("one valid type-creation transaction without an owner is sent", func(t *testing.T) {
 		tx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 		tx.Payload.Type = tokens.PayloadTypeCreateNFTType
-		tx.OwnerProof = script.PredicateAlwaysTrue()
+		tx.OwnerProof = templates.AlwaysTrueBytes()
 
 		message, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{tx}})
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		txBytes, err := txs.Transactions[0].PayloadBytes()
 		require.NoError(t, err)
 		sigData, pubKey := testsig.SignBytes(t, txBytes)
-		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
 
 		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
@@ -223,7 +223,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		txBytes, err := txs.Transactions[0].PayloadBytes()
 		require.NoError(t, err)
 		sigData, pubKey := testsig.SignBytes(t, txBytes)
-		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
 
 		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
@@ -273,6 +273,7 @@ func Test_restAPI_getToken(t *testing.T) {
 			ID:     test.RandomBytes(32),
 			Kind:   NonFungible,
 			Amount: 42,
+			Locked: 1,
 		}
 		api := &tokensRestAPI{db: &mockStorage{
 			getToken: func(id TokenID) (*TokenUnit, error) {
@@ -357,7 +358,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 		ds := &mockStorage{
 			queryTokens: func(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
-				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}
@@ -858,10 +859,9 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		fcb := &FeeCreditBill{
-			Id:              []byte{1},
-			Value:           2,
-			TxHash:          []byte{3},
-			LastAddFCTxHash: []byte{4},
+			Id:     []byte{1},
+			Value:  2,
+			TxHash: []byte{3},
 		}
 		fcbProof := &sdk.Proof{}
 		api := &tokensRestAPI{
@@ -883,56 +883,6 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
 		require.Equal(t, fcb.ToGenericBill(), fcbFromAPI)
-	})
-}
-
-func Test_restAPI_getClosedCredit(t *testing.T) {
-	t.Parallel()
-
-	makeRequest := func(api *tokensRestAPI, unitID string) *http.Response {
-		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/closed-fee-credit/%s", unitID), nil)
-		req = mux.SetURLVars(req, map[string]string{"unitId": unitID})
-		w := httptest.NewRecorder()
-		api.getClosedFeeCredit(w, req)
-		return w.Result()
-	}
-
-	t.Run("400 'unitId' query param not in hex format", func(t *testing.T) {
-		rsp := makeRequest(&tokensRestAPI{}, "foo")
-		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "unitId": hex string without 0x prefix`)
-	})
-
-	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
-		api := &tokensRestAPI{
-			db: &mockStorage{
-				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
-					return nil, errors.New("error fetching closed fee credit")
-				},
-			},
-		}
-		rsp := makeRequest(api, "0x01")
-		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load closed fee credit for ID 0x01: error fetching closed fee credit")
-	})
-
-	t.Run("ok", func(t *testing.T) {
-		fcbID := []byte{1}
-		closedFCTx := &types.TransactionRecord{}
-		api := &tokensRestAPI{
-			db: &mockStorage{
-				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
-					return closedFCTx, nil
-				},
-			},
-		}
-		rsp := makeRequest(api, sdk.EncodeHex(fcbID))
-		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
-		defer rsp.Body.Close()
-
-		closedFCFromAPI := closedFCTx
-		if err := cbor.NewDecoder(rsp.Body).Decode(closedFCFromAPI); err != nil {
-			t.Fatalf("failed to decode response body: %v", err)
-		}
-		require.Equal(t, closedFCTx, closedFCFromAPI)
 	})
 }
 

@@ -13,17 +13,15 @@ import (
 var (
 	ErrConsensusParamsIsNil          = errors.New("consensus record is nil")
 	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root nodes")
-	ErrConsensusNotSigned            = errors.New("consensus struct is not signed")
 	ErrBlockRateTooSmall             = errors.New("block rate too small")
 	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
 	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
 	ErrSignerIsNil                   = errors.New("signer is nil")
 	ErrRootValidatorInfoMissing      = errors.New("missing root node public info")
-	ErrConsensusIsNotSignedByAll     = errors.New("consensus is not signed by all root nodes")
 )
 
 const (
-	MinBlockRateMs          = 500
+	MinBlockRateMs          = 100
 	DefaultBlockRateMs      = 900
 	MinConsensusTimeout     = 2000
 	DefaultConsensusTimeout = 10000
@@ -60,6 +58,10 @@ func (x *ConsensusParams) IsValid() error {
 	// If defined:  validate consensus timeout (only used in distributed set-up)
 	if x.ConsensusTimeoutMs < MinConsensusTimeout {
 		return ErrInvalidConsensusTimeout
+	}
+	// Timeout must be bigger than round min block-rate+2s
+	if x.BlockRateMs+MinConsensusTimeout > x.ConsensusTimeoutMs {
+		return fmt.Errorf("invalid timeout for block rate, must be at least %d", x.BlockRateMs+MinConsensusTimeout)
 	}
 	// Therefore, the defined quorum threshold must be same or higher
 	minQuorum := GetMinQuorumThreshold(x.TotalRootValidators)

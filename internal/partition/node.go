@@ -1256,7 +1256,6 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-	n.blockSize.Add(ctx, int64(len(pendingProposal.Transactions)))
 	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
 	if err != nil {
 		n.log.WarnContext(ctx, "root node selection error: %w", err)

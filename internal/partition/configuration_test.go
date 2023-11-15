@@ -233,3 +233,16 @@ func TestGetGenesisBlock(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conf.genesisBlock())
 }
+
+func TestGetRootNodes(t *testing.T) {
+	peerConf := test.CreatePeerConfiguration(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+
+	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
+	require.NoError(t, err)
+	require.NotNil(t, conf.genesisBlock())
+	nodes, err := conf.getRootNodes()
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+}

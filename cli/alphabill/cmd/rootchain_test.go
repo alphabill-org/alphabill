@@ -68,49 +68,33 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 	t.Run("ok: nil", func(t *testing.T) {
-		cfg := &rootNodeConfig{}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("")
 		require.NoError(t, err)
 		require.NotNil(t, bootNodes)
 		require.Empty(t, bootNodes)
 	})
 	t.Run("err: invalid parameter", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah")
 		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid node description", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah@someip@someif",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah@someip@someif")
 		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah@someip@someif")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid node id", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah@someip",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah@someip")
 		require.ErrorContains(t, err, "invalid bootstrap node id: blah")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid address", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip")
 		require.ErrorContains(t, err, "invalid bootstrap node address: someip")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("ok", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366")
 		require.NoError(t, err)
 		require.Len(t, bootNodes, 1)
 		require.Equal(t, bootNodes[0].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz")
@@ -158,24 +142,25 @@ func Test_StartMonolithicNode(t *testing.T) {
 		}()
 		// simulate money partition node sending handshake
 		log := logger.New(t)
-		cfg := &startNodeConfiguration{
-			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: address,
-		}
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		require.NoError(t, err)
+		cfg := &startNodeConfiguration{
+			Address:            "/ip4/127.0.0.1/tcp/26652",
+			BootStrapAddresses: rootID.String() + "@" + address,
+		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
 		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
-		require.NoError(t, err)
+
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
@@ -288,23 +273,23 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		}()
 		// simulate money partition node sending handshake
 		log := logger.New(t)
-		cfg := &startNodeConfiguration{
-			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: address,
-		}
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		require.NoError(t, err)
+		cfg := &startNodeConfiguration{
+			Address:            "/ip4/127.0.0.1/tcp/26652",
+			BootStrapAddresses: rootID.String() + "@" + address,
+		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
 		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
-		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

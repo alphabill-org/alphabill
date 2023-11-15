@@ -1,17 +1,14 @@
 package leader
 
 import (
-	"crypto/rand"
 	"fmt"
 	mrand "math/rand"
 	"testing"
 
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/network"
 )
 
 func Test_ReputationBased_Update(t *testing.T) {
@@ -65,7 +62,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 	})
 
 	// valid signer id-s to use in following tests
-	peerIDs := generatePeerIDs(t, 2)
+	peerIDs := test.GeneratePeerIDs(t, 2)
 	signerAid, signerAkey := peerIDs[0], peerIDs[0].String()
 	signerBid, signerBkey := peerIDs[1], peerIDs[1].String()
 
@@ -137,7 +134,7 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 	}
 
 	t.Run("no elected leaders, fallback to round-robin", func(t *testing.T) {
-		ids := generatePeerIDs(t, 10)
+		ids := test.GeneratePeerIDs(t, 10)
 
 		rl, err := NewReputationBased(ids, 1, 1, noLoadBlockCalls)
 		require.NoError(t, err)
@@ -157,7 +154,7 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 	})
 
 	t.Run("reading leader from elected leaders slice", func(t *testing.T) {
-		ids := generatePeerIDs(t, 4)
+		ids := test.GeneratePeerIDs(t, 4)
 		signerAid, signerBid, signerCid, signerDid := ids[0], ids[1], ids[2], ids[3]
 
 		rl, err := NewReputationBased(ids, 1, 1, noLoadBlockCalls)
@@ -247,7 +244,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 	})
 
 	// valid signer id-s to use in the following unit tests
-	peerIDs := generatePeerIDs(t, 3)
+	peerIDs := test.GeneratePeerIDs(t, 3)
 
 	t.Run("no authors excluded (excludeSize=0)", func(t *testing.T) {
 		signerAid, signerAkey := peerIDs[0], peerIDs[0].String()
@@ -428,7 +425,7 @@ func Test_ReputationBased(t *testing.T) {
 	t.Parallel()
 
 	// generate some peer IDs
-	peerIDs := generatePeerIDs(t, 10)
+	peerIDs := test.GeneratePeerIDs(t, 10)
 	// we mostly need ID's string representation so as a optimisation convert once here
 	peerIDstr := make([]string, len(peerIDs))
 	for k, v := range peerIDs {
@@ -585,18 +582,4 @@ func Test_ReputationBased(t *testing.T) {
 	for i := int(startIndex); i <= int(currentRound); i++ {
 		checkAuthor(rl, uint64(i))
 	}
-}
-
-func generatePeerIDs(t *testing.T, count int) peer.IDSlice {
-	t.Helper()
-	peers := make(peer.IDSlice, count)
-	for i := range peers {
-		_, publicKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-		require.NoError(t, err)
-		pubKeyBytes, err := publicKey.Raw()
-		require.NoError(t, err)
-		peers[i], err = network.NodeIDFromPublicKeyBytes(pubKeyBytes)
-		require.NoError(t, err)
-	}
-	return peers
 }

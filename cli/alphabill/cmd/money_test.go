@@ -23,6 +23,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -259,7 +261,6 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 		},
 		Node: &startNodeConfiguration{
 			Address:                    "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress:           "/ip4/127.0.0.1/tcp/26662",
 			LedgerReplicationMaxBlocks: 1000,
 			LedgerReplicationMaxTx:     10000,
 		},
@@ -324,7 +325,12 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
+		require.NoError(t, err)
+		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+		require.NoError(t, err)
+		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -334,7 +340,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New(logF)
-			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + moneyNodeAddr
+			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)

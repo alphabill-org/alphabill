@@ -11,6 +11,7 @@ import (
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,7 +40,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -72,7 +73,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -88,7 +89,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	callReq, err = cbor.Marshal(call)
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -120,7 +121,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -151,7 +152,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -175,7 +176,7 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`

@@ -51,8 +51,8 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 		callAttr.Gas = gas
 
 		clonedState := a.state.Clone()
-		res, err := a.callContract(clonedState, callAttr)
 		defer clonedState.Revert()
+		res, err := a.callContract(clonedState, callAttr)
 
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
@@ -67,10 +67,11 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 		mid := (hi + lo) / 2
 		failed, _, err := executable(mid)
 
-		// If the error is not nil(consensus error), it means the provided message
-		// call or transaction will never be accepted no matter how much gas it is
-		// assigned. Return the error directly, don't struggle any more
 		if err != nil {
+			// If the error is not nil(consensus error), it means the provided message
+			// call or transaction will never be accepted no matter how much gas it is
+			// assigned.
+			// Return the error and that is it.
 			util.WriteCBORError(w, err, http.StatusBadRequest, a.log)
 			return
 		}

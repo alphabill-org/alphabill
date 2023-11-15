@@ -69,6 +69,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 		Gas:   100000000000,
 	}
 	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
@@ -116,6 +117,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 		Gas:   22000,
 	}
 	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)

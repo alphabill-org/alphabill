@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var (
@@ -87,13 +89,24 @@ func (x *PublicKeyInfo) IsValid() error {
 		return ErrPubKeyInfoSigningKeyIsInvalid
 	}
 	if _, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey); err != nil {
-		return fmt.Errorf("invalid signing key, %w", err)
+		return fmt.Errorf("invalid signing key: %w", err)
 	}
 	if len(x.EncryptionPublicKey) == 0 {
 		return ErrPubKeyInfoEncryptionIsInvalid
 	}
 	if _, err := crypto.NewVerifierSecp256k1(x.EncryptionPublicKey); err != nil {
-		return fmt.Errorf("invalid encryption key, %w", err)
+		return fmt.Errorf("invalid encryption key: %w", err)
 	}
 	return nil
+}
+
+// NodeID - returns node identifier as peer.ID from encryption public key
+// The NodeIdentifier (string) could also be used with Decode(),
+// but there are a lot of unit tests that init the field as "test" or to some other invalid id
+func (x *PublicKeyInfo) NodeID() (peer.ID, error) {
+	pKey, err := p2pcrypto.UnmarshalSecp256k1PublicKey(x.EncryptionPublicKey)
+	if err != nil {
+		return "", fmt.Errorf("encryption key marshal error: %w", err)
+	}
+	return peer.IDFromPublicKey(pKey)
 }

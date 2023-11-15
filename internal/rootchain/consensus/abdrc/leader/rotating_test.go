@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/stretchr/testify/require"
 
 	p2ppeer "github.com/libp2p/go-libp2p/core/peer"
@@ -34,7 +35,7 @@ func TestNewRoundRobin_NofRoundsZero(t *testing.T) {
 
 func TestRoundRobin_Normal(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := generatePeerIDs(t, nofPeers)
+	persistentPeers := test.GeneratePeerIDs(t, nofPeers)
 	sort.Sort(persistentPeers)
 
 	ls, err := NewRoundRobin(persistentPeers, 1)
@@ -50,7 +51,7 @@ func TestRoundRobin_Normal(t *testing.T) {
 
 func TestRoundRobin_NormalTwoRounds(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := generatePeerIDs(t, nofPeers)
+	persistentPeers := test.GeneratePeerIDs(t, nofPeers)
 	sort.Sort(persistentPeers)
 
 	// two rounds have the same leader
@@ -72,7 +73,7 @@ func TestRoundRobin_NormalTwoRounds(t *testing.T) {
 
 func TestRoundRobin_IsValidLeader(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := generatePeerIDs(t, nofPeers)
+	persistentPeers := test.GeneratePeerIDs(t, nofPeers)
 	sort.Sort(persistentPeers)
 
 	ls, err := NewRoundRobin(persistentPeers, 1)

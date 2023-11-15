@@ -29,6 +29,19 @@ EOT
   done
   return 0
 }
+# default to get the set-up up and running configure root nodes as bootnodes
+function generate_boot_nodes() {
+    local rootPort=$1
+    local bootNodes=""
+    for keyf in testab/rootchain*/rootchain/keys.json
+    do
+      id=$(build/alphabill identifier -k $keyf | tail -n1)
+      bootNodes="$id@/ip4/127.0.0.1/tcp/$rootPort,$bootNodes"
+      ((rootPort=rootPort+1))
+    done
+   bootNodes=${bootNodes::-1}
+   echo "$bootNodes"
+}
 
 # generates genesis files
 # expects two arguments
@@ -82,7 +95,7 @@ function generate_root_genesis() {
   # generate individual root node genesis files
   for i in $(seq 1 "$1")
   do
-    build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=300 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
+    build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=400 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
   done
   # if only one root node, then we are done
   if [ $1 == 1 ]; then
@@ -105,15 +118,7 @@ function start_root_nodes() {
   local port=26662
   # create a bootnodes
   local bootNodes=""
-  for keyf in testab/rootchain*/rootchain/keys.json
-  do
-    id=$(build/alphabill identifier -k $keyf | tail -n1)
-    bootNodes="$id@/ip4/127.0.0.1/tcp/$port,$bootNodes"
-    ((port=port+1))
-  done
-  bootNodes=${bootNodes::-1}
-  echo $bootNodes
-  port=26662
+  bootNodes=$(generate_boot_nodes "$port")
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -165,11 +170,14 @@ local restPort=0
       return 1
       ;;
   esac
+  # create a bootnodes
+  local bootNodes=""
+  bootNodes=$(generate_boot_nodes "26662")
   # Start nodes
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log  2>&1 &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -a "/ip4/127.0.0.1/tcp/$aPort" --bootnodes="$bootNodes" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))

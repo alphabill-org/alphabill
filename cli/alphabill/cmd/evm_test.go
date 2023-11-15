@@ -22,6 +22,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,13 +60,17 @@ func TestRunEvmNode(t *testing.T) {
 		require.NoError(t, err)
 
 		listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
-
+		rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
+		require.NoError(t, err)
+		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+		require.NoError(t, err)
+		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
 			dbLocation := homeDir + "/tx.db"
 			cmd = New(logF)
-			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --rest-server-address " + listenAddr
+			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
@@ -122,7 +128,12 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	require.NoError(t, err)
 	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 	require.NoError(t, err)
-	_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
+	require.NoError(t, err)
+	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	require.NoError(t, err)
+	bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
+	_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -134,7 +145,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	go func() {
 		dbLocation := homeDir + "/tx.db"
 		cmd = New(logF)
-		args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --rest-server-address " + listenAddr
+		args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		err = cmd.addAndExecuteCommand(ctx)

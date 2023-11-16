@@ -195,9 +195,9 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				defer os.Unsetenv(en[0])
 			}
 
-			abApp := New(logger.LoggerBuilder(t))
+			abApp := New(logger.LoggerBuilder(t), Opts.NodeRunFunc(shardRunFunc))
 			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
-			err := abApp.WithOpts(Opts.NodeRunFunc(shardRunFunc)).Execute(context.Background())
+			err := abApp.Execute(context.Background())
 			require.NoError(t, err, "executing app command")
 			require.Equal(t, tt.expectedConfig.Node, actualConfig.Node)
 			// do not compare logger/loggerBuilder
@@ -238,10 +238,10 @@ logger-config: "` + logCfgFilename + `"
 		return nil
 	}
 
-	abApp := New(logger.LoggerBuilder(t))
+	abApp := New(logger.LoggerBuilder(t), Opts.NodeRunFunc(runFunc))
 	args := "money --config=" + cfgFilename
 	abApp.baseCmd.SetArgs(strings.Split(args, " "))
-	err := abApp.WithOpts(Opts.NodeRunFunc(runFunc)).Execute(context.Background())
+	err := abApp.Execute(context.Background())
 	require.NoError(t, err, "executing app command")
 	// do not compare logger/loggerBuilder
 	actualConfig.Base.Logger = nil
@@ -313,7 +313,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		cmd := New(logF)
 		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.addAndExecuteCommand(context.Background())
+		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
@@ -343,7 +343,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-			err = cmd.addAndExecuteCommand(ctx)
+			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()

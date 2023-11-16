@@ -52,7 +52,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node
 	cmd = New(logF)
@@ -61,7 +61,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
 }
@@ -136,7 +136,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 			args := "root --home " + homeDir + " --db=" + dbLocation + " --genesis-file " + rootGenesis + " -k " + rootKeyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err := cmd.addAndExecuteCommand(ctx)
+			err := cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
@@ -193,7 +193,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
+	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
@@ -206,7 +206,7 @@ func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+	require.ErrorContains(t, cmd.Execute(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
 
 func Test_Start_2_DRCNodes(t *testing.T) {
@@ -220,7 +220,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node 1
 	genesisFileDirN1 := filepath.Join(homeDir, defaultRootChainDir+"1")
@@ -231,7 +231,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node 2
 	genesisFileDirN2 := filepath.Join(homeDir, defaultRootChainDir+"2")
@@ -242,7 +242,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// combine root genesis files
 	cmd = New(logF)
@@ -251,7 +251,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --root-genesis=" + filepath.Join(genesisFileDirN1, rootGenesisFileName) +
 		" --root-genesis=" + filepath.Join(genesisFileDirN2, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
@@ -267,7 +267,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 			keyPath := filepath.Join(homeDir, defaultRootChainDir+"1", defaultKeysFileName)
 			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err = cmd.addAndExecuteCommand(ctx)
+			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()

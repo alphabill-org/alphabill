@@ -546,7 +546,7 @@ func doExecTokensCmd(t *testing.T, homedir string, command string) (*testConsole
 	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-	return outputWriter, cmd.addAndExecuteCommand(context.Background())
+	return outputWriter, cmd.Execute(context.Background())
 }
 
 func randomFungibleTokenTypeID(t *testing.T) types.UnitID {

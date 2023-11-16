@@ -214,6 +214,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		}
 	}
 	// start root nodes
+	obs := observability.NOPMetrics()
 	for i, rn := range r.Nodes {
 		rootPeer := rootPeers[i]
 		log := r.log.With(logger.NodeID(rootPeer.ID()))
@@ -234,11 +235,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, obs, log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs, log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}

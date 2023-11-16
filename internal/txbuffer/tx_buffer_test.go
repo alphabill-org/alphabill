@@ -38,7 +38,6 @@ func Test_TxBuffer_New(t *testing.T) {
 		require.EqualValues(t, testBufferSize, cap(buffer.transactionsCh))
 		require.NotNil(t, buffer.transactions)
 		require.NotNil(t, buffer.log)
-		require.NotNil(t, buffer.mCount)
 		require.NotNil(t, buffer.mDur)
 	})
 }

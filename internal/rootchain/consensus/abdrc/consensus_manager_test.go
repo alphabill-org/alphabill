@@ -30,6 +30,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -66,7 +67,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)))
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, observability.NOPMetrics(), testlogger.New(t).With(logger.NodeID(id)))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -602,12 +603,14 @@ func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 
 	t.Run("untyped nil msg", func(t *testing.T) {
 		cm := &ConsensusManager{}
+		require.NoError(t, cm.initMetrics(observability.NOPMetrics()))
 		err := cm.handleRootNetMsg(context.Background(), nil)
 		require.EqualError(t, err, `unknown message type <nil>`)
 	})
 
 	t.Run("type not known for the handler", func(t *testing.T) {
 		cm := &ConsensusManager{}
+		require.NoError(t, cm.initMetrics(observability.NOPMetrics()))
 		err := cm.handleRootNetMsg(context.Background(), "foobar")
 		require.EqualError(t, err, `unknown message type string`)
 	})

@@ -217,7 +217,10 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating counter for processed tx: %w", err)
 	}
-	n.execTxDur, err = m.Float64Histogram("exec.tx.time", metric.WithUnit("s"), metric.WithDescription("How long it took to process tx (validate and execute)"))
+	n.execTxDur, err = m.Float64Histogram("exec.tx.time",
+		metric.WithDescription("How long it took to process tx (validate and execute)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(200e-6, 400e-6, 800e-6, 0.0016, 0.003, 0.006, 0.015, 0.03))
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed tx: %w", err)
 	}
@@ -226,7 +229,11 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating counter for processed messages: %w", err)
 	}
-	n.execMsgDur, err = m.Float64Histogram("exec.msg.time", metric.WithUnit("s"), metric.WithDescription("How long it took to process AB network message"))
+	n.execMsgDur, err = m.Float64Histogram("exec.msg.time",
+		metric.WithDescription("How long it took to process AB network message"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05),
+	)
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
 	}

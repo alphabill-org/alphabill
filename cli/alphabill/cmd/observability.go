@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/instrumentation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
@@ -109,45 +108,8 @@ func (o *observability) initMeterProvider(exporter string, res *resource.Resourc
 		return nil, fmt.Errorf("unsupported exporter %q", exporter)
 	}
 
-	μs := time.Microsecond.Seconds()
 	return sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(res),
 		sdkmetric.WithReader(reader),
-		sdkmetric.WithView(
-			sdkmetric.NewView(
-				sdkmetric.Instrument{
-					Name:  "queued",
-					Scope: instrumentation.Scope{Name: "txbuffer"},
-				},
-				sdkmetric.Stream{
-					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-						// 1e-9s = 1ns ; 1e-6s = 1μs ; 0.001s = 1ms
-						Boundaries: []float64{100e-6, 500e-6, 0.001, 0.01, 0.1, 0.2, 0.4, 0.8, 1.5, 3, 6},
-					},
-				},
-			),
-			sdkmetric.NewView(
-				sdkmetric.Instrument{
-					Name:  "exec.tx.time",
-					Scope: instrumentation.Scope{Name: "partition.node"},
-				},
-				sdkmetric.Stream{
-					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-						Boundaries: []float64{200 * μs, 400 * μs, 800 * μs, 0.0016, 0.003, 0.006, 0.015, 0.03},
-					},
-				},
-			),
-			sdkmetric.NewView(
-				sdkmetric.Instrument{
-					Name:  "exec.msg.time",
-					Scope: instrumentation.Scope{Name: "partition.node"},
-				},
-				sdkmetric.Stream{
-					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-						Boundaries: []float64{100 * μs, 200 * μs, 400 * μs, 800 * μs, 0.0016, 0.01, 0.05},
-					},
-				},
-			),
-		),
 	), nil
 }

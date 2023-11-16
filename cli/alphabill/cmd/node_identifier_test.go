@@ -18,7 +18,7 @@ func TestIdentifier_KeysNotFound(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", file))
 }
 
@@ -31,6 +31,6 @@ func TestIdentifier_Ok(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 }

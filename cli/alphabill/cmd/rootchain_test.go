@@ -14,6 +14,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserv "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -157,7 +158,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
@@ -288,7 +289,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

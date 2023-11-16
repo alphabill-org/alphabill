@@ -21,9 +21,8 @@ import (
 
 const (
 	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultTxBufferSize                = 1000
 	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10 * DefaultTxBufferSize
+	DefaultReplicationMaxTx     uint32 = 10000
 )
 
 var (
@@ -151,12 +150,11 @@ func (c *configuration) initMissingDefaults() error {
 	if c.blockStore == nil {
 		c.blockStore = memorydb.New()
 	}
-
-	var err error
-
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
+
+	var err error
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return fmt.Errorf("root trust base init error, %w", err)

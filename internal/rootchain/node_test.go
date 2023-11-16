@@ -114,7 +114,7 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	log := testlogger.New(t).With(logger.NodeID(id))
@@ -142,9 +142,9 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionNetMock := testnetwork.NewMockNetwork()
+	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
-	rootNetMock := testnetwork.NewMockNetwork()
+	rootNetMock := testnetwork.NewMockNetwork(t)
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	log := testlogger.New(t).With(logger.NodeID(id))
@@ -162,7 +162,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 }
 
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -192,7 +192,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 }
 
 func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -226,7 +226,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 }
 
 func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -253,7 +253,7 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -295,7 +295,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -346,7 +346,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -374,7 +374,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -402,7 +402,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 }
 
 func TestRootValidatorTest_SimulateResponse(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -443,7 +443,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 }
 
 func TestRootValidator_ResultUnknown(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, _, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
@@ -470,7 +470,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 }
 
 func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)

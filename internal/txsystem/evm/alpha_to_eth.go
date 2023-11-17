@@ -3,6 +3,7 @@ package evm
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/big"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -47,16 +48,10 @@ func alphaToWei(alpha uint64) *big.Int {
 	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
 }
 
-// weiToAlpha - converts from wei to alpha, rounding down.
+// weiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
 func weiToAlpha(wei *big.Int) uint64 {
-	return new(big.Int).Div(wei, alpha2Wei).Uint64()
-}
-
-// weiToAlphaWithReminder - converts from wei to alpha, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
-// and returns the mod as reminder in wei
-func weiToAlphaWithReminder(wei *big.Int) (*big.Int, *big.Int) {
-	remainder := new(big.Int)
-	amount, reminder := new(big.Int).DivMod(wei, alpha2Wei, remainder)
-	return amount, reminder
+	weif, _ := wei.Float64()
+	a2wf, _ := alpha2Wei.Float64()
+	return uint64(math.Floor((weif / a2wf) + 0.5))
 }

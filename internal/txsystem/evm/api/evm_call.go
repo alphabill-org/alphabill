@@ -94,6 +94,11 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 	if err != nil {
 		return nil, fmt.Errorf("failed to set fake balance %w", err)
 	}
+	// Verify balance
+	balance := stateDB.GetBalance(call.FromAddr())
+	if balance.Cmp(new(big.Int).Mul(a.gasUnitPrice, new(big.Int).SetUint64(call.Gas))) == -1 {
+		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
+	}
 	// Execute the call.
 	msg := &core.Message{
 		From:              call.FromAddr(),

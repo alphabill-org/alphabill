@@ -14,6 +14,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserv "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -51,7 +52,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node
 	cmd = New(logF)
@@ -60,56 +61,40 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
 }
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 	t.Run("ok: nil", func(t *testing.T) {
-		cfg := &rootNodeConfig{}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("")
 		require.NoError(t, err)
 		require.NotNil(t, bootNodes)
 		require.Empty(t, bootNodes)
 	})
 	t.Run("err: invalid parameter", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah")
 		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid node description", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah@someip@someif",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah@someip@someif")
 		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah@someip@someif")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid node id", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "blah@someip",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("blah@someip")
 		require.ErrorContains(t, err, "invalid bootstrap node id: blah")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("err: invalid address", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip")
 		require.ErrorContains(t, err, "invalid bootstrap node address: someip")
 		require.Nil(t, bootNodes)
 	})
 	t.Run("ok", func(t *testing.T) {
-		cfg := &rootNodeConfig{
-			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366",
-		}
-		bootNodes, err := cfg.getBootStrapNodes()
+		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366")
 		require.NoError(t, err)
 		require.Len(t, bootNodes, 1)
 		require.Equal(t, bootNodes[0].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz")
@@ -151,30 +136,31 @@ func Test_StartMonolithicNode(t *testing.T) {
 			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 			args := "root --home " + homeDir + " --db=" + dbLocation + " --genesis-file " + rootGenesis + " -k " + rootKeyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err := cmd.addAndExecuteCommand(ctx)
+			err := cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
 		log := logger.New(t)
-		cfg := &startNodeConfiguration{
-			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: address,
-		}
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		require.NoError(t, err)
+		cfg := &startNodeConfiguration{
+			Address:            "/ip4/127.0.0.1/tcp/26652",
+			BootStrapAddresses: rootID.String() + "@" + address,
+		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
-		require.NoError(t, err)
+
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
@@ -207,7 +193,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
+	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
@@ -220,7 +206,7 @@ func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+	require.ErrorContains(t, cmd.Execute(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
 
 func Test_Start_2_DRCNodes(t *testing.T) {
@@ -234,7 +220,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node 1
 	genesisFileDirN1 := filepath.Join(homeDir, defaultRootChainDir+"1")
@@ -245,7 +231,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node 2
 	genesisFileDirN2 := filepath.Join(homeDir, defaultRootChainDir+"2")
@@ -256,7 +242,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// combine root genesis files
 	cmd = New(logF)
@@ -265,7 +251,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		" --root-genesis=" + filepath.Join(genesisFileDirN1, rootGenesisFileName) +
 		" --root-genesis=" + filepath.Join(genesisFileDirN2, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
@@ -281,29 +267,29 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 			keyPath := filepath.Join(homeDir, defaultRootChainDir+"1", defaultKeysFileName)
 			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err = cmd.addAndExecuteCommand(ctx)
+			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
 		log := logger.New(t)
-		cfg := &startNodeConfiguration{
-			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: address,
-		}
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		require.NoError(t, err)
+		cfg := &startNodeConfiguration{
+			Address:            "/ip4/127.0.0.1/tcp/26652",
+			BootStrapAddresses: rootID.String() + "@" + address,
+		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
-		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

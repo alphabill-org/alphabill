@@ -16,9 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -662,60 +659,4 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, record)
 	require.Nil(t, proof)
-}
-
-func Test_txProcessorForRound(t *testing.T) {
-	t.Run("unknown leader", func(t *testing.T) {
-		n := &Node{log: logger.New(t)}
-		require.Nil(t, n.txProcessorForRound(22, UnknownLeader))
-	})
-
-	t.Run("node is not the leader", func(t *testing.T) {
-		// expected: the processor func will forward tx to the leader
-		nw := testnetwork.NewMockNetwork()
-		n := &Node{
-			configuration: &configuration{hashAlgorithm: gocrypto.SHA256},
-			network:       nw,
-			observe:       observability.NOPMetrics(),
-			log:           logger.New(t),
-		}
-		// inits n.peer but does not override n.network
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
-		require.NoError(t, n.initMetrics(n.observe))
-
-		f := n.txProcessorForRound(22, "leaderNodeID")
-		require.NotNil(t, f)
-
-		tx := testtransaction.NewTransactionOrder(t)
-		f(context.Background(), tx)
-		// check that the tx has been sent to the leader
-		msgs := nw.SentMessages(network.ProtocolInputForward)
-		require.Contains(t, msgs, testnetwork.PeerMessage{ID: "leaderNodeID", Message: tx})
-	})
-
-	t.Run("node is the leader", func(t *testing.T) {
-		// expected: tx will be added to proposedTransactions
-		txSys := &testtxsystem.CounterTxSystem{}
-		txVal, err := NewDefaultTxValidator([]byte{0, 0, 0, 0})
-		require.NoError(t, err)
-		n := &Node{
-			configuration:     &configuration{hashAlgorithm: gocrypto.SHA256},
-			transactionSystem: txSys,
-			txValidator:       txVal,
-			observe:           observability.NOPMetrics(),
-			log:               logger.New(t),
-		}
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t)))
-		require.NoError(t, n.initMetrics(n.observe))
-
-		tx := testtransaction.NewTransactionOrder(t)
-		tx.Payload.ClientMetadata.Timeout = 25
-
-		f := n.txProcessorForRound(22, n.peer.ID())
-		require.NotNil(t, f)
-
-		f(context.Background(), tx)
-		require.Len(t, n.proposedTransactions, 1)
-		require.EqualValues(t, 1, txSys.ExecuteCountDelta)
-	})
 }

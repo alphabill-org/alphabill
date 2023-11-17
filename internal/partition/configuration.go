@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -16,22 +17,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 const (
 	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultTxBufferSize                = 1000
 	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10 * DefaultTxBufferSize
+	DefaultReplicationMaxTx     uint32 = 10000
 )
 
 var (
-	ErrTxSystemIsNil          = errors.New("transaction system is nil")
-	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
-	ErrGenesisIsNil           = errors.New("genesis is nil")
-	ErrInvalidRootHash        = errors.New("tx system root hash does not equal to genesis file hash")
-	ErrInvalidSummaryValue    = errors.New("tx system summary value does not equal to genesis file summary value")
+	ErrTxSystemIsNil       = errors.New("transaction system is nil")
+	ErrGenesisIsNil        = errors.New("genesis is nil")
+	ErrInvalidRootHash     = errors.New("tx system root hash does not equal to genesis file hash")
+	ErrInvalidSummaryValue = errors.New("tx system summary value does not equal to genesis file summary value")
 )
 
 type (
@@ -47,8 +45,6 @@ type (
 		signer                      crypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		rootTrustBase               map[string]crypto.Verifier
-		rootChainAddress            multiaddr.Multiaddr
-		rootChainID                 peer.ID
 		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
@@ -105,13 +101,6 @@ func WithT1Timeout(t1Timeout time.Duration) NodeOption {
 	}
 }
 
-func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeOption {
-	return func(c *configuration) {
-		c.rootChainAddress = address
-		c.rootChainID = id
-	}
-}
-
 func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 	return func(c *configuration) {
 		c.eventHandler = eh
@@ -125,7 +114,7 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}
@@ -144,7 +133,7 @@ func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.Partiti
 		option(c)
 	}
 	// init default for those not specified by the user
-	if err := c.initMissingDefaults(log); err != nil {
+	if err := c.initMissingDefaults(); err != nil {
 		return nil, fmt.Errorf("failed to initiate default parameters, %w", err)
 	}
 	if err := c.isGenesisValid(txs); err != nil {
@@ -154,19 +143,18 @@ func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.Partiti
 }
 
 // initMissingDefaults loads missing default configuration.
-func (c *configuration) initMissingDefaults(log *slog.Logger) error {
+func (c *configuration) initMissingDefaults() error {
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
 	}
 	if c.blockStore == nil {
 		c.blockStore = memorydb.New()
 	}
-
-	var err error
-
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
+
+	var err error
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return fmt.Errorf("root trust base init error, %w", err)
@@ -247,4 +235,17 @@ func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (crypto.Verif
 		}
 	}
 	return nil, fmt.Errorf("signing public key for id %v not found", nodeIdentifier)
+}
+
+func (c *configuration) getRootNodes() (peer.IDSlice, error) {
+	nodes := make(peer.IDSlice, len(c.genesis.RootValidators))
+	for i, node := range c.genesis.RootValidators {
+		id, err := node.NodeID()
+		if err != nil {
+			return nil, fmt.Errorf("invalid root node id error: %w", err)
+		}
+		nodes[i] = id
+	}
+	sort.Sort(nodes)
+	return nodes, nil
 }

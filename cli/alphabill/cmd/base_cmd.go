@@ -20,14 +20,11 @@ type (
 )
 
 // New creates a new Alphabill application
-func New(logF LoggerFactory) *alphabillApp {
+func New(logF LoggerFactory, opts ...interface{}) *alphabillApp {
 	baseCmd, baseConfig := newBaseCmd(logF)
-	return &alphabillApp{baseCmd, baseConfig, nil}
-}
-
-func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
-	a.opts = opts
-	return a
+	app := &alphabillApp{baseCmd, baseConfig, opts}
+	app.addSubcommands()
+	return app
 }
 
 // Execute adds all child commands and runs the application
@@ -38,10 +35,10 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 		}
 	}()
 
-	return a.addAndExecuteCommand(ctx)
+	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
+func (a *alphabillApp) addSubcommands() {
 	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(a.opts)))
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
@@ -54,7 +51,6 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newTokensBackendCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
-	return a.baseCmd.ExecuteContext(ctx)
 }
 
 func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {

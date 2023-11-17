@@ -26,7 +26,7 @@ func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 
 	s := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", s))
@@ -37,7 +37,7 @@ func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
@@ -56,7 +56,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
 	require.NoFileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
 }
@@ -75,7 +75,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, kf)
@@ -95,7 +95,7 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
@@ -116,7 +116,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, kf)
@@ -132,7 +132,7 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
@@ -166,7 +166,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, 2, sdrFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)

@@ -101,11 +101,11 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
-func (c *rootNodeConfig) getBootStrapNodes() ([]peer.AddrInfo, error) {
-	if c.BootStrapAddresses == "" {
+func getBootStrapNodes(bootNodesStr string) ([]peer.AddrInfo, error) {
+	if bootNodesStr == "" {
 		return []peer.AddrInfo{}, nil
 	}
-	nodeStrings := splitAndTrim(c.BootStrapAddresses)
+	nodeStrings := splitAndTrim(bootNodesStr)
 	bootNodes := make([]peer.AddrInfo, len(nodeStrings))
 	for i, str := range nodeStrings {
 		l := strings.Split(str, "@")
@@ -214,7 +214,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 }
 
 func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger, prom prometheus.Registerer) (*network.Peer, error) {
-	bootNodes, err := cfg.getBootStrapNodes()
+	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}

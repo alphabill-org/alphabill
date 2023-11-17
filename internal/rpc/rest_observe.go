@@ -24,7 +24,10 @@ func instrumentHTTP(mtr metric.Meter, log *slog.Logger) func(next http.Handler) 
 		log.Error("creating calls counter", logger.Error(err))
 		return passthroughMW
 	}
-	callDur, err := mtr.Float64Histogram("duration", metric.WithUnit("s"), metric.WithDescription("How long it took to serve the request"))
+	callDur, err := mtr.Float64Histogram("duration",
+		metric.WithDescription("How long it took to serve the request"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1))
 	if err != nil {
 		log.Error("creating duration histogram", logger.Error(err))
 		return passthroughMW

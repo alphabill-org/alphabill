@@ -304,7 +304,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 	return abPartition, nil
 }
 
-func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
+func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []peer.AddrInfo) error {
 	n.ctx = ctx
 	// start Nodes
 	trustBase, err := genesis.NewValidatorTrustBase(n.partitionGenesis.RootValidators)
@@ -325,7 +325,9 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			return fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
-		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
+		// set root node as bootstrap peer
+		nd.peerConf.BootstrapPeers = bootNodes
+		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
 			partition.WithTxIndexer(txIndexer),
@@ -410,6 +412,15 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	}, nil
 }
 
+func getBootstrapNodes(t *testing.T, root *RootPartition) []peer.AddrInfo {
+	require.NotNil(t, root)
+	bootNodes := make([]peer.AddrInfo, len(root.Nodes))
+	for i, n := range root.Nodes {
+		bootNodes[i] = peer.AddrInfo{ID: n.id, Addrs: []multiaddr.Multiaddr{n.addr}}
+	}
+	return bootNodes
+}
+
 func (a *AlphabillNetwork) Start(t *testing.T) error {
 	a.RootPartition.log = testlogger.New(t)
 	// create context
@@ -418,9 +429,10 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 		ctxCancel()
 		return fmt.Errorf("failed to start root partition, %w", err)
 	}
+	bootNodes := getBootstrapNodes(t, a.RootPartition)
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
+		if err := part.start(t, ctx, bootNodes); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
@@ -581,7 +593,6 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 					}
 				}
 			}
-
 		}
 		return false
 	}

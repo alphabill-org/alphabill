@@ -75,7 +75,7 @@ func statusCodeOfTxError(err error) string {
 	switch {
 	case err == nil:
 		return "ok"
-	case errors.Is(err, txbuffer.ErrBufferIsFull):
+	case errors.Is(err, txbuffer.ErrTxBufferFull):
 		return "buf.full"
 	case errors.Is(err, txbuffer.ErrTxInBuffer):
 		return "buf.double"

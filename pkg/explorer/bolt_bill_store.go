@@ -115,7 +115,7 @@ func (s *boltBillStoreTx) GetBlockByBlockNumber(blockNumber uint64) (*types.Bloc
 	if err != nil {
 		return nil, err
 	}
-	return b , nil
+	return b, nil
 }
 
 func (s *boltBillStoreTx) SetBlock(b *types.Block) error {
@@ -144,37 +144,26 @@ func (s *boltBillStoreTx) GetBlocks(dbStartKey []byte, count int) (res []*types.
 
 func (s *boltBillStoreTx) getBlocks(tx *bolt.Tx, dbStartKey []byte, count int) ([]*types.Block, []byte, error) {
 	pb := tx.Bucket(blockBucket)
+
 	if pb == nil {
 		return nil, nil, fmt.Errorf("bucket %s not found", blockBucket)
 	}
 
+	c := pb.Cursor()
+
 	var res []*types.Block
 	var prevKey []byte
 
-	err := pb.ForEach(func(k, v []byte) error {
-		b := pb.Bucket(k)
-		if b == nil {
-			return nil
+	for k, v := c.Seek(dbStartKey); k != nil && count > 0; k, v = c.Prev() {
+		rec := &types.Block{}
+		if err := json.Unmarshal(v, rec); err != nil {
+			return nil, nil, fmt.Errorf("failed to deserialize tx history record: %w", err)
 		}
-
-		c := b.Cursor()
-
-		for k, v := c.Seek(dbStartKey); k != nil && count > 0; k, v = c.Prev() {
-			rec := &types.Block{}
-			if err := cbor.Unmarshal(v, rec); err != nil {
-				return fmt.Errorf("failed to deserialize block record: %w", err)
-			}
-			res = append(res, rec)
-			if count--; count == 0 {
-				prevKey, _ = c.Prev()
-				break
-			}
+		res = append(res, rec)
+		if count--; count == 0 {
+			prevKey, _ = c.Prev()
+			break
 		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, nil, err
 	}
 
 	return res, prevKey, nil

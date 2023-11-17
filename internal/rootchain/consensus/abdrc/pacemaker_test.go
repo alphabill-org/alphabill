@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
 const testLocalTimeout = time.Duration(10000) * time.Millisecond
@@ -16,7 +17,8 @@ const testBlockRate = time.Duration(1000) * time.Millisecond
 
 func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
+	require.NoError(t, err)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
 
@@ -47,7 +49,8 @@ func TestRoundState_AdvanceRoundQC(t *testing.T) {
 
 func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
+	require.NoError(t, err)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
@@ -86,7 +89,8 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 func TestRoundState_RegisterVote(t *testing.T) {
 	const lastCommittedRound = uint64(6)
 	quorum := NewDummyQuorum(3, 0)
-	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
+	require.NoError(t, err)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
@@ -108,7 +112,8 @@ func TestRoundState_RegisterVote(t *testing.T) {
 func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	const lastCommittedRound = uint64(5)
 	quorum := NewDummyQuorum(3, 0)
-	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
+	require.NoError(t, err)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
@@ -138,7 +143,8 @@ func TestPacemaker_setup(t *testing.T) {
 	t.Run("state of new instance", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		require.NotNil(t, pacemaker)
 		require.Equal(t, minRoundLen, pacemaker.minRoundLen)
 		require.Equal(t, roundTO, pacemaker.maxRoundLen)
@@ -166,7 +172,8 @@ func TestPacemaker_setup(t *testing.T) {
 	t.Run("Reset and Stop", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		require.NotNil(t, pacemaker)
 
 		// assign some values to fields, we do not care about validity, we
@@ -220,7 +227,8 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 	t.Run("stepping through statuses", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -274,7 +282,8 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 	t.Run("cancelling ctx stops next event being sent", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -311,7 +320,8 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		// do not "leak" into next round triggering event early
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		srcDone := pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
@@ -373,7 +383,8 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		// get reset and fields which need to retain their value do
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		pacemaker.Reset(4)
 		defer pacemaker.Stop()
 
@@ -405,7 +416,8 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		// cancelled (ie disappear from event chan)
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		pacemaker.Reset(4)
 		defer pacemaker.Stop()
 
@@ -434,7 +446,8 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		const TOcycles = 3 // test length, ie how many timeout cycles to count events
 		minRoundLen := 200 * time.Millisecond
 		roundTO := 600 * time.Millisecond
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		pacemaker.Reset(4)
 		defer pacemaker.Stop()
 
@@ -476,7 +489,8 @@ func TestPacemaker_startNewRound(t *testing.T) {
 	t.Run("timeout vote causes timeout status", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
-		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		pacemaker.Reset(4)
 		defer pacemaker.Stop()
 
@@ -520,7 +534,8 @@ func TestPacemaker_setState(t *testing.T) {
 
 	t.Run("already in pmsRoundTimeout state", func(t *testing.T) {
 		roundTO := 500 * time.Millisecond
-		pacemaker := NewPacemaker(100*time.Millisecond, roundTO)
+		pacemaker, err := NewPacemaker(100*time.Millisecond, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		defer pacemaker.Stop()
 
 		// "force" status but do not write into event chan (ie event is already consumed)
@@ -549,7 +564,8 @@ func TestPacemaker_setState(t *testing.T) {
 
 	t.Run("switching to pmsRoundTimeout state", func(t *testing.T) {
 		roundTO := 500 * time.Millisecond
-		pacemaker := NewPacemaker(100*time.Millisecond, roundTO)
+		pacemaker, err := NewPacemaker(100*time.Millisecond, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
 		defer pacemaker.Stop()
 
 		// set current status something other than pmsRoundTimeout

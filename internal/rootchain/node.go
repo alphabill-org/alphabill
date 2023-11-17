@@ -7,6 +7,8 @@ import (
 	"log/slog"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -26,6 +28,10 @@ type (
 		ReceivedChannel() <-chan any
 	}
 
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+	}
+
 	MsgVerification interface {
 		IsValid(v crypto.Verifier) error
 	}
@@ -38,6 +44,8 @@ type (
 		net              PartitionNet
 		consensusManager consensus.Manager
 		log              *slog.Logger
+
+		bcrCount metric.Int64Counter // Block Certification Request count
 	}
 )
 
@@ -47,6 +55,7 @@ func New(
 	pNet PartitionNet,
 	ps partitions.PartitionConfiguration,
 	cm consensus.Manager,
+	observe Observability,
 	log *slog.Logger,
 ) (*Node, error) {
 	if p == nil {
@@ -65,7 +74,21 @@ func New(
 		consensusManager: cm,
 		log:              log,
 	}
+	if err := node.initMetrics(observe); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
+	}
 	return node, nil
+}
+
+func (n *Node) initMetrics(observe Observability) (err error) {
+	m := observe.Meter("rootchain")
+
+	n.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
+	if err != nil {
+		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
+	}
+
+	return nil
 }
 
 func (v *Node) Run(ctx context.Context) error {
@@ -135,13 +158,24 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	return nil
 }
 
-// onBlockCertificationRequest handles certification nodeRequest from partition nodes.
-// Partition nodes can only extend the stored/certified state
-func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) error {
+/*
+onBlockCertificationRequest handles Certification Request from partition nodes.
+Partition nodes can only extend the stored/certified state.
+*/
+func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) (rErr error) {
 	sysID32, err := req.SystemIdentifier.Id32()
 	if err != nil {
-		return fmt.Errorf("request contains invalid system identifier %X", req.SystemIdentifier)
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", "err.sysid"))))
+		return fmt.Errorf("request contains invalid system identifier %X: %w", req.SystemIdentifier, err)
 	}
+	defer func() {
+		status := "ok"
+		if rErr != nil {
+			status = "err"
+		}
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), attribute.Int("sysid", int(sysID32)))))
+	}()
+
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
@@ -154,8 +188,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return fmt.Errorf("reading last certified state: %w", err)
 	}
 	v.subscription.Subscribe(sysID32, req.NodeIdentifier)
-	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
-	if err != nil {
+	if err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
 		if se := v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); se != nil {
 			err = errors.Join(err, fmt.Errorf("sending latest cert: %w", se))

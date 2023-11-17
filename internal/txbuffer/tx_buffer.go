@@ -30,8 +30,7 @@ type (
 		hashAlgorithm  crypto.Hash
 		log            *slog.Logger
 
-		mCount metric.Int64UpDownCounter
-		mDur   metric.Float64Histogram
+		mDur metric.Float64Histogram
 	}
 
 	Observability interface {
@@ -87,7 +86,6 @@ func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byt
 
 	select {
 	case buf.transactionsCh <- tx:
-		buf.mCount.Add(ctx, 1)
 		buf.transactions[txId] = time.Now()
 	default:
 		return nil, ErrTxBufferFull
@@ -102,7 +100,6 @@ func (buf *TxBuffer) Remove(ctx context.Context) (*types.TransactionOrder, error
 		return nil, ctx.Err()
 	case tx := <-buf.transactionsCh:
 		buf.removeFromIndex(ctx, string(tx.Hash(buf.hashAlgorithm)))
-		buf.mCount.Add(ctx, -1)
 		return tx, nil
 	}
 }
@@ -127,10 +124,14 @@ func (buf *TxBuffer) removeFromIndex(ctx context.Context, id string) {
 func (buf *TxBuffer) initMetrics(obs Observability) (err error) {
 	m := obs.Meter("txbuffer")
 
-	if buf.mCount, err = m.Int64UpDownCounter(
+	if _, err = m.Int64ObservableUpDownCounter(
 		"count",
 		metric.WithDescription(`Number of transactions in the buffer.`),
 		metric.WithUnit("{transaction}"),
+		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
+			io.Observe(int64(len(buf.transactionsCh)))
+			return nil
+		}),
 	); err != nil {
 		return fmt.Errorf("creating tx counter: %w", err)
 	}
@@ -139,7 +140,7 @@ func (buf *TxBuffer) initMetrics(obs Observability) (err error) {
 		"queued",
 		metric.WithDescription("For how long transaction was in the buffer before being processed."),
 		metric.WithUnit("s"),
-		//metric.WithExplicitBucketBoundaries(...), // will be in v1.20?
+		metric.WithExplicitBucketBoundaries(100e-6, 500e-6, 0.001, 0.01, 0.1, 0.2, 0.4, 0.8, 1.5, 3, 6),
 	); err != nil {
 		return fmt.Errorf("creating duration histogram: %w", err)
 	}

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -50,6 +52,10 @@ type (
 		Update(qc *abtypes.QuorumCert, currentRound uint64) error
 	}
 
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+	}
+
 	ConsensusManager struct {
 		// channel via which validator sends "certification requests" to CM
 		certReqCh chan consensus.IRChangeRequest
@@ -79,12 +85,19 @@ type (
 		// state as other CMs
 		recovery *recoveryInfo
 		log      *slog.Logger
+
+		leaderCnt  metric.Int64Counter
+		execMsgCnt metric.Int64Counter
+		execMsgDur metric.Float64Histogram
+		timeoutCnt metric.Int64Counter
+		proposedCR metric.Int64Counter
+		fwdIRCRCnt metric.Int64Counter
 	}
 )
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
-	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, log *slog.Logger, opts ...consensus.Option) (*ConsensusManager, error) {
+	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, observe Observability, log *slog.Logger, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -121,7 +134,11 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 
 	tb, err := NewRootTrustBaseFromGenesis(rg.Root)
 	if err != nil {
-		return nil, fmt.Errorf("consensus root trust base init failed, %w", err)
+		return nil, fmt.Errorf("consensus root trust base init failed: %w", err)
+	}
+	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating Pacemaker: %w", err)
 	}
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
@@ -130,7 +147,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
-		pacemaker:      NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout),
+		pacemaker:      pm,
 		leaderSelector: leader,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(log),
@@ -142,7 +159,54 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		voteBuffer:     make(map[string]*abdrc.VoteMsg),
 		log:            log,
 	}
+	if err := consensusManager.initMetrics(observe); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
+	}
 	return consensusManager, nil
+}
+
+func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
+	m := observe.Meter("cm.distributed")
+
+	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
+		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
+			io.Observe(int64(x.pacemaker.GetCurrentRound()))
+			return nil
+		}))
+	if err != nil {
+		return fmt.Errorf("creating counter for round number: %w", err)
+	}
+
+	x.leaderCnt, err = m.Int64Counter("round.leader", metric.WithDescription("Number of times node has been round leader"))
+	if err != nil {
+		return fmt.Errorf("creating counter for leader count: %w", err)
+	}
+	x.timeoutCnt, err = m.Int64Counter("count.timeout", metric.WithDescription("Number of times node has created timeout vote for a round (once per round)"))
+	if err != nil {
+		return fmt.Errorf("creating counter for timeout count: %w", err)
+	}
+	x.proposedCR, err = m.Int64Counter("count.proposed.cr", metric.WithDescription("Number of Change Requests included into proposal by the round leader"))
+	if err != nil {
+		return fmt.Errorf("creating counter for proposal change requests count: %w", err)
+	}
+	x.fwdIRCRCnt, err = m.Int64Counter("count.fwd.ircr", metric.WithDescription(`Number of IR Change Requests messages forwarded ("lost" messages)`))
+	if err != nil {
+		return fmt.Errorf("creating counter for proposal change requests count: %w", err)
+	}
+
+	x.execMsgCnt, err = m.Int64Counter("exec.msg.count", metric.WithDescription("Number of messages processed by the consensus manager"))
+	if err != nil {
+		return fmt.Errorf("creating counter for processed messages: %w", err)
+	}
+	x.execMsgDur, err = m.Float64Histogram("exec.msg.time",
+		metric.WithDescription("How long it took to process message"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05))
+	if err != nil {
+		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	return nil
 }
 
 func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls Leader, err error) {
@@ -243,7 +307,17 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 handleRootNetMsg routes messages from "root net" iow messages sent by other rootchain
 validators to appropriate message handler.
 */
-func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) error {
+func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) (rErr error) {
+	defer func(start time.Time) {
+		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+		status := "ok"
+		if rErr != nil {
+			status = "err"
+		}
+		x.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
+		x.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+	}(time.Now())
+
 	switch mt := msg.(type) {
 	case *abdrc.IrChangeReqMsg:
 		return x.onIRChangeMsg(ctx, mt)
@@ -277,6 +351,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 			x.log.WarnContext(ctx, "signing timeout", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			return
 		}
+		x.timeoutCnt.Add(ctx, 1)
 		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
@@ -347,7 +422,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.log.WarnContext(ctx, "node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
+	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(irChangeMsg.IrChangeReq.SystemIdentifier)), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}
@@ -667,12 +742,14 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		x.log.InfoContext(ctx, fmt.Sprintf("new round start, not leader, awaiting proposal from %s", l.ShortString()), logger.Round(round))
 		return
 	}
+
+	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader", logger.Round(round))
 	// find partitions with T2 timeouts
 	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
-	// NB! error here is not fatal, still make a proposal, hopefully the next node will generate timeout
-	// requests for partitions this node failed to query
 	if err != nil {
+		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
+		// requests for partitions this node failed to query
 		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err), logger.Round(round))
 	}
 	proposalMsg := &abdrc.ProposalMsg{
@@ -681,21 +758,23 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload: x.irReqBuffer.GeneratePayload(round, timeoutIds, func(id types.SystemID32) bool {
-				return x.blockStore.IsChangeInProgress(id)
-			}),
-			Qc: x.blockStore.GetHighQc(),
+			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, x.blockStore.IsChangeInProgress),
+			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}
 	// safety makes simple sanity checks and signs if everything is ok
 	if err = x.safety.Sign(proposalMsg); err != nil {
-		x.log.WarnContext(ctx, "failed to send proposal message, message signing failed", logger.Error(err), logger.Round(round))
+		x.log.WarnContext(ctx, "failed to send proposal message, signing failed", logger.Error(err), logger.Round(round))
+		return
 	}
 	// broadcast proposal message (also to self)
 	x.log.LogAttrs(ctx, slog.LevelDebug, "broadcast proposal", logger.Data(proposalMsg.Block.String()), logger.Round(round))
 	if err = x.net.Send(ctx, proposalMsg, x.leaderSelector.GetNodes()...); err != nil {
-		x.log.WarnContext(ctx, "failed to send proposal message", logger.Error(err), logger.Round(round))
+		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err), logger.Round(round))
+	}
+	for _, cr := range proposalMsg.Block.Payload.Requests {
+		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(cr.SystemIdentifier)), attribute.String("reason", cr.CertReason.String()))))
 	}
 }
 

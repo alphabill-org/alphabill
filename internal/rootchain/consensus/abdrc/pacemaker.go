@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 )
@@ -42,6 +44,8 @@ type Pacemaker struct {
 	statusChan     chan paceMakerStatus
 	ticker         *time.Ticker
 	stopRoundClock context.CancelFunc
+
+	roundDur metric.Float64Histogram
 }
 
 /*
@@ -52,7 +56,7 @@ NewPacemaker initializes new Pacemaker instance (zero value is not usable).
 
 The maxRoundLen must be greater than minRoundLen or the Pacemaker will crash at some point!
 */
-func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
+func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability) (*Pacemaker, error) {
 	pm := &Pacemaker{
 		minRoundLen:    minRoundLen,
 		maxRoundLen:    maxRoundLen,
@@ -62,7 +66,22 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
 		stopRoundClock: func() { /* init as NOP */ },
 	}
 	pm.ticker.Stop()
-	return pm
+
+	var err error
+	m := observe.Meter("pacemaker")
+	pm.roundDur, err = m.Float64Histogram("round.duration",
+		metric.WithDescription("How long it took from the start of round R to the start of R+1"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(
+			minRoundLen.Seconds(),
+			minRoundLen.Seconds()+((maxRoundLen-minRoundLen).Seconds()/2),
+			maxRoundLen.Seconds(),
+			2*maxRoundLen.Seconds(),
+		))
+	if err != nil {
+		return nil, fmt.Errorf("creating histogram for round duration: %w", err)
+	}
+	return pm, nil
 }
 
 /*
@@ -189,18 +208,20 @@ startNewRound - sets new current round number, resets all stores and
 starts round clock which produces events into StatusEvents channel.
 */
 func (x *Pacemaker) startNewRound(round uint64) {
+	x.stopRoundClock()
+	start := time.Now()
 	x.currentQC = nil
 	x.voteSent = nil
 	x.timeoutVote = nil
 	x.pendingVotes.Reset()
 	x.currentRound.Store(round)
 
-	x.stopRoundClock()
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
 	x.stopRoundClock = func() {
 		cancel()
 		<-stopped
+		x.roundDur.Record(context.Background(), time.Since(start).Seconds())
 	}
 }
 

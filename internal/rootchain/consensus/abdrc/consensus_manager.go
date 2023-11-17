@@ -97,7 +97,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
 	// init storage
-	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
+	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -749,14 +749,21 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err := rsp.CanRecoverToRound(x.recovery.toRound, x.params.HashAlgorithm, x.trustBase.GetVerifiers()); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
-
-	if err := x.blockStore.UpdateCertificates(rsp.Certificates); err != nil {
-		return fmt.Errorf("updating block store failed: %w", err)
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, rsp.Certificates, x.blockStore.GetDB())
+	if err != nil {
+		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
-	if err := x.blockStore.RecoverState(rsp.CommittedHead, rsp.BlockNode, x.irReqVerifier); err != nil {
-		return fmt.Errorf("recovering state in block store failed: %w", err)
-	}
+	// create new verifier
+	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.partitions, blockStore)
 
+	for i, n := range rsp.BlockNode {
+		if _, err = blockStore.Add(n.Block, reqVerifier); err != nil {
+			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
+		}
+	}
+	// all ok
+	x.blockStore = blockStore
+	x.irReqVerifier = reqVerifier
 	x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
 
 	// exit recovery status and replay buffered messages

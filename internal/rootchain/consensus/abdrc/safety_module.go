@@ -129,6 +129,9 @@ func (s *SafetyModule) MakeVote(block *abtypes.BlockData, execStateID []byte, hi
 	}
 	s.updateHighestQcRound(qcRound)
 	s.increaseHighestVoteRound(votingRound)
+	if execStateID == nil {
+		return nil, fmt.Errorf("invalid vote, state hash is nil")
+	}
 	// create vote info
 	voteInfo := &abtypes.RoundInfo{
 		RoundNumber:       block.Round,

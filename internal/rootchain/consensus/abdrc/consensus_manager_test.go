@@ -533,7 +533,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		vote := makeVoteMsg(t, cms, votedRound)
 		vote.Author = "foobar"
 		err := cms[0].onVoteMsg(context.Background(), vote)
-		require.EqualError(t, err, `invalid vote: author "foobar" is not in the trustbase`)
+		require.EqualError(t, err, `invalid vote: author 'foobar' is not in the trustbase`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
 

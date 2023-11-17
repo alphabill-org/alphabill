@@ -44,7 +44,7 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *abtypes
 
 func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, memorydb.New())
+	bStore, err := New(gocrypto.SHA256, pg, memorydb.New())
 	require.NoError(t, err)
 	return bStore
 }
@@ -99,7 +99,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b8.CommitQc = &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.NotNil(t, bStore)
 	require.NoError(t, err)
 	// although store contains more than one root, the latest is preferred
@@ -132,7 +132,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.ErrorContains(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
 	require.Nil(t, bStore)
 }

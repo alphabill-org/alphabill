@@ -117,16 +117,12 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 	}
 }
 
-func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
+func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock) (*ExecutedBlock, error) {
 	var changes SysIDList
 	if recoverBlock.Block.Payload != nil {
 		changes = make([]types.SystemID32, 0, len(recoverBlock.Block.Payload.Requests))
 		// verify requests for IR change and proof of consensus
 		for _, irChReq := range recoverBlock.Block.Payload.Requests {
-			_, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
-			if err != nil {
-				return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
-			}
 			changes = append(changes, irChReq.SystemIdentifier)
 		}
 	}
@@ -142,8 +138,6 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.Recove
 	// calculate root hash
 	utData := make([]*unicitytree.Data, 0, len(irState))
 	for _, data := range irState {
-		// if it is valid it must have at least one validator with a valid certification request
-		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
 			SystemIdentifier:            data.SysID.ToSystemID(),
 			InputRecord:                 data.IR,
@@ -171,7 +165,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.Recove
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
-		RootHash:  ut.GetRootHash(),
+		RootHash:  bytes.Clone(ut.GetRootHash()),
 		Qc:        recoverBlock.Qc,
 		CommitQc:  recoverBlock.CommitQc,
 	}, nil
@@ -217,7 +211,7 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *abtypes.BlockData, parent *E
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
-		RootHash:  ut.GetRootHash(),
+		RootHash:  bytes.Clone(ut.GetRootHash()),
 	}, nil
 }
 

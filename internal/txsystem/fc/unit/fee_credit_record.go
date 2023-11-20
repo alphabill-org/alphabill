@@ -30,7 +30,7 @@ func (b *FeeCreditRecord) Write(hasher hash.Hash) error {
 		return fmt.Errorf("fee credit serialization error: %w", err)
 	}
 	_, err = hasher.Write(res)
-	return nil
+	return err
 }
 
 func (b *FeeCreditRecord) SummaryValueInput() uint64 {

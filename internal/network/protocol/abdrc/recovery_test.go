@@ -272,7 +272,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			}},
 		}
 		verifiers := map[string]abcrypto.Verifier{"test": AlwaysValidVerifier{}}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node: invalid commit head, missing input record state")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node: missing input record state")
 	})
 	t.Run("invalid block node, contains commit QC", func(t *testing.T) {
 		commitVoteInfo := &abdrc.RoundInfo{
@@ -389,7 +389,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: nil,
 		}
-		require.ErrorContains(t, r.IsValid(), "invalid commit head, missing input record state")
+		require.ErrorContains(t, r.IsValid(), "missing input record state")
 	})
 	t.Run("input record state is nil", func(t *testing.T) {
 		r := &RecoveryBlock{
@@ -436,7 +436,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				},
 			},
 		}
-		require.ErrorContains(t, r.IsValid(), "invalid commit head, block data is nil")
+		require.ErrorContains(t, r.IsValid(), "block data is nil")
 	})
 	t.Run("block data is invalid", func(t *testing.T) {
 		r := &RecoveryBlock{
@@ -469,7 +469,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				},
 			},
 		}
-		require.ErrorContains(t, r.IsValid(), "invalid commit head, block data error: invalid quorum certificate: invalid vote info: parent round number is not assigned")
+		require.ErrorContains(t, r.IsValid(), "block data error: invalid quorum certificate: invalid vote info: parent round number is not assigned")
 	})
 	t.Run("block data is invalid", func(t *testing.T) {
 		r := &RecoveryBlock{

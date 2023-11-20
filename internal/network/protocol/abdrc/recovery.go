@@ -109,7 +109,7 @@ func (r *RecoveryBlock) GetRound() uint64 {
 
 func (r *RecoveryBlock) IsValid() error {
 	if len(r.Ir) == 0 {
-		return fmt.Errorf("invalid commit head, missing input record state")
+		return fmt.Errorf("missing input record state")
 	}
 	for _, ir := range r.Ir {
 		if err := ir.IsValid(); err != nil {
@@ -117,10 +117,10 @@ func (r *RecoveryBlock) IsValid() error {
 		}
 	}
 	if r.Block == nil {
-		return fmt.Errorf("invalid commit head, block data is nil")
+		return fmt.Errorf("block data is nil")
 	}
 	if err := r.Block.IsValid(); err != nil {
-		return fmt.Errorf("invalid commit head, block data error: %w", err)
+		return fmt.Errorf("block data error: %w", err)
 	}
 	return nil
 }

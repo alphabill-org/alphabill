@@ -110,11 +110,11 @@ func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*
 	for _, cert := range certs {
 		id, err := cert.UnicityTreeCertificate.SystemIdentifier.Id32()
 		if err != nil {
-			return nil, fmt.Errorf("invaliud certificate id %X", cert.UnicityTreeCertificate.SystemIdentifier)
+			return nil, fmt.Errorf("certificate has invalid partition id %X: %w", cert.UnicityTreeCertificate.SystemIdentifier, err)
 		}
 		// persist changes
 		if err = db.Write(certKey(cert.UnicityTreeCertificate.SystemIdentifier), cert); err != nil {
-			return nil, fmt.Errorf("failed to write certificate into storage: %w", err)
+			return nil, fmt.Errorf("failed to write certificate of partition %s into storage: %w", id, err)
 		}
 		// update cache
 		certificates[id] = cert
@@ -128,7 +128,7 @@ func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*
 
 	blTree, err := NewBlockTreeFromRecovery(rootNode, nil, db)
 	if err != nil {
-		return nil, fmt.Errorf("init failed, %w", err)
+		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
 	}
 	return &BlockStore{
 		hash:         hash,

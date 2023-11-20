@@ -89,7 +89,7 @@ type (
 		leaderCnt  metric.Int64Counter
 		execMsgCnt metric.Int64Counter
 		execMsgDur metric.Float64Histogram
-		timeoutCnt metric.Int64Counter
+		voteCnt    metric.Int64Counter
 		proposedCR metric.Int64Counter
 		fwdIRCRCnt metric.Int64Counter
 	}
@@ -181,10 +181,11 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating counter for leader count: %w", err)
 	}
-	x.timeoutCnt, err = m.Int64Counter("count.timeout", metric.WithDescription("Number of times node has created timeout vote for a round (once per round)"))
+	x.voteCnt, err = m.Int64Counter("count.vote", metric.WithDescription("Number of times node has voted (might be more than once per round for a different reason, ie proposal and timeout)"))
 	if err != nil {
-		return fmt.Errorf("creating counter for timeout count: %w", err)
+		return fmt.Errorf("creating vote counter: %w", err)
 	}
+
 	x.proposedCR, err = m.Int64Counter("count.proposed.cr", metric.WithDescription("Number of Change Requests included into proposal by the round leader"))
 	if err != nil {
 		return fmt.Errorf("creating counter for proposal change requests count: %w", err)
@@ -351,7 +352,6 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 			x.log.WarnContext(ctx, "signing timeout", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			return
 		}
-		x.timeoutCnt.Add(ctx, 1)
 		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
@@ -360,6 +360,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if err := x.net.Send(ctx, timeoutVoteMsg, x.leaderSelector.GetNodes()...); err != nil {
 		x.log.WarnContext(ctx, "error on broadcasting timeout vote", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 	}
+	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "timeout"))))
 }
 
 // onPartitionIRChangeReq handle partition change requests. Received from go routine handling
@@ -608,6 +609,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending vote to next leader %s", nextLeader.String()), logger.Round(proposal.Block.Round))
+	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "proposal"))))
 	if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}

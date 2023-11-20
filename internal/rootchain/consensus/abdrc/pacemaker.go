@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
@@ -46,6 +47,7 @@ type Pacemaker struct {
 	stopRoundClock context.CancelFunc
 
 	roundDur metric.Float64Histogram
+	roundCnt metric.Int64Counter
 }
 
 /*
@@ -69,18 +71,28 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability)
 
 	var err error
 	m := observe.Meter("pacemaker")
+	// we expect that the minRoundLen is relatively short (~0.5s) while maxRoundLen is
+	// relatively long (~10s). We hope that most rounds last only little bit longer than
+	// minRoundLen so generate few buckets between min and max with finer steps near the min end.
+	step := (100 * time.Millisecond).Seconds()
+	buckets := []float64{minRoundLen.Seconds()}
+	for i := 0; buckets[i] < 2*maxRoundLen.Seconds(); i++ {
+		n := time.Duration((buckets[i] + step) * float64(time.Second)).Truncate(time.Millisecond)
+		buckets = append(buckets, n.Seconds())
+		step *= 2
+	}
 	pm.roundDur, err = m.Float64Histogram("round.duration",
 		metric.WithDescription("How long it took from the start of round R to the start of R+1"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(
-			minRoundLen.Seconds(),
-			minRoundLen.Seconds()+((maxRoundLen-minRoundLen).Seconds()/2),
-			maxRoundLen.Seconds(),
-			2*maxRoundLen.Seconds(),
-		))
+		metric.WithExplicitBucketBoundaries(buckets...))
 	if err != nil {
 		return nil, fmt.Errorf("creating histogram for round duration: %w", err)
 	}
+	pm.roundCnt, err = m.Int64Counter("round", metric.WithDescription("How many new rounds have been started"))
+	if err != nil {
+		return nil, fmt.Errorf("creating round counter: %w", err)
+	}
+
 	return pm, nil
 }
 
@@ -190,6 +202,7 @@ func (x *Pacemaker) AdvanceRoundQC(qc *abtypes.QuorumCert) bool {
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
 	x.startNewRound(qc.VoteInfo.RoundNumber + 1)
+	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
 	return true
 }
 
@@ -201,6 +214,7 @@ func (x *Pacemaker) AdvanceRoundTC(tc *abtypes.TimeoutCert) {
 	}
 	x.lastRoundTC = tc
 	x.startNewRound(tc.Timeout.Round + 1)
+	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
 }
 
 /*

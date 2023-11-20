@@ -55,8 +55,8 @@ func (s *StateObject) Write(hasher hash.Hash) error {
 		return fmt.Errorf("unit data encode error: %w", err)
 	}
 	// s.Storage is map which will be serialized in sorted order by CBOR
-	// however, when deserializing we will not bet back the same map (order will be different)
-	// if this becomes an issue then map cannot be used or it needs special serializaion
+	// however when deserializing we will not get back the same map (order will be different)
+	// if this becomes an issue then map cannot be used, or it needs special serializaion
 	_, err = hasher.Write(res)
 	return err
 }

@@ -173,7 +173,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		if rErr != nil {
 			status = "err"
 		}
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), attribute.Int("sysid", int(sysID32)))))
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), attribute.Int("partition", int(sysID32)))))
 	}()
 
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)

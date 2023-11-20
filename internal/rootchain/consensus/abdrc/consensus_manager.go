@@ -746,7 +746,10 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
 		return nil
 	}
-	if err := rsp.CanRecoverToRound(x.recovery.toRound, x.params.HashAlgorithm, x.trustBase.GetVerifiers()); err != nil {
+	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
+		return fmt.Errorf("recovery response verifition failed: %w", err)
+	}
+	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
 	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, rsp.Certificates, x.blockStore.GetDB())

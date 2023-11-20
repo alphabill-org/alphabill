@@ -37,7 +37,7 @@ func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[ty
 
 func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	// nil is returned if no value is in DB
-	genesisBlock := NewExecutedBlockFromGenesis(hash, pg)
+	genesisBlock := NewGenesisBlock(hash, pg)
 	ucs := UnicityCertificatesFromGenesis(pg)
 	for id, cert := range ucs {
 		if err := db.Write(certKey(id.ToSystemID()), cert); err != nil {

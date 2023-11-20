@@ -87,7 +87,7 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *abt
 	return nil
 }
 
-func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *ExecutedBlock {
+func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *ExecutedBlock {
 	data := make([]*InputData, len(pg))
 	for i, partition := range pg {
 		id, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()

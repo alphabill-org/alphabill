@@ -65,15 +65,15 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 
 	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
 	// the type inheritance chain.
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
 		hashAlgorithm,
 		s,
 		attr.NFTTypeID,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.tokenCreationPredicate
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.TokenCreationPredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

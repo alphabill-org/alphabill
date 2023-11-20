@@ -2,13 +2,14 @@ package state
 
 import (
 	"crypto"
+	"fmt"
 	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,11 +28,21 @@ var unitIdentifiers = []types.UnitID{
 }
 
 type TestData struct {
+	_     struct{} `cbor:",toarray"`
 	Value uint64
 }
 
-func (t *TestData) Write(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(t.Value))
+func (t *TestData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(t)
+	if err != nil {
+		return fmt.Errorf("test data serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
 func (t *TestData) SummaryValueInput() uint64 {

@@ -62,15 +62,15 @@ func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttrib
 	}
 	// signature satisfies the predicate obtained by concatenating all the
 	// sub-type creation clauses along the type inheritance chain.
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
 		hashAlgorithm,
 		s,
 		attr.ParentTypeID,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.subTypeCreationPredicate
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.SubTypeCreationPredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

@@ -2,26 +2,34 @@ package money
 
 import (
 	"bytes"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type BillData struct {
-	V        uint64 // The monetary value of this bill
-	T        uint64 // The round number of the last transaction with the bill
-	Backlink []byte // Backlink (256-bit hash)
-	Locked   uint64 // locked status of the bill, non-zero value means locked
+	_        struct{} `cbor:",toarray"`
+	V        uint64   // The monetary value of this bill
+	T        uint64   // The round number of the last transaction with the bill
+	Backlink []byte   // Backlink (256-bit hash)
+	Locked   uint64   // locked status of the bill, non-zero value means locked
 }
 
-func (b *BillData) Write(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(b.V))
-	hasher.Write(util.Uint64ToBytes(b.T))
-	hasher.Write(b.Backlink)
-	hasher.Write(util.Uint64ToBytes(b.Locked))
+func (b *BillData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(b)
+	if err != nil {
+		return fmt.Errorf("unit data encode error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
 func (b *BillData) SummaryValueInput() uint64 {

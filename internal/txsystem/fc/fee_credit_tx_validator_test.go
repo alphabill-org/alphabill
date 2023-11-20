@@ -684,7 +684,8 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 type testData struct {
 }
 
-func (t *testData) Write(hash.Hash) {
+func (t *testData) Write(hash.Hash) error {
+	return nil
 }
 
 func (t *testData) SummaryValueInput() uint64 {

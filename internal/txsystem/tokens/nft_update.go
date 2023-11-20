@@ -24,13 +24,13 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 		// update state
 		if err := options.state.Apply(
 			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				d, ok := data.(*nonFungibleTokenData)
+				d, ok := data.(*NonFungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
-				d.data = attr.Data
-				d.t = currentBlockNr
-				d.backlink = tx.Hash(options.hashAlgorithm)
+				d.Data = attr.Data
+				d.T = currentBlockNr
+				d.Backlink = tx.Hash(options.hashAlgorithm)
 				return d, nil
 			})); err != nil {
 			return nil, err
@@ -52,31 +52,31 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data().(*nonFungibleTokenData)
+	data, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
-	if data.locked != 0 {
+	if data.Locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(data.backlink, attr.Backlink) {
+	if !bytes.Equal(data.Backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
 	}
-	ps, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	ps, err := getChainedPredicates[*NonFungibleTokenTypeData](
 		hashAlgorithm,
 		s,
-		data.nftType,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.dataUpdatePredicate
+		data.NftType,
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.DataUpdatePredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
 		return err
 	}
-	ps = append([]predicates.PredicateBytes{data.dataUpdatePredicate}, ps...)
+	ps = append([]predicates.PredicateBytes{data.DataUpdatePredicate}, ps...)
 	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err

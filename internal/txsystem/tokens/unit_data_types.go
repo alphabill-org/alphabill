@@ -2,240 +2,248 @@ package tokens
 
 import (
 	"bytes"
+	"fmt"
 	"hash"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
-type nonFungibleTokenTypeData struct {
-	symbol                   string
-	name                     string
-	icon                     *Icon
-	parentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
-	subTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
-	tokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	invariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
-	dataUpdatePredicate      []byte       // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+type NonFungibleTokenTypeData struct {
+	_                        struct{} `cbor:",toarray"`
+	Symbol                   string
+	Name                     string
+	Icon                     *Icon
+	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
+	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
+	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
+	DataUpdatePredicate      []byte       // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
 }
 
-type fungibleTokenTypeData struct {
-	symbol                   string
-	name                     string
-	icon                     *Icon
-	parentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
-	decimalPlaces            uint32       // is the number of decimal places to display for values of tokens of this type;
-	subTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
-	tokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	invariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
+type FungibleTokenTypeData struct {
+	_                        struct{} `cbor:",toarray"`
+	Symbol                   string
+	Name                     string
+	Icon                     *Icon
+	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+	DecimalPlaces            uint32       // is the number of decimal places to display for values of tokens of this type;
+	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
+	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
+	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
 }
 
-type nonFungibleTokenData struct {
-	nftType             types.UnitID
-	name                string // the optional long name of the token
-	uri                 string // uri is the optional URI of an external resource associated with the token
-	data                []byte // data is the optional data associated with the token.
-	dataUpdatePredicate []byte // the data update predicate;
-	t                   uint64 // the round number of the last transaction with this token;
-	backlink            []byte // the hash of the last transaction order for this token
-	locked              uint64 // locked status of the bill, non-zero value means locked
+type NonFungibleTokenData struct {
+	_                   struct{} `cbor:",toarray"`
+	NftType             types.UnitID
+	Name                string // the optional long name of the token
+	URI                 string // uri is the optional URI of an external resource associated with the token
+	Data                []byte // data is the optional data associated with the token.
+	DataUpdatePredicate []byte // the data update predicate;
+	T                   uint64 // the round number of the last transaction with this token;
+	Backlink            []byte // the hash of the last transaction order for this token
+	Locked              uint64 // locked status of the bill, non-zero value means locked
 }
 
-type fungibleTokenData struct {
-	tokenType types.UnitID // the type of the token;
-	value     uint64       // the value of the token;
-	t         uint64       // the round number of the last transaction with this token;
+type FungibleTokenData struct {
+	_         struct{}     `cbor:",toarray"`
+	TokenType types.UnitID // the type of the token;
+	Value     uint64       // the value of the token;
+	T         uint64       // the round number of the last transaction with this token;
 	backlink  []byte       // the hash of the last transaction order for this token
 	locked    uint64       // locked status of the bill, non-zero value means locked
 }
 
 func newFungibleTokenTypeData(attr *CreateFungibleTokenTypeAttributes) state.UnitData {
-	return &fungibleTokenTypeData{
-		symbol:                   attr.Symbol,
-		name:                     attr.Name,
-		icon:                     attr.Icon,
-		parentTypeId:             attr.ParentTypeID,
-		decimalPlaces:            attr.DecimalPlaces,
-		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
-		tokenCreationPredicate:   attr.TokenCreationPredicate,
-		invariantPredicate:       attr.InvariantPredicate,
+	return &FungibleTokenTypeData{
+		Symbol:                   attr.Symbol,
+		Name:                     attr.Name,
+		Icon:                     attr.Icon,
+		ParentTypeId:             attr.ParentTypeID,
+		DecimalPlaces:            attr.DecimalPlaces,
+		SubTypeCreationPredicate: attr.SubTypeCreationPredicate,
+		TokenCreationPredicate:   attr.TokenCreationPredicate,
+		InvariantPredicate:       attr.InvariantPredicate,
 	}
 }
 
 func newNonFungibleTokenTypeData(attr *CreateNonFungibleTokenTypeAttributes) state.UnitData {
-	return &nonFungibleTokenTypeData{
-		symbol:                   attr.Symbol,
-		name:                     attr.Name,
-		icon:                     attr.Icon,
-		parentTypeId:             attr.ParentTypeID,
-		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
-		tokenCreationPredicate:   attr.TokenCreationPredicate,
-		invariantPredicate:       attr.InvariantPredicate,
-		dataUpdatePredicate:      attr.DataUpdatePredicate,
+	return &NonFungibleTokenTypeData{
+		Symbol:                   attr.Symbol,
+		Name:                     attr.Name,
+		Icon:                     attr.Icon,
+		ParentTypeId:             attr.ParentTypeID,
+		SubTypeCreationPredicate: attr.SubTypeCreationPredicate,
+		TokenCreationPredicate:   attr.TokenCreationPredicate,
+		InvariantPredicate:       attr.InvariantPredicate,
+		DataUpdatePredicate:      attr.DataUpdatePredicate,
 	}
 }
 
 func newNonFungibleTokenData(attr *MintNonFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) state.UnitData {
-	return &nonFungibleTokenData{
-		nftType:             attr.NFTTypeID,
-		name:                attr.Name,
-		uri:                 attr.URI,
-		data:                attr.Data,
-		dataUpdatePredicate: attr.DataUpdatePredicate,
-		t:                   currentBlockNr,
-		backlink:            txHash,
+	return &NonFungibleTokenData{
+		NftType:             attr.NFTTypeID,
+		Name:                attr.Name,
+		URI:                 attr.URI,
+		Data:                attr.Data,
+		DataUpdatePredicate: attr.DataUpdatePredicate,
+		T:                   currentBlockNr,
+		Backlink:            txHash,
 	}
 }
 
 func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) state.UnitData {
-	return &fungibleTokenData{
-		tokenType: attr.TypeID,
-		value:     attr.Value,
-		t:         currentBlockNr,
+	return &FungibleTokenData{
+		TokenType: attr.TypeID,
+		Value:     attr.Value,
+		T:         currentBlockNr,
 		backlink:  txHash,
 	}
 }
 
-func (n *nonFungibleTokenTypeData) Write(hasher hash.Hash) {
-	hasher.Write([]byte(n.symbol))
-	hasher.Write([]byte(n.name))
-	n.icon.AddToHasher(hasher)
-	hasher.Write(n.parentTypeId)
-	hasher.Write(n.subTypeCreationPredicate)
-	hasher.Write(n.tokenCreationPredicate)
-	hasher.Write(n.invariantPredicate)
-	hasher.Write(n.dataUpdatePredicate)
+func (n *NonFungibleTokenTypeData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("nft type serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
-func (n *nonFungibleTokenTypeData) SummaryValueInput() uint64 {
+func (n *NonFungibleTokenTypeData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (n *nonFungibleTokenTypeData) Copy() state.UnitData {
+func (n *NonFungibleTokenTypeData) Copy() state.UnitData {
 	if n == nil {
 		return nil
 	}
-	return &nonFungibleTokenTypeData{
-		symbol:                   strings.Clone(n.symbol),
-		name:                     strings.Clone(n.name),
-		icon:                     n.icon.Copy(),
-		parentTypeId:             bytes.Clone(n.parentTypeId),
-		subTypeCreationPredicate: bytes.Clone(n.subTypeCreationPredicate),
-		tokenCreationPredicate:   bytes.Clone(n.tokenCreationPredicate),
-		invariantPredicate:       bytes.Clone(n.invariantPredicate),
-		dataUpdatePredicate:      bytes.Clone(n.dataUpdatePredicate),
+	return &NonFungibleTokenTypeData{
+		Symbol:                   strings.Clone(n.Symbol),
+		Name:                     strings.Clone(n.Name),
+		Icon:                     n.Icon.Copy(),
+		ParentTypeId:             bytes.Clone(n.ParentTypeId),
+		SubTypeCreationPredicate: bytes.Clone(n.SubTypeCreationPredicate),
+		TokenCreationPredicate:   bytes.Clone(n.TokenCreationPredicate),
+		InvariantPredicate:       bytes.Clone(n.InvariantPredicate),
+		DataUpdatePredicate:      bytes.Clone(n.DataUpdatePredicate),
 	}
 }
 
-func (n *nonFungibleTokenData) Write(hasher hash.Hash) {
-	hasher.Write(n.nftType)
-	hasher.Write([]byte(n.name))
-	hasher.Write([]byte(n.uri))
-	hasher.Write(n.data)
-	hasher.Write(n.dataUpdatePredicate)
-	hasher.Write(util.Uint64ToBytes(n.t))
-	hasher.Write(n.backlink)
-	hasher.Write(util.Uint64ToBytes(n.locked))
+func (n *NonFungibleTokenData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("ft data serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
-func (n *nonFungibleTokenData) SummaryValueInput() uint64 {
+func (n *NonFungibleTokenData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (n *nonFungibleTokenData) Copy() state.UnitData {
+func (n *NonFungibleTokenData) Copy() state.UnitData {
 	if n == nil {
 		return nil
 	}
-	return &nonFungibleTokenData{
-		nftType:             bytes.Clone(n.nftType),
-		name:                strings.Clone(n.name),
-		uri:                 strings.Clone(n.uri),
-		data:                bytes.Clone(n.data),
-		dataUpdatePredicate: bytes.Clone(n.dataUpdatePredicate),
-		t:                   n.t,
-		backlink:            bytes.Clone(n.backlink),
-		locked:              n.locked,
+	return &NonFungibleTokenData{
+		NftType:             bytes.Clone(n.NftType),
+		Name:                strings.Clone(n.Name),
+		URI:                 strings.Clone(n.URI),
+		Data:                bytes.Clone(n.Data),
+		DataUpdatePredicate: bytes.Clone(n.DataUpdatePredicate),
+		T:                   n.T,
+		Backlink:            bytes.Clone(n.Backlink),
+		Locked:              n.Locked,
 	}
 }
 
-func (n *nonFungibleTokenData) Backlink() []byte {
-	return n.backlink
+func (n *NonFungibleTokenData) GetBacklink() []byte {
+	return n.Backlink
 }
 
-func (n *nonFungibleTokenData) Locked() uint64 {
-	return n.locked
+func (n *NonFungibleTokenData) IsLocked() uint64 {
+	return n.Locked
 }
 
-func (f *fungibleTokenTypeData) Write(hasher hash.Hash) {
-	hasher.Write([]byte(f.symbol))
-	hasher.Write([]byte(f.name))
-	f.icon.AddToHasher(hasher)
-	hasher.Write(f.parentTypeId)
-	hasher.Write(util.Uint32ToBytes(f.decimalPlaces))
-	hasher.Write(f.subTypeCreationPredicate)
-	hasher.Write(f.tokenCreationPredicate)
-	hasher.Write(f.invariantPredicate)
+func (f *FungibleTokenTypeData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(f)
+	if err != nil {
+		return fmt.Errorf("ft type serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
-func (f *fungibleTokenTypeData) SummaryValueInput() uint64 {
+func (f *FungibleTokenTypeData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (f *fungibleTokenTypeData) Copy() state.UnitData {
+func (f *FungibleTokenTypeData) Copy() state.UnitData {
 	if f == nil {
 		return nil
 	}
-	return &fungibleTokenTypeData{
-		symbol:                   strings.Clone(f.symbol),
-		name:                     strings.Clone(f.name),
-		icon:                     f.icon.Copy(),
-		parentTypeId:             bytes.Clone(f.parentTypeId),
-		decimalPlaces:            f.decimalPlaces,
-		subTypeCreationPredicate: bytes.Clone(f.subTypeCreationPredicate),
-		tokenCreationPredicate:   bytes.Clone(f.tokenCreationPredicate),
-		invariantPredicate:       bytes.Clone(f.invariantPredicate),
+	return &FungibleTokenTypeData{
+		Symbol:                   strings.Clone(f.Symbol),
+		Name:                     strings.Clone(f.Name),
+		Icon:                     f.Icon.Copy(),
+		ParentTypeId:             bytes.Clone(f.ParentTypeId),
+		DecimalPlaces:            f.DecimalPlaces,
+		SubTypeCreationPredicate: bytes.Clone(f.SubTypeCreationPredicate),
+		TokenCreationPredicate:   bytes.Clone(f.TokenCreationPredicate),
+		InvariantPredicate:       bytes.Clone(f.InvariantPredicate),
 	}
 }
 
-func (f *fungibleTokenData) Write(hasher hash.Hash) {
-	hasher.Write(f.tokenType)
-	hasher.Write(util.Uint64ToBytes(f.value))
-	hasher.Write(util.Uint64ToBytes(f.t))
-	hasher.Write(f.backlink)
-	hasher.Write(util.Uint64ToBytes(f.locked))
+func (f *FungibleTokenData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(f)
+	if err != nil {
+		return fmt.Errorf("ft data serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
-func (f *fungibleTokenData) SummaryValueInput() uint64 {
+func (f *FungibleTokenData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (f *fungibleTokenData) Copy() state.UnitData {
+func (f *FungibleTokenData) Copy() state.UnitData {
 	if f == nil {
 		return nil
 	}
-	return &fungibleTokenData{
-		tokenType: bytes.Clone(f.tokenType),
-		value:     f.value,
-		t:         f.t,
+	return &FungibleTokenData{
+		TokenType: bytes.Clone(f.TokenType),
+		Value:     f.Value,
+		T:         f.T,
 		backlink:  bytes.Clone(f.backlink),
 		locked:    f.locked,
 	}
 }
 
-func (f *fungibleTokenData) Backlink() []byte {
+func (f *FungibleTokenData) GetBacklink() []byte {
 	return f.backlink
 }
 
-func (f *fungibleTokenData) Locked() uint64 {
+func (f *FungibleTokenData) IsLocked() uint64 {
 	return f.locked
-}
-
-func (i *Icon) AddToHasher(hasher hash.Hash) {
-	if i == nil {
-		return
-	}
-	hasher.Write([]byte(i.Type))
-	hasher.Write(i.Data)
 }

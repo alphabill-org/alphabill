@@ -41,22 +41,22 @@ func updateLockTokenData(data state.UnitData, tx *types.TransactionOrder, attr *
 }
 
 func updateLockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, options *Options) (state.UnitData, error) {
-	d, ok := data.(*nonFungibleTokenData)
+	d, ok := data.(*NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
-	d.t = roundNumber
-	d.backlink = tx.Hash(options.hashAlgorithm)
-	d.locked = attr.LockStatus
+	d.T = roundNumber
+	d.Backlink = tx.Hash(options.hashAlgorithm)
+	d.Locked = attr.LockStatus
 	return d, nil
 }
 
 func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, options *Options) (state.UnitData, error) {
-	d, ok := data.(*fungibleTokenData)
+	d, ok := data.(*FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
-	d.t = roundNumber
+	d.T = roundNumber
 	d.backlink = tx.Hash(options.hashAlgorithm)
 	d.locked = attr.LockStatus
 	return d, nil
@@ -92,19 +92,19 @@ func validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes, 
 }
 
 func validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options, u *state.Unit) error {
-	d, ok := u.Data().(*fungibleTokenData)
+	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		options.hashAlgorithm,
 		options.state,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
@@ -114,19 +114,19 @@ func validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttrib
 }
 
 func validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options, u *state.Unit) error {
-	d, ok := u.Data().(*nonFungibleTokenData)
+	d, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
 		options.hashAlgorithm,
 		options.state,
-		d.nftType,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.NftType,
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
@@ -163,13 +163,13 @@ func (l *LockTokenAttributes) SigBytes() ([]byte, error) {
 }
 
 type tokenData interface {
-	Backlink() []byte
-	Locked() uint64
+	GetBacklink() []byte
+	IsLocked() uint64
 }
 
 func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []predicates.PredicateBytes, d tokenData) error {
 	// token is not locked
-	if d.Locked() != 0 {
+	if d.IsLocked() != 0 {
 		return errors.New("token is already locked")
 	}
 	// the new status is a "locked" one
@@ -177,9 +177,9 @@ func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockToke
 		return errors.New("lock status cannot be zero-value")
 	}
 	// the current transaction follows the previous valid transaction with the token
-	if !bytes.Equal(attr.Backlink, d.Backlink()) {
+	if !bytes.Equal(attr.Backlink, d.GetBacklink()) {
 		return fmt.Errorf("the transaction backlink is not equal to the token backlink: tx.backlink='%x' token.backlink='%x'",
-			attr.Backlink, d.Backlink())
+			attr.Backlink, d.GetBacklink())
 	}
 	return verifyOwnership(u.Bearer(), predicates, &lockTokenOwnershipProver{tx: tx, attr: attr})
 }

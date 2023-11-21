@@ -56,7 +56,6 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 			}
 			txOrderHash = h
 		}
-		//fmt.Printf("%X %X %v, %v", txOrderHash, unitID, returnProof, returnUnitData)
 		if txOrderHash == nil {
 			dataAndProof, err := node.GetUnitState(unitID, returnProof, returnUnitData)
 			if err != nil {

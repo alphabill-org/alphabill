@@ -28,11 +28,11 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 			state.SetOwner(unitID, attr.NewBearer),
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*fungibleTokenData)
+					d, ok := data.(*FungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					d.t = currentBlockNr
+					d.T = currentBlockNr
 					d.backlink = tx.Hash(options.hashAlgorithm)
 					return d, nil
 				})); err != nil {
@@ -53,27 +53,27 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 		return fmt.Errorf("token is locked")
 	}
 
-	if d.value != attr.Value {
-		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
+	if d.Value != attr.Value {
+		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
 
 	if !bytes.Equal(d.backlink, attr.Backlink) {
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 
-	if !bytes.Equal(attr.TypeID, d.tokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.tokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, d.TokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		hashAlgorithm,
 		s,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
@@ -82,7 +82,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.PredicateBytes, *fungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.PredicateBytes, *FungibleTokenData, error) {
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -94,7 +94,7 @@ func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.Predi
 		}
 		return nil, nil, err
 	}
-	d, ok := u.Data().(*fungibleTokenData)
+	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}

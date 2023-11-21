@@ -2,27 +2,35 @@ package unit
 
 import (
 	"bytes"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
 // FeeCreditRecord state tree unit data of fee credit records.
 // Holds fee credit balance for individual users,
 // not to be confused with fee credit bills which contain aggregate fees for a given partition.
 type FeeCreditRecord struct {
-	Balance  uint64 // current balance
-	Backlink []byte // hash of the last “addFC”, "closeFC", "lockFC" or "unlockFC" transaction
-	Timeout  uint64 // the earliest round number when this record may be “garbage collected” if the balance goes to zero
-	Locked   uint64 // locked status of the fee credit record, non-zero value means locked
+	_        struct{} `cbor:",toarray"`
+	Balance  uint64   // current balance
+	Backlink []byte   // hash of the last “addFC”, "closeFC", "lockFC" or "unlockFC" transaction
+	Timeout  uint64   // the earliest round number when this record may be “garbage collected” if the balance goes to zero
+	Locked   uint64   // locked status of the fee credit record, non-zero value means locked
 }
 
-func (b *FeeCreditRecord) Write(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(b.Balance))
-	hasher.Write(b.Backlink)
-	hasher.Write(util.Uint64ToBytes(b.Timeout))
-	hasher.Write(util.Uint64ToBytes(b.Locked))
+func (b *FeeCreditRecord) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(b)
+	if err != nil {
+		return fmt.Errorf("fee credit serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
 func (b *FeeCreditRecord) SummaryValueInput() uint64 {

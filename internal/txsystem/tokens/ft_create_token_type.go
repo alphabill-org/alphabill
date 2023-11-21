@@ -69,24 +69,24 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 	}
 
 	if attr.ParentTypeID != nil {
-		_, parentData, err := getUnit[*fungibleTokenTypeData](s, attr.ParentTypeID)
+		_, parentData, err := getUnit[*FungibleTokenTypeData](s, attr.ParentTypeID)
 		if err != nil {
 			return err
 		}
-		if decimalPlaces != parentData.decimalPlaces {
-			return fmt.Errorf("invalid decimal places. allowed %v, got %v", parentData.decimalPlaces, decimalPlaces)
+		if decimalPlaces != parentData.DecimalPlaces {
+			return fmt.Errorf("invalid decimal places. allowed %v, got %v", parentData.DecimalPlaces, decimalPlaces)
 		}
 	}
 
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		hashAlgorithm,
 		s,
 		attr.ParentTypeID,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.subTypeCreationPredicate
+		func(d *FungibleTokenTypeData) []byte {
+			return d.SubTypeCreationPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

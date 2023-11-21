@@ -110,8 +110,9 @@ type pruneUnitData struct {
 	i uint64
 }
 
-func (p *pruneUnitData) Write(hasher hash.Hash) {
+func (p *pruneUnitData) Write(hasher hash.Hash) error {
 	hasher.Write(util.Uint64ToBytes(p.i))
+	return nil
 }
 
 func (p *pruneUnitData) SummaryValueInput() uint64 {

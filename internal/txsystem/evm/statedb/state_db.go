@@ -292,7 +292,7 @@ func (s *StateDB) SelfDestruct(address common.Address) {
 		return
 	}
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
-		so.suicided = true
+		so.Suicided = true
 		so.Account.Balance = big.NewInt(0)
 		s.suicides = append(s.suicides, address)
 		return so
@@ -305,7 +305,7 @@ func (s *StateDB) HasSelfDestructed(address common.Address) bool {
 	if stateObject == nil {
 		return false
 	}
-	return stateObject.suicided
+	return stateObject.Suicided
 }
 
 // Selfdestruct6780 - EIP-6780 changes the functionality of the SELFDESTRUCT opcode.
@@ -447,7 +447,7 @@ func (s *StateDB) Finalize() error {
 		if so == nil {
 			continue
 		}
-		if so.suicided {
+		if so.Suicided {
 			deletions = append(deletions, state.DeleteUnit(unitID))
 		}
 	}

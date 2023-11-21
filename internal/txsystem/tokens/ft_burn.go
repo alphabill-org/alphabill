@@ -37,24 +37,24 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 	if d.locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(d.tokenType, attr.TypeID) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.tokenType, attr.TypeID)
+	if !bytes.Equal(d.TokenType, attr.TypeID) {
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.TokenType, attr.TypeID)
 	}
-	if attr.Value != d.value {
-		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
+	if attr.Value != d.Value {
+		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
 	if !bytes.Equal(d.backlink, attr.Backlink) {
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		hashAlgorithm,
 		s,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

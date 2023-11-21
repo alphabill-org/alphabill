@@ -196,17 +196,17 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
-	require.IsType(t, &fungibleTokenTypeData{}, u.Data())
-	d := u.Data().(*fungibleTokenTypeData)
-	require.Equal(t, attributes.Symbol, d.symbol)
-	require.Equal(t, attributes.Name, d.name)
-	require.Equal(t, attributes.Icon.Type, d.icon.Type)
-	require.Equal(t, attributes.Icon.Data, d.icon.Data)
-	require.Equal(t, attributes.DecimalPlaces, d.decimalPlaces)
-	require.Equal(t, attributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
-	require.Equal(t, attributes.TokenCreationPredicate, d.tokenCreationPredicate)
-	require.Equal(t, attributes.InvariantPredicate, d.invariantPredicate)
-	require.Nil(t, d.parentTypeId)
+	require.IsType(t, &FungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*FungibleTokenTypeData)
+	require.Equal(t, attributes.Symbol, d.Symbol)
+	require.Equal(t, attributes.Name, d.Name)
+	require.Equal(t, attributes.Icon.Type, d.Icon.Type)
+	require.Equal(t, attributes.Icon.Data, d.Icon.Data)
+	require.Equal(t, attributes.DecimalPlaces, d.DecimalPlaces)
+	require.Equal(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.Equal(t, attributes.TokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, attributes.InvariantPredicate, d.InvariantPredicate)
+	require.Nil(t, d.ParentTypeId)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
@@ -250,17 +250,17 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
-	require.IsType(t, &fungibleTokenTypeData{}, u.Data())
-	d := u.Data().(*fungibleTokenTypeData)
-	require.Equal(t, childAttributes.Symbol, d.symbol)
-	require.Equal(t, childAttributes.Name, d.name)
-	require.Equal(t, childAttributes.Icon.Type, d.icon.Type)
-	require.Equal(t, childAttributes.Icon.Data, d.icon.Data)
-	require.Equal(t, childAttributes.DecimalPlaces, d.decimalPlaces)
-	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
-	require.Equal(t, childAttributes.TokenCreationPredicate, d.tokenCreationPredicate)
-	require.Equal(t, childAttributes.InvariantPredicate, d.invariantPredicate)
-	require.Equal(t, types.UnitID(parentID), d.parentTypeId)
+	require.IsType(t, &FungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*FungibleTokenTypeData)
+	require.Equal(t, childAttributes.Symbol, d.Symbol)
+	require.Equal(t, childAttributes.Name, d.Name)
+	require.Equal(t, childAttributes.Icon.Type, d.Icon.Type)
+	require.Equal(t, childAttributes.Icon.Data, d.Icon.Data)
+	require.Equal(t, childAttributes.DecimalPlaces, d.DecimalPlaces)
+	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.Equal(t, childAttributes.TokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, childAttributes.InvariantPredicate, d.InvariantPredicate)
+	require.Equal(t, types.UnitID(parentID), d.ParentTypeId)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSignature(t *testing.T) {
@@ -426,13 +426,13 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(tokenID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
+	require.IsType(t, &FungibleTokenData{}, u.Data())
 
-	d := u.Data().(*fungibleTokenData)
-	require.Equal(t, types.UnitID(attributes.TypeID), d.tokenType)
-	require.Equal(t, attributes.Value, d.value)
+	d := u.Data().(*FungibleTokenData)
+	require.Equal(t, types.UnitID(attributes.TypeID), d.TokenType)
+	require.Equal(t, attributes.Value, d.Value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, uint64(10), d.t)
+	require.Equal(t, uint64(10), d.T)
 	require.Equal(t, attributes.Bearer, []byte(u.Bearer()))
 }
 
@@ -566,13 +566,13 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	d := u.Data().(*fungibleTokenData)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	d := u.Data().(*FungibleTokenData)
 
 	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer()))
-	require.Equal(t, transferAttributes.Value, d.value)
+	require.Equal(t, transferAttributes.Value, d.Value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, roundNr, d.t)
+	require.Equal(t, roundNr, d.T)
 }
 
 func TestSplitFungibleToken_NotOk(t *testing.T) {
@@ -755,26 +755,26 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	d := u.Data().(*fungibleTokenData)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	d := u.Data().(*FungibleTokenData)
 
 	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Bearer()))
-	require.Equal(t, remainingBillValue, d.value)
+	require.Equal(t, remainingBillValue, d.Value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, roundNr, d.t)
+	require.Equal(t, roundNr, d.T)
 
 	newUnitID := NewFungibleTokenID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
 	newUnit, err := opts.state.GetUnit(newUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)
-	require.IsType(t, &fungibleTokenData{}, newUnit.Data())
+	require.IsType(t, &FungibleTokenData{}, newUnit.Data())
 
-	newUnitData := newUnit.Data().(*fungibleTokenData)
+	newUnitData := newUnit.Data().(*FungibleTokenData)
 
 	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer()))
-	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.value)
+	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.Value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.backlink)
-	require.Equal(t, roundNr, newUnitData.t)
+	require.Equal(t, roundNr, newUnitData.T)
 }
 
 func TestBurnFungibleToken_NotOk(t *testing.T) {
@@ -930,7 +930,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	// verify locked target unit was unlocked
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, u.Data().(*fungibleTokenData).locked)
+	require.EqualValues(t, 0, u.Data().(*FungibleTokenData).locked)
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -1109,46 +1109,46 @@ func defaultOpts(t *testing.T) *Options {
 
 func initState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
-	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &fungibleTokenTypeData{
-		symbol:                   "ALPHA",
-		name:                     "A long name for ALPHA",
-		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             nil,
-		decimalPlaces:            5,
-		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		invariantPredicate:       templates.AlwaysTrueBytes(),
+	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &FungibleTokenTypeData{
+		Symbol:                   "ALPHA",
+		Name:                     "A long name for ALPHA",
+		Icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
+		ParentTypeId:             nil,
+		DecimalPlaces:            5,
+		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		InvariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenTypeUnitID2, templates.AlwaysTrueBytes(), &fungibleTokenTypeData{
-		symbol:                   "ALPHA2",
-		name:                     "A long name for ALPHA2",
-		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             nil,
-		decimalPlaces:            5,
-		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		invariantPredicate:       templates.AlwaysTrueBytes(),
+	err = s.Apply(state.AddUnit(existingTokenTypeUnitID2, templates.AlwaysTrueBytes(), &FungibleTokenTypeData{
+		Symbol:                   "ALPHA2",
+		Name:                     "A long name for ALPHA2",
+		Icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
+		ParentTypeId:             nil,
+		DecimalPlaces:            5,
+		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		InvariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
-		tokenType: existingTokenTypeUnitID,
-		value:     existingTokenValue,
-		t:         0,
+	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &FungibleTokenData{
+		TokenType: existingTokenTypeUnitID,
+		Value:     existingTokenValue,
+		T:         0,
 		backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenUnitID2, templates.AlwaysTrueBytes(), &fungibleTokenData{
-		tokenType: existingTokenTypeUnitID2,
-		value:     existingTokenValue,
-		t:         0,
+	err = s.Apply(state.AddUnit(existingTokenUnitID2, templates.AlwaysTrueBytes(), &FungibleTokenData{
+		TokenType: existingTokenTypeUnitID2,
+		Value:     existingTokenValue,
+		T:         0,
 		backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
-		tokenType: existingTokenTypeUnitID,
-		value:     existingTokenValue,
-		t:         0,
+	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &FungibleTokenData{
+		TokenType: existingTokenTypeUnitID,
+		Value:     existingTokenValue,
+		T:         0,
 		backlink:  make([]byte, 32),
 		locked:    1,
 	}))

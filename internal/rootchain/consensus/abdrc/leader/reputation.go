@@ -20,10 +20,7 @@ NewReputationBased creates "leader election based on reputation" strategy implem
     at least inside the window.
   - "excludeSize" is the number of most recent block authors to exclude form candidate
     list when electing leader for the next round. Generally should be between f and 2f
-    (where f is max allowed number of faulty nodes). Similarly to the "windowSize" the
-    blockLoader must support loading blocks for given number of rounds from the past.
-  - "blockLoader" is a callback into block store which allows to load block data of given
-    round. It is expected to return either valid block or error.
+    (where f is max allowed number of faulty nodes).
 */
 func NewReputationBased(validators []peer.ID, windowSize, excludeSize int) (*ReputationBased, error) {
 	if len(validators) == 0 {
@@ -101,6 +98,8 @@ func (rb *ReputationBased) GetNodes() []peer.ID {
 Update triggers leader election for the next round.
 Returns error when election fails or QC and currentRound combination does not trigger election.
 "currentRound" - what PaceMaker considers to be the current round at the time QC is processed.
+"blockLoader" - a callback into block store which allows to load block data of given
+round, it is expected to return either valid block or error.
 */
 func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64, blockLoader BlockLoader) error {
 	exR := qc.GetParentRound()

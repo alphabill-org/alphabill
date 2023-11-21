@@ -14,11 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/state"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -26,6 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -76,6 +76,7 @@ type partitionNode struct {
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
 	AddrGRPC     string
+	proofDB      keyvaluedb.KeyValueDB
 	cancel       context.CancelFunc
 	done         chan error
 }
@@ -332,7 +333,8 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			return fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
-		proofIndexer := state.NewProofIndexer(memorydb.New(), 10, log)
+		nd.proofDB = memorydb.NewCBOR()
+		proofIndexer := state.NewProofIndexer(nd.proofDB, 10, log)
 		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithEventHandler(proofIndexer.Handle, 10),
@@ -488,6 +490,15 @@ func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartitio
 	return part, nil
 }
 
+func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.UnicityCertificateValidator, error) {
+	id, _ := sysID.Id32()
+	part, f := a.NodePartitions[id]
+	if !f {
+		return nil, fmt.Errorf("unknown partition %X", sysID)
+	}
+	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, gocrypto.SHA256)
+}
+
 // BroadcastTx sends transactions to all nodes.
 func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 	for _, n := range n.Nodes {
@@ -561,6 +572,39 @@ func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder 
 		return txRecord, txProof, nil
 	}
 	return nil, nil, fmt.Errorf("failed to confirm tx")
+}
+
+func (pn *partitionNode) GetUnitProof(ID types.UnitID, txOrderHash []byte, v any) bool {
+	key := bytes.Join([][]byte{ID, txOrderHash}, nil)
+	it := pn.proofDB.Find(key)
+	defer func() { _ = it.Close() }()
+	if !it.Valid() {
+		return false
+	}
+	if err := it.Value(v); err != nil {
+		return false
+	}
+	return true
+}
+
+func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder, v any) (*state.UnitDataAndProof, error) {
+	t.Helper()
+	var (
+		unitProof *state.UnitDataAndProof
+	)
+	txOrderHash := txOrder.Hash(gocrypto.SHA256)
+	if ok := eventually(func() bool {
+		for _, n := range part.Nodes {
+			if unitDataAndProof := n.GetUnitProof(ID, txOrderHash, v); !unitDataAndProof {
+				continue
+			}
+			return true
+		}
+		return false
+	}, 100*test.WaitDuration, test.WaitTick); ok {
+		return unitProof, nil
+	}
+	return nil, fmt.Errorf("failed to confirm tx")
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.

@@ -37,7 +37,7 @@ func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[ty
 
 func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	// nil is returned if no value is in DB
-	genesisBlock := NewExecutedBlockFromGenesis(hash, pg)
+	genesisBlock := NewGenesisBlock(hash, pg)
 	ucs := UnicityCertificatesFromGenesis(pg)
 	for id, cert := range ucs {
 		if err := db.Write(certKey(id.ToSystemID()), cert); err != nil {
@@ -66,7 +66,7 @@ func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[types.SystemID32]*types
 	return ucs, err
 }
 
-func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
+func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
 	// Initiate store
 	if pg == nil {
 		return nil, errors.New("genesis record is nil")
@@ -101,12 +101,50 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db 
 	}, nil
 }
 
+func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*types.UnicityCertificate, db keyvaluedb.KeyValueDB) (*BlockStore, error) {
+	// Initiate store
+	if db == nil {
+		return nil, errors.New("storage is nil")
+	}
+	certificates := make(map[types.SystemID32]*types.UnicityCertificate)
+	for _, cert := range certs {
+		id, err := cert.UnicityTreeCertificate.SystemIdentifier.Id32()
+		if err != nil {
+			return nil, fmt.Errorf("certificate has invalid partition id %X: %w", cert.UnicityTreeCertificate.SystemIdentifier, err)
+		}
+		// persist changes
+		if err = db.Write(certKey(cert.UnicityTreeCertificate.SystemIdentifier), cert); err != nil {
+			return nil, fmt.Errorf("failed to write certificate of partition %s into storage: %w", id, err)
+		}
+		// update cache
+		certificates[id] = cert
+	}
+	// create new root node
+
+	rootNode, err := NewRootBlockFromRecovery(hash, rRootBlock)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new root node: %w", err)
+	}
+
+	blTree, err := NewBlockTreeFromRecovery(rootNode, nil, db)
+	if err != nil {
+		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
+	}
+	return &BlockStore{
+		hash:         hash,
+		blockTree:    blTree,
+		certificates: certificates,
+		storage:      db,
+	}, nil
+}
+
 func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) error {
 	if tc == nil {
 		return fmt.Errorf("error tc is nil")
 	}
-	// Remove proposal for TC round if it exists, since quorum voted for timeout, it will never be committed
-	// So we will prune the block now, also it is ok, if we do not have the block, it does not matter anyway
+	// Remove proposal/block for TC round if it exists, since quorum voted for timeout.
+	// It will never be committed, hence it can be removed immediately.
+	// It is fine if the block is not found, it does not matter anyway
 	if err := x.blockTree.RemoveLeaf(tc.GetRound()); err != nil {
 		return fmt.Errorf("unexpected error when removing timeout block %v, %v", tc.GetRound(), err)
 	}
@@ -130,6 +168,10 @@ func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {
 		return nil, fmt.Errorf("get block root hash failed, %w", err)
 	}
 	return b.RootHash, nil
+}
+
+func (x *BlockStore) GetDB() keyvaluedb.KeyValueDB {
+	return x.storage
 }
 
 func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[types.SystemID32]*types.UnicityCertificate, error) {
@@ -179,7 +221,7 @@ func (x *BlockStore) Add(block *abtypes.BlockData, verifier IRChangeReqVerifier)
 		b2h := block.Hash(gocrypto.SHA256)
 		// block was found, ignore if it is the same block, recovery may have added it when state was duplicated
 		if bytes.Equal(b1h, b2h) {
-			return nil, nil
+			return b.RootHash, nil
 		}
 		return nil, fmt.Errorf("add block failed: different block for round %v is already in store", block.Round)
 	}
@@ -240,21 +282,6 @@ func (x *BlockStore) GetRoot() *ExecutedBlock {
 	return x.blockTree.Root()
 }
 
-func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) error {
-	newerCerts := make(map[types.SystemID32]*types.UnicityCertificate)
-	for _, c := range cert {
-		id, _ := c.UnicityTreeCertificate.SystemIdentifier.Id32()
-		cachedCert, found := x.certificates[id]
-		if !found || cachedCert.UnicitySeal.RootChainRoundNumber < c.UnicitySeal.RootChainRoundNumber {
-			newerCerts[id] = c
-		}
-	}
-	if err := x.updateCertificateCache(newerCerts); err != nil {
-		return fmt.Errorf("failed to update certificate cache: %w", err)
-	}
-	return nil
-}
-
 func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 	inputData := make([]*abdrc.InputData, len(data))
 	for i, d := range data {
@@ -269,29 +296,6 @@ func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 
 func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
 	return x.blockTree.GetAllUncommittedNodes()
-}
-
-func (x *BlockStore) RecoverState(rRootBlock *abdrc.RecoveryBlock, rNodes []*abdrc.RecoveryBlock, verifier IRChangeReqVerifier) error {
-	rootNode, err := NewExecutedBlockFromRecovery(x.hash, rRootBlock, verifier)
-	if err != nil {
-		return fmt.Errorf("failed to create new root node: %w", err)
-	}
-	nodes := make([]*ExecutedBlock, len(rNodes))
-	for i, n := range rNodes {
-		var executedBlock *ExecutedBlock
-		executedBlock, err = NewExecutedBlockFromRecovery(x.hash, n, verifier)
-		if err != nil {
-			return fmt.Errorf("failed to create node from recovery block: %w", err)
-		}
-		nodes[i] = executedBlock
-	}
-	bt, err := NewBlockTreeFromRecovery(rootNode, nodes, x.storage)
-	if err != nil {
-		return fmt.Errorf("failed to create block tree from recovery data: %w", err)
-	}
-	// replace block tree
-	x.blockTree = bt
-	return nil
 }
 
 /*

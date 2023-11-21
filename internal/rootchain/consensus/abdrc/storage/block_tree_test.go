@@ -156,7 +156,7 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
-	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	db := memorydb.New()
 	require.NoError(t, blockStoreGenesisInit(gBlock, db))
 	btree, err := NewBlockTree(db)
@@ -303,7 +303,7 @@ func TestNewBlockTree(t *testing.T) {
 
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db := memorydb.New()
-	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
 	block2 := &ExecutedBlock{
@@ -335,7 +335,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db := memorydb.New()
 
-	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &abtypes.RoundInfo{
@@ -396,7 +396,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db := memorydb.New()
-	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &abtypes.RoundInfo{

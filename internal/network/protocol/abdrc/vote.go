@@ -36,38 +36,36 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 }
 
 func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+	if x.Author == "" {
+		return fmt.Errorf("author is missing")
+	}
 	if x.VoteInfo == nil {
-		return fmt.Errorf("vote info is missing")
+		return fmt.Errorf("vote from '%s' is missing vote info", x.Author)
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
-		return fmt.Errorf("invalid vote info: %w", err)
+		return fmt.Errorf("vote from '%s' vote info error: %w", x.Author, err)
 	}
-
 	if x.LedgerCommitInfo == nil {
-		return fmt.Errorf("ledger commit info (unicity seal) is missing")
+		return fmt.Errorf("vote from '%s' ledger commit info (unicity seal) is missing", x.Author)
 	}
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
 	if !bytes.Equal(hash, x.LedgerCommitInfo.PreviousHash) {
-		return fmt.Errorf("vote info hash does not match hash in commit info")
+		return fmt.Errorf("vote from '%s' vote info hash does not match hash in commit info", x.Author)
 	}
-
 	if x.HighQc == nil {
-		return fmt.Errorf("high QC is missing")
+		return fmt.Errorf("vote from '%s' high QC is nil", x.Author)
 	}
 	if err := x.HighQc.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("invalid high QC: %w", err)
+		return fmt.Errorf("vote from '%s' high QC error: %w", x.Author, err)
 	}
 	// verify signature
-	if x.Author == "" {
-		return fmt.Errorf("author is missing")
-	}
 	v, f := rootTrust[x.Author]
 	if !f {
-		return fmt.Errorf("author %q is not in the trustbase", x.Author)
+		return fmt.Errorf("author '%s' is not in the trustbase", x.Author)
 	}
 	if err := v.VerifyBytes(x.Signature, x.LedgerCommitInfo.Bytes()); err != nil {
-		return fmt.Errorf("signature verification failed: %w", err)
+		return fmt.Errorf("vote from '%s' signature verification error: %w", x.Author, err)
 	}
 	return nil
 }

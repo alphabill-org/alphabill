@@ -777,4 +777,6 @@ func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader
 
 func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
 
-func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64) error { return nil }
+func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
+	return nil
+}

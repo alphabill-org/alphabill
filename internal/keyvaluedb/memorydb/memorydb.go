@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -29,6 +30,15 @@ func New() *MemoryDB {
 		db:      make(map[string][]byte),
 		encoder: json.Marshal,
 		decoder: json.Unmarshal,
+	}
+}
+
+// NewCBOR creates a new key value store with CBOR encode/decode
+func NewCBOR() *MemoryDB {
+	return &MemoryDB{
+		db:      make(map[string][]byte),
+		encoder: cbor.Marshal,
+		decoder: cbor.Unmarshal,
 	}
 }
 

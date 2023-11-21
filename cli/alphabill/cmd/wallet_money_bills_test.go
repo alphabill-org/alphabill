@@ -164,6 +164,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
+	initialValue := initialBill.Value
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	unitID := initialBill.ID
@@ -180,7 +181,14 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
+	unitState, err := moneyPart.Nodes[0].GetUnitState(unitID, true, true)
+	require.NoError(t, err)
+	require.NotNil(t, unitState)
+	require.EqualValues(t, initialValue-txFee-feeAmount, unitState.Data.(*money.BillData).V)
 
+	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, ucValidator))
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -19,13 +20,6 @@ var (
 type BlockAndState struct {
 	Block *types.Block
 	State *State
-}
-
-type UnitDataAndProof struct {
-	_ struct{} `cbor:",toarray"`
-
-	Data  UnitData
-	Proof *types.UnitStateProof
 }
 
 type ProofIndexer struct {
@@ -106,12 +100,21 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 				if err != nil {
 					return fmt.Errorf("unable to create unit proof: %w", err)
 				}
+				enc, err := cbor.CanonicalEncOptions().EncMode()
+				if err != nil {
+					return err
+				}
+				res, err := enc.Marshal(l.newUnitData)
+				if err != nil {
+					p.log.Warn(fmt.Sprintf("unit data encode error: %v", err))
+					continue
+				}
 				// TODO hash alg
 				key := bytes.Join([][]byte{id, transaction.TransactionOrder.Hash(crypto.SHA256)}, nil)
 				handledTxOrders = append(handledTxOrders, key)
-				if err = dbtx.Write(key, &UnitDataAndProof{
-					Data:  l.newUnitData,
-					Proof: usp,
+				if err = dbtx.Write(key, &types.UnitDataAndProof{
+					UnitData: &types.StateUnitData{Data: res, Bearer: l.newBearer},
+					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unable to write unit proof: %w", err)
 				}

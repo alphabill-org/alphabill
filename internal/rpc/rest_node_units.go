@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/gorilla/mux"
 )
@@ -73,13 +73,13 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			return
 		}
-		response := &state.UnitDataAndProof{}
+		response := &types.UnitDataAndProof{}
 		if err := it.Value(response); err != nil {
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return
 		}
 		if !returnUnitData {
-			response.Data = nil
+			response.UnitData = nil
 		}
 		if !returnProof {
 			response.Proof = nil

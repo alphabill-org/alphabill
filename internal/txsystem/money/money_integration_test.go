@@ -80,12 +80,21 @@ func TestPartition_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, 2, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
-	// check that frcAmount is credited from initial bill
-	bill, err := s.GetUnit(initialBill.ID, true)
+	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, initialBill.ID, transferFC)
 	require.NoError(t, err)
-	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*BillData).V)
+	var unitState BillData
+	require.NotNil(t, unitAndProof.UnitData)
+	require.NoError(t, unitAndProof.UnitData.UnmarshalData(&unitState))
+	require.Equal(t, moneyInvariant-fcrAmount, unitState.V)
+	// verify proof
+	ucv, err := abNet.GetValidator(systemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, ucv))
+	// verify data hash matches
+	dataHash := unitAndProof.UnitData.Hash(crypto.SHA256)
+	require.Equal(t, unitAndProof.Proof.UnitTreeCert.UnitDataHash, dataHash)
 	// send addFC
 	addFC := testfc.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
 		testfc.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,

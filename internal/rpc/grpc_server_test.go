@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -76,7 +75,7 @@ func (mn *MockNode) GetPeer() *network.Peer {
 	return nil
 }
 
-func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*state.UnitDataAndProof, error) {
+func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

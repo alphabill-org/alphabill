@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1348,15 +1349,19 @@ func (n *Node) SystemIdentifier() []byte {
 	return n.configuration.GetSystemIdentifier()
 }
 
-func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*state.UnitDataAndProof, error) {
+func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
 	clonedState := n.transactionSystem.StateStorage().Clone()
 	unit, err := clonedState.GetUnit(unitID, true)
 	if err != nil {
 		return nil, err
 	}
-	response := &state.UnitDataAndProof{}
+	response := &types.UnitDataAndProof{}
 	if returnData {
-		response.Data = unit.Data()
+		res, err := cbor.Marshal(unit.Data())
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode unit data: %w", err)
+		}
+		response.UnitData = &types.StateUnitData{Data: res, Bearer: unit.Bearer()}
 	}
 	if returnProof {
 		p, err := clonedState.CreateUnitStateProof(unitID, len(unit.Logs())-1, n.luc.Load())

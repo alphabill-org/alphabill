@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -36,7 +35,7 @@ type (
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
-		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*state.UnitDataAndProof, error)
+		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
 	}
 )
 

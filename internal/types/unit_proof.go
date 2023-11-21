@@ -8,7 +8,9 @@ import (
 
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -46,6 +48,17 @@ type (
 		NodeSummaryInput    uint64   // (V)
 		SiblingHash         []byte
 		SubTreeSummaryValue uint64
+	}
+
+	StateUnitData struct {
+		Data   cbor.RawMessage
+		Bearer predicates.PredicateBytes
+	}
+
+	UnitDataAndProof struct {
+		_        struct{} `cbor:",toarray"`
+		UnitData *StateUnitData
+		Proof    *UnitStateProof
 	}
 
 	UnicityCertificateValidator interface {
@@ -112,6 +125,20 @@ func (u *UnitStateProof) CalculateSateTreeOutput(algorithm crypto.Hash) ([]byte,
 		v = vv
 	}
 	return h, v
+}
+
+func (u *StateUnitData) UnmarshalData(v any) error {
+	if u.Data == nil {
+		return fmt.Errorf("state unit data is nil")
+	}
+	return cbor.Unmarshal(u.Data, v)
+}
+
+func (u *StateUnitData) Hash(hashAlgo crypto.Hash) []byte {
+	hasher := hashAlgo.New()
+	hasher.Write(u.Bearer)
+	hasher.Write(u.Data)
+	return hasher.Sum(nil)
 }
 
 func computeHash(algorithm crypto.Hash, id UnitID, logRoot []byte, summary uint64, leftHash []byte, leftSummary uint64, rightHash []byte, rightSummary uint64) []byte {

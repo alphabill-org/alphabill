@@ -586,30 +586,33 @@ func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder 
 	return nil, nil, fmt.Errorf("failed to confirm tx")
 }
 
-func (pn *partitionNode) GetUnitProof(ID types.UnitID, txOrderHash []byte, v any) bool {
+func (pn *partitionNode) GetUnitProof(ID types.UnitID, txOrderHash []byte) (*types.UnitDataAndProof, error) {
 	key := bytes.Join([][]byte{ID, txOrderHash}, nil)
 	it := pn.proofDB.Find(key)
 	defer func() { _ = it.Close() }()
 	if !it.Valid() {
-		return false
+		return nil, fmt.Errorf("key not found")
 	}
-	if err := it.Value(v); err != nil {
-		return false
+	var proof types.UnitDataAndProof
+	if err := it.Value(&proof); err != nil {
+		return nil, err
 	}
-	return true
+	return &proof, nil
 }
 
-func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder, v any) (*state.UnitDataAndProof, error) {
+func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
 	t.Helper()
 	var (
-		unitProof *state.UnitDataAndProof
+		unitProof *types.UnitDataAndProof
 	)
 	txOrderHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
 		for _, n := range part.Nodes {
-			if unitDataAndProof := n.GetUnitProof(ID, txOrderHash, v); !unitDataAndProof {
+			unitDataAndProof, err := n.GetUnitProof(ID, txOrderHash)
+			if err != nil {
 				continue
 			}
+			unitProof = unitDataAndProof
 			return true
 		}
 		return false

@@ -184,7 +184,10 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	unitState, err := moneyPart.Nodes[0].GetUnitState(unitID, true, true)
 	require.NoError(t, err)
 	require.NotNil(t, unitState)
-	require.EqualValues(t, initialValue-txFee-feeAmount, unitState.Data.(*money.BillData).V)
+	require.NotNil(t, unitState.UnitData)
+	var bill money.BillData
+	require.NoError(t, unitState.UnitData.UnmarshalData(&bill))
+	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
 
 	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
 	require.NoError(t, err)

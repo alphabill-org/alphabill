@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rpc"
@@ -30,7 +31,6 @@ import (
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -106,11 +106,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
-	batch.Add(&txsubmitter.TxSubmission{
-		UnitID:      transferInitialBillTx.UnitID(),
-		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
-		Transaction: transferInitialBillTx,
-	})
+	batch.Add(txsubmitter.New(transferInitialBillTx))
 	err = batch.SendTx(ctx, false)
 
 	require.NoError(t, err)
@@ -222,11 +218,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
-	batch.Add(&txsubmitter.TxSubmission{
-		UnitID:      transferInitialBillTx.UnitID(),
-		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
-		Transaction: transferInitialBillTx,
-	})
+	batch.Add(txsubmitter.New(transferInitialBillTx))
 	err = batch.SendTx(ctx, false)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
@@ -334,11 +326,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
-	batch.Add(&txsubmitter.TxSubmission{
-		UnitID:      transferInitialBillTx.UnitID(),
-		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
-		Transaction: transferInitialBillTx,
-	})
+	batch.Add(txsubmitter.New(transferInitialBillTx))
 	err = batch.SendTx(ctx, false)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)

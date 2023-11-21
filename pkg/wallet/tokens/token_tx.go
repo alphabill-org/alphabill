@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"sort"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
@@ -156,15 +155,10 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	tx.FeeProof = sig
 
 	// convert again for hashing as the tx might have been modified
-	txSub := &txsubmitter.TxSubmission{
-		UnitID:      unitId,
-		Transaction: tx,
-		TxHash:      tx.Hash(crypto.SHA256),
-	}
-	return txSub, nil
+	return txsubmitter.New(tx), nil
 }
 
-func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *account.AccountKey) (wallet.Predicate, error) {
+func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *account.AccountKey) (sdk.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -183,7 +177,7 @@ func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *accoun
 	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
 }
 
-func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicate, error) {
+func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (sdk.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -223,14 +217,14 @@ func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []by
 	}
 }
 
-func bearerPredicateFromHash(receiverPubKeyHash []byte) wallet.Predicate {
+func bearerPredicateFromHash(receiverPubKeyHash []byte) sdk.Predicate {
 	if receiverPubKeyHash != nil {
 		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
 	}
 	return script.PredicateAlwaysTrue()
 }
 
-func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
+func BearerPredicateFromPubKey(receiverPubKey sdk.PubKey) sdk.Predicate {
 	var h []byte
 	if receiverPubKey != nil {
 		h = hash.Sum256(receiverPubKey)

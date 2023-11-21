@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"context"
-	"crypto"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -24,11 +23,7 @@ func NewTxPublisher(backendClient *client.TokenBackend) *TxPublisher {
 
 // SendTx sends tx and waits for confirmation, returns tx proof
 func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
-	txSub := &txsubmitter.TxSubmission{
-		UnitID:      tx.UnitID(),
-		Transaction: tx,
-		TxHash:      tx.Hash(crypto.SHA256),
-	}
+	txSub := txsubmitter.New(tx)
 	txBatch := txSub.ToBatch(w.backend, senderPubKey)
 	err := txBatch.SendTx(ctx, true)
 	if err != nil {

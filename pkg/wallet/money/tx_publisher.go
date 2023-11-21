@@ -23,11 +23,7 @@ func NewTxPublisher(backend BackendAPI) *TxPublisher {
 
 // SendTx sends tx and waits for confirmation, returns tx proof
 func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
-	txSub := &txsubmitter.TxSubmission{
-		UnitID:      tx.UnitID(),
-		TxHash:      tx.Hash(crypto.SHA256),
-		Transaction: tx,
-	}
+	txSub := txsubmitter.New(tx)
 	wlog.Info(fmt.Sprintf("Sending tx '%s' with hash: '%X'", tx.PayloadType(), tx.Hash(crypto.SHA256)))
 	txBatch := txSub.ToBatch(w.backend, senderPubKey)
 	err := txBatch.SendTx(ctx, true)

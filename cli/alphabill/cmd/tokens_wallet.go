@@ -10,6 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
@@ -190,7 +191,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%s", result.TokenTypeID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%s", types.UnitID(result.GetUnit())))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -277,7 +278,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%s", result.TokenTypeID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%s", types.UnitID(result.GetUnit())))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -362,7 +363,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%s", result.TokenID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%s", types.UnitID(result.GetUnit())))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -452,7 +453,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%s", result.TokenID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%s", types.UnitID(result.GetUnit())))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}

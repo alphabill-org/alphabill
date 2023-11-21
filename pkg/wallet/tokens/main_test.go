@@ -292,7 +292,7 @@ func TestNewTypes(t *testing.T) {
 		result, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.EqualValues(t, typeId, result.TokenTypeID)
+		require.EqualValues(t, typeId, result.GetUnit())
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
 		newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
@@ -329,7 +329,7 @@ func TestNewTypes(t *testing.T) {
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(tokens.FungibleTokenTypeUnitType))
+		require.True(t, types.UnitID(result.GetUnit()).HasType(tokens.FungibleTokenTypeUnitType))
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
@@ -346,7 +346,7 @@ func TestNewTypes(t *testing.T) {
 		result, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.EqualValues(t, typeId, result.TokenTypeID)
+		require.EqualValues(t, typeId, result.GetUnit())
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
 		newNFTTx := &ttxs.CreateNonFungibleTokenTypeAttributes{}
@@ -366,7 +366,7 @@ func TestNewTypes(t *testing.T) {
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType))
+		require.True(t, types.UnitID(result.GetUnit()).HasType(tokens.NonFungibleTokenTypeUnitType))
 	})
 }
 
@@ -417,7 +417,7 @@ func TestMintFungibleToken(t *testing.T) {
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintFungibleTokenAttributes{}
 			require.NotNil(t, result)
-			require.EqualValues(t, tx.UnitID(), result.TokenID)
+			require.EqualValues(t, tx.UnitID(), result.GetUnit())
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 33)
@@ -705,7 +705,7 @@ func TestMintNFT(t *testing.T) {
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintNonFungibleTokenAttributes{}
 			require.NotNil(t, result)
-			require.EqualValues(t, tx.UnitID(), result.TokenID)
+			require.EqualValues(t, tx.UnitID(), result.GetUnit())
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 33)

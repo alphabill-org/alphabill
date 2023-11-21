@@ -2,25 +2,26 @@ package txsubmitter
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
 	TxSubmission struct {
-		UnitID      types.UnitID
-		TxHash      wallet.TxHash
-		Transaction *types.TransactionOrder
-		Proof       *wallet.Proof
+		UnitID      sdk.UnitID
+		TxHash      sdk.TxHash
+		Transaction *sdk.TransactionOrder
+		Proof       *sdk.Proof
 	}
 
 	TxSubmissionBatch struct {
-		sender      wallet.PubKey
+		sender      sdk.PubKey
 		submissions []*TxSubmission
 		maxTimeout  uint64
 		backend     BackendAPI
@@ -28,12 +29,20 @@ type (
 
 	BackendAPI interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error
+		GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	}
 )
 
-func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey) *TxSubmissionBatch {
+func New(tx *types.TransactionOrder) *TxSubmission {
+	return &TxSubmission{
+		UnitID:      sdk.UnitID(tx.UnitID()),
+		TxHash:      tx.Hash(crypto.SHA256),
+		Transaction: (*sdk.TransactionOrder)(tx),
+	}
+}
+
+func (s *TxSubmission) ToBatch(backend BackendAPI, sender sdk.PubKey) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:      sender,
 		backend:     backend,
@@ -46,7 +55,7 @@ func (s *TxSubmission) Confirmed() bool {
 	return s.Proof != nil
 }
 
-func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
+func NewBatch(sender sdk.PubKey, backend BackendAPI) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:  sender,
 		backend: backend,
@@ -67,7 +76,7 @@ func (t *TxSubmissionBatch) Submissions() []*TxSubmission {
 func (t *TxSubmissionBatch) transactions() []*types.TransactionOrder {
 	txs := make([]*types.TransactionOrder, 0, len(t.submissions))
 	for _, sub := range t.submissions {
-		txs = append(txs, sub.Transaction)
+		txs = append(txs, (*types.TransactionOrder)(sub.Transaction))
 	}
 	return txs
 }
@@ -76,7 +85,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 	if len(t.submissions) == 0 {
 		return errors.New("no transactions to send")
 	}
-	err := t.backend.PostTransactions(ctx, t.sender, &wallet.Transactions{Transactions: t.transactions()})
+	err := t.backend.PostTransactions(ctx, t.sender, &sdk.Transactions{Transactions: t.transactions()})
 	if err != nil {
 		return err
 	}
@@ -112,7 +121,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
 				continue
 			}
-			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
+			proof, err := t.backend.GetTxProof(ctx, types.UnitID(sub.UnitID), sub.TxHash)
 			if err != nil {
 				return err
 			}

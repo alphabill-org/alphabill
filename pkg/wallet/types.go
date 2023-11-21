@@ -1,11 +1,17 @@
 package wallet
 
 import (
+	"crypto"
+
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type TxHash []byte
+
+type UnitID types.UnitID
+
+type TransactionOrder types.TransactionOrder
 
 type Transactions struct {
 	_            struct{} `cbor:",toarray"`
@@ -57,3 +63,31 @@ const (
 	CONFIRMED
 	FAILED
 )
+
+func (t *TransactionOrder) Cast() *types.TransactionOrder {
+	return (*types.TransactionOrder)(t)
+}
+
+func (t *TransactionOrder) Timeout() uint64 {
+	return t.Cast().Timeout()
+}
+
+func (t *TransactionOrder) UnitID() UnitID {
+	return UnitID(t.Cast().UnitID())
+}
+
+func (t *TransactionOrder) SystemID() []byte {
+	return t.Cast().SystemID()
+}
+
+func (t *TransactionOrder) PayloadType() string {
+	return t.Cast().PayloadType()
+}
+
+func (t *TransactionOrder) UnmarshalAttributes(v any) error {
+	return t.Cast().UnmarshalAttributes(v)
+}
+
+func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
+	return t.Cast().Hash(algorithm)
+}

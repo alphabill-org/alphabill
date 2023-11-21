@@ -3,13 +3,10 @@ package money
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -20,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type (
@@ -244,17 +242,13 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 		if err != nil {
 			return nil, fmt.Errorf("failed to build dust transfer transaction: %w", err)
 		}
-		dcBatch.Add(&txsubmitter.TxSubmission{
-			UnitID:      tx.UnitID(),
-			TxHash:      tx.Hash(crypto.SHA256),
-			Transaction: tx,
-		})
+		dcBatch.Add(txsubmitter.New(tx))
 	}
 
 	// lock target unit
 	var lockedUnitTxs []*unitlock.Transaction
 	for _, sub := range dcBatch.Submissions() {
-		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction))
+		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction.Cast()))
 	}
 	lockedTargetUnit := unitlock.NewLockedUnit(k.PubKey, targetBill.Id, targetBill.TxHash, w.systemID, unitlock.LockReasonCollectDust, lockedUnitTxs...)
 	err = w.unitLocker.LockUnit(lockedTargetUnit)
@@ -294,15 +288,11 @@ func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, 
 
 	// create new batch for sending tx
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
-	sub := &txsubmitter.TxSubmission{
-		UnitID:      swapTx.UnitID(),
-		TxHash:      swapTx.Hash(crypto.SHA256),
-		Transaction: swapTx,
-	}
+	sub := txsubmitter.New(swapTx)
 	dcBatch.Add(sub)
 
 	// update locked bill with swap tx
-	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction)}
+	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction.Cast())}
 	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for swap tx: %w", err)

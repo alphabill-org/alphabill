@@ -539,6 +539,32 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 	}
 }
 
+type alwaysValid struct{}
+
+func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
+	return nil
+}
+
+func TestCreateAndVerifyStateProofs_CreateUnitProof_OK(t *testing.T) {
+	s, root, summary := prepareState(t)
+	proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		Hash:         root,
+		SummaryValue: util.Uint64ToBytes(summary),
+	}})
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
+}
+
+func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testing.T) {
+	s, root, _ := prepareState(t)
+	proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		Hash:         root,
+		SummaryValue: util.Uint64ToBytes(1),
+	}})
+	require.NoError(t, err)
+	require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
+}
+
 func prepareState(t *testing.T) (*State, []byte, uint64) {
 	s := newEmptyState(t)
 	//			┌───┤ key=00000100

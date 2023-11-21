@@ -1,0 +1,127 @@
+package types
+
+import (
+	"bytes"
+	"crypto"
+	"errors"
+	"fmt"
+
+	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/util"
+)
+
+type (
+	UnitStateProof struct {
+		_                  struct{} `cbor:",toarray"`
+		UnitID             UnitID
+		PreviousStateHash  []byte
+		UnitTreeCert       *UnitTreeCert
+		DataSummary        uint64
+		StateTreeCert      *StateTreeCert
+		UnicityCertificate *UnicityCertificate
+	}
+
+	UnitTreeCert struct {
+		_                     struct{} `cbor:",toarray"`
+		TransactionRecordHash []byte   // t
+		UnitDataHash          []byte   // s
+		Path                  []*mt.PathItem
+	}
+
+	StateTreeCert struct {
+		_                 struct{} `cbor:",toarray"`
+		LeftHash          []byte
+		LeftSummaryValue  uint64
+		RightHash         []byte
+		RightSummaryValue uint64
+
+		Path []*StateTreePathItem
+	}
+
+	StateTreePathItem struct {
+		_                   struct{} `cbor:",toarray"`
+		ID                  UnitID   // (ι′)
+		Hash                []byte   // (z)
+		NodeSummaryInput    uint64   // (V)
+		SiblingHash         []byte
+		SubTreeSummaryValue uint64
+	}
+
+	UnicityCertificateValidator interface {
+		Validate(uc *UnicityCertificate) error
+	}
+)
+
+func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, ucv UnicityCertificateValidator) error {
+	if u == nil {
+		return errors.New("unit state proof is nil")
+	}
+	if u.UnitID == nil {
+		return errors.New("unit ID is nil")
+	}
+	if u.UnitTreeCert == nil {
+		return errors.New("unit tree cert is nil")
+	}
+	if u.StateTreeCert == nil {
+		return errors.New("state tree cert is nil")
+	}
+	if u.UnicityCertificate == nil {
+		return errors.New("unicity certificate is nil")
+	}
+	if err := ucv.Validate(u.UnicityCertificate); err != nil {
+		return fmt.Errorf("invalid unicity certificate: %w", err)
+	}
+	ir := u.UnicityCertificate.InputRecord
+	hash, summary := u.CalculateSateTreeOutput(algorithm)
+	if !bytes.Equal(util.Uint64ToBytes(summary), ir.SummaryValue) {
+		return fmt.Errorf("invalid summary value: expected %X, got %X", ir.SummaryValue, util.Uint64ToBytes(summary))
+	}
+	if !bytes.Equal(hash, ir.Hash) {
+		return fmt.Errorf("invalid state root hash: expected %X, got %X", ir.Hash, hash)
+	}
+	return nil
+}
+
+func (u *UnitStateProof) CalculateSateTreeOutput(algorithm crypto.Hash) ([]byte, uint64) {
+	var z []byte
+	if u.UnitTreeCert.TransactionRecordHash == nil {
+		z = hasherUtil.Sum(algorithm,
+			u.PreviousStateHash,
+			u.UnitTreeCert.UnitDataHash,
+		)
+	} else {
+		z = hasherUtil.Sum(algorithm,
+			hasherUtil.Sum(algorithm, u.PreviousStateHash, u.UnitTreeCert.TransactionRecordHash),
+			u.UnitTreeCert.UnitDataHash,
+		)
+	}
+
+	logRoot := mt.PlainTreeOutput(u.UnitTreeCert.Path, z, algorithm)
+	id := u.UnitID
+	sc := u.StateTreeCert
+	v := u.DataSummary + sc.LeftSummaryValue + sc.RightSummaryValue
+	h := computeHash(algorithm, id, logRoot, v, sc.LeftHash, sc.LeftSummaryValue, sc.RightHash, sc.RightSummaryValue)
+	for _, p := range sc.Path {
+		vv := p.NodeSummaryInput + v + p.SubTreeSummaryValue
+		if id.Compare(p.ID) == -1 {
+			h = computeHash(algorithm, p.ID, p.Hash, vv, h, v, p.SiblingHash, p.SubTreeSummaryValue)
+		} else {
+			h = computeHash(algorithm, p.ID, p.Hash, vv, p.SiblingHash, p.SubTreeSummaryValue, h, v)
+		}
+		v = vv
+	}
+	return h, v
+}
+
+func computeHash(algorithm crypto.Hash, id UnitID, logRoot []byte, summary uint64, leftHash []byte, leftSummary uint64, rightHash []byte, rightSummary uint64) []byte {
+	hasher := algorithm.New()
+	hasher.Write(id)
+	hasher.Write(logRoot)
+	hasher.Write(util.Uint64ToBytes(summary))
+	hasher.Write(leftHash)
+	hasher.Write(util.Uint64ToBytes(leftSummary))
+	hasher.Write(rightHash)
+	hasher.Write(util.Uint64ToBytes(rightSummary))
+	return hasher.Sum(nil)
+}

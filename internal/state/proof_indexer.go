@@ -22,9 +22,10 @@ type BlockAndState struct {
 }
 
 type UnitDataAndProof struct {
-	_     struct{} `cbor:",toarray"`
+	_ struct{} `cbor:",toarray"`
+
 	Data  UnitData
-	Proof *UnitStateProof
+	Proof *types.UnitStateProof
 }
 
 type ProofIndexer struct {

@@ -10,7 +10,7 @@ import (
 
 const (
 	RootRound uint64 = 1
-	Timestamp        = 1668208271000 // 11.11.2022 @ 11:11:11
+	Timestamp uint64 = 1668208271000 // 11.11.2022 @ 11:11:11
 )
 
 var (

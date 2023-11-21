@@ -114,7 +114,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
 			},
-			wantErrStr: "partition keys validation failed, invalid signing key, pubkey must be 33 bytes long, but is 2",
+			wantErrStr: "partition keys validation failed, invalid signing key: pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "encryption pub key is invalid",
@@ -127,7 +127,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
-			wantErrStr: "partition keys validation failed, invalid encryption key, pubkey must be 33 bytes long, but is 2",
+			wantErrStr: "partition keys validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "invalid root signing public key",
@@ -140,7 +140,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "root node list validation failed, invalid signing key, pubkey must be 33 bytes long, but is 1",
+			wantErrStr: "root node list validation failed, invalid signing key: pubkey must be 33 bytes long, but is 1",
 		},
 		{
 			name: "certificate is nil",
@@ -180,7 +180,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "root node list validation failed, invalid encryption key, pubkey must be 33 bytes long, but is 4",
+			wantErrStr: "root node list validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 4",
 		},
 	}
 	for _, tt := range tests {

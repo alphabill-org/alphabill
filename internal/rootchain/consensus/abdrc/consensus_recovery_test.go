@@ -22,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	abtypes "github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -708,7 +709,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 		pStore, err := partitions.NewPartitionStoreFromGenesis(rootG.Partitions)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], log.With(logger.NodeID(nodeID)))
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.NOPMetrics(), log.With(logger.NodeID(nodeID)))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}
@@ -776,4 +777,6 @@ func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader
 
 func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
 
-func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64) error { return nil }
+func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
+	return nil
+}

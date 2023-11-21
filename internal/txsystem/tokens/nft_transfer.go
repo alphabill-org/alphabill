@@ -25,12 +25,12 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 		if err := options.state.Apply(
 			state.SetOwner(unitID, attr.NewBearer),
 			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				d, ok := data.(*nonFungibleTokenData)
+				d, ok := data.(*NonFungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
-				d.t = currentBlockNr
-				d.backlink = tx.Hash(options.hashAlgorithm)
+				d.T = currentBlockNr
+				d.Backlink = tx.Hash(options.hashAlgorithm)
 				return d, nil
 			})); err != nil {
 			return nil, err
@@ -49,17 +49,17 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data().(*nonFungibleTokenData)
+	data, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
 	}
-	if data.locked != 0 {
+	if data.Locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(data.backlink, attr.Backlink) {
+	if !bytes.Equal(data.Backlink, attr.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")
 	}
-	tokenTypeID := data.nftType
+	tokenTypeID := data.NftType
 	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.NFTTypeID)
 	}
@@ -69,12 +69,12 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	predicates, err := getChainedPredicates(
 		hashAlgorithm,
 		s,
-		data.nftType,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		data.NftType,
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

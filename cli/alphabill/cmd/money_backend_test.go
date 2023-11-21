@@ -53,7 +53,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
-		err = cmd.addAndExecuteCommand(ctx)
+		err = cmd.Execute(ctx)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 

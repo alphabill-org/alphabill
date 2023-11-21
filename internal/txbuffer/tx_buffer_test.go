@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const (
@@ -39,7 +38,6 @@ func Test_TxBuffer_New(t *testing.T) {
 		require.EqualValues(t, testBufferSize, cap(buffer.transactionsCh))
 		require.NotNil(t, buffer.transactions)
 		require.NotNil(t, buffer.log)
-		require.NotNil(t, buffer.mCount)
 		require.NotNil(t, buffer.mDur)
 	})
 }
@@ -86,7 +84,7 @@ func Test_TxBuffer_Add(t *testing.T) {
 		}
 
 		_, err = buffer.Add(context.Background(), testtransaction.NewTransactionOrder(t))
-		require.ErrorIs(t, err, ErrBufferIsFull)
+		require.ErrorIs(t, err, ErrTxBufferFull)
 		require.Len(t, buffer.transactions, testBufferSize)
 		require.Len(t, buffer.transactionsCh, testBufferSize)
 	})
@@ -124,7 +122,7 @@ func Test_TxBuffer_removeFromIndex(t *testing.T) {
 	})
 }
 
-func Test_TxBuffer_Process(t *testing.T) {
+func Test_TxBuffer_Remove(t *testing.T) {
 	obs := observability.NOPMetrics()
 	buffer, err := New(testBufferSize, crypto.SHA256, obs, logger.New(t))
 	require.NoError(t, err)
@@ -145,9 +143,14 @@ func Test_TxBuffer_Process(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+		for {
+			_, err := buffer.Remove(ctx)
+			if err != nil {
+				return
+			}
+
 			atomic.AddUint32(&c, 1)
-		})
+		}
 	}()
 
 	require.Eventually(t, func() bool { return atomic.LoadUint32(&c) == 3 }, test.WaitDuration, test.WaitTick)
@@ -174,7 +177,7 @@ func Test_TxBuffer_concurrency(t *testing.T) {
 	go func() {
 		for cnt := 0; cnt < totalTxCnt; {
 			if _, err := buffer.Add(ctx, testtransaction.NewTransactionOrder(t)); err != nil {
-				if !errors.Is(err, ErrBufferIsFull) {
+				if !errors.Is(err, ErrTxBufferFull) {
 					t.Errorf("failed to add tx: %v", err)
 				}
 				continue
@@ -188,9 +191,13 @@ func Test_TxBuffer_concurrency(t *testing.T) {
 	var processedCnt atomic.Int32
 	go func() {
 		defer close(done)
-		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) {
+		for {
+			_, err := buffer.Remove(ctx)
+			if err != nil {
+				return
+			}
 			processedCnt.Add(1)
-		})
+		}
 	}()
 
 	// wait until consumer has seen the same amount of txs we generated

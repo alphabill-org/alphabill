@@ -288,7 +288,9 @@ func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCer
 	l := unit.logs[logIndex]
 	dataHasher := s.hashAlgorithm.New()
 	dataHasher.Write(l.newBearer)
-	l.newUnitData.Write(dataHasher)
+	if err = l.newUnitData.Write(dataHasher); err != nil {
+		return nil, fmt.Errorf("add to hasher error: %w", err)
+	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.txRecordHash,
 		UnitDataHash:          dataHasher.Sum(nil),

@@ -10,17 +10,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
-	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetOptions, logger.New(t))
+	obs := observability.NOPMetrics()
+	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, obs, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
 	// we register protocol for each message for both value and pointer type thus
 	// there must be twice the amount of items in the sendProtocols map than the
 	// actual supported message types is
-	require.Equal(t, 12, len(net.sendProtocols))
+	require.Equal(t, 10, len(net.sendProtocols))
 }
 
 func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
@@ -511,7 +513,7 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 		data := validReceiveProtocolDescription()
 		data.typeFn = nil
 		err = nw.registerReceiveProtocol(data)
-		require.EqualError(t, err, `data struct constructor must be assigned`)
+		require.EqualError(t, err, `data struct constructor or handler must be assigned`)
 	})
 
 	t.Run("constructor returns invalid type", func(t *testing.T) {

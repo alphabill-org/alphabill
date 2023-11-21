@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -47,7 +49,11 @@ type (
 		// GetNodes - get all node id's currently active
 		GetNodes() []peer.ID
 		// Update - what PaceMaker considers to be the current round at the time QC is processed.
-		Update(qc *abtypes.QuorumCert, currentRound uint64) error
+		Update(qc *abtypes.QuorumCert, currentRound uint64, b leader.BlockLoader) error
+	}
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
 	}
 
 	ConsensusManager struct {
@@ -79,12 +85,19 @@ type (
 		// state as other CMs
 		recovery *recoveryInfo
 		log      *slog.Logger
+
+		leaderCnt  metric.Int64Counter
+		execMsgCnt metric.Int64Counter
+		execMsgDur metric.Float64Histogram
+		voteCnt    metric.Int64Counter
+		proposedCR metric.Int64Counter
+		fwdIRCRCnt metric.Int64Counter
 	}
 )
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
-	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, log *slog.Logger, opts ...consensus.Option) (*ConsensusManager, error) {
+	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, observe Observability, log *slog.Logger, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -97,7 +110,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
 	// init storage
-	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
+	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -121,7 +134,11 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 
 	tb, err := NewRootTrustBaseFromGenesis(rg.Root)
 	if err != nil {
-		return nil, fmt.Errorf("consensus root trust base init failed, %w", err)
+		return nil, fmt.Errorf("consensus root trust base init failed: %w", err)
+	}
+	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating Pacemaker: %w", err)
 	}
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
@@ -130,7 +147,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
-		pacemaker:      NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout),
+		pacemaker:      pm,
 		leaderSelector: leader,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(log),
@@ -142,7 +159,55 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		voteBuffer:     make(map[string]*abdrc.VoteMsg),
 		log:            log,
 	}
+	if err := consensusManager.initMetrics(observe); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
+	}
 	return consensusManager, nil
+}
+
+func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
+	m := observe.Meter("cm.distributed")
+
+	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
+		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
+			io.Observe(int64(x.pacemaker.GetCurrentRound()))
+			return nil
+		}))
+	if err != nil {
+		return fmt.Errorf("creating counter for round number: %w", err)
+	}
+
+	x.leaderCnt, err = m.Int64Counter("round.leader", metric.WithDescription("Number of times node has been round leader"))
+	if err != nil {
+		return fmt.Errorf("creating counter for leader count: %w", err)
+	}
+	x.voteCnt, err = m.Int64Counter("count.vote", metric.WithDescription("Number of times node has voted (might be more than once per round for a different reason, ie proposal and timeout)"))
+	if err != nil {
+		return fmt.Errorf("creating vote counter: %w", err)
+	}
+
+	x.proposedCR, err = m.Int64Counter("count.proposed.cr", metric.WithDescription("Number of Change Requests included into proposal by the round leader"))
+	if err != nil {
+		return fmt.Errorf("creating counter for proposal change requests count: %w", err)
+	}
+	x.fwdIRCRCnt, err = m.Int64Counter("count.fwd.ircr", metric.WithDescription(`Number of IR Change Requests messages forwarded ("lost" messages)`))
+	if err != nil {
+		return fmt.Errorf("creating counter for proposal change requests count: %w", err)
+	}
+
+	x.execMsgCnt, err = m.Int64Counter("exec.msg.count", metric.WithDescription("Number of messages processed by the consensus manager"))
+	if err != nil {
+		return fmt.Errorf("creating counter for processed messages: %w", err)
+	}
+	x.execMsgDur, err = m.Float64Histogram("exec.msg.time",
+		metric.WithDescription("How long it took to process message"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05))
+	if err != nil {
+		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	return nil
 }
 
 func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls Leader, err error) {
@@ -165,7 +230,7 @@ func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls
 	default:
 		// we're limited to window size and exclude size 1 as our block loader (block store) doesn't
 		// keep history, ie we can't load blocks older than previous block.
-		return leader.NewReputationBased(rootNodes, 1, 1, blockLoader)
+		return leader.NewReputationBased(rootNodes, 1, 1)
 	}
 }
 
@@ -243,7 +308,17 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 handleRootNetMsg routes messages from "root net" iow messages sent by other rootchain
 validators to appropriate message handler.
 */
-func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) error {
+func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) (rErr error) {
+	defer func(start time.Time) {
+		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+		status := "ok"
+		if rErr != nil {
+			status = "err"
+		}
+		x.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
+		x.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+	}(time.Now())
+
 	switch mt := msg.(type) {
 	case *abdrc.IrChangeReqMsg:
 		return x.onIRChangeMsg(ctx, mt)
@@ -285,6 +360,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if err := x.net.Send(ctx, timeoutVoteMsg, x.leaderSelector.GetNodes()...); err != nil {
 		x.log.WarnContext(ctx, "error on broadcasting timeout vote", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 	}
+	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "timeout"))))
 }
 
 // onPartitionIRChangeReq handle partition change requests. Received from go routine handling
@@ -347,7 +423,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.log.WarnContext(ctx, "node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
+	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(irChangeMsg.IrChangeReq.SystemIdentifier)), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}
@@ -499,10 +575,6 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	if err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
 		return fmt.Errorf("invalid proposal: %w", err)
 	}
-	// Is from valid leader
-	if l := x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String(); l != proposal.Block.Author {
-		return fmt.Errorf("expected %s to be leader of the round %d but got proposal from %s", l, proposal.Block.Round, proposal.Block.Author)
-	}
 	// Check current state against new QC
 	if err := x.checkRecoveryNeeded(proposal.Block.Qc); err != nil {
 		err = fmt.Errorf("proposal triggers recovery: %w", err)
@@ -510,6 +582,10 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 			err = errors.Join(err, fmt.Errorf("sending recovery requests failed: %w", e))
 		}
 		return err
+	}
+	// Is from valid leader
+	if l := x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String(); l != proposal.Block.Author {
+		return fmt.Errorf("expected %s to be leader of the round %d but got proposal from %s", l, proposal.Block.Round, proposal.Block.Author)
 	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
@@ -533,6 +609,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending vote to next leader %s", nextLeader.String()), logger.Round(proposal.Block.Round))
+	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "proposal"))))
 	if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}
@@ -563,7 +640,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *abtypes.QuorumCert
 	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
-	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound()); err != nil {
+	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
 		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 	}
 }
@@ -667,12 +744,14 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		x.log.InfoContext(ctx, fmt.Sprintf("new round start, not leader, awaiting proposal from %s", l.ShortString()), logger.Round(round))
 		return
 	}
+
+	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader", logger.Round(round))
 	// find partitions with T2 timeouts
 	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
-	// NB! error here is not fatal, still make a proposal, hopefully the next node will generate timeout
-	// requests for partitions this node failed to query
 	if err != nil {
+		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
+		// requests for partitions this node failed to query
 		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err), logger.Round(round))
 	}
 	proposalMsg := &abdrc.ProposalMsg{
@@ -681,21 +760,23 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload: x.irReqBuffer.GeneratePayload(round, timeoutIds, func(id types.SystemID32) bool {
-				return x.blockStore.IsChangeInProgress(id)
-			}),
-			Qc: x.blockStore.GetHighQc(),
+			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, x.blockStore.IsChangeInProgress),
+			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}
 	// safety makes simple sanity checks and signs if everything is ok
 	if err = x.safety.Sign(proposalMsg); err != nil {
-		x.log.WarnContext(ctx, "failed to send proposal message, message signing failed", logger.Error(err), logger.Round(round))
+		x.log.WarnContext(ctx, "failed to send proposal message, signing failed", logger.Error(err), logger.Round(round))
+		return
 	}
 	// broadcast proposal message (also to self)
 	x.log.LogAttrs(ctx, slog.LevelDebug, "broadcast proposal", logger.Data(proposalMsg.Block.String()), logger.Round(round))
 	if err = x.net.Send(ctx, proposalMsg, x.leaderSelector.GetNodes()...); err != nil {
-		x.log.WarnContext(ctx, "failed to send proposal message", logger.Error(err), logger.Round(round))
+		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err), logger.Round(round))
+	}
+	for _, cr := range proposalMsg.Block.Payload.Requests {
+		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(cr.SystemIdentifier)), attribute.String("reason", cr.CertReason.String()))))
 	}
 }
 
@@ -746,32 +827,85 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
 		return nil
 	}
-	if err := rsp.CanRecoverToRound(x.recovery.toRound, x.params.HashAlgorithm, x.trustBase.GetVerifiers()); err != nil {
+	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
+		return fmt.Errorf("recovery response verifition failed: %w", err)
+	}
+	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
-
-	if err := x.blockStore.UpdateCertificates(rsp.Certificates); err != nil {
-		return fmt.Errorf("updating block store failed: %w", err)
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, rsp.Certificates, x.blockStore.GetDB())
+	if err != nil {
+		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
-	if err := x.blockStore.RecoverState(rsp.CommittedHead, rsp.BlockNode, x.irReqVerifier); err != nil {
-		return fmt.Errorf("recovering state in block store failed: %w", err)
+	// create new verifier
+	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.partitions, blockStore)
+	if err != nil {
+		return fmt.Errorf("verifier construction failed: %w", err)
 	}
+	x.pacemaker.Reset(blockStore.GetHighQc().GetRound())
 
-	x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
-
+	for i, n := range rsp.BlockNode {
+		// if received block has QC then process it first as with a block received normally
+		if n.Block.Qc != nil {
+			if _, err = blockStore.ProcessQc(n.Block.Qc); err != nil {
+				return fmt.Errorf("block %d for round %v add qc failed: %w", i, n.Block.GetRound(), err)
+			}
+			x.pacemaker.AdvanceRoundQC(n.Block.Qc)
+		}
+		if _, err = blockStore.Add(n.Block, reqVerifier); err != nil {
+			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
+		}
+	}
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.partitions, blockStore)
+	if err != nil {
+		return fmt.Errorf("recovery T2 timeout generator init failed: %w", err)
+	}
+	// all ok
+	x.blockStore = blockStore
+	x.irReqVerifier = reqVerifier
+	x.t2Timeouts = t2TimeoutGen
 	// exit recovery status and replay buffered messages
 	x.log.DebugContext(ctx, "completed recovery", logger.Round(x.pacemaker.GetCurrentRound()))
 	triggerMsg := x.recovery.triggerMsg
 	x.recovery = nil
-
+	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
+	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
+	// other way around as otherwise current leader goes out of sync with peers...
+	if err = x.leaderSelector.Update(x.blockStore.GetHighQc(), x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
+		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
+	}
 	if prop, ok := triggerMsg.(*abdrc.ProposalMsg); ok {
-		if err := x.onProposalMsg(ctx, prop); err != nil {
-			x.log.DebugContext(ctx, "replaying proposal which triggered recovery returned error", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
+		// the proposal was verified when it was received, so try and execute it now
+		// Every proposal must carry a QC or TC for previous round
+		// Process QC first, update round
+		x.processQC(ctx, prop.Block.Qc)
+		x.processTC(prop.LastRoundTc)
+		stateHash, err := x.blockStore.GetBlockRootHash(prop.Block.Round)
+		// assume block not found, was not sent with recovery info
+		if err != nil {
+			// execute proposed payload
+			stateHash, err = x.blockStore.Add(prop.Block, x.irReqVerifier)
+			if err != nil {
+				// wait for timeout, if others make progress this node will need to recover
+				// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
+				return fmt.Errorf("recovery failed to execute proposal: %w", err)
+			}
+		}
+		// send a vote message to next leader
+		voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
+		if err != nil {
+			// wait for timeout, if others make progress this node will need to recover
+			return fmt.Errorf("failed to sign vote: %w", err)
+		}
+		x.pacemaker.SetVoted(voteMsg)
+		// send vote to the next leader
+		nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+		x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending vote after recovery to next leader %s", nextLeader.String()), logger.Round(prop.Block.Round))
+		if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
+			return fmt.Errorf("failed to send vote to next leader: %w", err)
 		}
 	}
-
 	x.replayVoteBuffer(ctx)
-
 	return nil
 }
 

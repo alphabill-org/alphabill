@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +57,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	cmd := New(logger.LoggerBuilder(t))
 	args := "wallet --home " + homeDir + " create"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
@@ -72,7 +73,7 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	cmd := New(logF)
 	pw := "123456"
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
@@ -82,17 +83,17 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	// failing case: missing password
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key", " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.ErrorContains(t, err, "invalid password")
 	// failing case: wrong password
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn 123", " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.ErrorContains(t, err, "invalid password")
 	// passing case:
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn "+pw, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
+	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 }
 
@@ -103,7 +104,7 @@ func TestWalletCreateCmd_invalidSeed(t *testing.T) {
 
 	cmd := New(logger.LoggerBuilder(t))
 	cmd.baseCmd.SetArgs(strings.Split("wallet create -s --wallet-location "+homeDir, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.EqualError(t, err, `invalid value "--wallet-location" for flag "seed" (mnemonic)`)
 	require.False(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 }
@@ -229,11 +230,11 @@ func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *te
 
 func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
 	for _, n := range partition.Nodes {
-		n.AddrGRPC = startRPCServer(t, n.Node)
+		n.AddrGRPC = startRPCServer(t, n.Node, logger.NOP())
 	}
 }
 
-func startRPCServer(t *testing.T, node *partition.Node) string {
+func startRPCServer(t *testing.T, node *partition.Node, log *slog.Logger) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -242,7 +243,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
-	}, testobserv.NOPMetrics())
+	}, testobserv.NOPMetrics(), log)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -309,7 +310,7 @@ func execCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWrite
 	args := "wallet --home " + homeDir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-	return outputWriter, cmd.addAndExecuteCommand(context.Background())
+	return outputWriter, cmd.Execute(context.Background())
 }
 
 func execWalletCmd(t *testing.T, logF LoggerFactory, homedir string, command string) *testConsoleWriter {
@@ -320,7 +321,7 @@ func execWalletCmd(t *testing.T, logF LoggerFactory, homedir string, command str
 	args := fmt.Sprintf("wallet --home %s %s", homedir, command)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	return outputWriter

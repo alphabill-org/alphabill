@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -45,7 +47,7 @@ func TestRunTokensNode(t *testing.T) {
 		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.addAndExecuteCommand(context.Background())
+		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
@@ -57,22 +59,25 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
 		require.NoError(t, err)
-
+		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+		require.NoError(t, err)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		require.NoError(t, err)
+		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
-
 		listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New(logF)
-			args = "tokens --home " + homeDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			args = "tokens --home " + homeDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-			err = cmd.addAndExecuteCommand(ctx)
+			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()

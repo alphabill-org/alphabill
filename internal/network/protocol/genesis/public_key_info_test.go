@@ -30,11 +30,10 @@ func TestNewValidatorTrustBase(t *testing.T) {
 		},
 		{
 			name: "Invalid validator public key",
-			args: args{[]*PublicKeyInfo{
-				&PublicKeyInfo{
-					NodeIdentifier:      "1",
-					SigningPublicKey:    []byte{1, 1},
-					EncryptionPublicKey: []byte{1, 2}}},
+			args: args{[]*PublicKeyInfo{{
+				NodeIdentifier:      "1",
+				SigningPublicKey:    []byte{1, 1},
+				EncryptionPublicKey: []byte{1, 2}}},
 			},
 			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
@@ -167,4 +166,42 @@ func TestValidatorInfoUnique(t *testing.T) {
 			require.ErrorContains(t, ValidatorInfoUnique(tt.args.validators), tt.wantErr)
 		})
 	}
+}
+
+func TestPublicKeyInfo_NodeID(t *testing.T) {
+	t.Run("Encryption key nil", func(t *testing.T) {
+		x := &PublicKeyInfo{
+			EncryptionPublicKey: nil,
+		}
+		id, err := x.NodeID()
+		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 0")
+		require.Empty(t, id)
+	})
+	t.Run("Encryption key empty", func(t *testing.T) {
+		x := &PublicKeyInfo{
+			EncryptionPublicKey: make([]byte, 0),
+		}
+		id, err := x.NodeID()
+		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 0")
+		require.Empty(t, id)
+	})
+	t.Run("Encryption key invalid", func(t *testing.T) {
+		x := &PublicKeyInfo{
+			EncryptionPublicKey: []byte{1, 2, 3},
+		}
+		id, err := x.NodeID()
+		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 3")
+		require.Empty(t, id)
+	})
+	t.Run("Encryption key invalid", func(t *testing.T) {
+		_, pubKey := testsig.CreateSignerAndVerifier(t)
+		pubKeBytes, err := pubKey.MarshalPublicKey()
+		require.NoError(t, err)
+		x := &PublicKeyInfo{
+			EncryptionPublicKey: pubKeBytes,
+		}
+		id, err := x.NodeID()
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+	})
 }

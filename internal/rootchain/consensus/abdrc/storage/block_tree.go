@@ -80,14 +80,10 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	}, nil
 }
 
-func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
-	if bDB == nil {
-		return nil, fmt.Errorf("block tree init failed, database is nil")
-	}
+func readBlocksFromDB(bDB keyvaluedb.KeyValueDB) (_ []*ExecutedBlock, err error) {
 	itr := bDB.Find([]byte(blockPrefix))
 	defer func() { err = errors.Join(err, itr.Close()) }()
 	var blocks []*ExecutedBlock
-	var hQC *abdrc.QuorumCert = nil
 	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
 		var b ExecutedBlock
 		if err = itr.Value(&b); err != nil {
@@ -95,19 +91,38 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 		}
 		blocks = append(blocks, &b)
 	}
+	return blocks, nil
+}
+
+func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
+	if bDB == nil {
+		return nil, fmt.Errorf("block tree init failed, database is nil")
+	}
+	var hQC *abdrc.QuorumCert
+	blocks, err := readBlocksFromDB(bDB)
+	if err != nil {
+		return nil, fmt.Errorf("root DB read error: %w", err)
+	}
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")
 	}
-	var rootNode *node = nil
-	treeNodes := make(map[uint64]*node)
-	for i, block := range blocks {
-		// last root
-		if i == 0 {
-			rootNode = newNode(block)
-			hQC = rootNode.data.Qc
-			treeNodes = map[uint64]*node{block.GetRound(): rootNode}
-			continue
+	// find root
+	rootIdx := 0
+	for i := len(blocks) - 1; i >= 0; i-- {
+		if blocks[i].CommitQc != nil {
+			rootIdx = i
+			break
 		}
+	}
+	rootNode := newNode(blocks[rootIdx])
+	// sanity check, root node must be a committed block
+	if rootNode.data.CommitQc == nil {
+		return nil, fmt.Errorf("invalid root node, not a committed block")
+	}
+	hQC = rootNode.data.Qc
+	treeNodes := map[uint64]*node{blocks[rootIdx].GetRound(): rootNode}
+	for i := rootIdx + 1; i < len(blocks); i++ {
+		block := blocks[i]
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[block.GetParentRound()]
 		if !found {
@@ -120,6 +135,14 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 		parent.addChild(n)
 		if n.data.Qc != nil {
 			hQC = n.data.Qc
+		}
+	}
+	// clear all blocks until new root if any
+	for _, b := range blocks {
+		if b.GetRound() < rootNode.data.GetRound() {
+			if err = bDB.Delete(blockKey(b.GetRound())); err != nil {
+				return nil, fmt.Errorf("failed to clean old round from DB")
+			}
 		}
 	}
 	return &BlockTree{

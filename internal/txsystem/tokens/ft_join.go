@@ -26,14 +26,14 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 		if err := options.state.Apply(
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*fungibleTokenData)
+					d, ok := data.(*FungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					return &fungibleTokenData{
-						tokenType: d.tokenType,
-						value:     sum,
-						t:         currentBlockNr,
+					return &FungibleTokenData{
+						TokenType: d.TokenType,
+						Value:     sum,
+						T:         currentBlockNr,
 						backlink:  h,
 						locked:    0,
 					}, nil
@@ -54,7 +54,7 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 	if len(transactions) != len(proofs) {
 		return 0, fmt.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
-	sum := d.value
+	sum := d.Value
 	for i, btx := range transactions {
 		prevSum := sum
 		btxAttr := &BurnFungibleTokenAttributes{}
@@ -71,8 +71,8 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 			// this ensures that no source token can be included multiple times
 			return 0, errors.New("burn tx orders are not listed in strictly increasing order of token identifiers")
 		}
-		if !bytes.Equal(btxAttr.TypeID, d.tokenType) {
-			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.tokenType, btxAttr.TypeID)
+		if !bytes.Equal(btxAttr.TypeID, d.TokenType) {
+			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.TokenType, btxAttr.TypeID)
 		}
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID()) {
 			return 0, fmt.Errorf("burn tx target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
@@ -87,15 +87,15 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 	if !bytes.Equal(d.backlink, attr.Backlink) {
 		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		options.hashAlgorithm,
 		options.state,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

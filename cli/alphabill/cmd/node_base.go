@@ -46,11 +46,11 @@ type startNodeConfiguration struct {
 	Address                    string
 	Genesis                    string
 	KeyFile                    string
-	RootChainAddress           string
 	DbFile                     string
 	TxIndexerDBFile            string
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
+	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
 func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration,
@@ -62,7 +62,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initRPCServer(node, rpcServerConf, obs)
+		grpcServer, err := initRPCServer(node, rpcServerConf, obs, log)
 		if err != nil {
 			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
 		}
@@ -167,24 +167,19 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 
 	// Assume monolithic root chain for now and only extract the id of the first root node.
 	// Assume monolithic root chain is also a bootstrap node.
-	bootstrapNodeID, bootstrapNodeAddress, err := getRootValidatorIDAndMultiAddress(pg.RootValidators[0].EncryptionPublicKey, cfg.RootChainAddress)
+	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
-
-	bootstrapPeers := []peer.AddrInfo{{
-		ID:    bootstrapNodeID,
-		Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress},
-	}}
-
-	return network.NewPeerConfiguration(cfg.Address, pair, bootstrapPeers, validatorIdentifiers)
+	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
 }
 
-func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability) (*grpc.Server, error) {
+func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
 		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
+		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
@@ -211,12 +206,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if len(pg.RootValidators) < 1 {
 		return nil, errors.New("root validator info is missing")
 	}
-	// Assume monolithic root chain for now and only extract the id of the first root node
-	rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-	rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, cfg.RootChainAddress)
-	if err != nil {
-		return nil, err
-	}
 	if blockStore == nil {
 		blockStore, err = initStore(cfg.DbFile)
 		if err != nil {
@@ -227,7 +216,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	proofIndexer := state.NewProofIndexer(proofStore, 20, log)
 
 	options := []partition.NodeOption{
-		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 		partition.WithTxIndexer(proofStore), partition.WithEventHandler(proofIndexer.Handle, 20),
@@ -283,9 +271,9 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
 	nodeCmd.Flags().StringVarP(&config.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
-	nodeCmd.Flags().StringVarP(&config.RootChainAddress, "rootchain", "r", "/ip4/127.0.0.1/tcp/26662", "root chain address in libp2p multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
+	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")

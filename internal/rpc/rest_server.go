@@ -16,6 +16,7 @@ const (
 	applicationCBOR   = "application/cbor"
 
 	metricsScopeRESTAPI = "rest_api"
+	MetricsScopeGRPCAPI = "grpc_api"
 )
 
 var allowedCORSHeaders = []string{"Accept", "Accept-Language", "Content-Language", "Origin", headerContentType}

@@ -59,7 +59,7 @@ type partitionStartupDependencies struct {
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
-	net         Net
+	network     ValidatorNetwork
 	nodeOptions []NodeOption
 }
 
@@ -105,7 +105,8 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		certs[sysID] = partition.Certificate
 	}
 
-	net := testnetwork.NewMockNetwork()
+
+	net := testnetwork.NewMockNetwork(t)
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
@@ -113,7 +114,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
-		net:         net,
+		network:     net,
 		nodeOptions: nodeOptions,
 	}
 
@@ -166,7 +167,7 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
-		sn.nodeDeps.net,
+		sn.nodeDeps.network,
 		sn.obs,
 		sn.log,
 		append([]NodeOption{
@@ -190,7 +191,7 @@ func (sn *SingleNodePartition) newNode() error {
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	sn.mockNet.Receive(tx)
+	sn.mockNet.AddTransaction(context.Background(), tx)
 	return nil
 }
 

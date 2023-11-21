@@ -23,7 +23,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		if err != nil {
 			return nil, err
 		}
-		d := u.Data().(*fungibleTokenData)
+		d := u.Data().(*FungibleTokenData)
 		// add new token unit
 		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
 
@@ -34,22 +34,22 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		if err := options.state.Apply(
 			state.AddUnit(newTokenID,
 				attr.NewBearer,
-				&fungibleTokenData{
-					tokenType: d.tokenType,
-					value:     attr.TargetValue,
-					t:         currentBlockNr,
+				&FungibleTokenData{
+					TokenType: d.TokenType,
+					Value:     attr.TargetValue,
+					T:         currentBlockNr,
 					backlink:  txHash,
 				}),
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*fungibleTokenData)
+					d, ok := data.(*FungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					return &fungibleTokenData{
-						tokenType: d.tokenType,
-						value:     d.value - attr.TargetValue,
-						t:         currentBlockNr,
+					return &FungibleTokenData{
+						TokenType: d.TokenType,
+						Value:     d.Value - attr.TargetValue,
+						T:         currentBlockNr,
 						backlink:  txHash,
 					}, nil
 				})); err != nil {
@@ -83,29 +83,29 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 		return errors.New("when splitting a token the remaining value of the token must be greater than zero")
 	}
 
-	if d.value < attr.TargetValue {
-		return fmt.Errorf("invalid token value: max allowed %v, got %v", d.value, attr.TargetValue)
+	if d.Value < attr.TargetValue {
+		return fmt.Errorf("invalid token value: max allowed %v, got %v", d.Value, attr.TargetValue)
 	}
-	if rm := d.value - attr.TargetValue; attr.RemainingValue != rm {
+	if rm := d.Value - attr.TargetValue; attr.RemainingValue != rm {
 		return errors.New("remaining value must equal to the original value minus target value")
 	}
 
 	if !bytes.Equal(d.backlink, attr.Backlink) {
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
-	if !bytes.Equal(attr.TypeID, d.tokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.tokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, d.TokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		hashAlgorithm,
 		s,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {

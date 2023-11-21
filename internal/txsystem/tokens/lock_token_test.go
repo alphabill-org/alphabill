@@ -37,15 +37,15 @@ func TestLockFT_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(existingTokenUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	d := u.Data().(*fungibleTokenData)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	d := u.Data().(*FungibleTokenData)
 
 	// verify lock status, backlink and round number is updated
 	// verify value and type id is not updated
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
-	require.Equal(t, existingTokenTypeUnitID, d.tokenType)
-	require.Equal(t, uint64(existingTokenValue), d.value)
-	require.Equal(t, roundNo, d.t)
+	require.Equal(t, existingTokenTypeUnitID, d.TokenType)
+	require.Equal(t, uint64(existingTokenValue), d.Value)
+	require.Equal(t, roundNo, d.T)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, attr.LockStatus, d.locked)
 }
@@ -143,14 +143,14 @@ func TestLockNFT_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
-	d := u.Data().(*nonFungibleTokenData)
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+	d := u.Data().(*NonFungibleTokenData)
 
 	// verify lock status, backlink and round number is updated
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
-	require.Equal(t, roundNo, d.t)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, attr.LockStatus, d.locked)
+	require.Equal(t, roundNo, d.T)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, attr.LockStatus, d.Locked)
 }
 
 func TestLockNFT_NotOk(t *testing.T) {
@@ -241,60 +241,60 @@ func defaultLockOpts(t *testing.T) *Options {
 func initStateForLockTxTests(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 
-	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &fungibleTokenTypeData{
-		symbol:                   "ALPHA",
-		name:                     "A long name for ALPHA",
-		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             nil,
-		decimalPlaces:            5,
-		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		invariantPredicate:       templates.AlwaysTrueBytes(),
+	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &FungibleTokenTypeData{
+		Symbol:                   "ALPHA",
+		Name:                     "A long name for ALPHA",
+		Icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
+		ParentTypeId:             nil,
+		DecimalPlaces:            5,
+		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		InvariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
-		tokenType: existingTokenTypeUnitID,
-		value:     existingTokenValue,
-		t:         0,
+	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &FungibleTokenData{
+		TokenType: existingTokenTypeUnitID,
+		Value:     existingTokenValue,
+		T:         0,
 		backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
-		tokenType: existingTokenTypeUnitID,
-		value:     existingTokenValue,
-		t:         0,
+	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &FungibleTokenData{
+		TokenType: existingTokenTypeUnitID,
+		Value:     existingTokenValue,
+		T:         0,
 		backlink:  make([]byte, 32),
 		locked:    1,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenTypeData{
-		symbol:                   "ALPHA",
-		name:                     "A long name for ALPHA",
-		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		invariantPredicate:       templates.AlwaysTrueBytes(),
-		dataUpdatePredicate:      templates.AlwaysTrueBytes(),
+	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenTypeData{
+		Symbol:                   "ALPHA",
+		Name:                     "A long name for ALPHA",
+		Icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
+		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		InvariantPredicate:       templates.AlwaysTrueBytes(),
+		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
-		nftType:             existingNFTTypeUnitID,
-		name:                "ALPHA",
-		backlink:            make([]byte, 32),
-		dataUpdatePredicate: templates.AlwaysTrueBytes(),
+	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
+		NftType:             existingNFTTypeUnitID,
+		Name:                "ALPHA",
+		Backlink:            make([]byte, 32),
+		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
-		nftType:             existingNFTTypeUnitID,
-		name:                "ALPHA",
-		backlink:            make([]byte, 32),
-		dataUpdatePredicate: templates.AlwaysTrueBytes(),
-		locked:              1,
+	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
+		NftType:             existingNFTTypeUnitID,
+		Name:                "ALPHA",
+		Backlink:            make([]byte, 32),
+		DataUpdatePredicate: templates.AlwaysTrueBytes(),
+		Locked:              1,
 	}))
 	require.NoError(t, err)
 

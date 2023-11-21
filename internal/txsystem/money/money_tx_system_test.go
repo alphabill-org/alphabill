@@ -394,15 +394,20 @@ func TestBillData_AddToHasher(t *testing.T) {
 	}
 
 	hasher := crypto.SHA256.New()
-	hasher.Write(util.Uint64ToBytes(bd.V))
-	hasher.Write(util.Uint64ToBytes(bd.T))
-	hasher.Write(bd.Backlink)
-	hasher.Write(util.Uint64ToBytes(bd.Locked))
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	require.NoError(t, err)
+	res, err := enc.Marshal(bd)
+	require.NoError(t, err)
+	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
-	bd.Write(hasher)
+	require.NoError(t, bd.Write(hasher))
 	actualHash := hasher.Sum(nil)
 	require.Equal(t, expectedHash, actualHash)
+	// make sure all fields where serialized
+	var bdFormSerialized BillData
+	require.NoError(t, cbor.Unmarshal(res, &bdFormSerialized))
+	require.Equal(t, bd, &bdFormSerialized)
 }
 
 func TestEndBlock_DustBillsAreRemoved(t *testing.T) {

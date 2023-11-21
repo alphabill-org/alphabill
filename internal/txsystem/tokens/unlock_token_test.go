@@ -31,11 +31,11 @@ func TestUnlockFT_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	unitData := u.Data().(*fungibleTokenData)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	unitData := u.Data().(*FungibleTokenData)
 
 	// verify token is unlocked, backlink and round number is updated
-	require.Equal(t, roundNo, unitData.t)
+	require.Equal(t, roundNo, unitData.T)
 	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), unitData.backlink)
 	require.EqualValues(t, 0, unitData.locked)
 }
@@ -122,13 +122,13 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
-	nftUnitData := u.Data().(*nonFungibleTokenData)
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+	nftUnitData := u.Data().(*NonFungibleTokenData)
 
 	// verify token is unlocked, backlink and round number is updated
-	require.Equal(t, roundNo, nftUnitData.t)
-	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), nftUnitData.backlink)
-	require.EqualValues(t, 0, nftUnitData.locked)
+	require.Equal(t, roundNo, nftUnitData.T)
+	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), nftUnitData.Backlink)
+	require.EqualValues(t, 0, nftUnitData.Locked)
 }
 
 func TestUnlockNFT_NotOk(t *testing.T) {
@@ -136,29 +136,29 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
-	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenTypeData{
-		symbol:                   "ALPHA",
-		name:                     "A long name for ALPHA",
-		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		invariantPredicate:       templates.AlwaysTrueBytes(),
-		dataUpdatePredicate:      templates.AlwaysTrueBytes(),
+	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenTypeData{
+		Symbol:                   "ALPHA",
+		Name:                     "A long name for ALPHA",
+		Icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
+		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		InvariantPredicate:       templates.AlwaysTrueBytes(),
+		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
-		nftType:             existingNFTTypeUnitID,
-		name:                "ALPHA",
-		backlink:            make([]byte, 32),
-		dataUpdatePredicate: templates.AlwaysTrueBytes(),
+	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
+		NftType:             existingNFTTypeUnitID,
+		Name:                "ALPHA",
+		Backlink:            make([]byte, 32),
+		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
-		nftType:             existingNFTTypeUnitID,
-		name:                "ALPHA",
-		backlink:            make([]byte, 32),
-		dataUpdatePredicate: templates.AlwaysTrueBytes(),
-		locked:              1,
+	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
+		NftType:             existingNFTTypeUnitID,
+		Name:                "ALPHA",
+		Backlink:            make([]byte, 32),
+		DataUpdatePredicate: templates.AlwaysTrueBytes(),
+		Locked:              1,
 	}))
 	require.NoError(t, err)
 

@@ -372,9 +372,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	u, err := states[0].GetUnit(fungibleTokenID1, true)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	d := u.Data().(*fungibleTokenData)
-	require.NotNil(t, totalValue, d.value)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	d := u.Data().(*FungibleTokenData)
+	require.NotNil(t, totalValue, d.Value)
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
@@ -408,17 +408,17 @@ func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleToken
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.Equal(t, e.bearer, []byte(u.Bearer()))
-	require.IsType(t, &fungibleTokenTypeData{}, u.Data())
-	d := u.Data().(*fungibleTokenTypeData)
-	require.Equal(t, e.tokenCreationPredicate, d.tokenCreationPredicate)
-	require.Equal(t, e.subTypeCreationPredicate, d.subTypeCreationPredicate)
-	require.Equal(t, e.invariantPredicate, d.invariantPredicate)
-	require.Equal(t, e.symbol, d.symbol)
-	require.Equal(t, e.name, d.name)
-	require.Equal(t, e.icon.Type, d.icon.Type)
-	require.Equal(t, e.icon.Data, d.icon.Data)
-	require.Equal(t, types.UnitID(e.parentID), d.parentTypeId)
-	require.Equal(t, e.decimalPlaces, d.decimalPlaces)
+	require.IsType(t, &FungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*FungibleTokenTypeData)
+	require.Equal(t, e.tokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, e.subTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.Equal(t, e.invariantPredicate, d.InvariantPredicate)
+	require.Equal(t, e.symbol, d.Symbol)
+	require.Equal(t, e.name, d.Name)
+	require.Equal(t, e.icon.Type, d.Icon.Type)
+	require.Equal(t, e.icon.Data, d.Icon.Data)
+	require.Equal(t, types.UnitID(e.parentID), d.ParentTypeId)
+	require.Equal(t, e.decimalPlaces, d.DecimalPlaces)
 }
 
 func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnitData) {
@@ -427,11 +427,11 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.Equal(t, e.bearer, []byte(u.Bearer()))
-	require.IsType(t, &fungibleTokenData{}, u.Data())
-	d := u.Data().(*fungibleTokenData)
-	require.Equal(t, e.tokenValue, d.value)
+	require.IsType(t, &FungibleTokenData{}, u.Data())
+	d := u.Data().(*FungibleTokenData)
+	require.Equal(t, e.tokenValue, d.Value)
 	require.Equal(t, e.backlink, d.backlink)
-	require.Equal(t, types.UnitID(e.typeUnitID), d.tokenType)
+	require.Equal(t, types.UnitID(e.typeUnitID), d.TokenType)
 }
 
 func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {

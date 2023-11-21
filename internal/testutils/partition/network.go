@@ -212,12 +212,13 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
-		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log)
+		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}
 	}
 	// start root nodes
+	obs := observability.NOPMetrics()
 	for i, rn := range r.Nodes {
 		rootPeer := rootPeers[i]
 		log := r.log.With(logger.NodeID(rootPeer.ID()))
@@ -238,11 +239,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, obs, log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs, log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
@@ -309,7 +310,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 	return abPartition, nil
 }
 
-func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
+func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []peer.AddrInfo) error {
 	n.ctx = ctx
 
 	// start Nodes
@@ -335,13 +336,14 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
 		nd.proofDB = memorydb.NewCBOR()
 		proofIndexer := state.NewProofIndexer(nd.proofDB, 10, log)
-		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
+		// set root node as bootstrap peer
+		nd.peerConf.BootstrapPeers = bootNodes
+		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithEventHandler(proofIndexer.Handle, 10),
 			partition.WithBlockStore(blockStore),
 			partition.WithTxIndexer(txIndexer),
 		)
-
 		if err = n.startNode(ctx, nd, log); err != nil {
 			return err
 		}
@@ -420,6 +422,15 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	}, nil
 }
 
+func getBootstrapNodes(t *testing.T, root *RootPartition) []peer.AddrInfo {
+	require.NotNil(t, root)
+	bootNodes := make([]peer.AddrInfo, len(root.Nodes))
+	for i, n := range root.Nodes {
+		bootNodes[i] = peer.AddrInfo{ID: n.id, Addrs: []multiaddr.Multiaddr{n.addr}}
+	}
+	return bootNodes
+}
+
 func (a *AlphabillNetwork) Start(t *testing.T) error {
 	a.RootPartition.log = testlogger.New(t)
 	// create context
@@ -428,9 +439,10 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 		ctxCancel()
 		return fmt.Errorf("failed to start root partition, %w", err)
 	}
+	bootNodes := getBootstrapNodes(t, a.RootPartition)
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
+		if err := part.start(t, ctx, bootNodes); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
@@ -633,7 +645,6 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 					}
 				}
 			}
-
 		}
 		return false
 	}

@@ -20,12 +20,9 @@ NewReputationBased creates "leader election based on reputation" strategy implem
     at least inside the window.
   - "excludeSize" is the number of most recent block authors to exclude form candidate
     list when electing leader for the next round. Generally should be between f and 2f
-    (where f is max allowed number of faulty nodes). Similarly to the "windowSize" the
-    blockLoader must support loading blocks for given number of rounds from the past.
-  - "blockLoader" is a callback into block store which allows to load block data of given
-    round. It is expected to return either valid block or error.
+    (where f is max allowed number of faulty nodes).
 */
-func NewReputationBased(validators []peer.ID, windowSize, excludeSize int, blockLoader BlockLoader) (*ReputationBased, error) {
+func NewReputationBased(validators []peer.ID, windowSize, excludeSize int) (*ReputationBased, error) {
 	if len(validators) == 0 {
 		return nil, fmt.Errorf("peer list (validators) must not be empty")
 	}
@@ -41,11 +38,8 @@ func NewReputationBased(validators []peer.ID, windowSize, excludeSize int, block
 		windowSize:  windowSize,
 		excludeSize: excludeSize,
 		validators:  validators,
-		loadBlock:   blockLoader,
 	}, nil
 }
-
-type BlockLoader func(round uint64) (*abtypes.BlockData, error)
 
 type roundLeader struct {
 	round  uint64
@@ -65,7 +59,6 @@ type ReputationBased struct {
 	excludeSize int // number of excluded authors of last committed blocks (should be between f and 2f)
 
 	validators peer.IDSlice // sorted! list of all peers in the system
-	loadBlock  BlockLoader
 
 	// Elected leaders.
 	// We do not (need to) keep history and we can only elect leader for the next
@@ -105,15 +98,17 @@ func (rb *ReputationBased) GetNodes() []peer.ID {
 Update triggers leader election for the next round.
 Returns error when election fails or QC and currentRound combination does not trigger election.
 "currentRound" - what PaceMaker considers to be the current round at the time QC is processed.
+"blockLoader" - a callback into block store which allows to load block data of given
+round, it is expected to return either valid block or error.
 */
-func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64) error {
+func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64, blockLoader BlockLoader) error {
 	exR := qc.GetParentRound()
 	qcR := qc.GetRound()
 	if exR+1 != qcR || qcR+1 != currentRound {
 		return fmt.Errorf("not updating leaders because rounds are not consecutive {parent: %d, QC: %d, current: %d}", exR, qcR, currentRound)
 	}
 
-	leader, err := rb.electLeader(qc)
+	leader, err := rb.electLeader(qc, blockLoader)
 	if err != nil {
 		return fmt.Errorf("failed to elect leader for round %d: %w", currentRound+1, err)
 	}
@@ -142,13 +137,13 @@ func (rb *ReputationBased) slotIndex(round uint64) int {
 	return rb.curIdx
 }
 
-func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert) (peer.ID, error) {
+func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader BlockLoader) (peer.ID, error) {
 	qcRound := qc.GetRound()
 	authors := make(map[string]struct{}) // block authors of the recent rounds
 	active := make(map[string]struct{})  // validators that signed the committed blocks
 	round := qc.GetParentRound()
 	for i := 0; i < rb.windowSize || len(authors) < rb.excludeSize; i++ {
-		block, err := rb.loadBlock(round)
+		block, err := blockLoader(round)
 		if err != nil {
 			return UnknownLeader, fmt.Errorf("failed to load round %d block data (starting QC round %d, iteration %d): %w", round, qcRound, i, err)
 		}

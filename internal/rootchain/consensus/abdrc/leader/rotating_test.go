@@ -94,6 +94,6 @@ func TestRoundRobin_Update(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	// Update is NOP in round-robin so should just succeed
-	require.NoError(t, ls.Update(nil, 0))
-	require.NoError(t, ls.Update(nil, 100))
+	require.NoError(t, ls.Update(nil, 0, nil))
+	require.NoError(t, ls.Update(nil, 100, nil))
 }

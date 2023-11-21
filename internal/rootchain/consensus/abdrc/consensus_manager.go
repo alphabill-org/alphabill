@@ -47,7 +47,7 @@ type (
 		// GetNodes - get all node id's currently active
 		GetNodes() []peer.ID
 		// Update - what PaceMaker considers to be the current round at the time QC is processed.
-		Update(qc *abtypes.QuorumCert, currentRound uint64) error
+		Update(qc *abtypes.QuorumCert, currentRound uint64, b leader.BlockLoader) error
 	}
 
 	ConsensusManager struct {
@@ -165,7 +165,7 @@ func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls
 	default:
 		// we're limited to window size and exclude size 1 as our block loader (block store) doesn't
 		// keep history, ie we can't load blocks older than previous block.
-		return leader.NewReputationBased(rootNodes, 1, 1, blockLoader)
+		return leader.NewReputationBased(rootNodes, 1, 1)
 	}
 }
 
@@ -499,10 +499,6 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	if err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
 		return fmt.Errorf("invalid proposal: %w", err)
 	}
-	// Is from valid leader
-	if l := x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String(); l != proposal.Block.Author {
-		return fmt.Errorf("expected %s to be leader of the round %d but got proposal from %s", l, proposal.Block.Round, proposal.Block.Author)
-	}
 	// Check current state against new QC
 	if err := x.checkRecoveryNeeded(proposal.Block.Qc); err != nil {
 		err = fmt.Errorf("proposal triggers recovery: %w", err)
@@ -510,6 +506,10 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 			err = errors.Join(err, fmt.Errorf("sending recovery requests failed: %w", e))
 		}
 		return err
+	}
+	// Is from valid leader
+	if l := x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String(); l != proposal.Block.Author {
+		return fmt.Errorf("expected %s to be leader of the round %d but got proposal from %s", l, proposal.Block.Round, proposal.Block.Author)
 	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
@@ -563,7 +563,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *abtypes.QuorumCert
 	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
-	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound()); err != nil {
+	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
 		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 	}
 }
@@ -758,30 +758,73 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	}
 	// create new verifier
 	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.partitions, blockStore)
+	if err != nil {
+		return fmt.Errorf("verifier construction failed: %w", err)
+	}
+	x.pacemaker.Reset(blockStore.GetHighQc().GetRound())
 
 	for i, n := range rsp.BlockNode {
+		// if received block has QC then process it first as with a block received normally
+		if n.Block.Qc != nil {
+			if _, err = blockStore.ProcessQc(n.Block.Qc); err != nil {
+				return fmt.Errorf("block %d for round %v add qc failed: %w", i, n.Block.GetRound(), err)
+			}
+			x.pacemaker.AdvanceRoundQC(n.Block.Qc)
+		}
 		if _, err = blockStore.Add(n.Block, reqVerifier); err != nil {
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
 		}
 	}
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.partitions, blockStore)
+	if err != nil {
+		return fmt.Errorf("recovery T2 timeout generator init failed: %w", err)
+	}
 	// all ok
 	x.blockStore = blockStore
 	x.irReqVerifier = reqVerifier
-	x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
-
+	x.t2Timeouts = t2TimeoutGen
 	// exit recovery status and replay buffered messages
 	x.log.DebugContext(ctx, "completed recovery", logger.Round(x.pacemaker.GetCurrentRound()))
 	triggerMsg := x.recovery.triggerMsg
 	x.recovery = nil
-
+	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
+	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
+	// other way around as otherwise current leader goes out of sync with peers...
+	if err = x.leaderSelector.Update(x.blockStore.GetHighQc(), x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
+		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
+	}
 	if prop, ok := triggerMsg.(*abdrc.ProposalMsg); ok {
-		if err := x.onProposalMsg(ctx, prop); err != nil {
-			x.log.DebugContext(ctx, "replaying proposal which triggered recovery returned error", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
+		// the proposal was verified when it was received, so try and execute it now
+		// Every proposal must carry a QC or TC for previous round
+		// Process QC first, update round
+		x.processQC(ctx, prop.Block.Qc)
+		x.processTC(prop.LastRoundTc)
+		stateHash, err := x.blockStore.GetBlockRootHash(prop.Block.Round)
+		// assume block not found, was not sent with recovery info
+		if err != nil {
+			// execute proposed payload
+			stateHash, err = x.blockStore.Add(prop.Block, x.irReqVerifier)
+			if err != nil {
+				// wait for timeout, if others make progress this node will need to recover
+				// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
+				return fmt.Errorf("recovery failed to execute proposal: %w", err)
+			}
+		}
+		// send a vote message to next leader
+		voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
+		if err != nil {
+			// wait for timeout, if others make progress this node will need to recover
+			return fmt.Errorf("failed to sign vote: %w", err)
+		}
+		x.pacemaker.SetVoted(voteMsg)
+		// send vote to the next leader
+		nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+		x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending vote after recovery to next leader %s", nextLeader.String()), logger.Round(prop.Block.Round))
+		if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
+			return fmt.Errorf("failed to send vote to next leader: %w", err)
 		}
 	}
-
 	x.replayVoteBuffer(ctx)
-
 	return nil
 }
 

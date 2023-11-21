@@ -16,47 +16,49 @@ func Test_ReputationBased_Update(t *testing.T) {
 
 	t.Run("invalid input: qc.ParentRound + 1 != qc.Round", func(t *testing.T) {
 		rl := &ReputationBased{}
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) { return nil, fmt.Errorf("should not get this far") }
 		slotIdx := rl.curIdx
 
-		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 5, ParentRoundNumber: 3}}, 6)
+		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 5, ParentRoundNumber: 3}}, 6, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 3, QC: 5, current: 6}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 
-		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 1}}, 2)
+		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 1}}, 2, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 1, QC: 1, current: 2}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 
-		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 2}}, 2)
+		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 2}}, 2, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 2, QC: 1, current: 2}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 	})
 
 	t.Run("invalid input: qc.Round + 1 != currentRound", func(t *testing.T) {
 		rl := &ReputationBased{}
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) { return nil, fmt.Errorf("should not get this far") }
 		slotIdx := rl.curIdx
 
-		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 1)
+		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 1, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 1, QC: 2, current: 1}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 
-		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 2)
+		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 2, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 1, QC: 2, current: 2}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 
-		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 4)
+		err = rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 4, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 1, QC: 2, current: 4}`)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 	})
 
 	t.Run("failing to elect leader because block loader fails", func(t *testing.T) {
 		expErr := fmt.Errorf("no blocks for you")
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) { return nil, expErr }
 		rl := &ReputationBased{
 			windowSize: 1,
-			loadBlock:  func(round uint64) (*abtypes.BlockData, error) { return nil, expErr },
 		}
 		slotIdx := rl.curIdx
 
-		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 3)
+		err := rl.Update(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 3, loadBlock)
 		require.ErrorIs(t, err, expErr)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 	})
@@ -73,7 +75,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			}
 			return &abtypes.BlockData{Author: signerAkey}, nil
 		}
-		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1, loadBlock)
+		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -81,7 +83,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			VoteInfo:   &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
-		err = rl.Update(qc, 3)
+		err = rl.Update(qc, 3, loadBlock)
 		require.NoError(t, err)
 		// "signer A" is the author of the previous "ineresting block" (1) so "signer B" must
 		// have been elected to be the leader of the next round (4)
@@ -96,7 +98,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			}
 			return &abtypes.BlockData{Author: signerAkey}, nil
 		}
-		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1, loadBlock)
+		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -104,7 +106,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			VoteInfo:   &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
-		require.NoError(t, rl.Update(qc, 3))
+		require.NoError(t, rl.Update(qc, 3, loadBlock))
 		// "signer A" is the author of the previous block so "signer B" must have been elected
 		// to be the leader of the next round (4)
 		require.Equal(t, signerBid, rl.leaders[rl.curIdx].leader)
@@ -112,13 +114,13 @@ func Test_ReputationBased_Update(t *testing.T) {
 		curIdx := rl.curIdx
 
 		// repeat the update call with the same input - should not cause any changes
-		require.NoError(t, rl.Update(qc, 3))
+		require.NoError(t, rl.Update(qc, 3, loadBlock))
 		require.Equal(t, curIdx, rl.curIdx, "expected that slot index for the round doesn't change")
 		require.Equal(t, signerBid, rl.leaders[rl.curIdx].leader)
 		require.EqualValues(t, 4, rl.leaders[rl.curIdx].round)
 
 		// invalid input (jump current round to 5 with the same QC) - shouldn't change state
-		err = rl.Update(qc, 5)
+		err = rl.Update(qc, 5, loadBlock)
 		require.EqualError(t, err, `not updating leaders because rounds are not consecutive {parent: 1, QC: 2, current: 5}`)
 		require.Equal(t, curIdx, rl.curIdx, "expected that slot index for the round doesn't change")
 		require.Equal(t, signerBid, rl.leaders[rl.curIdx].leader)
@@ -129,14 +131,10 @@ func Test_ReputationBased_Update(t *testing.T) {
 func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 	t.Parallel()
 
-	noLoadBlockCalls := func(round uint64) (*abtypes.BlockData, error) {
-		return nil, fmt.Errorf("unexpected loadBlock call for round %d", round)
-	}
-
 	t.Run("no elected leaders, fallback to round-robin", func(t *testing.T) {
 		ids := test.GeneratePeerIDs(t, 10)
 
-		rl, err := NewReputationBased(ids, 1, 1, noLoadBlockCalls)
+		rl, err := NewReputationBased(ids, 1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -157,7 +155,7 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		ids := test.GeneratePeerIDs(t, 4)
 		signerAid, signerBid, signerCid, signerDid := ids[0], ids[1], ids[2], ids[3]
 
-		rl, err := NewReputationBased(ids, 1, 1, noLoadBlockCalls)
+		rl, err := NewReputationBased(ids, 1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 		require.Len(t, rl.leaders, 3, "leaders buffer len has changed, this test needs to be updated accordingly")
@@ -201,44 +199,44 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 
 	t.Run("loading block fails with error", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to load the block")
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) { return nil, expErr }
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 1,
-			loadBlock:   func(round uint64) (*abtypes.BlockData, error) { return nil, expErr },
 		}
-		id, err := rl.electLeader(&abtypes.QuorumCert{})
+		id, err := rl.electLeader(&abtypes.QuorumCert{}, loadBlock)
 		require.ErrorIs(t, err, expErr)
 		require.EqualValues(t, UnknownLeader, id)
 	})
 
 	t.Run("loading block fails - nil block is returned", func(t *testing.T) {
 		t.Skip("crashes")
+		// this is unexpected behaviour - we define that blockLoader must not return nil
+		// block and nil error. current implementation survives this (ie doesn't crash)
+		// and because it wasn't able to get any info about block signers we get error
+		// about no active validators
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) { return nil, nil }
 		rl := &ReputationBased{
 			windowSize:  3,
 			excludeSize: 1,
-			// this is unexpected behaviour - we define that blockLoader must not return nil
-			// block and nil error. current implementation survives this (ie doesn't crash)
-			// and because it wasn't able to get any info about block signers we get error
-			// about no active validators
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) { return nil, nil },
 		}
-		id, err := rl.electLeader(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{ParentRoundNumber: 3}})
+		id, err := rl.electLeader(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{ParentRoundNumber: 3}}, loadBlock)
 		require.EqualError(t, err, `no active validators left after eliminating 1 recent authors`)
 		require.EqualValues(t, UnknownLeader, id)
 	})
 
 	t.Run("single signer will be excluded and thus empty set to select from", func(t *testing.T) {
+		loadBlock := func(round uint64) (*abtypes.BlockData, error) {
+			return &abtypes.BlockData{Author: "signer"}, nil
+		}
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 1,
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) {
-				return &abtypes.BlockData{Author: "signer"}, nil
-			},
 		}
 		id, err := rl.electLeader(&abtypes.QuorumCert{
 			VoteInfo:   &abtypes.RoundInfo{ParentRoundNumber: 3},
 			Signatures: map[string][]byte{"signer": {1, 2, 3}},
-		})
+		}, loadBlock)
 		require.EqualError(t, err, `no active validators left after eliminating 1 recent authors`)
 		require.EqualValues(t, UnknownLeader, id)
 	})
@@ -251,13 +249,12 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 0,
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) {
-				return &abtypes.BlockData{Author: signerAkey}, nil
-			},
 		}
 		id, err := rl.electLeader(&abtypes.QuorumCert{
 			VoteInfo:   &abtypes.RoundInfo{ParentRoundNumber: 3},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}},
+		}, func(round uint64) (*abtypes.BlockData, error) {
+			return &abtypes.BlockData{Author: signerAkey}, nil
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, signerAid, id)
@@ -268,13 +265,12 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 1,
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) {
-				return &abtypes.BlockData{Author: signerAkey}, nil
-			},
 		}
 		id, err := rl.electLeader(&abtypes.QuorumCert{
 			VoteInfo:   &abtypes.RoundInfo{ParentRoundNumber: 3},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}, "oh deer": {4, 5, 6}},
+		}, func(round uint64) (*abtypes.BlockData, error) {
+			return &abtypes.BlockData{Author: signerAkey}, nil
 		})
 		// signer A is the author of the previous block so the other signer must have been elected
 		// to be the leader but it has invalid ID
@@ -288,13 +284,12 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 1,
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) {
-				return &abtypes.BlockData{Author: signerAkey}, nil
-			},
 		}
 		id, err := rl.electLeader(&abtypes.QuorumCert{
 			VoteInfo:   &abtypes.RoundInfo{ParentRoundNumber: 3},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
+		}, func(round uint64) (*abtypes.BlockData, error) {
+			return &abtypes.BlockData{Author: signerAkey}, nil
 		})
 		// "signer A" is the author of the previous block so "signer B" must have been elected to be the leader
 		require.NoError(t, err)
@@ -308,24 +303,23 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 2,
-			loadBlock: func(round uint64) (*abtypes.BlockData, error) {
-				switch round {
-				case 3:
-					return &abtypes.BlockData{Author: signerAkey}, nil
-				case 4:
-					return &abtypes.BlockData{
-						Author: signerBkey,
-						Qc: &abtypes.QuorumCert{
-							VoteInfo: &abtypes.RoundInfo{RoundNumber: 3},
-						},
-					}, nil
-				}
-				return nil, fmt.Errorf("no block data for round %d", round)
-			},
 		}
 		id, err := rl.electLeader(&abtypes.QuorumCert{
 			VoteInfo:   &abtypes.RoundInfo{RoundNumber: 5, ParentRoundNumber: 4},
 			Signatures: map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}, signerCkey: {7, 8, 9}},
+		}, func(round uint64) (*abtypes.BlockData, error) {
+			switch round {
+			case 3:
+				return &abtypes.BlockData{Author: signerAkey}, nil
+			case 4:
+				return &abtypes.BlockData{
+					Author: signerBkey,
+					Qc: &abtypes.QuorumCert{
+						VoteInfo: &abtypes.RoundInfo{RoundNumber: 3},
+					},
+				}, nil
+			}
+			return nil, fmt.Errorf("no block data for round %d", round)
 		})
 		// signer A and B are the authors of the previous two block so C must have been elected to be the leader
 		require.NoError(t, err)
@@ -377,47 +371,41 @@ func Test_NewReputationBased(t *testing.T) {
 	t.Parallel()
 
 	t.Run("must provide validators", func(t *testing.T) {
-		ls, err := NewReputationBased(nil, 1, 1, nil)
+		ls, err := NewReputationBased(nil, 1, 1)
 		require.EqualError(t, err, `peer list (validators) must not be empty`)
 		require.Nil(t, ls)
 
-		ls, err = NewReputationBased([]peer.ID{}, 1, 1, nil)
+		ls, err = NewReputationBased([]peer.ID{}, 1, 1)
 		require.EqualError(t, err, `peer list (validators) must not be empty`)
 		require.Nil(t, ls)
 	})
 
 	t.Run("len(validators) == excludeSize", func(t *testing.T) {
-		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 1, nil)
+		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 1)
 		require.EqualError(t, err, `excludeSize value must be smaller than the number of validators in the system (1 validators, exclude 1)`)
 		require.Nil(t, ls)
 	})
 
 	t.Run("len(validators) < excludeSize", func(t *testing.T) {
-		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 2, nil)
+		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 2)
 		require.EqualError(t, err, `excludeSize value must be smaller than the number of validators in the system (1 validators, exclude 2)`)
 		require.Nil(t, ls)
 	})
 
 	t.Run("invalid windowSize: 0", func(t *testing.T) {
-		lr, err := NewReputationBased([]peer.ID{"A", "B"}, 0, 1, func(round uint64) (*abtypes.BlockData, error) { return nil, nil })
+		lr, err := NewReputationBased([]peer.ID{"A", "B"}, 0, 1)
 		require.EqualError(t, err, `window size must be greater than zero`)
 		require.Nil(t, lr)
 	})
 
 	t.Run("success", func(t *testing.T) {
 		peerIDs := []peer.ID{"A", "B", "C"}
-		blErr := fmt.Errorf("error from block loader")
-		bloader := func(round uint64) (*abtypes.BlockData, error) { return nil, blErr }
-
-		ls, err := NewReputationBased(peerIDs, 1, 2, bloader)
+		ls, err := NewReputationBased(peerIDs, 1, 2)
 		require.NoError(t, err)
 		require.NotNil(t, ls)
 		require.ElementsMatch(t, ls.validators, peerIDs)
 		require.Equal(t, 1, ls.windowSize)
 		require.Equal(t, 2, ls.excludeSize)
-		b, err := ls.loadBlock(1)
-		require.ErrorIs(t, err, blErr)
-		require.Nil(t, b)
 	})
 }
 
@@ -488,7 +476,7 @@ func Test_ReputationBased(t *testing.T) {
 			Qc:     qc,
 		})
 		// elect leader for round "round+1"
-		return rl.Update(qc, round)
+		return rl.Update(qc, round, loadBlock)
 	}
 
 	// *** TESTS ***
@@ -496,7 +484,7 @@ func Test_ReputationBased(t *testing.T) {
 	// create election with windowSize=len(peerIDs) - as our block store is empty
 	// loading blocks should fail and we fall back to round-robin selection for
 	// len(peerIDs) rounds
-	rl, err := NewReputationBased(peerIDs, len(peerIDs), 1, loadBlock)
+	rl, err := NewReputationBased(peerIDs, len(peerIDs), 1)
 	require.NoError(t, err)
 
 	var currentRound uint64 = 1 // genesis round is 1

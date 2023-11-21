@@ -221,7 +221,7 @@ func (x *BlockStore) Add(block *abtypes.BlockData, verifier IRChangeReqVerifier)
 		b2h := block.Hash(gocrypto.SHA256)
 		// block was found, ignore if it is the same block, recovery may have added it when state was duplicated
 		if bytes.Equal(b1h, b2h) {
-			return nil, nil
+			return b.RootHash, nil
 		}
 		return nil, fmt.Errorf("add block failed: different block for round %v is already in store", block.Round)
 	}

@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -902,10 +901,10 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	n.lastStoredBlock = b
 	n.sendEvent(event.BlockFinalized, &struct {
 		Block *types.Block
-		State *state.State
+		State txsystem.UnitAndProof
 	}{
 		Block: b,
-		State: n.transactionSystem.StateStorage().Clone(),
+		State: n.transactionSystem.StateStorage(),
 	})
 	return nil
 }
@@ -1350,7 +1349,7 @@ func (n *Node) SystemIdentifier() []byte {
 }
 
 func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
-	clonedState := n.transactionSystem.StateStorage().Clone()
+	clonedState := n.transactionSystem.StateStorage()
 	unit, err := clonedState.GetUnit(unitID, true)
 	if err != nil {
 		return nil, err

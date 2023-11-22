@@ -181,12 +181,10 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
-	unitState, err := moneyPart.Nodes[0].GetUnitState(unitID, true, true)
+	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBill.ID, transferFC)
 	require.NoError(t, err)
-	require.NotNil(t, unitState)
-	require.NotNil(t, unitState.UnitData)
 	var bill money.BillData
-	require.NoError(t, unitState.UnitData.UnmarshalData(&bill))
+	require.NoError(t, unitState.UnmarshalUnitData(&bill))
 	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
 
 	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)

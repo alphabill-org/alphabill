@@ -1,4 +1,4 @@
-package state
+package partition
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -19,7 +20,7 @@ var (
 
 type BlockAndState struct {
 	Block *types.Block
-	State *State
+	State txsystem.UnitAndProof
 }
 
 type ProofIndexer struct {
@@ -41,12 +42,12 @@ func (p *ProofIndexer) Handle(e *event.Event) {
 	case event.BlockFinalized:
 		bas, ok := e.Content.(*struct {
 			Block *types.Block
-			State *State
+			State txsystem.UnitAndProof
 		})
 		if !ok {
 			p.log.Warn(fmt.Sprintf("Invalid BlockFinalized event data. Expected %T got %T", &struct {
 				Block *types.Block
-				State *State
+				State *txsystem.UnitAndProof
 			}{}, e.Content))
 			return
 		}
@@ -93,7 +94,7 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 			// todo: was trace
 			p.log.Debug(fmt.Sprintf("Generating %d proof(s) for unit %X", len(logs), id))
 			for i, l := range logs {
-				if !bytes.Equal(l.txRecordHash, trHash) {
+				if !bytes.Equal(l.TxRecordHash, trHash) {
 					continue
 				}
 				usp, err := bas.State.CreateUnitStateProof(id, i, uc)
@@ -104,7 +105,7 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 				if err != nil {
 					return err
 				}
-				res, err := enc.Marshal(l.newUnitData)
+				res, err := enc.Marshal(l.NewUnitData)
 				if err != nil {
 					p.log.Warn(fmt.Sprintf("unit data encode error: %v", err))
 					continue
@@ -113,7 +114,7 @@ func (p *ProofIndexer) create(bas *BlockAndState) error {
 				key := bytes.Join([][]byte{id, transaction.TransactionOrder.Hash(crypto.SHA256)}, nil)
 				handledTxOrders = append(handledTxOrders, key)
 				if err = dbtx.Write(key, &types.UnitDataAndProof{
-					UnitData: &types.StateUnitData{Data: res, Bearer: l.newBearer},
+					UnitData: &types.StateUnitData{Data: res, Bearer: l.NewBearer},
 					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unable to write unit proof: %w", err)

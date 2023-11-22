@@ -422,7 +422,7 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 2)
-	require.Equal(t, txrHash, u.logs[1].txRecordHash)
+	require.Equal(t, txrHash, u.logs[1].TxRecordHash)
 }
 
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
@@ -478,7 +478,7 @@ func TestState_PruneLog(t *testing.T) {
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 1)
-	require.Nil(t, u.logs[0].txRecordHash)
+	require.Nil(t, u.logs[0].TxRecordHash)
 }
 
 func TestState_PruneLog_UnitNotFound(t *testing.T) {

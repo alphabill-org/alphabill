@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -213,7 +211,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		}
 	}
 	// TODO history size!
-	proofIndexer := state.NewProofIndexer(proofStore, 20, log)
+	proofIndexer := partition.NewProofIndexer(proofStore, 20, log)
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),

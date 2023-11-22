@@ -31,10 +31,10 @@ type (
 
 	// Log contains a state changes of the unit during the transaction execution.
 	Log struct {
-		txRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
-		unitLedgerHeadHash []byte // the new head hash of the unit ledger
-		newBearer          predicates.PredicateBytes
-		newUnitData        UnitData
+		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
+		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
+		NewBearer          predicates.PredicateBytes
+		NewUnitData        UnitData
 	}
 
 	// logs contains a state changes of the unit during the current round.
@@ -92,23 +92,23 @@ func (l *Log) Clone() *Log {
 		return nil
 	}
 	return &Log{
-		txRecordHash:       bytes.Clone(l.txRecordHash),
-		unitLedgerHeadHash: bytes.Clone(l.unitLedgerHeadHash),
-		newBearer:          bytes.Clone(l.newBearer),
-		newUnitData:        copyData(l.newUnitData),
+		TxRecordHash:       bytes.Clone(l.TxRecordHash),
+		UnitLedgerHeadHash: bytes.Clone(l.UnitLedgerHeadHash),
+		NewBearer:          bytes.Clone(l.NewBearer),
+		NewUnitData:        copyData(l.NewUnitData),
 	}
 }
 
 func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	hasher.Write(l.newBearer)
-	if l.newUnitData != nil {
-		l.newUnitData.Write(hasher)
+	hasher.Write(l.NewBearer)
+	if l.NewUnitData != nil {
+		l.NewUnitData.Write(hasher)
 	}
 	//y_j
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
-	hasher.Write(l.unitLedgerHeadHash)
+	hasher.Write(l.UnitLedgerHeadHash)
 	hasher.Write(dataHash)
 	// z_j
 	return hasher.Sum(nil)
@@ -119,7 +119,7 @@ func (u *Unit) latestUnitBearer() []byte {
 	if l == 0 {
 		return u.bearer
 	}
-	return u.logs[l-1].newBearer
+	return u.logs[l-1].NewBearer
 }
 
 func (u *Unit) latestUnitData() UnitData {
@@ -127,5 +127,5 @@ func (u *Unit) latestUnitData() UnitData {
 	if l == 0 {
 		return u.data
 	}
-	return u.logs[l-1].newUnitData
+	return u.logs[l-1].NewUnitData
 }

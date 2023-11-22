@@ -105,16 +105,16 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 	unit := u.Clone()
 	logsCount := len(unit.logs)
 	l := &Log{
-		txRecordHash: transactionRecordHash,
-		newBearer:    bytes.Clone(unit.bearer),
-		newUnitData:  copyData(unit.data),
+		TxRecordHash: transactionRecordHash,
+		NewBearer:    bytes.Clone(unit.bearer),
+		NewUnitData:  copyData(unit.data),
 	}
 	if logsCount == 0 {
 		// newly created unit
-		l.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, nil, transactionRecordHash)
+		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, nil, transactionRecordHash)
 	} else {
 		// a pre-existing unit
-		l.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].unitLedgerHeadHash, transactionRecordHash)
+		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
 	}
 	unit.logs = append(unit.logs, l)
 	return len(unit.logs), s.latestSavepoint().Update(id, unit)
@@ -227,10 +227,10 @@ func (s *State) PruneLog(id types.UnitID) error {
 	latestLog := u.logs[logSize-1]
 	unit := u.Clone()
 	unit.logs = []*Log{{
-		txRecordHash:       nil,
-		unitLedgerHeadHash: bytes.Clone(latestLog.unitLedgerHeadHash),
-		newBearer:          bytes.Clone(unit.Bearer()),
-		newUnitData:        copyData(unit.Data()),
+		TxRecordHash:       nil,
+		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),
+		NewBearer:          bytes.Clone(unit.Bearer()),
+		NewUnitData:        copyData(unit.Data()),
 	}}
 	return s.latestSavepoint().Update(id, unit)
 }
@@ -250,10 +250,10 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.Un
 	var unitLedgerHeadHash []byte
 	if logIndex > 0 {
 		// existing unit was updated by a transaction
-		unitLedgerHeadHash = unit.logs[logIndex-1].unitLedgerHeadHash
-	} else if unit.logs[0].txRecordHash == nil {
+		unitLedgerHeadHash = unit.logs[logIndex-1].UnitLedgerHeadHash
+	} else if unit.logs[0].TxRecordHash == nil {
 		// initial state was copied from previous round
-		unitLedgerHeadHash = unit.logs[0].unitLedgerHeadHash
+		unitLedgerHeadHash = unit.logs[0].UnitLedgerHeadHash
 	}
 	unitTreeCert, err := s.createUnitTreeCert(unit, logIndex)
 	if err != nil {
@@ -287,12 +287,12 @@ func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCer
 	}
 	l := unit.logs[logIndex]
 	dataHasher := s.hashAlgorithm.New()
-	dataHasher.Write(l.newBearer)
-	if err = l.newUnitData.Write(dataHasher); err != nil {
+	dataHasher.Write(l.NewBearer)
+	if err = l.NewUnitData.Write(dataHasher); err != nil {
 		return nil, fmt.Errorf("add to hasher error: %w", err)
 	}
 	return &types.UnitTreeCert{
-		TransactionRecordHash: l.txRecordHash,
+		TransactionRecordHash: l.TxRecordHash,
 		UnitDataHash:          dataHasher.Sum(nil),
 		Path:                  path,
 	}, nil

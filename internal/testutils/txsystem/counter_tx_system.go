@@ -45,8 +45,8 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) StateStorage() *state.State {
-	return state.NewEmptyState()
+func (m *CounterTxSystem) StateStorage() txsystem.UnitAndProof {
+	return state.NewEmptyState().Clone()
 }
 
 func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {

@@ -184,8 +184,8 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) StateStorage() *state.State {
-	return m.state
+func (m *GenericTxSystem) StateStorage() UnitAndProof {
+	return m.state.Clone()
 }
 
 func (m *GenericTxSystem) EndBlock() (State, error) {

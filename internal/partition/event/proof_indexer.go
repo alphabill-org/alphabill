@@ -1,4 +1,4 @@
-package partition
+package event
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -37,9 +36,9 @@ func NewProofIndexer(unitProofStorage keyvaluedb.KeyValueDB, historySize uint64,
 	}
 }
 
-func (p *ProofIndexer) Handle(e *event.Event) {
+func (p *ProofIndexer) Handle(e *Event) {
 	switch e.EventType {
-	case event.BlockFinalized:
+	case BlockFinalized:
 		bas, ok := e.Content.(*struct {
 			Block *types.Block
 			State txsystem.UnitAndProof

@@ -21,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
@@ -329,7 +330,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		}
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
 		nd.proofDB = memorydb.New()
-		proofIndexer := partition.NewProofIndexer(nd.proofDB, 10, log)
+		proofIndexer := event.NewProofIndexer(nd.proofDB, 10, log)
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,

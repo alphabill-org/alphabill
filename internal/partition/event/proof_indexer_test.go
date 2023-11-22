@@ -1,30 +1,66 @@
 package event
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/state"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/stretchr/testify/require"
 )
 
+type mockStateStoreOK struct{}
+
 func TestNewProofIndexer(t *testing.T) {
-	type args struct {
-		unitProofStorage keyvaluedb.KeyValueDB
-		historySize      uint64
-		l                *slog.Logger
+	t.Run("indexer - history size 2", func(t *testing.T) {
+		proofDB := memorydb.New()
+		indexer := NewProofIndexer(proofDB, 2, testlogger.New(t))
+		ev := createEvent(1, 10)
+		indexer.Handle(ev)
+		ev = createEvent(2, 10)
+		indexer.Handle(ev)
+		ev = createEvent(3, 10)
+		indexer.Handle(ev)
+		ev = createEvent(4, 10)
+		indexer.Handle(ev)
+		ev = createEvent(5, 10)
+		indexer.Handle(ev)
+		require.EqualValues(t, 5, indexer.latestIndexedBlockNumber())
+	})
+}
+
+func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return &state.Unit{}, nil
+}
+
+func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*types.UnitStateProof, error) {
+	return &types.UnitStateProof{}, nil
+}
+
+func createEvent(round uint64, unitID uint64) *Event {
+	block := &types.Block{
+		Header: &types.Header{SystemID: []byte{0, 0, 0, 1}},
+		Transactions: []*types.TransactionRecord{
+			{
+				TransactionOrder: &types.TransactionOrder{},
+				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{util.Uint64ToBytes(unitID)}},
+			},
+		},
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{RoundNumber: round},
+		},
 	}
-	tests := []struct {
-		name string
-		args args
-		want *ProofIndexer
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewProofIndexer(tt.args.unitProofStorage, tt.args.historySize, tt.args.l); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewProofIndexer() = %v, want %v", got, tt.want)
-			}
-		})
+	return &Event{
+		EventType: BlockFinalized,
+		Content: &struct {
+			Block *types.Block
+			State txsystem.UnitAndProof
+		}{
+			Block: block,
+			State: mockStateStoreOK{},
+		},
 	}
 }

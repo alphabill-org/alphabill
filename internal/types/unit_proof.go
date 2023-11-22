@@ -127,17 +127,24 @@ func (u *UnitStateProof) CalculateSateTreeOutput(algorithm crypto.Hash) ([]byte,
 	return h, v
 }
 
-func (u *StateUnitData) UnmarshalData(v any) error {
-	if u.Data == nil {
-		return fmt.Errorf("state unit data is nil")
+func (up *UnitDataAndProof) UnmarshalUnitData(v any) error {
+	if up.UnitData == nil {
+		return fmt.Errorf("unit data is nil")
 	}
-	return cbor.Unmarshal(u.Data, v)
+	return up.UnitData.UnmarshalData(v)
 }
 
-func (u *StateUnitData) Hash(hashAlgo crypto.Hash) []byte {
+func (sd *StateUnitData) UnmarshalData(v any) error {
+	if sd.Data == nil {
+		return fmt.Errorf("state unit data is nil")
+	}
+	return cbor.Unmarshal(sd.Data, v)
+}
+
+func (sd *StateUnitData) Hash(hashAlgo crypto.Hash) []byte {
 	hasher := hashAlgo.New()
-	hasher.Write(u.Bearer)
-	hasher.Write(u.Data)
+	hasher.Write(sd.Bearer)
+	hasher.Write(sd.Data)
 	return hasher.Sum(nil)
 }
 

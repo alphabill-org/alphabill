@@ -590,7 +590,7 @@ func (pn *partitionNode) GetUnitProof(ID types.UnitID, txOrderHash []byte) (*typ
 	key := bytes.Join([][]byte{ID, txOrderHash}, nil)
 	it := pn.proofDB.Find(key)
 	defer func() { _ = it.Close() }()
-	if !it.Valid() {
+	if !it.Valid() || !bytes.Equal(it.Key(), key) {
 		return nil, fmt.Errorf("key not found")
 	}
 	var proof types.UnitDataAndProof
@@ -616,7 +616,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 			return true
 		}
 		return false
-	}, 100*test.WaitDuration, test.WaitTick); ok {
+	}, test.WaitDuration, test.WaitTick); ok {
 		return unitProof, nil
 	}
 	return nil, fmt.Errorf("failed to confirm tx")

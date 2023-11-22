@@ -69,7 +69,7 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		key := bytes.Join([][]byte{unitID, txOrderHash}, nil)
 		it := index.Find(key)
 		defer func() { _ = it.Close() }()
-		if !it.Valid() {
+		if !it.Valid() || !bytes.Equal(it.Key(), key) {
 			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			return
 		}

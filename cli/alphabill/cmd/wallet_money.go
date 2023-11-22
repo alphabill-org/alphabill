@@ -15,6 +15,7 @@ import (
 
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -175,8 +176,13 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		return err
 	}
 	defer unitLocker.Close()
+	feeManagerDB, err := fees.NewFeeManagerDB(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer feeManagerDB.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -266,7 +272,13 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
+	feeManagerDB, err := fees.NewFeeManagerDB(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer feeManagerDB.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -394,7 +406,13 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
+	feeManagerDB, err := fees.NewFeeManagerDB(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer feeManagerDB.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}

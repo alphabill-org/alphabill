@@ -57,3 +57,10 @@ const (
 	CONFIRMED
 	FAILED
 )
+
+func (p *Proof) GetActualFee() uint64 {
+	if p == nil {
+		return 0
+	}
+	return p.TxRecord.GetActualFee()
+}

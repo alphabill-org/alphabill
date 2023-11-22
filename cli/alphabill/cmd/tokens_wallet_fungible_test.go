@@ -323,13 +323,18 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 
 	unitLocker, err := unitlock.NewUnitLocker(walletDir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient, log)
+	feeManagerDB, err := fees.NewFeeManagerDB(walletDir)
+	require.NoError(t, err)
+	defer feeManagerDB.Close()
+
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, feeManagerDB, moneyBackendClient, log)
 	require.NoError(t, err)
 	defer moneyWallet.Close()
 
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
-	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
+	tokenFeeManager := fees.NewFeeManager(am, feeManagerDB, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, moneywallet.FeeCreditRecordIDFormPublicKey, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
 	defer tokenFeeManager.Close()
 
 	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, log)

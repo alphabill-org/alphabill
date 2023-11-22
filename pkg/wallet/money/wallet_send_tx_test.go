@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -553,14 +554,17 @@ func createTestWallet(t *testing.T, backend BackendAPI) *Wallet {
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	return createTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+
+	return createTestWalletWithManagerAndUnitLocker(t, backend, am, feeManagerDB, unitLocker)
 }
 
-func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) *Wallet {
+func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, feeManagerDB fees.FeeManagerDB, unitLocker *unitlock.UnitLocker) *Wallet {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitLocker, backend, logger.New(t))
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, backend, logger.New(t))
 	require.NoError(t, err)
 
 	return w

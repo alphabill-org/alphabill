@@ -1,13 +1,14 @@
 package state
 
 import (
+	"fmt"
 	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -111,8 +112,16 @@ type pruneUnitData struct {
 }
 
 func (p *pruneUnitData) Write(hasher hash.Hash) error {
-	hasher.Write(util.Uint64ToBytes(p.i))
-	return nil
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("unit data encode error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
 func (p *pruneUnitData) SummaryValueInput() uint64 {

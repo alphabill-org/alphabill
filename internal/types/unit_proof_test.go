@@ -20,89 +20,57 @@ func (a alwaysInvalid) Validate(*UnicityCertificate) error {
 }
 
 func TestVerifyUnitStateProof(t *testing.T) {
-	tests := []struct {
-		name      string
-		proof     *UnitStateProof
-		algorithm crypto.Hash
-		ucv       UnicityCertificateValidator
-		errStr    string
-	}{
-		{
-			name:      "unit state proof is nil",
-			proof:     nil,
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysValid{},
-			errStr:    "unit state proof is nil",
-		},
-		{
-			name:      "unit ID missing",
-			proof:     &UnitStateProof{},
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysValid{},
-			errStr:    "unit ID is nil",
-		},
-		{
-			name: "unit tree cert missing",
-			proof: &UnitStateProof{
-				UnitID: []byte{0},
-			},
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysValid{},
-			errStr:    "unit tree cert is nil",
-		},
-		{
-			name: "state tree cert missing",
-			proof: &UnitStateProof{
-				UnitID:       []byte{0},
-				UnitTreeCert: &UnitTreeCert{},
-			},
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysValid{},
-			errStr:    "state tree cert is nil",
-		},
-		{
-			name: "unicity certificate missing",
-			proof: &UnitStateProof{
-				UnitID:        []byte{0},
-				UnitTreeCert:  &UnitTreeCert{},
-				StateTreeCert: &StateTreeCert{},
-			},
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysValid{},
-			errStr:    "unicity certificate is nil",
-		},
-		{
-			name: "invalid unicity certificate",
-			proof: &UnitStateProof{
-				UnitID:             []byte{0},
-				UnitTreeCert:       &UnitTreeCert{},
-				StateTreeCert:      &StateTreeCert{},
-				UnicityCertificate: &UnicityCertificate{},
-			},
-			algorithm: crypto.SHA256,
-			ucv:       &alwaysInvalid{},
-			errStr:    "invalid unicity certificate",
-		},
-		/*
-			{
-				name:      "invalid summary value",
-				proof:     getProof(t, s, root, 1),
-				algorithm: crypto.SHA256,
-				ucv:       &alwaysValid{},
-				errStr:    "invalid summary value",
-			},
-			{
-				name:      "invalid output hash",
-				proof:     getProof(t, s, []byte{0, 0, 0, 0, 0}, summary),
-				algorithm: crypto.SHA256,
-				ucv:       &alwaysValid{},
-				errStr:    "invalid state root hash",
-			},
-		*/
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.ErrorContains(t, VerifyUnitStateProof(tt.proof, tt.algorithm, tt.ucv), tt.errStr)
+	t.Run("unit state proof is nil", func(t *testing.T) {
+		require.ErrorContains(t, VerifyUnitStateProof(nil, crypto.SHA256, &alwaysValid{}), "unit state proof is nil")
+	})
+	t.Run("unit ID missing", func(t *testing.T) {
+		require.ErrorContains(t, VerifyUnitStateProof(&UnitStateProof{}, crypto.SHA256, &alwaysValid{}), "unit ID is nil")
+	})
+	t.Run("unit tree cert missing", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID: []byte{0},
+		}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "unit tree cert is nil")
+	})
+	t.Run("state tree cert missing", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:       []byte{0},
+			UnitTreeCert: &UnitTreeCert{},
+		}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "state tree cert is nil")
+	})
+	t.Run("unicity certificate missing", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:        []byte{0},
+			UnitTreeCert:  &UnitTreeCert{},
+			StateTreeCert: &StateTreeCert{},
+		}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "unicity certificate is nil")
+	})
+	t.Run("invalid unicity certificate", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysInvalid{}), "invalid unicity certificate")
+	})
+	/*
+		t.Run("invalid summary value", func(t *testing.T) {
+			s, root, _ := setupState(t)
+			proof := getCreateProof(t, s, root, []byte{1})
+			require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value")
 		})
-	}
+		t.Run("invalid root hash", func(t *testing.T) {
+			s, _, summary := setupState(t)
+			proof := getCreateProof(t, s, []byte{0, 0, 0, 0, 0}, summary)
+			require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid state root hash")
+		})
+		t.Run("ok", func(t *testing.T) {
+			s, root, summary := setupState(t)
+			proof := getCreateProof(t, s, root, summary)
+			require.NoError(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
+		})
+	*/
 }

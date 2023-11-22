@@ -56,21 +56,4 @@ func TestVerifyUnitStateProof(t *testing.T) {
 		}
 		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysInvalid{}), "invalid unicity certificate")
 	})
-	/*
-		t.Run("invalid summary value", func(t *testing.T) {
-			s, root, _ := setupState(t)
-			proof := getCreateProof(t, s, root, []byte{1})
-			require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value")
-		})
-		t.Run("invalid root hash", func(t *testing.T) {
-			s, _, summary := setupState(t)
-			proof := getCreateProof(t, s, []byte{0, 0, 0, 0, 0}, summary)
-			require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid state root hash")
-		})
-		t.Run("ok", func(t *testing.T) {
-			s, root, summary := setupState(t)
-			proof := getCreateProof(t, s, root, summary)
-			require.NoError(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
-		})
-	*/
 }

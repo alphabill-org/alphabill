@@ -119,7 +119,9 @@ func TestState_Commit_OK(t *testing.T) {
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 	require.NoError(t, s.Commit())
+	require.EqualValues(t, 2, s.CommittedTreeBlockNumber())
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
 	require.NotNil(t, committedRoot)
@@ -134,7 +136,10 @@ func TestState_Commit_RootNotCalculated(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 	require.ErrorContains(t, s.Commit(), "call CalculateRoot method before committing a state")
+	// If commit fails committed block number remains the same
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 }
 
 func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
@@ -557,24 +562,37 @@ func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
 	return nil
 }
 
-func TestCreateAndVerifyStateProofs_CreateUnitProof_OK(t *testing.T) {
-	s, root, summary := prepareState(t)
-	proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
-		Hash:         root,
-		SummaryValue: util.Uint64ToBytes(summary),
-	}})
-	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
+func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		s, root, summary := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(summary),
+		}})
+		require.NoError(t, err)
+		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
+	})
+	t.Run("invalid summary value", func(t *testing.T) {
+		s, root, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(1),
+		}})
+		require.NoError(t, err)
+		require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
+	})
+	t.Run("unit not found", func(t *testing.T) {
+		s, root, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{1, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(1),
+		}})
+		require.ErrorContains(t, err, "unable to get unit 01000005: item 01000005 does not exist: not found")
+		require.Nil(t, proof)
+	})
 }
 
 func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testing.T) {
-	s, root, _ := prepareState(t)
-	proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
-		Hash:         root,
-		SummaryValue: util.Uint64ToBytes(1),
-	}})
-	require.NoError(t, err)
-	require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
 }
 
 func prepareState(t *testing.T) (*State, []byte, uint64) {

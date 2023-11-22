@@ -177,7 +177,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transferFC
 	require.NoError(t, moneyPart.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
@@ -198,7 +198,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send addFC
 	require.NoError(t, moneyPart.SubmitTx(addFC))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, addFC)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, addFC)
 	require.NoError(t, err, "add fee credit tx failed")
 
 	// create transfer tx
@@ -208,7 +208,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transfer tx
 	require.NoError(t, moneyPart.SubmitTx(tx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, tx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, tx)
 	require.NoError(t, err, "transfer tx failed")
 	return remainingValue
 }

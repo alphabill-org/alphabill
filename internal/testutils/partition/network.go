@@ -103,9 +103,6 @@ func (rn *rootNode) Stop() error {
 	return <-rn.done
 }
 
-type ValidatorIndex int
-
-const ANY_VALIDATOR ValidatorIndex = -1
 const testNetworkTimeout = 600 * time.Millisecond
 
 // getGenesisFiles is a helper function to collect all node genesis files
@@ -553,24 +550,17 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
-// WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
-// when tx has been executed and added to block
-// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
-func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+// WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
+// the UC. Returns both transaction record and proof when tx has been executed and added to block
+func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
 	t.Helper()
 	var (
 		txRecord *types.TransactionRecord
 		txProof  *types.TxProof
 	)
-	var nodes []*partitionNode
-	if idx == ANY_VALIDATOR {
-		nodes = part.Nodes
-	} else {
-		nodes = append(nodes, part.Nodes[idx])
-	}
 	txHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
-		for _, n := range nodes {
+		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
 			if err != nil || proof == nil {
 				continue

@@ -80,7 +80,7 @@ func TestPartition_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, initialBill.ID, transferFC)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestPartition_Ok(t *testing.T) {
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
 	// before reading state make sure that node 2 has executed the transfer
-	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, addFC)
+	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
 	require.NoError(t, err, "add fee credit tx failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestPartition_Ok(t *testing.T) {
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
-	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, transferInitialBillTx)
+	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestPartition_Ok(t *testing.T) {
 	remainingValue := total - fcrAmount - amountPK2
 	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
-	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, tx)
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, tx)
 	require.NoError(t, err, "money split tx failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
-	_, _, err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, transferInitialBillTx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "money split tx failed")
 
 	// split initial bill using N-way split where N=nofDustToSwap
@@ -221,7 +221,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(splitTx))
 
 	// wait for transaction to be added to block
-	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, splitTx)
+	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, splitTx)
 	require.NoError(t, err, "money split tx failed")
 	require.EqualValues(t, splitTx, txRecord.TransactionOrder)
 
@@ -239,7 +239,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	dcRecordsProofs := make([]*types.TxProof, len(dcTxs))
 	for i, dcTx := range dcTxs {
 		require.NoError(t, moneyPrt.SubmitTx(dcTx))
-		dcRecords[i], dcRecordsProofs[i], err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, dcTx)
+		dcRecords[i], dcRecordsProofs[i], err = testpartition.WaitTxProof(t, moneyPrt, dcTx)
 		require.NoError(t, err, "dc tx failed")
 	}
 
@@ -278,7 +278,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, swapTx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPrt, swapTx)
 	require.NoError(t, err)
 	for _, n := range moneyPrt.Nodes {
 		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)

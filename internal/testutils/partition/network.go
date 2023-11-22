@@ -283,7 +283,6 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 
 		signer := signers[i]
 		// create partition genesis file
-
 		nodeGenesis, err := partition.NewNodeGenesis(
 			txSystemProvider(map[string]crypto.Verifier{"genesis": nil}),
 			partition.WithPeerID(peerConf.ID),
@@ -309,7 +308,6 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 
 func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []peer.AddrInfo) error {
 	n.ctx = ctx
-
 	// start Nodes
 	trustBase, err := genesis.NewValidatorTrustBase(n.partitionGenesis.RootValidators)
 	if err != nil {

@@ -331,7 +331,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
-		nd.proofDB = memorydb.NewCBOR()
+		nd.proofDB = memorydb.New()
 		proofIndexer := state.NewProofIndexer(nd.proofDB, 10, log)
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes

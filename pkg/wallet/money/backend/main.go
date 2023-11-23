@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -54,13 +54,13 @@ type (
 	}
 
 	Bill struct {
-		Id                   []byte `json:"id"`
-		Value                uint64 `json:"value"`
-		TxHash               []byte `json:"txHash"`
-		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
-		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
-		OwnerPredicate       []byte `json:"ownerPredicate"`
-		Locked               uint64 `json:"locked"`
+		Id                   []byte         `json:"id"`
+		Value                uint64         `json:"value"`
+		TxHash               []byte         `json:"txHash"`
+		DCTargetUnitID       []byte         `json:"dcTargetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte         `json:"dcTargetUnitBacklink,omitempty"`
+		OwnerPredicate       []byte         `json:"ownerPredicate"`
+		Locked               sdk.LockReason `json:"locked"`
 	}
 
 	Pubkey struct {

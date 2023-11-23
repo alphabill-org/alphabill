@@ -5,6 +5,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
+const (
+	LockReasonAddFees = 1 + iota
+	LockReasonReclaimFees
+	LockReasonCollectDust
+)
+
 type TxHash []byte
 
 type Transactions struct {
@@ -63,4 +69,18 @@ func (p *Proof) GetActualFee() uint64 {
 		return 0
 	}
 	return p.TxRecord.GetActualFee()
+}
+
+type LockReason uint64
+
+func (r LockReason) String() string {
+	switch r {
+	case LockReasonAddFees:
+		return "locked for adding fees"
+	case LockReasonReclaimFees:
+		return "locked for reclaiming fees"
+	case LockReasonCollectDust:
+		return "locked for dust collection"
+	}
+	return ""
 }

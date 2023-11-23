@@ -5,11 +5,11 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"fmt"
 	"net"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -30,6 +30,7 @@ type (
 		maxBlockNumber uint64
 		maxRoundNumber uint64
 		transactions   []*types.TransactionOrder
+		err            error
 	}
 )
 
@@ -76,7 +77,22 @@ func (mn *MockNode) GetPeer() *network.Peer {
 }
 
 func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
-	return nil, fmt.Errorf("not implemented")
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	unitAndProof := &types.UnitDataAndProof{}
+	if returnData {
+		unitAndProof.UnitData = &types.StateUnitData{
+			Data:   cbor.RawMessage{0x81, 0x00},
+			Bearer: predicates.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
+		}
+	}
+	if returnProof {
+		unitAndProof.Proof = &types.UnitStateProof{
+			UnitID: unitID,
+		}
+	}
+	return unitAndProof, nil
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {

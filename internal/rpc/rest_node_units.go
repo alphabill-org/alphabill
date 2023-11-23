@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/gorilla/mux"
 )
 
@@ -44,7 +45,6 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 				}
 
 			}
-			return
 		}
 		txOrderHashString := strings.TrimSpace(query.Get("txOrderHash"))
 		var txOrderHash []byte
@@ -59,8 +59,11 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		if txOrderHash == nil {
 			dataAndProof, err := node.GetUnitState(unitID, returnProof, returnUnitData)
 			if err != nil {
-				// TODO handle not found
-				util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+				if errors.Is(err, avl.ErrNotFound) {
+					util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+				} else {
+					util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+				}
 				return
 			}
 			util.WriteCBORResponse(w, dataAndProof, http.StatusOK, log)

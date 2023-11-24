@@ -95,11 +95,15 @@ func (w *Wallet) Shutdown() {
 }
 
 func newSingleResult(sub *txsubmitter.TxSubmission, accNr uint64) *SubmissionResult {
-	if sub.Confirmed() {
-		return &SubmissionResult{Submissions: []*txsubmitter.TxSubmission{sub}, FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}
-	} else {
-		return &SubmissionResult{Submissions: []*txsubmitter.TxSubmission{sub}, AccountNumber: accNr}
+	res := &SubmissionResult{AccountNumber: accNr}
+	if sub == nil {
+		return res
 	}
+	res.Submissions = []*txsubmitter.TxSubmission{sub}
+	if sub.Confirmed() {
+		res.FeeSum = sub.Proof.TxRecord.ServerMetadata.ActualFee
+	}
+	return res
 }
 
 func (r *SubmissionResult) GetUnit() sdk.UnitID {
@@ -368,10 +372,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return nil, err
 	}
 	err = sub.ToBatch(w.backend, key.PubKey).SendTx(ctx, w.confirmTx)
-	if sub.Confirmed() {
-		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
-	}
-	return &SubmissionResult{}, err
+	return newSingleResult(sub, accountNumber), err
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId backend.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
@@ -435,12 +436,9 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 			return nil, err
 		}
 		err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
-		if sub.Confirmed() {
-			return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
-		}
-		return &SubmissionResult{}, err
+		return newSingleResult(sub, accountNumber), err
 	} else {
-		return w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
+		return w.doSendMultiple(ctx, targetAmount, matchingTokens, &accountKey{acc, accountNumber - 1}, receiverPubKey, invariantPredicateArgs)
 	}
 }
 
@@ -483,10 +481,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return nil, err
 	}
 	err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
-	if sub.Confirmed() {
-		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
-	}
-	return &SubmissionResult{}, err
+	return newSingleResult(sub, accountNumber), err
 }
 
 // GetFeeCredit returns fee credit bill for given account,

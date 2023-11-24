@@ -106,7 +106,7 @@ func (s *BoltStore) GetReclaimFeeContext(accountID []byte) (*ReclaimFeeCreditCtx
 			return nil
 		}
 		if err := json.Unmarshal(feeCtxBytes, &feeCtx); err != nil {
-			return fmt.Errorf("failed to deserialize add fee credit json: %w", err)
+			return fmt.Errorf("failed to deserialize reclaim fee credit json: %w", err)
 		}
 		return nil
 	})

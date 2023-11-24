@@ -201,28 +201,24 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 		return nil, errors.New("wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
 	}
 	// if partial add process exists, finish it first
-	feeCtx, err := w.db.GetAddFeeContext(accountKey.PubKey)
+	addFeeCtx, err := w.db.GetAddFeeContext(accountKey.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee manager context: %w", err)
 	}
-	if feeCtx != nil {
+	if addFeeCtx != nil {
 		// verify fee ctx exists for current partition
-		if !bytes.Equal(feeCtx.TargetPartitionID, w.targetPartitionSystemID) {
+		if !bytes.Equal(addFeeCtx.TargetPartitionID, w.targetPartitionSystemID) {
 			return nil, fmt.Errorf("%w: pendingProcessSystemID=%X, providedSystemID=%X",
-				ErrInvalidPartition, feeCtx.TargetPartitionID, w.targetPartitionSystemID)
-		}
-		// verify the fee context is for correct partition
-		if !bytes.Equal(w.targetPartitionSystemID, feeCtx.TargetPartitionID) {
-			return nil, errors.New("wallet contains pending fee credit for another partition")
+				ErrInvalidPartition, addFeeCtx.TargetPartitionID, w.targetPartitionSystemID)
 		}
 		// handle the pending fee credit process
-		feeTxProofs, err := w.addFeeCredit(ctx, accountKey, feeCtx)
+		feeTxProofs, err := w.addFeeCredit(ctx, accountKey, addFeeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to complete pending fee credit addition process: %w", err)
 		}
 		// delete fee context
 		if err := w.db.DeleteAddFeeContext(accountKey.PubKey); err != nil {
-			return nil, fmt.Errorf("failed to delete fee context: %w", err)
+			return nil, fmt.Errorf("failed to delete add fee context: %w", err)
 		}
 		return &AddFeeCmdResponse{Proofs: []*AddFeeTxProofs{feeTxProofs}}, nil
 	}
@@ -245,36 +241,32 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	}
 
 	// if partial add process exists, finish it first
-	addFeeContext, err := w.db.GetAddFeeContext(accountKey.PubKey)
+	addFeeCtx, err := w.db.GetAddFeeContext(accountKey.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee manager context: %w", err)
 	}
-	if addFeeContext != nil {
+	if addFeeCtx != nil {
 		return nil, errors.New("wallet contains unadded fee credit, run the add command before reclaiming fee credit")
 	}
 
-	feeCtx, err := w.db.GetReclaimFeeContext(accountKey.PubKey)
+	reclaimFeeCtx, err := w.db.GetReclaimFeeContext(accountKey.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee context: %w", err)
 	}
-	if feeCtx != nil {
+	if reclaimFeeCtx != nil {
 		// verify fee ctx exists for current partition
-		if !bytes.Equal(feeCtx.TargetPartitionID, w.targetPartitionSystemID) {
+		if !bytes.Equal(reclaimFeeCtx.TargetPartitionID, w.targetPartitionSystemID) {
 			return nil, fmt.Errorf("%w: pendingProcessSystemID=%X, providedSystemID=%X",
-				ErrInvalidPartition, feeCtx.TargetPartitionID, w.targetPartitionSystemID)
-		}
-		// verify the fee ctx is for correct partition
-		if !bytes.Equal(w.targetPartitionSystemID, feeCtx.TargetPartitionID) {
-			return nil, errors.New("wallet contains pending fee credit for another partition")
+				ErrInvalidPartition, reclaimFeeCtx.TargetPartitionID, w.targetPartitionSystemID)
 		}
 		// handle the pending fee credit process
-		feeTxProofs, err := w.reclaimFeeCredit(ctx, accountKey, feeCtx)
+		feeTxProofs, err := w.reclaimFeeCredit(ctx, accountKey, reclaimFeeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to complete pending fee credit reclaim process: %w", err)
 		}
 		// delete fee ctx
-		if err := w.db.DeleteAddFeeContext(accountKey.PubKey); err != nil {
-			return nil, fmt.Errorf("failed to delete fee context: %w", err)
+		if err := w.db.DeleteReclaimFeeContext(accountKey.PubKey); err != nil {
+			return nil, fmt.Errorf("failed to delete reclaim fee context: %w", err)
 		}
 		return &ReclaimFeeCmdResponse{Proofs: feeTxProofs}, nil
 	}
@@ -359,7 +351,7 @@ func (w *FeeManager) addFees(ctx context.Context, accountKey *account.AccountKey
 		}
 		res.Proofs = append(res.Proofs, proofs)
 		if err := w.db.DeleteAddFeeContext(accountKey.PubKey); err != nil {
-			return nil, fmt.Errorf("failed to delete fee context: %w", err)
+			return nil, fmt.Errorf("failed to delete add fee context: %w", err)
 		}
 	}
 	return res, nil
@@ -495,7 +487,7 @@ func (w *FeeManager) sendTransferFCTx(ctx context.Context, accountKey *account.A
 			}
 			// delete ctx
 			if err := w.db.DeleteAddFeeContext(accountKey.PubKey); err != nil {
-				return fmt.Errorf("failed to delete fee context: %w", err)
+				return fmt.Errorf("failed to delete add fee context: %w", err)
 			}
 			// return error to user
 			return fmt.Errorf("transferFC target unit is no longer valid")
@@ -594,7 +586,7 @@ func (w *FeeManager) sendAddFCTx(ctx context.Context, accountKey *account.Accoun
 				return fmt.Errorf("failed to unlock remote fee credit record: %w", err)
 			}
 			if err := w.db.DeleteAddFeeContext(accountKey.PubKey); err != nil {
-				return fmt.Errorf("failed to delete fee context: %w", err)
+				return fmt.Errorf("failed to delete add fee context: %w", err)
 			}
 			return errors.New("addFC timed out and transferFC latestAdditionTime exceeded, the target bill is no longer usable")
 		}
@@ -866,7 +858,7 @@ func (w *FeeManager) sendReclaimFCTx(ctx context.Context, accountKey *account.Ac
 				return fmt.Errorf("failed to unlock target bill: %w", err)
 			}
 			if err := w.db.DeleteReclaimFeeContext(accountKey.PubKey); err != nil {
-				return fmt.Errorf("failed to delete fee context: %w", err)
+				return fmt.Errorf("failed to delete reclaim fee context: %w", err)
 			}
 			return fmt.Errorf("reclaimFC target bill is no longer usable" +
 				"")

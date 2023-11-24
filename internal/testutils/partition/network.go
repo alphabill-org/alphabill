@@ -21,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
@@ -324,20 +323,18 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		txIndexer, err := boltdb.New(nd.idxFile)
+		//proofDB, err := boltdb.New(nd.idxFile)
 		if err != nil {
 			return fmt.Errorf("unable to load tx indexer: %w", err)
 		}
-		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
+		//t.Cleanup(func() { require.NoError(t, proofDB.Close()) })
 		nd.proofDB = memorydb.New()
-		proofIndexer := event.NewProofIndexer(nd.proofDB, 10, log)
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
-			partition.WithEventHandler(proofIndexer.Handle, 10),
 			partition.WithBlockStore(blockStore),
-			partition.WithTxIndexer(txIndexer),
+			partition.WithProofIndex(nd.proofDB, 0),
 		)
 		if err = n.startNode(ctx, nd, log); err != nil {
 			return err

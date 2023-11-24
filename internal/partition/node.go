@@ -94,7 +94,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
-		txIndexer                   keyvaluedb.KeyValueDB
+		proofIndexer                *ProofIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
@@ -102,7 +102,7 @@ type (
 		network                     ValidatorNetwork
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
-		eventHandler                []event.Handler
+		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
 		log                         *slog.Logger
 
@@ -155,6 +155,10 @@ func NewNode(
 	if err != nil {
 		return nil, fmt.Errorf("genesis error, invalid rootnodes: %w", err)
 	}
+	var proofIndexer *ProofIndexer
+	if conf.proofIndexConfig.store != nil {
+		proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.proofHistory, log)
+	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -163,7 +167,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		txIndexer:                   conf.txIndexer,
+		proofIndexer:                proofIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -255,9 +259,21 @@ func (n *Node) Run(ctx context.Context) error {
 		return n.eventHandlerLoop(ctx)
 	})
 
+	// start proof indexer
+	if n.proofIndexer != nil {
+		g.Go(func() error {
+			n.proofIndexer.loop(ctx)
+			return nil
+		})
+	}
+
 	g.Go(func() error {
 		err := n.loop(ctx)
 		n.log.DebugContext(ctx, "node main loop exit", logger.Error(err))
+		// close indexer, this will exit the loop
+		if n.proofIndexer != nil {
+			n.proofIndexer.Close()
+		}
 		return err
 	})
 
@@ -530,13 +546,8 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case e, ok := <-n.eventCh:
-			if !ok {
-				return nil
-			}
-			for _, evh := range n.eventHandler {
-				evh(&e)
-			}
+		case e := <-n.eventCh:
+			n.eventHandler(&e)
 		}
 	}
 }
@@ -893,19 +904,13 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 		return err
 	}
 
-	if err := n.writeTxIndex(b, roundNoInBytes); err != nil {
-		return fmt.Errorf("unable to write transaction index: %w", err)
-	}
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
-	n.sendEvent(event.BlockFinalized, &struct {
-		Block *types.Block
-		State txsystem.UnitAndProof
-	}{
-		Block: b,
-		State: n.transactionSystem.StateStorage(),
-	})
+	n.sendEvent(event.BlockFinalized, b)
+	if n.proofIndexer != nil {
+		n.proofIndexer.Handle(b, n.transactionSystem.StateStorage())
+	}
 	return nil
 }
 
@@ -1301,21 +1306,22 @@ func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 }
 
 func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
-	if n.txIndexer == nil {
+	if n.proofIndexer == nil {
 		return nil, nil, errors.New("not allowed")
 	}
 	index := &struct {
-		RoundNumber  []byte
+		RoundNumber  uint64
 		TxOrderIndex int
 	}{}
-	f, err := n.txIndexer.Read(hash, index)
+	proofs := n.proofIndexer.GetDB()
+	f, err := proofs.Read(hash, index)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
 	}
 	if !f {
 		return nil, nil, nil
 	}
-	b, err := n.GetBlock(ctx, util.BytesToUint64(index.RoundNumber))
+	b, err := n.GetBlock(ctx, index.RoundNumber)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load block: %w", err)
 	}
@@ -1429,40 +1435,6 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 		Transactions: n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
-}
-
-func (n *Node) writeTxIndex(b *types.Block, roundNo []byte) (retErr error) {
-	if n.txIndexer == nil {
-		return nil
-	}
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("write transaction order index for %d tx(s)", len(b.Transactions)), n.log)
-	dbTx, err := n.txIndexer.StartTx()
-	if err != nil {
-		return fmt.Errorf("starting indexer transaction: %w", err)
-	}
-	defer func() {
-		if retErr != nil {
-			if err := dbTx.Rollback(); err != nil {
-				retErr = errors.Join(retErr, fmt.Errorf("transaction indexer rollback: %w", err))
-			}
-		} else {
-			retErr = dbTx.Commit()
-		}
-	}()
-
-	for i, tx := range b.Transactions {
-		hash := tx.TransactionOrder.Hash(n.configuration.hashAlgorithm)
-		if err = dbTx.Write(hash, &struct {
-			RoundNumber  []byte
-			TxOrderIndex int
-		}{
-			RoundNumber:  roundNo,
-			TxOrderIndex: i,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (p *pendingBlockProposal) pretty() string {

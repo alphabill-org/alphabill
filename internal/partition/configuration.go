@@ -39,18 +39,23 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
-		txIndexer                   keyvaluedb.KeyValueDB
+		proofIndexConfig            proofIndexConfig
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      crypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		rootTrustBase               map[string]crypto.Verifier
-		eventHandler                []event.Handler
+		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
 	}
 
 	NodeOption func(c *configuration)
+
+	proofIndexConfig struct {
+		store        keyvaluedb.KeyValueDB
+		proofHistory uint64
+	}
 
 	ledgerReplicationConfig struct {
 		maxBlocks uint64
@@ -89,9 +94,10 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
-func WithTxIndexer(txIndexer keyvaluedb.KeyValueDB) NodeOption {
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *configuration) {
-		c.txIndexer = txIndexer
+		c.proofIndexConfig.store = db
+		c.proofIndexConfig.proofHistory = history
 	}
 }
 
@@ -103,7 +109,7 @@ func WithT1Timeout(t1Timeout time.Duration) NodeOption {
 
 func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 	return func(c *configuration) {
-		c.eventHandler = append(c.eventHandler, eh)
+		c.eventHandler = eh
 		c.eventChCapacity = eventChCapacity
 	}
 }

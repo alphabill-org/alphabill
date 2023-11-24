@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -211,13 +210,12 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 			return nil, err
 		}
 	}
-	// TODO history size!
-	proofIndexer := event.NewProofIndexer(proofStore, 20, log)
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithTxIndexer(proofStore), partition.WithEventHandler(proofIndexer.Handle, 20),
+		partition.WithProofIndex(proofStore, 20),
+		// TODO history size!
 	}
 
 	node, err := partition.NewNode(

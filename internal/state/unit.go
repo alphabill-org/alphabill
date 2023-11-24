@@ -7,6 +7,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -77,6 +78,14 @@ func (u *Unit) Data() UnitData {
 
 func (u *Unit) Logs() []*Log {
 	return u.logs
+}
+
+func MarshalUnitData(u UnitData) ([]byte, error) {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, fmt.Errorf("cbor encoder init failed: %w", err)
+	}
+	return enc.Marshal(u)
 }
 
 func copyLogs(entries logs) logs {

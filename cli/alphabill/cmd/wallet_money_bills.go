@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 type (
@@ -67,12 +66,6 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer am.Close()
 
-	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
-	if err != nil {
-		return fmt.Errorf("failed to open unit locker: %w", err)
-	}
-	defer unitLocker.Close()
-
 	type accountBillGroup struct {
 		accountIndex uint64
 		pubKey       []byte
@@ -112,23 +105,15 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		for j, bill := range group.bills.Bills {
 			billValueStr := amountToString(bill.Value, 8)
-			lockedReasonStr, err := getLockedReasonString(group.pubKey, unitLocker, bill)
-			if err != nil {
-				return err
-			}
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s%s", j+1, bill.Id, billValueStr, lockedReasonStr))
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s%s", j+1, bill.Id, billValueStr, getLockedReasonString(bill)))
 		}
 	}
 	return nil
 }
 
-func getLockedReasonString(accountID []byte, unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
-	lockedUnit, err := unitLocker.GetUnit(accountID, bill.GetID())
-	if err != nil {
-		return "", fmt.Errorf("failed to load locked unit: %w", err)
+func getLockedReasonString(bill *wallet.Bill) string {
+	if bill.IsLocked() {
+		return fmt.Sprintf(" (%s)", bill.Locked.String())
 	}
-	if lockedUnit != nil {
-		return fmt.Sprintf(" (%s)", lockedUnit.LockReason.String()), nil
-	}
-	return "", nil
+	return ""
 }

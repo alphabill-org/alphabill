@@ -739,7 +739,7 @@ func createProofWithSwapTx(t *testing.T, b *wallet.Bill) *wallet.Proof {
 
 func createProofWithLockTx(t *testing.T, b *wallet.Bill, timeout uint64) *wallet.Proof {
 	keys, _ := account.NewKeys("")
-	tx, err := txbuilder.NewLockTx(keys.AccountKey, []byte{0, 0, 0, 0}, b, unitlock.LockReasonCollectDust, timeout)
+	tx, err := txbuilder.NewLockTx(keys.AccountKey, []byte{0, 0, 0, 0}, b.Id, b.TxHash, unitlock.LockReasonCollectDust, timeout)
 	require.NoError(t, err)
 	return createProofForTx(tx)
 }

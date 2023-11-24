@@ -59,7 +59,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees = amount*2*1e8 - 4
+	expectedFees = amount*2*1e8 - 5 // minus 2 for first run, minus 3 for second run
 	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -133,13 +133,14 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits to token partition
-	expectedFees = amount*2*1e8 - 4
+	expectedFees = amount*2*1e8 - 5
 	stdout, err = execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// reclaim fees
+	// invalid transaction: fee credit record unit is nil
 	stdout, err = execFeesCommand(logF, homedir, "reclaim "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Successfully reclaimed fee credits on tokens partition.", stdout.lines[0])
@@ -168,16 +169,16 @@ func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
 	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{}, logF)
 
 	// try to add invalid fee amount
-	_, err := execFeesCommand(logF, homedir, "add --amount=0.00000002")
+	_, err := execFeesCommand(logF, homedir, "add --amount=0.00000003")
 	require.Errorf(t, err, "minimum fee credit amount to add is %d", amountToString(fees.MinimumFeeAmount, 8))
 
 	// add minimum fee amount
-	stdout, err := execFeesCommand(logF, homedir, "add --amount=0.00000003")
+	stdout, err := execFeesCommand(logF, homedir, "add --amount=0.00000004")
 	require.NoError(t, err)
-	require.Equal(t, "Successfully created 0.00000003 fee credits on money partition.", stdout.lines[0])
+	require.Equal(t, "Successfully created 0.00000004 fee credits on money partition.", stdout.lines[0])
 
 	// verify fee credit is below minimum
-	expectedFees := uint64(1)
+	expectedFees := uint64(2)
 	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -189,12 +190,12 @@ func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
 	require.Empty(t, stdout.lines)
 
 	// add more fee credit
-	stdout, err = execFeesCommand(logF, homedir, "add --amount=0.00000004")
+	stdout, err = execFeesCommand(logF, homedir, "add --amount=0.00000005")
 	require.NoError(t, err)
-	require.Equal(t, "Successfully created 0.00000004 fee credits on money partition.", stdout.lines[0])
+	require.Equal(t, "Successfully created 0.00000005 fee credits on money partition.", stdout.lines[0])
 
 	// verify fee credit is valid for reclaim
-	expectedFees = uint64(3)
+	expectedFees = uint64(4)
 	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])

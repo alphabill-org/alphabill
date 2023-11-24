@@ -86,10 +86,10 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, feeManagerDB fees.FeeManagerDB, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend, log)
-	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
+	feeManager := fees.NewFeeManager(am, feeManagerDB, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
 	dustCollector := dc.NewDustCollector(moneySystemID, maxBillsForDustCollection, txTimeoutBlockCount, backend, unitLocker, log)
 	return &Wallet{
 		am:            am,

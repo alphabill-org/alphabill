@@ -3,22 +3,20 @@ package cmd
 import (
 	"crypto"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
@@ -136,30 +134,19 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 }
 
 func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
-	am, homedir := createNewWallet(t)
-	pubKey, err := am.GetPublicKey(0)
-	require.NoError(t, err)
-	am.Close()
-
-	unitID := money.NewBillID(nil, []byte{1})
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: unitID, billValue: 1e8})
+	homedir := createNewTestWallet(t)
+	var billsList []string
+	for i := 1; i <= 3; i++ {
+		idBase64 := toBase64(money.NewBillID(nil, []byte{byte(i)}))
+		billsList = append(billsList, fmt.Sprintf(`{"id":"%s","locked":"%d","value":"100000000"}`, idBase64, i))
+	}
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: fmt.Sprintf(`{"bills": [%s]}`, strings.Join(billsList, ","))})
 	defer mockServer.Close()
-
-	// create unitlock db
-	unitLocker, err := unitlock.NewUnitLocker(filepath.Join(homedir, walletBaseDir))
-	require.NoError(t, err)
-	defer unitLocker.Close()
-
-	// lock unit
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, money.DefaultSystemIdentifier, unitlock.LockReasonAddFees))
-	require.NoError(t, err)
-	err = unitLocker.Close()
-	require.NoError(t, err)
-
-	// verify locked unit is shown in output list
 	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (locked for adding fees)")
+	verifyStdout(t, stdout, "#2 0x000000000000000000000000000000000000000000000000000000000000000200 1.000'000'00 (locked for reclaiming fees)")
+	verifyStdout(t, stdout, "#3 0x000000000000000000000000000000000000000000000000000000000000000300 1.000'000'00 (locked for dust collection)")
 }
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {

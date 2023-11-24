@@ -35,9 +35,8 @@ type (
 )
 
 func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
-	zeroHash := [32]byte{}
-	if bytes.Equal(zeroHash[:], hash) {
-		return nil, nil, nil
+	if mn.err != nil {
+		return nil, nil, mn.err
 	}
 	return &types.TransactionRecord{}, &types.TxProof{}, nil
 }

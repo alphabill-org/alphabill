@@ -1,7 +1,6 @@
 package rpc
 
 import (
-	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -10,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/gorilla/mux"
@@ -69,16 +68,13 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 			util.WriteCBORResponse(w, dataAndProof, http.StatusOK, log)
 			return
 		}
-		key := bytes.Join([][]byte{unitID, txOrderHash}, nil)
-		it := index.Find(key)
-		defer func() { _ = it.Close() }()
-		if !it.Valid() || !bytes.Equal(it.Key(), key) {
-			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
-			return
-		}
-		response := &types.UnitDataAndProof{}
-		if err := it.Value(response); err != nil {
-			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+		response, err := partition.ReadUnitProofIndex(index, unitID, txOrderHash)
+		if err != nil {
+			if errors.Is(err, partition.IndexNotFound) {
+				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+			} else {
+				util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+			}
 			return
 		}
 		if !returnUnitData {

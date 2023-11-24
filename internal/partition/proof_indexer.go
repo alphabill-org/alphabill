@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	IndexNotFound        = errors.New("index not found")
 	keyLatestRoundNumber = []byte("latestRoundNumber")
 )
 
@@ -92,13 +93,13 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	block := bas.Block
 	dbTx, err := p.storage.StartTx()
 	if err != nil {
-		return fmt.Errorf("unable to start DB transaction: %w", err)
+		return fmt.Errorf("start DB transaction failed: %w", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
-				err = errors.Join(fmt.Errorf("unable to rollback unit proof index transaction: %w", e))
+				err = errors.Join(fmt.Errorf("index transaction rollback failed: %w", e))
 			}
 		}
 		err = dbTx.Commit()
@@ -123,7 +124,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 			var u *state.Unit
 			u, err = bas.State.GetUnit(id, true)
 			if err != nil {
-				return fmt.Errorf("unable to load unit: %w", err)
+				return fmt.Errorf("unit load failed: %w", err)
 			}
 			logs := u.Logs()
 			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(logs), id))
@@ -147,7 +148,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 					UnitData: &types.StateUnitData{Data: res, Bearer: l.NewBearer},
 					Proof:    usp,
 				}); err != nil {
-					return fmt.Errorf("unable to write unit proof: %w", err)
+					return fmt.Errorf("unit proof write failed: %w", err)
 				}
 			}
 		}
@@ -155,12 +156,12 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	// update latest round number
 	roundNumber := block.GetRoundNumber()
 	if err = dbTx.Write(keyLatestRoundNumber, roundNumber); err != nil {
-		return fmt.Errorf("unable to write unit proof: %w", err)
+		return fmt.Errorf("round number update failed: %w", err)
 	}
 
 	// write delete index
 	if err = dbTx.Write(util.Uint64ToBytes(roundNumber), history); err != nil {
-		return fmt.Errorf("unable to write unit proof: %w", err)
+		return fmt.Errorf("history index write failed: %w", err)
 	}
 
 	return nil
@@ -213,4 +214,29 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 	}
 	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Removed old proofs from block %d, index size %d", d, len(history.UnitProofIndexKeys)))
 	return err
+}
+
+func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxIndex, error) {
+	index := &TxIndex{}
+	f, err := db.Read(txOrderHash, index)
+	if err != nil {
+		return nil, fmt.Errorf("tx index query failed: %w", err)
+	}
+	if !f {
+		return nil, IndexNotFound
+	}
+	return index, nil
+}
+
+func ReadUnitProofIndex(db keyvaluedb.KeyValueDB, unitID []byte, txOrderHash []byte) (*types.UnitDataAndProof, error) {
+	key := bytes.Join([][]byte{unitID, txOrderHash}, nil)
+	index := &types.UnitDataAndProof{}
+	f, err := db.Read(key, index)
+	if err != nil {
+		return nil, fmt.Errorf("tx index query failed: %w", err)
+	}
+	if !f {
+		return nil, IndexNotFound
+	}
+	return index, nil
 }

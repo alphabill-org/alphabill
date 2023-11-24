@@ -626,7 +626,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	indexDB := memorydb.New()
 	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	require.NoError(t, tp.partition.startNewRound(context.Background(), tp.partition.luc.Load()))
 	order := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
 	hash := order.Hash(tp.partition.configuration.hashAlgorithm)
 	require.NoError(t, tp.SubmitTx(order))
@@ -656,7 +656,7 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	tp := RunSingleNodePartition(t, system, WithProofIndex(memorydb.New(), 0))
 	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, IndexNotFound)
 	require.Nil(t, record)
 	require.Nil(t, proof)
 }

@@ -557,7 +557,7 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 	if ok := eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
-			if err != nil || proof == nil {
+			if errors.Is(err, partition.IndexNotFound) {
 				continue
 			}
 			txRecord = txRec
@@ -571,20 +571,6 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 	return nil, nil, fmt.Errorf("failed to confirm tx")
 }
 
-func (pn *partitionNode) GetUnitProof(ID types.UnitID, txOrderHash []byte) (*types.UnitDataAndProof, error) {
-	key := bytes.Join([][]byte{ID, txOrderHash}, nil)
-	it := pn.proofDB.Find(key)
-	defer func() { _ = it.Close() }()
-	if !it.Valid() || !bytes.Equal(it.Key(), key) {
-		return nil, fmt.Errorf("key not found")
-	}
-	var proof types.UnitDataAndProof
-	if err := it.Value(&proof); err != nil {
-		return nil, err
-	}
-	return &proof, nil
-}
-
 func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
 	t.Helper()
 	var (
@@ -593,7 +579,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 	txOrderHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
 		for _, n := range part.Nodes {
-			unitDataAndProof, err := n.GetUnitProof(ID, txOrderHash)
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
 			if err != nil {
 				continue
 			}

@@ -105,12 +105,10 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 		}
 		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
+			if errors.Is(err, partition.IndexNotFound) {
+				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+			}
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
-			return
-		}
-
-		if txRecord == nil {
-			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			return
 		}
 

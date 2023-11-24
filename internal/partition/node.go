@@ -1309,24 +1309,14 @@ func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.Tr
 	if n.proofIndexer == nil {
 		return nil, nil, errors.New("not allowed")
 	}
-	index := &struct {
-		RoundNumber  uint64
-		TxOrderIndex int
-	}{}
 	proofs := n.proofIndexer.GetDB()
-	f, err := proofs.Read(hash, index)
+	index, err := ReadTransactionIndex(proofs, hash)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
-	}
-	if !f {
-		return nil, nil, nil
 	}
 	b, err := n.GetBlock(ctx, index.RoundNumber)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load block: %w", err)
-	}
-	if len(b.Transactions)-1 < index.TxOrderIndex {
-		return nil, nil, errors.New("transaction index is invalid: invalid transaction order index key")
 	}
 	proof, record, err := types.NewTxProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
 	if err != nil {

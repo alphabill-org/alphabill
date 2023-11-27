@@ -157,7 +157,7 @@ func NewNode(
 	}
 	var proofIndexer *ProofIndexer
 	if conf.proofIndexConfig.store != nil {
-		proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.proofHistory, log)
+		proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, log)
 	}
 	n := &Node{
 		configuration:               conf,

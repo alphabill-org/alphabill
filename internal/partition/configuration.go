@@ -51,10 +51,14 @@ type (
 	}
 
 	NodeOption func(c *configuration)
-
+	// proofIndexConfig proof indexer config
+	// store - type of store, either a memory DB or bolt DB
+	// historyLen - number of rounds/blocks to keep in indexer:
+	// - if 0, there is no clean-up and all blocks are kept in the index;
+	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
 	proofIndexConfig struct {
-		store        keyvaluedb.KeyValueDB
-		proofHistory uint64
+		store      keyvaluedb.KeyValueDB
+		historyLen uint64
 	}
 
 	ledgerReplicationConfig struct {
@@ -97,7 +101,7 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *configuration) {
 		c.proofIndexConfig.store = db
-		c.proofIndexConfig.proofHistory = history
+		c.proofIndexConfig.historyLen = history
 	}
 }
 

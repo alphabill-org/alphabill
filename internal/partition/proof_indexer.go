@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	IndexNotFound        = errors.New("index not found")
+	ErrIndexNotFound     = errors.New("index not found")
 	keyLatestRoundNumber = []byte("latestRoundNumber")
 )
 
@@ -226,7 +226,7 @@ func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxInde
 		return nil, fmt.Errorf("tx index query failed: %w", err)
 	}
 	if !f {
-		return nil, IndexNotFound
+		return nil, ErrIndexNotFound
 	}
 	return index, nil
 }
@@ -239,7 +239,7 @@ func ReadUnitProofIndex(db keyvaluedb.KeyValueDB, unitID []byte, txOrderHash []b
 		return nil, fmt.Errorf("tx index query failed: %w", err)
 	}
 	if !f {
-		return nil, IndexNotFound
+		return nil, ErrIndexNotFound
 	}
 	return index, nil
 }

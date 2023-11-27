@@ -111,7 +111,7 @@ func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
 	obs := observability.NOPMetrics()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transactions/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 	recorder := httptest.NewRecorder()
-	NewRESTServer("", 10, obs, log, NodeEndpoints(&MockNode{err: partition.IndexNotFound}, nil, obs, log)).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", 10, obs, log, NodeEndpoints(&MockNode{err: partition.ErrIndexNotFound}, nil, obs, log)).Handler.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 	require.Equal(t, int64(-1), recorder.Result().ContentLength)

@@ -557,7 +557,7 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 	if ok := eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
-			if errors.Is(err, partition.IndexNotFound) {
+			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
 			}
 			txRecord = txRec

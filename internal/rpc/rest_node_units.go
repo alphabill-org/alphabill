@@ -70,7 +70,7 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		}
 		response, err := partition.ReadUnitProofIndex(index, unitID, txOrderHash)
 		if err != nil {
-			if errors.Is(err, partition.IndexNotFound) {
+			if errors.Is(err, partition.ErrIndexNotFound) {
 				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			} else {
 				util.WriteCBORError(w, err, http.StatusInternalServerError, log)

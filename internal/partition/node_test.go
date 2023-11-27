@@ -656,7 +656,7 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	tp := RunSingleNodePartition(t, system, WithProofIndex(memorydb.New(), 0))
 	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
-	require.ErrorIs(t, err, IndexNotFound)
+	require.ErrorIs(t, err, ErrIndexNotFound)
 	require.Nil(t, record)
 	require.Nil(t, proof)
 }

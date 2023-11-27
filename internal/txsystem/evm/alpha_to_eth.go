@@ -3,7 +3,6 @@ package evm
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"math"
 	"math/big"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,6 +12,7 @@ import (
 )
 
 var alpha2Wei = new(big.Int).Exp(big.NewInt(10), big.NewInt(10), nil)
+var alpha2WeiRoundCorrector = new(big.Int).Div(alpha2Wei, big.NewInt(2))
 
 func generateAddress(pubKeyBytes []byte) (common.Address, error) {
 	if pubKeyBytes == nil {
@@ -51,7 +51,5 @@ func alphaToWei(alpha uint64) *big.Int {
 // weiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
 func weiToAlpha(wei *big.Int) uint64 {
-	weif, _ := wei.Float64()
-	a2wf, _ := alpha2Wei.Float64()
-	return uint64(math.Floor((weif / a2wf) + 0.5))
+	return new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
 }

@@ -62,6 +62,11 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
+	// Verify balance
+	balance := stateDB.GetBalance(attr.FromAddr())
+	if balance.Cmp(new(big.Int).Mul(gasUnitPrice, new(big.Int).SetUint64(attr.Gas))) == -1 {
+		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
+	}
 	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
 	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)

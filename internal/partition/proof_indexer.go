@@ -86,6 +86,7 @@ func (p *ProofIndexer) loop(ctx context.Context) {
 	}
 }
 
+// create - creates proof index DB entries
 func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err error) {
 	if bas.Block.GetRoundNumber() <= p.latestIndexedBlockNumber() {
 		return fmt.Errorf("block %d already indexed", bas.Block.GetRoundNumber())
@@ -175,6 +176,8 @@ func (p *ProofIndexer) latestIndexedBlockNumber() uint64 {
 	return blockNr
 }
 
+// historyCleanup - removes old indexes from DB
+// todo: NB! it does not currently work correctly if history size is changed
 func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err error) {
 	// if history size is set to 0, then do not run clean-up ||
 	// if round - history is <= 0 then there is nothing to clean

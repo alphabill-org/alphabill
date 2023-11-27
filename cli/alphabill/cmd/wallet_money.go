@@ -45,6 +45,7 @@ const (
 	totalCmdName            = "total"
 	quietCmdName            = "quiet"
 	showUnswappedCmdName    = "show-unswapped"
+	billIdCmdName           = "bill-id"
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.

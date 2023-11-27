@@ -149,6 +149,51 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	verifyStdout(t, stdout, "#3 0x000000000000000000000000000000000000000000000000000000000000000300 1.000'000'00 (locked for dust collection)")
 }
 
+func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
+	// create wallet
+	am, homedir := createNewWallet(t)
+	pubkey, _ := am.GetPublicKey(0)
+	am.Close()
+
+	// start money partition
+	initialBill := &money.InitialBill{
+		ID:    defaultInitialBillID,
+		Value: 2e8,
+		Owner: templates.NewP2pkh256BytesFromKey(pubkey),
+	}
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	logF := logger.LoggerBuilder(t)
+	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+
+	// start wallet backend
+	addr, _ := startMoneyBackend(t, moneyPartition, initialBill)
+
+	// create fee credit for txs
+	stdout, err := execCommand(logF, homedir, fmt.Sprintf("fees add --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+
+	// lock bill
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("lock --alphabill-api-uri %s --bill-id %s", addr, defaultInitialBillID))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "Bill locked successfully.")
+
+	// verify bill locked
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("list --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (manually locked by user)")
+
+	// unlock bill
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("unlock --alphabill-api-uri %s --bill-id %s", addr, defaultInitialBillID))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "Bill unlocked successfully.")
+
+	// verify bill unlocked
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("list --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
+}
+
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
 	txFee := uint64(1)

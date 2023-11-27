@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -259,7 +260,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: templates.AlwaysTrueBytes(),
+					Predicate: initialBill.Owner,
 				},
 				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 				Logger:                   logger.New(t),
@@ -269,6 +270,12 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 
 	restClient, err := moneyclient.New(defaultAlphabillApiURL)
 	require.NoError(t, err)
+
+	// wait for backend to start
+	require.Eventually(t, func() bool {
+		rn, err := restClient.GetRoundNumber(ctx)
+		return err == nil && rn > 0
+	}, test.WaitDuration, test.WaitTick)
 
 	return defaultAlphabillApiURL, restClient
 }

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -331,6 +333,17 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	if len(txs.Transactions) == 0 {
 		api.rw.ErrorResponse(w, http.StatusBadRequest, errors.New("request body contained no transactions to process"))
 		return
+	}
+	for _, tx := range txs.Transactions {
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
+		if err != nil {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to obtain owner proof from tx with unitID %v", tx.Payload.UnitID))
+			return
+		}
+		if !bytes.Equal(senderPubkey, pubKey) {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("transaction with unitID %v in request body does not match provided pubKey parameter", tx.Payload.UnitID))
+			return
+		}
 	}
 
 	egp, _ := errgroup.WithContext(r.Context())

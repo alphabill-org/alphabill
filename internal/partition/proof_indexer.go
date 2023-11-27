@@ -100,7 +100,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
-				err = errors.Join(fmt.Errorf("index transaction rollback failed: %w", e))
+				err = errors.Join(err, fmt.Errorf("index transaction rollback failed: %w", e))
 			}
 		}
 		err = dbTx.Commit()

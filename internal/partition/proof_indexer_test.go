@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/state"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
@@ -52,26 +53,32 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, testlogger.New(t))
 		// start indexing loop
 		ctx := context.Background()
-		done := make(chan struct{})
-		go func(dn chan struct{}) {
-			indexer.loop(ctx)
-			close(done)
+		nctx, cancel := context.WithCancel(ctx)
+		done := make(chan error)
+		t.Cleanup(func() {
+			cancel()
+			select {
+			case err := <-done:
+				require.ErrorIs(t, err, context.Canceled)
+			case <-time.After(200 * time.Millisecond):
+				t.Error("indexer loop did not exit in time")
+			}
+		})
+		// start loop
+		go func(dn chan error) {
+			done <- indexer.loop(nctx)
 		}(done)
-
 		unitID := make([]byte, 32)
 		blockRound1 := simulateInput(1, unitID)
 		stateMock := mockStateStoreOK{}
-		indexer.Handle(blockRound1.Block, stateMock)
+		indexer.Handle(nctx, blockRound1.Block, stateMock)
 		blockRound2 := simulateInput(2, unitID)
-		indexer.Handle(blockRound2.Block, stateMock)
+		indexer.Handle(nctx, blockRound2.Block, stateMock)
 		blockRound3 := simulateInput(3, unitID)
-		indexer.Handle(blockRound3.Block, stateMock)
-		indexer.Close()
-		select {
-		case <-done:
-		case <-time.After(200 * time.Millisecond):
-			t.Error("indexer loop did not exit in time")
-		}
+		indexer.Handle(nctx, blockRound3.Block, stateMock)
+		require.Eventually(t, func() bool {
+			return indexer.latestIndexedBlockNumber() == 3
+		}, test.WaitDuration, test.WaitTick)
 		// verify history for round 1 is cleaned up
 		for _, transaction := range blockRound1.Block.Transactions {
 			oderHash := transaction.TransactionOrder.Hash(crypto.SHA256)
@@ -89,26 +96,31 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
 		// start indexing loop
 		ctx := context.Background()
-		done := make(chan struct{})
-		go func(dn chan struct{}) {
-			indexer.loop(ctx)
-			close(done)
+		nctx, cancel := context.WithCancel(ctx)
+		done := make(chan error)
+		t.Cleanup(func() {
+			cancel()
+			select {
+			case err := <-done:
+				require.ErrorIs(t, err, context.Canceled)
+			case <-time.After(200 * time.Millisecond):
+				t.Error("indexer loop did not exit in time")
+			}
+		})
+		go func(dn chan error) {
+			done <- indexer.loop(nctx)
 		}(done)
-
 		unitID := make([]byte, 32)
 		blockRound1 := simulateInput(1, unitID)
 		stateMock := mockStateStoreOK{}
-		indexer.Handle(blockRound1.Block, stateMock)
+		indexer.Handle(nctx, blockRound1.Block, stateMock)
 		blockRound2 := simulateInput(2, unitID)
-		indexer.Handle(blockRound2.Block, stateMock)
+		indexer.Handle(nctx, blockRound2.Block, stateMock)
 		blockRound3 := simulateInput(3, unitID)
-		indexer.Handle(blockRound3.Block, stateMock)
-		indexer.Close()
-		select {
-		case <-done:
-		case <-time.After(200 * time.Millisecond):
-			t.Error("indexer loop did not exit in time")
-		}
+		indexer.Handle(nctx, blockRound3.Block, stateMock)
+		require.Eventually(t, func() bool {
+			return indexer.latestIndexedBlockNumber() == 3
+		}, test.WaitDuration, test.WaitTick)
 		// verify history for round 1 is cleaned up
 		for _, transaction := range blockRound1.Block.Transactions {
 			oderHash := transaction.TransactionOrder.Hash(crypto.SHA256)

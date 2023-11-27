@@ -56,32 +56,35 @@ func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uin
 	}
 }
 
-func (p *ProofIndexer) Handle(block *types.Block, state txsystem.UnitAndProof) {
-	newEvent := &BlockAndState{
+func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state txsystem.UnitAndProof) {
+	select {
+	case <-ctx.Done():
+	case p.blockCh <- &BlockAndState{
 		Block: block,
 		State: state,
+	}:
 	}
-	p.blockCh <- newEvent
 }
 
 func (p *ProofIndexer) GetDB() keyvaluedb.KeyValueDB {
 	return p.storage
 }
 
-func (p *ProofIndexer) Close() {
-	close(p.blockCh)
-}
-
-func (p *ProofIndexer) loop(ctx context.Context) {
-	for b := range p.blockCh {
-		roundNumber := b.Block.GetRoundNumber()
-		p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("indexing block %v", roundNumber))
-		if err := p.create(ctx, b); err != nil {
-			p.log.Warn(fmt.Sprintf("indexing block %v failed", roundNumber), logger.Error(err))
-		}
-		// clean-up
-		if err := p.historyCleanup(ctx, roundNumber); err != nil {
-			p.log.Warn(fmt.Sprintf("index clean-up failed"), logger.Error(err))
+func (p *ProofIndexer) loop(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case b := <-p.blockCh:
+			roundNumber := b.Block.GetRoundNumber()
+			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("indexing block %v", roundNumber))
+			if err := p.create(ctx, b); err != nil {
+				p.log.Warn(fmt.Sprintf("indexing block %v failed", roundNumber), logger.Error(err))
+			}
+			// clean-up
+			if err := p.historyCleanup(ctx, roundNumber); err != nil {
+				p.log.Warn(fmt.Sprintf("index clean-up failed"), logger.Error(err))
+			}
 		}
 	}
 }

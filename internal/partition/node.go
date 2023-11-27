@@ -262,18 +262,13 @@ func (n *Node) Run(ctx context.Context) error {
 	// start proof indexer
 	if n.proofIndexer != nil {
 		g.Go(func() error {
-			n.proofIndexer.loop(ctx)
-			return nil
+			return n.proofIndexer.loop(ctx)
 		})
 	}
 
 	g.Go(func() error {
 		err := n.loop(ctx)
 		n.log.DebugContext(ctx, "node main loop exit", logger.Error(err))
-		// close indexer, this will exit the loop
-		if n.proofIndexer != nil {
-			n.proofIndexer.Close()
-		}
 		return err
 	})
 
@@ -330,6 +325,10 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		// commit changes
 		if err = n.transactionSystem.Commit(); err != nil {
 			return fmt.Errorf("unable to commit block %v: %w", roundNo, err)
+		}
+		// node must have exited before block was indexed
+		if n.proofIndexer != nil && n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
+			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.StateStorage())
 		}
 		prevBlock = &bl
 	}
@@ -846,7 +845,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, proposal's sum of earned fees is different (UC: %d, actual %d)", uc.InputRecord.SumOfEarnedFees, n.pendingBlockProposal.SumOfEarnedFees))
 	} else {
 		// UC certifies pending block proposal
-		if err = n.finalizeBlock(bl); err != nil {
+		if err = n.finalizeBlock(ctx, bl); err != nil {
 			n.startRecovery(ctx, uc)
 			return fmt.Errorf("block %v finalize failed: %w", bl.GetRoundNumber(), err)
 		}
@@ -885,7 +884,7 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(b *types.Block) error {
+func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	blockNumber := b.GetRoundNumber()
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", blockNumber), n.log)
 	roundNoInBytes := util.Uint64ToBytes(blockNumber)
@@ -909,7 +908,7 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	n.lastStoredBlock = b
 	n.sendEvent(event.BlockFinalized, b)
 	if n.proofIndexer != nil {
-		n.proofIndexer.Handle(b, n.transactionSystem.StateStorage())
+		n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
 	}
 	return nil
 }
@@ -1104,7 +1103,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v, state mismatch, %w", recoveringRoundNo, err))
 		}
 		// update DB and last block
-		if err = n.finalizeBlock(b); err != nil {
+		if err = n.finalizeBlock(ctx, b); err != nil {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", recoveringRoundNo, err))
 		}
 		latestProcessedRoundNumber = recoveringRoundNo

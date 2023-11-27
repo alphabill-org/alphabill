@@ -205,7 +205,7 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
-				err = errors.Join(fmt.Errorf("history clean rollback failed: %w", e))
+				err = errors.Join(err, fmt.Errorf("history clean rollback failed: %w", e))
 			}
 		}
 		err = dbTx.Commit()

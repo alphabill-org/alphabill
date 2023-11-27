@@ -183,13 +183,12 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
 	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBill.ID, transferFC)
 	require.NoError(t, err)
+	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, unitState.UnitData, ucValidator))
 	var bill money.BillData
 	require.NoError(t, unitState.UnmarshalUnitData(&bill))
 	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
-
-	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
-	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, ucValidator))
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)

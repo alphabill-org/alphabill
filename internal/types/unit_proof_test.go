@@ -21,23 +21,27 @@ func (a alwaysInvalid) Validate(*UnicityCertificate) error {
 
 func TestVerifyUnitStateProof(t *testing.T) {
 	t.Run("unit state proof is nil", func(t *testing.T) {
-		require.ErrorContains(t, VerifyUnitStateProof(nil, crypto.SHA256, &alwaysValid{}), "unit state proof is nil")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(nil, crypto.SHA256, data, &alwaysValid{}), "unit state proof is nil")
 	})
 	t.Run("unit ID missing", func(t *testing.T) {
-		require.ErrorContains(t, VerifyUnitStateProof(&UnitStateProof{}, crypto.SHA256, &alwaysValid{}), "unit ID is nil")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(&UnitStateProof{}, crypto.SHA256, data, &alwaysValid{}), "unit ID is nil")
 	})
 	t.Run("unit tree cert missing", func(t *testing.T) {
 		proof := &UnitStateProof{
 			UnitID: []byte{0},
 		}
-		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "unit tree cert is nil")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "unit tree cert is nil")
 	})
 	t.Run("state tree cert missing", func(t *testing.T) {
 		proof := &UnitStateProof{
 			UnitID:       []byte{0},
 			UnitTreeCert: &UnitTreeCert{},
 		}
-		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "state tree cert is nil")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "state tree cert is nil")
 	})
 	t.Run("unicity certificate missing", func(t *testing.T) {
 		proof := &UnitStateProof{
@@ -45,7 +49,8 @@ func TestVerifyUnitStateProof(t *testing.T) {
 			UnitTreeCert:  &UnitTreeCert{},
 			StateTreeCert: &StateTreeCert{},
 		}
-		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "unicity certificate is nil")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "unicity certificate is nil")
 	})
 	t.Run("invalid unicity certificate", func(t *testing.T) {
 		proof := &UnitStateProof{
@@ -54,6 +59,26 @@ func TestVerifyUnitStateProof(t *testing.T) {
 			StateTreeCert:      &StateTreeCert{},
 			UnicityCertificate: &UnicityCertificate{},
 		}
-		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, &alwaysInvalid{}), "invalid unicity certificate")
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysInvalid{}), "invalid unicity certificate")
+	})
+	t.Run("missing unit data", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, nil, &alwaysValid{}), "unit data is nil")
+	})
+	t.Run("unit data hash invalid", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		data := &StateUnitData{}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "unit data hash does not match hash in unit tree")
 	})
 }

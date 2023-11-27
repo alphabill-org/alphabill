@@ -66,7 +66,7 @@ type (
 	}
 )
 
-func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, ucv UnicityCertificateValidator) error {
+func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, unitData *StateUnitData, ucv UnicityCertificateValidator) error {
 	if u == nil {
 		return errors.New("unit state proof is nil")
 	}
@@ -82,8 +82,15 @@ func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, ucv UnicityC
 	if u.UnicityCertificate == nil {
 		return errors.New("unicity certificate is nil")
 	}
+	if unitData == nil {
+		return errors.New("unit data is nil")
+	}
 	if err := ucv.Validate(u.UnicityCertificate); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
+	}
+	hash := unitData.Hash(algorithm)
+	if !bytes.Equal(u.UnitTreeCert.UnitDataHash, hash) {
+		return errors.New("unit data hash does not match hash in unit tree")
 	}
 	ir := u.UnicityCertificate.InputRecord
 	hash, summary := u.CalculateSateTreeOutput(algorithm)

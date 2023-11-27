@@ -1,6 +1,7 @@
 package state
 
 import (
+	gocrypto "crypto"
 	"fmt"
 	"hash"
 	"testing"
@@ -109,6 +110,12 @@ func TestStatePruning_RevertPrune(t *testing.T) {
 
 type pruneUnitData struct {
 	i uint64
+}
+
+func (p *pruneUnitData) Hash(hashAlgo gocrypto.Hash) []byte {
+	hasher := hashAlgo.New()
+	_ = p.Write(hasher)
+	return hasher.Sum(nil)
 }
 
 func (p *pruneUnitData) Write(hasher hash.Hash) error {

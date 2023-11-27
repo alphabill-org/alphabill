@@ -570,7 +570,14 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 			SummaryValue: util.Uint64ToBytes(summary),
 		}})
 		require.NoError(t, err)
-		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}))
+		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		unitData, err := MarshalUnitData(unit.Data())
+		require.NoError(t, err)
+		data := &types.StateUnitData{
+			Data:   unitData,
+			Bearer: unit.Bearer(),
+		}
+		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
 	})
 	t.Run("invalid summary value", func(t *testing.T) {
 		s, root, _ := prepareState(t)
@@ -579,7 +586,15 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 			SummaryValue: util.Uint64ToBytes(1),
 		}})
 		require.NoError(t, err)
-		require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
+		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		require.NoError(t, err)
+		unitData, err := MarshalUnitData(unit.Data())
+		require.NoError(t, err)
+		data := &types.StateUnitData{
+			Data:   unitData,
+			Bearer: unit.Bearer(),
+		}
+		require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		s, root, _ := prepareState(t)

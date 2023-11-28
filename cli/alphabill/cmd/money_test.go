@@ -15,8 +15,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -195,14 +195,12 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				defer os.Unsetenv(en[0])
 			}
 
-			abApp := New(logger.LoggerBuilder(t), Opts.NodeRunFunc(shardRunFunc))
+			abApp := New(testobserve.NewFactory(t), Opts.NodeRunFunc(shardRunFunc))
 			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
 			err := abApp.Execute(context.Background())
 			require.NoError(t, err, "executing app command")
 			require.Equal(t, tt.expectedConfig.Node, actualConfig.Node)
-			// do not compare logger/loggerBuilder
-			actualConfig.Base.Logger = nil
-			actualConfig.Base.loggerBuilder = nil
+			// do not compare observability implementation
 			actualConfig.Base.observe = nil
 			require.Equal(t, tt.expectedConfig, actualConfig)
 		})
@@ -238,14 +236,12 @@ logger-config: "` + logCfgFilename + `"
 		return nil
 	}
 
-	abApp := New(logger.LoggerBuilder(t), Opts.NodeRunFunc(runFunc))
+	abApp := New(testobserve.NewFactory(t), Opts.NodeRunFunc(runFunc))
 	args := "money --config=" + cfgFilename
 	abApp.baseCmd.SetArgs(strings.Split(args, " "))
 	err := abApp.Execute(context.Background())
 	require.NoError(t, err, "executing app command")
-	// do not compare logger/loggerBuilder
-	actualConfig.Base.Logger = nil
-	actualConfig.Base.loggerBuilder = nil
+	// do not compare observability implementation
 	actualConfig.Base.observe = nil
 	require.Equal(t, expectedConfig, actualConfig)
 }
@@ -304,7 +300,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
-		logF := logger.LoggerBuilder(t)
+		logF := testobserve.NewFactory(t)
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())

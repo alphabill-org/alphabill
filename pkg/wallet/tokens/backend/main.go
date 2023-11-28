@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -33,6 +35,12 @@ type Configuration interface {
 	Logger() *slog.Logger
 	SystemID() []byte
 	APIAddr() string
+}
+
+type Observability interface {
+	Tracer(name string, options ...trace.TracerOption) trace.Tracer
+	TracerProvider() trace.TracerProvider
+	Logger() *slog.Logger
 }
 
 type ABClient interface {
@@ -140,7 +148,7 @@ type cfg struct {
 	abc      client.AlphabillClientConfig
 	boltDB   string
 	apiAddr  string
-	log      *slog.Logger
+	observe  Observability
 	systemID []byte
 }
 
@@ -151,20 +159,20 @@ NewConfig returns Configuration suitable for using as Run parameter.
   - boltDB: filename (with full path) of the bolt db to use as storage;
   - logger: logger implementation.
 */
-func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger, systemID []byte) Configuration {
+func NewConfig(systemID []byte, apiAddr, abURL, boltDB string, observe Observability) Configuration {
 	return &cfg{
 		abc:      client.AlphabillClientConfig{Uri: abURL},
 		boltDB:   boltDB,
 		apiAddr:  apiAddr,
-		log:      logger,
+		observe:  observe,
 		systemID: systemID,
 	}
 }
 
-func (c *cfg) Client() (ABClient, error) { return client.New(c.abc, c.log) }
+func (c *cfg) Client() (ABClient, error) { return client.New(c.abc, c.observe) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
-func (c *cfg) Logger() *slog.Logger      { return c.log }
+func (c *cfg) Logger() *slog.Logger      { return c.observe.Logger() }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
 func (c *cfg) SystemID() []byte          { return c.systemID }
 func (c *cfg) APIAddr() string           { return c.apiAddr }
@@ -172,7 +180,7 @@ func (c *cfg) APIAddr() string           { return c.apiAddr }
 func (c *cfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{
 		Addr:              c.apiAddr,
-		Handler:           endpoints,
+		Handler:           otelhttp.NewHandler(endpoints, "tokens_backend", otelhttp.WithTracerProvider(c.observe.TracerProvider())),
 		IdleTimeout:       30 * time.Second,
 		ReadTimeout:       3 * time.Second,
 		ReadHeaderTimeout: time.Second,

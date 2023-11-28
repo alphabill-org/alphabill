@@ -14,8 +14,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
@@ -33,7 +33,7 @@ func TestRunEvmNode(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
-		logF := logger.LoggerBuilder(t)
+		logF := testobserve.NewFactory(t)
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
@@ -108,7 +108,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	appStoppedWg := sync.WaitGroup{}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ type consensusParams struct {
 // Happy path
 func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	consensus := consensusParams{totalNodes: 4, threshold: 3}
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensus)
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
@@ -75,11 +75,10 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	homeDir := t.TempDir()
 	homeDir2 := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 4})
 	differentGenesisFiles := createRootGenesisFiles(t, homeDir2, consensusParams{totalNodes: 2, threshold: 2})
 	outputDir := filepath.Join(homeDir, "result")
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", differentGenesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
@@ -90,13 +89,12 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 3})
 	// merge distributed root genesis file
 	outputDir := filepath.Join(homeDir, "result")
 	// genesis argument, repeat root node 2 genesis
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[2])
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg
@@ -113,7 +111,7 @@ func TestGenerateGenesisFilesAndSign(t *testing.T) {
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
@@ -145,7 +143,7 @@ func TestGenerateGenesisFilesAndSign_ErrTooMany(t *testing.T) {
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
@@ -177,7 +175,7 @@ func TestGenerateGenesisFilesAndSign_ErrTooMany(t *testing.T) {
 
 func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams) []string {
 	t.Helper()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)

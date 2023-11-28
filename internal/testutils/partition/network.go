@@ -323,11 +323,6 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		//proofDB, err := boltdb.New(nd.idxFile)
-		if err != nil {
-			return fmt.Errorf("unable to load tx indexer: %w", err)
-		}
-		//t.Cleanup(func() { require.NoError(t, proofDB.Close()) })
 		nd.proofDB = memorydb.New()
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes

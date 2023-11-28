@@ -43,6 +43,8 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(listFeesCmd(config, cliConfig))
 	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
+	cmd.AddCommand(lockFeeCreditCmd(config, cliConfig))
+	cmd.AddCommand(unlockFeeCreditCmd(config, cliConfig))
 
 	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|evm]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
@@ -81,19 +83,19 @@ func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConf
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load account manager: %w", err)
 	}
 	defer am.Close()
 
 	feeManagerDB, err := fees.NewFeeManagerDB(walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fee manager db: %w", err)
 	}
 	defer feeManagerDB.Close()
 
 	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fee credit manager: %w", err)
 	}
 	defer fm.Close()
 
@@ -124,13 +126,13 @@ func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load account manager: %w", err)
 	}
 	defer am.Close()
 
 	feeManagerDB, err := fees.NewFeeManagerDB(walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fee manager db: %w", err)
 	}
 	defer feeManagerDB.Close()
 
@@ -167,13 +169,13 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load account manager: %w", err)
 	}
 	defer am.Close()
 
 	feeManagerDB, err := fees.NewFeeManagerDB(walletConfig.WalletHomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fee manager db: %w", err)
 	}
 	defer feeManagerDB.Close()
 
@@ -186,10 +188,116 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	return reclaimFees(cmd.Context(), accountNumber, cliConfig, fm)
 }
 
+func lockFeeCreditCmd(walletConfig *walletConfig, cliConfig *cliConf) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "lock",
+		Short: "locks fee credit of the wallet",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return lockFeeCreditCmdExec(cmd, walletConfig, cliConfig)
+		},
+	}
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee credit record to lock")
+	_ = cmd.MarkFlagRequired(keyCmdName)
+	return cmd
+}
+
+func lockFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *cliConf) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	if accountNumber == 0 {
+		return errors.New("account number must be greater than zero")
+	}
+	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+
+	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load account manager: %w", err)
+	}
+	defer am.Close()
+
+	feeManagerDB, err := fees.NewFeeManagerDB(walletConfig.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to create fee manager db: %w", err)
+	}
+	defer feeManagerDB.Close()
+
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.Logger)
+	if err != nil {
+		return err
+	}
+	defer fm.Close()
+
+	_, err = fm.LockFeeCredit(cmd.Context(), fees.LockFeeCreditCmd{AccountIndex: accountNumber - 1, LockStatus: wallet.LockReasonManual})
+	if err != nil {
+		return fmt.Errorf("failed to lock fee credit: %w", err)
+	}
+	consoleWriter.Println("Fee credit record locked successfully.")
+	return nil
+}
+
+func unlockFeeCreditCmd(walletConfig *walletConfig, cliConfig *cliConf) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unlock",
+		Short: "unlocks fee credit of the wallet",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return unlockFeeCreditCmdExec(cmd, walletConfig, cliConfig)
+		},
+	}
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee credit record to unlock")
+	_ = cmd.MarkFlagRequired(keyCmdName)
+	return cmd
+}
+
+func unlockFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *cliConf) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	if accountNumber == 0 {
+		return errors.New("account number must be greater than zero")
+	}
+	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+
+	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load account manager: %w", err)
+	}
+	defer am.Close()
+
+	feeManagerDB, err := fees.NewFeeManagerDB(walletConfig.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to create fee manager db: %w", err)
+	}
+	defer feeManagerDB.Close()
+
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.Logger)
+	if err != nil {
+		return err
+	}
+	defer fm.Close()
+
+	_, err = fm.UnlockFeeCredit(cmd.Context(), fees.UnlockFeeCreditCmd{AccountIndex: accountNumber - 1})
+	if err != nil {
+		return fmt.Errorf("failed to unlock fee credit: %w", err)
+	}
+	consoleWriter.Println("Fee credit record unlocked successfully.")
+	return nil
+}
+
 type FeeCreditManager interface {
 	GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
 	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*fees.AddFeeCmdResponse, error)
 	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*fees.ReclaimFeeCmdResponse, error)
+	LockFeeCredit(ctx context.Context, cmd fees.LockFeeCreditCmd) (*wallet.Proof, error)
+	UnlockFeeCredit(ctx context.Context, cmd fees.UnlockFeeCreditCmd) (*wallet.Proof, error)
 	Close()
 }
 
@@ -207,7 +315,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 			}
 			accNum := accountIndex + 1
 			amountString := amountToString(fcb.GetValue(), 8)
-			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accNum, amountString))
+			consoleWriter.Println(fmt.Sprintf("Account #%d %s%s", accNum, amountString, getLockedReasonString(fcb)))
 		}
 	} else {
 		accountIndex := accountNumber - 1
@@ -217,7 +325,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 		}
 		amountString := amountToString(fcb.GetValue(), 8)
 		consoleWriter.Println("Partition: " + c.partitionType)
-		consoleWriter.Println(fmt.Sprintf("Account #%d %s", accountNumber, amountString))
+		consoleWriter.Println(fmt.Sprintf("Account #%d %s%s", accountNumber, amountString, getLockedReasonString(fcb)))
 	}
 	return nil
 }

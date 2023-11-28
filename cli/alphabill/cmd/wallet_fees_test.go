@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -33,7 +32,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 
 func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	logF := logger.LoggerBuilder(t)
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{}, logF)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
 
 	// list fees
 	stdout, err := execFeesCommand(logF, homedir, "list")
@@ -100,7 +99,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	// start money partition and create wallet with token partition as well
 	tokensPartition := createTokensPartition(t)
 	logF := logger.LoggerBuilder(t)
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition}, logF)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition})
 
 	// start token partition
 	startPartitionRPCServers(t, tokensPartition)
@@ -167,7 +166,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 
 func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
 	logF := logger.LoggerBuilder(t)
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{}, logF)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
 
 	// try to add invalid fee amount
 	_, err := execFeesCommand(logF, homedir, "add --amount=0.00000003")
@@ -208,40 +207,64 @@ func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
 	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
 }
 
+func TestWalletFeesLockCmds_Ok(t *testing.T) {
+	logF := logger.LoggerBuilder(t)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+
+	// create fee credit bill by adding fee credit
+	stdout, err := execFeesCommand(logF, homedir, "add --amount 1")
+	require.NoError(t, err)
+	require.Equal(t, "Successfully created 1 fee credits on money partition.", stdout.lines[0])
+
+	// lock fee credit record
+	stdout, err = execFeesCommand(logF, homedir, "lock -k 1")
+	require.NoError(t, err)
+	require.Equal(t, "Fee credit record locked successfully.", stdout.lines[0])
+
+	// verify fee credit bill locked
+	stdout, err = execFeesCommand(logF, homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 0.999'999'97 (manually locked by user)"), stdout.lines[1])
+
+	// unlock fee credit record
+	stdout, err = execFeesCommand(logF, homedir, "unlock -k 1")
+	require.NoError(t, err)
+	require.Equal(t, "Fee credit record unlocked successfully.", stdout.lines[0])
+
+	// list fees
+	stdout, err = execFeesCommand(logF, homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, "Account #1 0.999'999'96", stdout.lines[1])
+}
+
 func execFeesCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWriter, error) {
 	return execCommand(logF, homeDir, " fees "+command)
 }
 
-// setupMoneyInfraAndWallet starts money partition and wallet backend and sends initial bill to wallet.
-// Returns wallet homedir and reference to money partition object.
-func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition, logF LoggerFactory) (string, *testpartition.AlphabillNetwork) {
+// setupMoneyInfraAndWallet creates wallet and starts money partition and wallet backend with initial bill belonging
+// to the wallet. Returns wallet homedir and reference to money partition object.
+func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
+	// create wallet
+	am, homedir := createNewWallet(t)
+	defer am.Close()
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: templates.AlwaysTrueBytes(),
+		Owner: templates.NewP2pkh256BytesFromKey(accountKey.PubKey),
 	}
+
+	// start money partition
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)
 
 	startPartitionRPCServers(t, moneyPartition)
-
 	startMoneyBackend(t, moneyPartition, initialBill)
-
-	// create wallet
-	homedir := createNewTestWallet(t)
-
-	stdout := execWalletCmd(t, logF, homedir, "get-pubkeys")
-	require.Len(t, stdout.lines, 1)
-	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
-	pkBytes, _ := hexutil.Decode(pk)
-
-	// transfer initial bill to wallet pubkey
-	expectedValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
-
-	// wait for initial bill tx
-	waitForBalanceCLI(t, logF, homedir, defaultAlphabillApiURL, expectedValue, 0)
 
 	return homedir, abNet
 }

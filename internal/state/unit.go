@@ -40,7 +40,6 @@ type (
 
 	// logs contains a state changes of the unit during the current round.
 	logs []*Log
-	//Predicate []byte
 )
 
 func NewUnit(bearer predicates.PredicateBytes, data UnitData) *Unit {

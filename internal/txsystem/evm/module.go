@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/ethereum/go-ethereum/core"
@@ -22,26 +19,12 @@ type (
 		blockGasCounter  *core.GasPool
 		log              *slog.Logger
 	}
-
-	verifyTransactionProof struct {
-	}
 )
-
-func (v verifyTransactionProof) RequiredGas(input []byte) uint64 {
-	return 0
-}
-
-func (v verifyTransactionProof) Run(input []byte) ([]byte, error) {
-	panic("implement me")
-}
 
 func NewEVMModule(systemIdentifier []byte, opts *Options, log *slog.Logger) (*Module, error) {
 	if opts.gasUnitPrice == nil {
 		return nil, fmt.Errorf("evm init failed, gas price is nil")
 	}
-
-	vm.PrecompiledContractsHomestead[common.BytesToAddress([]byte{100})] = &verifyTransactionProof{}
-	vm.PrecompiledAddressesHomestead = append(vm.PrecompiledAddressesHomestead, common.BytesToAddress([]byte{100}))
 	return &Module{
 		systemIdentifier: systemIdentifier,
 		options:          opts,

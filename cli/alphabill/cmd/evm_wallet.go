@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/internal/util"
+	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 )
 
 const (
@@ -309,8 +311,8 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 		return fmt.Errorf("get balance failed, %w", err)
 	}
 	inAlpha := evmwallet.ConvertBalanceToAlpha(balance)
-	balanceStr := amountToString(inAlpha, 8)
-	balanceEthStr := amountToString(balance.Uint64(), 18)
+	balanceStr := util.AmountToString(inAlpha, 8)
+	balanceEthStr := util.AmountToString(balance.Uint64(), 18)
 	consoleWriter.Println(fmt.Sprintf("#%d %s (eth: %s)", accountNumber, balanceStr, balanceEthStr))
 	return nil
 }
@@ -318,11 +320,11 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 func printResult(result *evmclient.Result) {
 	if !result.Success {
 		consoleWriter.Println(fmt.Sprintf("Evm transaction failed: %s", result.Details.ErrorDetails))
-		consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
+		consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", util.AmountToString(result.ActualFee, 8)))
 		return
 	}
 	consoleWriter.Println("Evm transaction succeeded")
-	consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
+	consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", util.AmountToString(result.ActualFee, 8)))
 	noContract := common.Address{} // content if no contract is deployed
 	if result.Details.ContractAddr != noContract {
 		consoleWriter.Println(fmt.Sprintf("Deployed smart contract address: %x", result.Details.ContractAddr))

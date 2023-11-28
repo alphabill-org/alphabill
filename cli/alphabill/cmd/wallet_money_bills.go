@@ -10,6 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -113,7 +114,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
 		for j, bill := range group.bills.Bills {
-			billValueStr := amountToString(bill.Value, 8)
+			billValueStr := util.AmountToString(bill.Value, 8)
 			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s%s", j+1, bill.Id, billValueStr, getLockedReasonString(bill)))
 		}
 	}

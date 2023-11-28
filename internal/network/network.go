@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -28,8 +29,8 @@ type (
 		protocolID string
 		// constructor which returns pointer to a data struct into which
 		// received message can be stored
-		typeFn     func() any
-		handler    libp2pNetwork.StreamHandler
+		typeFn  func() any
+		handler libp2pNetwork.StreamHandler
 	}
 
 	sendProtocolData struct {
@@ -38,6 +39,7 @@ type (
 	}
 
 	Observability interface {
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 	}
 )

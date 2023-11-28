@@ -121,7 +121,7 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 
 func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		nr, err := node.GetLatestRoundNumber()
+		nr, err := node.GetLatestRoundNumber(request.Context())
 		if err != nil {
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return

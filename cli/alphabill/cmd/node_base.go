@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -51,7 +52,8 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, obs partition.Observability, log *slog.Logger) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, obs Observability) error {
+	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -93,7 +95,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 		}
 		routers := []rpc.Registrar{
 			rpc.NodeEndpoints(node, obs, log),
-			rpc.MetricsEndpoints(obs.MetricsHandler()),
+			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if restServerConf.router != nil {
@@ -177,6 +179,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs parti
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
 		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(obs.TracerProvider()))),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
@@ -189,7 +192,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs parti
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys, blockStore keyvaluedb.KeyValueDB, obs partition.Observability, log *slog.Logger) (*partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys, blockStore keyvaluedb.KeyValueDB, obs Observability) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -229,7 +232,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		pg,
 		nil,
 		obs,
-		log,
 		options...,
 	)
 	if err != nil {

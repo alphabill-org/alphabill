@@ -4,30 +4,38 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 type (
 	alphabillApp struct {
 		baseCmd    *cobra.Command
 		baseConfig *baseConfiguration
-		opts       interface{}
+	}
+
+	Factory interface {
+		Logger(cfg *logger.LogConfiguration) (*slog.Logger, error)
+		Observability(metrics, traces string) (observability.MeterAndTracer, error)
 	}
 )
 
 // New creates a new Alphabill application
-func New(logF LoggerFactory, opts ...interface{}) *alphabillApp {
-	baseCmd, baseConfig := newBaseCmd(logF)
-	app := &alphabillApp{baseCmd, baseConfig, opts}
-	app.addSubcommands()
+func New(obsF Factory, opts ...interface{}) *alphabillApp {
+	baseCmd, baseConfig := newBaseCmd(obsF)
+	app := &alphabillApp{baseCmd: baseCmd, baseConfig: baseConfig}
+	app.addSubcommands(obsF, opts)
 	return app
 }
 
-// Execute adds all child commands and runs the application
+// Execute runs the application
 func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 	defer func() {
 		if a.baseConfig.observe != nil {
@@ -38,10 +46,10 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *alphabillApp) addSubcommands() {
-	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(a.opts)))
+func (a *alphabillApp) addSubcommands(obsF Factory, opts []interface{}) {
+	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig, obsF))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd())
@@ -53,8 +61,8 @@ func (a *alphabillApp) addSubcommands() {
 	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
 }
 
-func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
-	config := &baseConfiguration{loggerBuilder: logF}
+func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {
+	config := &baseConfiguration{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
 		Use:           "alphabill",
@@ -65,7 +73,7 @@ func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
 			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.
-			if err := initializeConfig(cmd, config); err != nil {
+			if err := initializeConfig(cmd, config, obsF); err != nil {
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
 			return nil
@@ -76,26 +84,32 @@ func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
 	return baseCmd, config
 }
 
-func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
+func initializeConfig(cmd *cobra.Command, config *baseConfiguration, obsF Factory) error {
 	var errs []error
 
 	if err := config.initializeConfig(cmd); err != nil {
 		errs = append(errs, fmt.Errorf("reading configuration: %w", err))
 	}
 
-	if err := config.initLogger(cmd); err != nil {
+	logger, err := config.initLogger(cmd, obsF.Logger)
+	if err != nil {
 		errs = append(errs, fmt.Errorf("initializing logger: %w", err))
 	}
 
 	metrics, err := cmd.Flags().GetString(keyMetrics)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("reading flag %q: %w", keyMetrics, err))
-	} else {
-		obs, err := newObservability(metrics)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("initializing observability: %w", err))
-		}
-		config.observe = obs
+	}
+	tracing, err := cmd.Flags().GetString(keyTracing)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("reading flag %q: %w", keyTracing, err))
+	}
+	observe, err := obsF.Observability(metrics, tracing)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("initializing observability: %w", err))
+	}
+	if observe != nil && logger != nil {
+		config.observe = observability.WithLogger(observe, logger)
 	}
 
 	return errors.Join(errs...)

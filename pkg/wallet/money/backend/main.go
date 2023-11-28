@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
@@ -107,12 +109,19 @@ type (
 		InitialBill              InitialBill
 		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
 		Logger                   *slog.Logger
+		Observe                  Observability
 	}
 
 	InitialBill struct {
 		Id        []byte
 		Value     uint64
 		Predicate []byte
+	}
+
+	Observability interface {
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
+		TracerProvider() trace.TracerProvider
+		Logger() *slog.Logger
 	}
 )
 
@@ -165,7 +174,7 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Observe)
 	if err != nil {
 		return err
 	}
@@ -186,12 +195,16 @@ func Run(ctx context.Context, config *Config) error {
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
 			log:                config.Logger,
+			tracer:             config.Observe.Tracer("moneyRestAPI"),
 		}
+
+		routes := handler.Router()
+		routes.Use(otelmux.Middleware("money_backend", otelmux.WithTracerProvider(config.Observe.TracerProvider())))
 
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.ServerAddr,
-				Handler:           handler.Router(),
+				Handler:           routes,
 				ReadTimeout:       5 * time.Second,
 				ReadHeaderTimeout: time.Second,
 				WriteTimeout:      10 * time.Second,

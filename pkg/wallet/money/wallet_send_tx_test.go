@@ -7,17 +7,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/testutil"
@@ -572,7 +573,7 @@ func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, 
 
 func withBackendMock(t *testing.T, br *testutil.BackendMockReturnConf) BackendAPI {
 	_, serverAddr := MockBackendCalls(br)
-	restClient, err := beclient.New(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 	return restClient
 }

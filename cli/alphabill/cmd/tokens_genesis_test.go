@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -23,7 +23,7 @@ const (
 
 func TestTokensGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := setupTestHomeDir(t, utGenesisDir)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -32,7 +32,7 @@ func TestTokensGenesis_KeyFileNotFound(t *testing.T) {
 
 func TestTokensGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, utGenesisDir)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -50,7 +50,7 @@ func TestTokensGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -69,7 +69,7 @@ func TestTokensGenesis_LoadExistingKeys(t *testing.T) {
 	err = nodeKeys.WriteTo(kf)
 	require.NoError(t, err)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -89,7 +89,7 @@ func TestTokensGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 
 	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", genesisFileName)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -110,7 +110,7 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 	kf := filepath.Join(homeDir, utDirectory, "n1", defaultKeysFileName)
 	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", genesisFileName)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())

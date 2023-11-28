@@ -405,7 +405,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber()
+	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(4), nr)
 	latestBlock, err := tp.partition.GetLatestBlock()
@@ -471,7 +471,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber()
+	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(6), nr)
 	latestBlock, err := tp.partition.GetLatestBlock()

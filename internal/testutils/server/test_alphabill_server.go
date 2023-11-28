@@ -10,6 +10,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -137,13 +139,13 @@ func (s *TestAlphabillServiceServer) SetProcessTxError(processTxError error) {
 	s.processTxError = processTxError
 }
 
-func StartServer(alphabillService *TestAlphabillServiceServer) (*grpc.Server, net.Addr) {
+func StartServer(alphabillService *TestAlphabillServiceServer, tp trace.TracerProvider) (*grpc.Server, net.Addr) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(tp))))
 	alphabill.RegisterAlphabillServiceServer(grpcServer, alphabillService)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {

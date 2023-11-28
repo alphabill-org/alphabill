@@ -155,10 +155,6 @@ func NewNode(
 	if err != nil {
 		return nil, fmt.Errorf("genesis error, invalid rootnodes: %w", err)
 	}
-	var proofIndexer *ProofIndexer
-	if conf.proofIndexConfig.store != nil {
-		proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, log)
-	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -167,7 +163,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                proofIndexer,
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, log),
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -260,11 +256,9 @@ func (n *Node) Run(ctx context.Context) error {
 	})
 
 	// start proof indexer
-	if n.proofIndexer != nil {
-		g.Go(func() error {
-			return n.proofIndexer.loop(ctx)
-		})
-	}
+	g.Go(func() error {
+		return n.proofIndexer.loop(ctx)
+	})
 
 	g.Go(func() error {
 		err := n.loop(ctx)
@@ -327,7 +321,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 			return fmt.Errorf("unable to commit block %v: %w", roundNo, err)
 		}
 		// node must have exited before block was indexed
-		if n.proofIndexer != nil && n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
+		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
 			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.StateStorage())
 		}
 		prevBlock = &bl
@@ -907,9 +901,7 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
 	n.sendEvent(event.BlockFinalized, b)
-	if n.proofIndexer != nil {
-		n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
-	}
+	n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
 	return nil
 }
 
@@ -1305,9 +1297,6 @@ func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 }
 
 func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
-	if n.proofIndexer == nil {
-		return nil, nil, errors.New("not allowed")
-	}
 	proofs := n.proofIndexer.GetDB()
 	index, err := ReadTransactionIndex(proofs, hash)
 	if err != nil {

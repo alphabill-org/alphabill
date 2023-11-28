@@ -138,6 +138,10 @@ func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.Partiti
 		signer:        signer,
 		genesis:       genesis,
 		hashAlgorithm: gocrypto.SHA256,
+		proofIndexConfig: proofIndexConfig{
+			store:      memorydb.New(),
+			historyLen: 20,
+		},
 	}
 	for _, option := range nodeOptions {
 		option(c)

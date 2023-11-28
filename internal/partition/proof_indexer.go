@@ -83,7 +83,7 @@ func (p *ProofIndexer) loop(ctx context.Context) error {
 			}
 			// clean-up
 			if err := p.historyCleanup(ctx, roundNumber); err != nil {
-				p.log.Warn(fmt.Sprintf("index clean-up failed"), logger.Error(err))
+				p.log.Warn("index clean-up failed", logger.Error(err))
 			}
 		}
 	}

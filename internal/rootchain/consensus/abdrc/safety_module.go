@@ -187,11 +187,14 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *abtyp
 		// respect highest qc round
 		return fmt.Errorf("qc round %v is smaller than highest qc round %v seen", qcRound, s.GetHighestQcRound())
 	}
-	highestVotedRound := s.GetHighestVotedRound() - 1
-	if round <= max(highestVotedRound, qcRound) {
+	if round <= qcRound {
+		return fmt.Errorf("timeout round %v is in the past, node has qc for round %v",
+			round, qcRound)
+	}
+	if round < s.GetHighestVotedRound() {
 		// don’t time out in a past round
-		return fmt.Errorf("timeout round %v is in the past, highest voted round %v, hqc round %v",
-			round, highestVotedRound, qcRound)
+		return fmt.Errorf("timeout round %v is in the past, already signed vote for round %v",
+			round, s.GetHighestVotedRound())
 	}
 	var tcRound uint64 = 0
 	if lastRoundTC != nil {

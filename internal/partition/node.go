@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,7 +15,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -33,6 +34,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 const (
@@ -73,9 +75,11 @@ type (
 	}
 
 	Observability interface {
+		TracerProvider() trace.TracerProvider
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		PrometheusRegisterer() prometheus.Registerer
-		MetricsHandler() http.Handler
+		Logger() *slog.Logger
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -105,6 +109,7 @@ type (
 		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
 		log                         *slog.Logger
+		tracer                      trace.Tracer
 
 		execTxCnt  metric.Int64Counter
 		execTxDur  metric.Float64Histogram
@@ -143,11 +148,14 @@ func NewNode(
 	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
 	network ValidatorNetwork, // network layer of the validator node
 	observe Observability,
-	log *slog.Logger,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
+	tracer := observe.Tracer("partition.node", trace.WithInstrumentationAttributes(observability.PeerID(observability.NodeIDKey, peerConf.ID)))
+	ctx, span := tracer.Start(ctx, "partition.NewNode")
+	defer span.End()
+
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, log, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, observe.Logger(), nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
@@ -163,13 +171,14 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, log),
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
 		network:                     network,
 		lastLedgerReqTime:           time.Time{},
-		log:                         log,
+		log:                         observe.Logger(),
+		tracer:                      tracer,
 	}
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
@@ -274,7 +283,8 @@ func (n *Node) GetPeer() *network.Peer {
 }
 
 func (n *Node) initState(ctx context.Context) (err error) {
-	defer trackExecutionTime(time.Now(), "Restore node state", n.log)
+	ctx, span := n.tracer.Start(ctx, "node.initState")
+	defer span.End()
 
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
@@ -336,6 +346,9 @@ func (n *Node) initState(ctx context.Context) (err error) {
 }
 
 func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration, observe Observability) (err error) {
+	ctx, span := n.tracer.Start(ctx, "node.initNetwork")
+	defer span.End()
+
 	n.peer, err = network.NewPeer(ctx, peerConf, n.log, observe.PrometheusRegisterer())
 	if err != nil {
 		return err
@@ -399,6 +412,9 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 }
 
 func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
+	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(attribute.Int64("round", int64(round))))
+	defer span.End()
+
 	var sumOfEarnedFees uint64
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
@@ -419,6 +435,9 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 }
 
 func (n *Node) restoreBlockProposal(ctx context.Context, prevBlock *types.Block) {
+	ctx, span := n.tracer.Start(ctx, "node.restoreBlockProposal")
+	defer span.End()
+
 	pr := &pendingBlockProposal{}
 	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), pr)
 	if err != nil {
@@ -499,15 +518,18 @@ func (n *Node) loop(ctx context.Context) error {
 handleMessage processes message received from AB network (ie from other partition nodes or rootchain).
 */
 func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
+	msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+	ctx, span := n.tracer.Start(ctx, "node.handleMessage", trace.WithNewRoot(), trace.WithAttributes(msgAttr, n.attrRound()), trace.WithSpanKind(trace.SpanKindServer))
 	defer func(start time.Time) {
-		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
 		status := "ok"
 		if rErr != nil {
+			span.SetStatus(codes.Error, rErr.Error())
 			n.sendEvent(event.Error, rErr)
 			status = "err"
 		}
 		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
 		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+		span.End()
 	}(time.Now())
 
 	switch mt := msg.(type) {
@@ -678,6 +700,9 @@ func (n *Node) updateLUC(uc *types.UnicityCertificate) error {
 }
 
 func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) error {
+	ctx, span := n.tracer.Start(ctx, "node.startNewRound")
+	defer span.End()
+
 	if err := n.updateLUC(uc); err != nil {
 		return fmt.Errorf("failed to update unicity certificate: %w", err)
 	}
@@ -707,6 +732,8 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 }
 
 func (n *Node) startRecovery(ctx context.Context, uc *types.UnicityCertificate) {
+	ctx, span := n.tracer.Start(ctx, "node.startRecovery")
+	defer span.End()
 	// always update last UC seen, this is needed to evaluate if node has recovered and is up-to-date
 	if err := n.updateLUC(uc); err != nil {
 		n.log.WarnContext(ctx, "Start recovery unicity certificate update failed", logger.Error(err))
@@ -880,7 +907,9 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	blockNumber := b.GetRoundNumber()
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", blockNumber), n.log)
+	_, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.number", int64(blockNumber))))
+	defer span.End()
+
 	roundNoInBytes := util.Uint64ToBytes(blockNumber)
 	// persist the block _before_ committing to tx system
 	// if write fails but the round is committed in tx system, there's no way back,
@@ -896,7 +925,6 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 		}
 		return err
 	}
-
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
@@ -906,10 +934,12 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 }
 
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
+	ctx, span := n.tracer.Start(ctx, "node.handleT1TimeoutEvent", trace.WithNewRoot(), trace.WithAttributes(n.attrRound()))
+	defer span.End()
+
 	n.stopForwardingOrHandlingTransactions()
-	defer func() {
-		n.leaderSelector.UpdateLeader(nil, n.peer.Validators())
-	}()
+	defer func() { n.leaderSelector.UpdateLeader(nil, n.peer.Validators()) }()
+
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
 		return
@@ -933,6 +963,9 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
 func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived time.Time) {
+	ctx, span := n.tracer.Start(ctx, "node.handleMonitoring", trace.WithNewRoot(), trace.WithAttributes(n.attrRound(), attribute.String("last UC", lastUCReceived.String())))
+	defer span.End()
+
 	// check if we have not heard from root validator for a long time
 	if time.Since(lastUCReceived) > 2*n.configuration.GetT2Timeout() {
 		// subscribe again
@@ -1128,6 +1161,9 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 }
 
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr uint64) {
+	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr))))
+	defer span.End()
+
 	req := &replication.LedgerReplicationRequest{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		NodeIdentifier:   n.peer.ID().String(),
@@ -1161,7 +1197,9 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 }
 
 func (n *Node) sendBlockProposal(ctx context.Context) error {
-	defer trackExecutionTime(time.Now(), "Sending BlockProposal", n.log)
+	ctx, span := n.tracer.Start(ctx, "node.sendBlockProposal")
+	defer span.End()
+
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
@@ -1186,9 +1224,10 @@ func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
 }
 
 func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string) error {
-	defer trackExecutionTime(time.Now(), "Sending CertificationRequest", n.log)
+	ctx, span := n.tracer.Start(ctx, "node.sendCertificationRequest", trace.WithAttributes(attribute.String("author", blockAuthor)))
+	defer span.End()
+
 	systemIdentifier := n.configuration.GetSystemIdentifier()
-	nodeId := n.peer.ID()
 	luc := n.luc.Load()
 	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
@@ -1222,7 +1261,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   nodeId.String(),
+		NodeIdentifier:   n.peer.ID().String(),
 		InputRecord: &types.InputRecord{
 			PreviousHash: pendingProposal.PrevHash,
 			Hash:         pendingProposal.StateHash,
@@ -1321,7 +1360,10 @@ func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.Tr
 GetLatestRoundNumber returns current round number.
 It's part of the public API exposed by node.
 */
-func (n *Node) GetLatestRoundNumber() (uint64, error) {
+func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
+	_, span := n.tracer.Start(ctx, "node.GetLatestRoundNumber")
+	defer span.End()
+
 	if status := n.status.Load(); status != normal {
 		return 0, fmt.Errorf("node is in invalid status: %s", status)
 	}
@@ -1361,6 +1403,9 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 }
 
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
+	ctx, span := n.tracer.Start(ctx, "node.startHandleOrForwardTransactions", trace.WithAttributes(n.attrRound()))
+	defer span.End()
+
 	n.stopForwardingOrHandlingTransactions()
 
 	leader := n.leaderSelector.GetLeader()
@@ -1379,12 +1424,16 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	})
 
 	go func() {
-		defer wg.Done()
+		ctx, span := n.tracer.Start(txCtx, "node.processTransactions", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(txCtx)))
+		defer func() {
+			span.End()
+			wg.Done()
+		}()
 
 		if leader == n.peer.ID() {
-			n.network.ProcessTransactions(txCtx, n.process)
+			n.network.ProcessTransactions(ctx, n.process)
 		} else {
-			n.network.ForwardTransactions(txCtx, leader)
+			n.network.ForwardTransactions(ctx, leader)
 		}
 	}()
 
@@ -1415,14 +1464,14 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 	return b.Hash(n.configuration.hashAlgorithm)
 }
 
+func (n *Node) attrRound() attribute.KeyValue {
+	return observability.Round(n.getCurrentRound())
+}
+
 func (p *pendingBlockProposal) pretty() string {
 	if p == nil {
 		return ""
 	}
 	return fmt.Sprintf("Pending proposal: \nH:\t%X\nH':\t%X\nround:\t%v\nfees:\t%d",
 		p.StateHash, p.PrevHash, p.RoundNumber, p.SumOfEarnedFees)
-}
-
-func trackExecutionTime(start time.Time, name string, log *slog.Logger) {
-	log.Debug(fmt.Sprintf("%s took %s", name, time.Since(start)))
 }

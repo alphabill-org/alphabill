@@ -6,12 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -116,6 +117,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 			Predicate: templates.AlwaysTrueBytes(),
 		},
 		SystemDescriptionRecords: sdrFiles,
-		Logger:                   config.Base.Logger,
+		Logger:                   config.Base.observe.Logger(),
+		Observe:                  config.Base.observe,
 	})
 }

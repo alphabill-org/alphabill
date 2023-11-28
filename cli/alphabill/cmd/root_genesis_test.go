@@ -8,17 +8,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func TestGenerateGenesisFiles_OK(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -60,7 +60,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -81,7 +81,7 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -103,7 +103,7 @@ func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -129,10 +129,9 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 
 func TestGenerateGenesisFiles_ErrOnlyGenerateKeyFile(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	// create root node genesis with root node 1
 	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDir + " -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -141,10 +140,9 @@ func TestGenerateGenesisFiles_ErrOnlyGenerateKeyFile(t *testing.T) {
 
 func TestGenerateGenesisFiles_ErrNoNodeGenesisFilesNorGenerateKeys(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	// create root node genesis with root node 1
 	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -153,7 +151,7 @@ func TestGenerateGenesisFiles_ErrNoNodeGenesisFilesNorGenerateKeys(t *testing.T)
 
 func TestGenerateGenesis_ErrBlockRateInvalid(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -175,7 +173,7 @@ func TestGenerateGenesis_ErrBlockRateInvalid(t *testing.T) {
 
 func TestGenerateGenesis_ErrTimeoutInvalid(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -198,7 +196,7 @@ func TestGenerateGenesis_ErrTimeoutInvalid(t *testing.T) {
 
 func TestGenerateGenesis_ErrBlockRateBiggerThanTimeout(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -221,7 +219,7 @@ func TestGenerateGenesis_ErrBlockRateBiggerThanTimeout(t *testing.T) {
 
 func TestGenerateGenesis_ErrQuorumTooBig(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
@@ -246,7 +244,7 @@ func TestGenerateGenesis_ErrQuorumTooBig(t *testing.T) {
 
 func TestGenerateGenesis_ErrQuorumTooLittle(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)

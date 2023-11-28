@@ -55,7 +55,7 @@ func execTokensBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *
 	if err != nil {
 		return fmt.Errorf("failed to read %s flag value: %w", systemIdentifierCmdName, err)
 	}
-	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, config.Logger, systemID))
+	return backend.Run(ctx, backend.NewConfig(systemID, srvAddr, abURL, dbFile, config.observe))
 }
 
 /*

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -70,9 +71,13 @@ type (
 		SystemID() []byte
 		fees.TxPublisher
 	}
+
+	Observability interface {
+		TracerProvider() trace.TracerProvider
+	}
 )
 
-func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool, feeManager *fees.FeeManager, log *slog.Logger) (*Wallet, error) {
+func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool, feeManager *fees.FeeManager, observe Observability, log *slog.Logger) (*Wallet, error) {
 	if !strings.HasPrefix(backendUrl, "http://") && !strings.HasPrefix(backendUrl, "https://") {
 		backendUrl = "http://" + backendUrl
 	}
@@ -83,7 +88,7 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 	return &Wallet{
 		systemID:   systemID,
 		am:         am,
-		backend:    client.New(*addr),
+		backend:    client.New(*addr, observe),
 		confirmTx:  confirmTx,
 		feeManager: feeManager,
 		log:        log,

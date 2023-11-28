@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -26,13 +25,13 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -51,7 +50,7 @@ type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
 	TrustBase map[string]crypto.Verifier
 	Nodes     []*rootNode
-	log       *slog.Logger
+	obs       testobserve.Factory
 }
 
 type NodePartition struct {
@@ -61,8 +60,7 @@ type NodePartition struct {
 	ctx              context.Context
 	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
-	obs              partition.Observability
-	log              *slog.Logger
+	obs              testobserve.Factory
 }
 
 type partitionNode struct {
@@ -208,16 +206,15 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
-		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log, nil)
+		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.obs.DefaultLogger(), nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}
 	}
 	// start root nodes
-	obs := observability.NOPMetrics()
 	for i, rn := range r.Nodes {
 		rootPeer := rootPeers[i]
-		log := r.log.With(logger.NodeID(rootPeer.ID()))
+		log := r.obs.DefaultLogger().With(logger.NodeID(rootPeer.ID()))
 		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
 		for _, p := range rootPeers {
 			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
@@ -235,11 +232,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, obs, log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, r.obs.DefaultObserver(), log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs, log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, r.obs.DefaultObserver(), log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
@@ -264,8 +261,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
-		obs:          observability.NOPMetrics(),
-		log:          testlogger.New(t),
+		obs:          testobserve.NewFactory(t),
 	}
 	// create peer configurations
 	peerConfs, err := createPeerConfs(nodeCount)
@@ -315,8 +311,6 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	n.tb = trustBase
 
 	for _, nd := range n.Nodes {
-		log := n.log.With(logger.NodeID(nd.peerConf.ID))
-
 		nd.EventHandler = &testevent.TestEventHandler{}
 		blockStore, err := boltdb.New(nd.dbFile)
 		if err != nil {
@@ -331,7 +325,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			partition.WithBlockStore(blockStore),
 			partition.WithProofIndex(nd.proofDB, 0),
 		)
-		if err = n.startNode(ctx, nd, log); err != nil {
+		if err = n.startNode(ctx, nd); err != nil {
 			return err
 		}
 	}
@@ -346,7 +340,8 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	return nil
 }
 
-func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode, log *slog.Logger) error {
+func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error {
+	log := n.obs.DefaultLogger().With(logger.NodeID(pn.peerConf.ID))
 	node, err := partition.NewNode(
 		ctx,
 		pn.peerConf,
@@ -354,8 +349,7 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode, log *s
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
 		nil,
-		n.obs,
-		log,
+		observability.WithLogger(n.obs.DefaultObserver(), log),
 		pn.confOpts...,
 	)
 	if err != nil {
@@ -419,7 +413,7 @@ func getBootstrapNodes(t *testing.T, root *RootPartition) []peer.AddrInfo {
 }
 
 func (a *AlphabillNetwork) Start(t *testing.T) error {
-	a.RootPartition.log = testlogger.New(t)
+	a.RootPartition.obs = testobserve.NewFactory(t)
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {

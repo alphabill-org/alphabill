@@ -11,11 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -33,14 +36,18 @@ type TokenBackend struct {
 	hc   *http.Client
 }
 
+type Observability interface {
+	TracerProvider() trace.TracerProvider
+}
+
 /*
 New creates REST API client for token wallet backend. The "abAddr" is
 address of the backend, Scheme and Host fields must be assigned.
 */
-func New(abAddr url.URL) *TokenBackend {
+func New(abAddr url.URL, observe Observability) *TokenBackend {
 	return &TokenBackend{
 		addr: abAddr,
-		hc:   &http.Client{Timeout: 10 * time.Second},
+		hc:   &http.Client{Timeout: 10 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithTracerProvider(observe.TracerProvider()))},
 	}
 }
 

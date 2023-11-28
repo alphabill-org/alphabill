@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -32,7 +33,7 @@ type (
 
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
-		MetricsHandler() http.Handler
+		PrometheusRegisterer() prometheus.Registerer
 	}
 )
 

@@ -12,11 +12,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/testutil"
@@ -553,14 +555,17 @@ func createTestWallet(t *testing.T, backend BackendAPI) *Wallet {
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	return createTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+
+	return createTestWalletWithManagerAndUnitLocker(t, backend, am, feeManagerDB, unitLocker)
 }
 
-func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) *Wallet {
+func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, feeManagerDB fees.FeeManagerDB, unitLocker *unitlock.UnitLocker) *Wallet {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitLocker, backend, logger.New(t))
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, backend, logger.New(t))
 	require.NoError(t, err)
 
 	return w
@@ -568,7 +573,7 @@ func createTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, 
 
 func withBackendMock(t *testing.T, br *testutil.BackendMockReturnConf) BackendAPI {
 	_, serverAddr := MockBackendCalls(br)
-	restClient, err := beclient.New(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 	return restClient
 }

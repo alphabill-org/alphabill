@@ -21,8 +21,8 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -42,7 +42,7 @@ func TestRunTokensNode(t *testing.T) {
 			ctxCancel()
 			appStoppedWg.Wait()
 		}()
-		logF := logger.LoggerBuilder(t)
+		logF := testobserve.NewFactory(t)
 		// generate node genesis
 		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation

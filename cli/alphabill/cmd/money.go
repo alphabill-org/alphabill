@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -88,7 +89,8 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
 
-	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
+	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
+	obs := observability.WithLogger(cfg.Base.observe, log)
 
 	blockStore, err := initStore(cfg.Node.DbFile)
 	if err != nil {
@@ -112,9 +114,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, cfg.Base.observe, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, proofStore, cfg.Base.observe, log)
+	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
 }

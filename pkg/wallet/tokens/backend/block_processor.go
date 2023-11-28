@@ -381,7 +381,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		if err := tx.UnmarshalAttributes(attr); err != nil {
 			return fmt.Errorf("failed to unmarshal lockFC attributes: %w", err)
 		}
-		fcb.Locked = attr.LockStatus
+		fcb.Locked = wallet.LockReason(attr.LockStatus)
 		fcb.Value -= actualFee
 		fcb.TxHash = txHash
 		return p.store.SetFeeCreditBill(fcb, txProof)

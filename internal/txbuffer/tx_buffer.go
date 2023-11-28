@@ -9,10 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 var (
@@ -29,12 +32,14 @@ type (
 		transactionsCh chan *types.TransactionOrder
 		hashAlgorithm  crypto.Hash
 		log            *slog.Logger
+		tracer         trace.Tracer
 
 		mDur metric.Float64Histogram
 	}
 
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
 	}
 )
 
@@ -55,6 +60,7 @@ func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability, log *slog.L
 		transactions:   make(map[string]time.Time),
 		transactionsCh: make(chan *types.TransactionOrder, maxSize),
 		log:            log,
+		tracer:         obs.Tracer("txBuffer"),
 	}
 	if err := buf.initMetrics(obs); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
@@ -69,13 +75,16 @@ Returns an error if the transaction is nil, is already present in the TxBuffer,
 or TxBuffer is full.
 */
 func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	ctx, span := buf.tracer.Start(ctx, "TxBuffer.Add")
+	defer span.End()
 	if tx == nil {
 		return nil, ErrTxIsNil
 	}
 
 	txHash := tx.Hash(buf.hashAlgorithm)
-	buf.log.Debug(fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
+	buf.log.DebugContext(ctx, fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
 	txId := string(txHash)
+	span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID()), observability.TxTypeKey.String(tx.PayloadType()))
 
 	buf.mutex.Lock()
 	defer buf.mutex.Unlock()
@@ -95,30 +104,40 @@ func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byt
 }
 
 func (buf *TxBuffer) Remove(ctx context.Context) (*types.TransactionOrder, error) {
+	_, span := buf.tracer.Start(ctx, "TxBuffer.Remove")
+	defer span.End()
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case tx := <-buf.transactionsCh:
-		buf.removeFromIndex(ctx, string(tx.Hash(buf.hashAlgorithm)))
+		txHash := tx.Hash(buf.hashAlgorithm)
+		span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID()), observability.TxTypeKey.String(tx.PayloadType()))
+		buf.removeFromIndex(ctx, string(txHash))
 		return tx, nil
 	}
-}
-
-func (buf *TxBuffer) HashAlgorithm() crypto.Hash {
-	return buf.hashAlgorithm
 }
 
 /*
 removeFromIndex deletes the transaction with given id from the index.
 */
 func (buf *TxBuffer) removeFromIndex(ctx context.Context, id string) {
+	_, span := buf.tracer.Start(ctx, "TxBuffer.removeFromIndex")
+	defer span.End()
+
 	buf.mutex.Lock()
 	defer buf.mutex.Unlock()
 
 	if added, found := buf.transactions[id]; found {
-		buf.mDur.Record(ctx, time.Since(added).Seconds())
+		bufTime := time.Since(added)
+		span.SetAttributes(attribute.String("buffered.duration", bufTime.String()))
+		buf.mDur.Record(ctx, bufTime.Seconds())
 		delete(buf.transactions, id)
 	}
+}
+
+func (buf *TxBuffer) HashAlgorithm() crypto.Hash {
+	return buf.hashAlgorithm
 }
 
 func (buf *TxBuffer) initMetrics(obs Observability) (err error) {

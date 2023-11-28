@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -27,7 +29,6 @@ const (
 	ProtocolBlockProposal         = "/ab/block-proposal/0.0.1"
 	ProtocolLedgerReplicationReq  = "/ab/replication-req/0.0.1"
 	ProtocolLedgerReplicationResp = "/ab/replication-resp/0.0.1"
-
 )
 
 var DefaultValidatorNetworkOptions = ValidatorNetworkOptions{
@@ -62,10 +63,11 @@ type ValidatorNetworkOptions struct {
 }
 
 type validatorNetwork struct {
-	txBuffer       *txbuffer.TxBuffer
-	txFwdBy        metric.Int64Counter
-	txFwdTo        metric.Int64Counter
 	*LibP2PNetwork
+	txBuffer *txbuffer.TxBuffer
+	txFwdBy  metric.Int64Counter
+	txFwdTo  metric.Int64Counter
+	tracer   trace.Tracer
 }
 
 type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
@@ -87,8 +89,9 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 	}
 
 	n := &validatorNetwork{
-		txBuffer: txBuffer,
+		txBuffer:      txBuffer,
 		LibP2PNetwork: base,
+		tracer:        obs.Tracer("validatorNetwork"),
 	}
 
 	sendProtocolDescriptions := []sendProtocolDescription{
@@ -162,6 +165,8 @@ func (n *validatorNetwork) AddTransaction(ctx context.Context, tx *types.Transac
 }
 
 func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor TxProcessor) {
+	ctx, span := n.tracer.Start(ctx, "validatorNetwork.ProcessTransactions")
+	defer span.End()
 	for {
 		tx, err := n.txBuffer.Remove(ctx)
 		if err != nil {
@@ -175,6 +180,8 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 }
 
 func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver peer.ID) {
+	ctx, span := n.tracer.Start(ctx, "validatorNetwork.ForwardTransactions", trace.WithAttributes(attribute.Stringer("receiver", receiver)))
+	defer span.End()
 	var stream libp2pNetwork.Stream
 	for {
 		tx, err := n.txBuffer.Remove(ctx)
@@ -225,23 +232,27 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 }
 
 func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
+	ctx, span := n.tracer.Start(context.Background(), "validatorNetwork.handleTransactions")
 	defer func() {
 		if err := stream.Close(); err != nil {
-			n.log.Warn(fmt.Sprintf("closing p2p stream %q", ProtocolInputForward), logger.Error(err))
+			n.log.WarnContext(ctx, fmt.Sprintf("closing p2p stream %q", stream.Protocol()), logger.Error(err))
 		}
+		span.End()
 	}()
 
-	ctx := context.Background()
 	for {
 		tx := &types.TransactionOrder{}
 		if err := deserializeMsg(stream, tx); err != nil {
-			n.log.Warn(fmt.Sprintf("reading %q message", ProtocolInputForward), logger.Error(err))
+			if !errors.Is(err, io.EOF) {
+				n.log.WarnContext(ctx, fmt.Sprintf("reading %q message", stream.Protocol()), logger.Error(err))
+			}
 			return
 		}
 
 		_, err := n.txBuffer.Add(ctx, tx)
 		if err != nil {
-			n.log.Warn("adding tx to buffer", logger.Error(err))
+			n.log.WarnContext(ctx, "adding tx to buffer", logger.Error(err))
+			span.AddEvent(err.Error())
 		}
 
 		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(

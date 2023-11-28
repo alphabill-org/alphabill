@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -23,7 +23,7 @@ const moneyGenesisDir = "money"
 
 func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := t.TempDir()
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -34,7 +34,7 @@ func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 
 func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -53,7 +53,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -72,7 +72,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	err = nodeKeys.WriteTo(kf)
 	require.NoError(t, err)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -92,7 +92,7 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -113,7 +113,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	kf := filepath.Join(homeDir, moneyGenesisDir, "n1", defaultKeysFileName)
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -129,7 +129,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 
 func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -163,7 +163,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	sdrFile, err := createSDRFile(homeDir, sdr)
 	require.NoError(t, err)
 
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, 2, sdrFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -24,6 +26,11 @@ const (
 	ErrTxRetryCanceled     = "user canceled tx retry"
 )
 
+type Observability interface {
+	TracerProvider() trace.TracerProvider
+	Logger() *slog.Logger
+}
+
 type AlphabillClientConfig struct {
 	Uri          string
 	WaitForReady bool
@@ -37,10 +44,10 @@ type AlphabillClient struct {
 }
 
 // New creates instance of AlphabillClient
-func New(config AlphabillClientConfig, log *slog.Logger) (*AlphabillClient, error) {
-	abClient := &AlphabillClient{config: config, log: log}
+func New(config AlphabillClientConfig, observe Observability) (*AlphabillClient, error) {
+	abClient := &AlphabillClient{config: config, log: observe.Logger()}
 
-	if err := abClient.connect(); err != nil {
+	if err := abClient.connect(observe.TracerProvider()); err != nil {
 		return nil, err
 	}
 
@@ -48,8 +55,6 @@ func New(config AlphabillClientConfig, log *slog.Logger) (*AlphabillClient, erro
 }
 
 func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
-	defer trackExecutionTime(time.Now(), "sending transaction", c.log)
-
 	txBytes, err := cbor.Marshal(tx)
 	if err != nil {
 		return err
@@ -82,8 +87,6 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *type
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber), c.log)
-
 	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber})
 	if err != nil {
 		return nil, err
@@ -93,14 +96,6 @@ func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]b
 
 func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
 	c.log.DebugContext(ctx, fmt.Sprintf("fetching blocks blocknumber=%d, blockcount=%d", blockNumber, blockCount))
-	defer func(t1 time.Time) {
-		if res != nil && len(res.Blocks) > 0 {
-			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+uint64(len(res.Blocks))-1), c.log)
-		} else {
-			trackExecutionTime(t1, "downloading blocks empty response", c.log)
-		}
-	}(time.Now())
-
 	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount})
 	if err != nil {
 		return nil, err
@@ -109,8 +104,6 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 }
 
 func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	defer trackExecutionTime(time.Now(), "fetching round number", c.log)
-
 	res, err := c.client.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		return 0, err
@@ -128,7 +121,7 @@ func (c *AlphabillClient) Close() error {
 // connect connects to given alphabill node and keeps connection open forever,
 // connect can be called any number of times, it does nothing if connection is already established and not shut down.
 // Shutdown can be used to shut down the client and terminate the connection.
-func (c *AlphabillClient) connect() error {
+func (c *AlphabillClient) connect(tp trace.TracerProvider) error {
 	callOpts := []grpc.CallOption{grpc.MaxCallSendMsgSize(1024 * 1024 * 4), grpc.MaxCallRecvMsgSize(math.MaxInt32)}
 	if c.config.WaitForReady {
 		callOpts = append(callOpts, grpc.WaitForReady(c.config.WaitForReady))
@@ -136,15 +129,13 @@ func (c *AlphabillClient) connect() error {
 	conn, err := grpc.Dial(
 		c.config.Uri,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(callOpts...))
+		grpc.WithDefaultCallOptions(callOpts...),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tp))),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to dial gRPC connection: %w", err)
 	}
 	c.connection = conn
 	c.client = alphabill.NewAlphabillServiceClient(conn)
 	return nil
-}
-
-func trackExecutionTime(start time.Time, name string, log *slog.Logger) {
-	log.Debug(fmt.Sprintf("%s took %s", name, time.Since(start)))
 }

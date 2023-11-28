@@ -14,11 +14,13 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -33,6 +35,7 @@ type (
 		ListBillsPageLimit int
 		rw                 *sdk.ResponseWriter
 		log                *slog.Logger
+		tracer             trace.Tracer
 		SystemID           []byte
 	}
 
@@ -239,6 +242,9 @@ func (api *moneyRestAPI) getBalance(pubKey []byte, includeDCBills bool) (uint64,
 }
 
 func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
+	_, span := api.tracer.Start(r.Context(), "moneyRestAPI.getTxProof")
+	defer span.End()
+
 	vars := mux.Vars(r)
 	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
@@ -254,6 +260,7 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, "txHash", err)
 		return
 	}
+	span.SetAttributes(observability.UnitID(unitID), observability.TxHash(txHash))
 
 	proof, err := api.Service.GetTxProof(unitID, txHash)
 	if err != nil {
@@ -308,10 +315,13 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 }
 
 func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx, span := api.tracer.Start(r.Context(), "moneyRestAPI.postTransactions")
+	defer span.End()
+
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /transactions request", logger.Error(err))
+		api.log.LogAttrs(ctx, slog.LevelDebug, "error parsing GET /transactions request", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to read request body: %w", err))
 		return
 	}
@@ -333,13 +343,13 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	egp, _ := errgroup.WithContext(r.Context())
+	egp, _ := errgroup.WithContext(ctx)
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
-	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
+	if errs := api.Service.SendTransactions(ctx, txs.Transactions); len(errs) > 0 {
 		for k, v := range errs {
 			err = fmt.Errorf("%s: %s", k, v)
-			api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+			api.log.LogAttrs(ctx, slog.LevelDebug, "error on POST /transactions", logger.Error(err))
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
@@ -347,7 +357,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	if err = egp.Wait(); err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "failed to store tx metadata", logger.Error(err))
+		api.log.LogAttrs(ctx, slog.LevelDebug, "failed to store tx metadata", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store tx metadata: %w", err))
 		return
 	}

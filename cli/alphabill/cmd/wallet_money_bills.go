@@ -47,7 +47,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := client.New(uri)
+	restClient, err := client.New(uri, config.Base.observe)
 	if err != nil {
 		return err
 	}

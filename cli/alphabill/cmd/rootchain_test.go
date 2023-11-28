@@ -12,9 +12,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testobserv "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -33,7 +32,7 @@ func TestRootValidator_DefaultDBPath(t *testing.T) {
 		Base: &baseConfiguration{
 			HomeDir: homeDir,
 			CfgFile: filepath.Join(homeDir, defaultConfigFile),
-			Logger:  logger.New(t),
+			observe: testobserve.Default(t),
 		},
 		StoragePath: "",
 	}
@@ -46,7 +45,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// prepare
 	// generate money node genesis
 	cmd := New(logF)
@@ -121,6 +120,7 @@ func Test_rootNodeConfig_defaultPath(t *testing.T) {
 func Test_StartMonolithicNode(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
+	observe := testobserve.NewFactory(t)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
 		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
@@ -129,8 +129,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			// start root node
-			logF := logger.LoggerBuilder(t)
-			cmd := New(logF)
+			cmd := New(observe)
 			dbLocation := filepath.Join(rootDir)
 			rootKeyPath := filepath.Join(rootDir, defaultKeysFileName)
 			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
@@ -141,7 +140,6 @@ func Test_StartMonolithicNode(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
-		log := logger.New(t)
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
@@ -156,9 +154,9 @@ func Test_StartMonolithicNode(t *testing.T) {
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.DefaultLogger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe.DefaultObserver(), observe.DefaultLogger())
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
@@ -180,8 +178,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, _ := generateMonolithicSetup(t, homeDir)
-	logF := logger.LoggerBuilder(t)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	dbLocation := filepath.Join(homeDir, defaultRootChainDir)
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 	// generate random key file
@@ -199,8 +196,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, _ := generateMonolithicSetup(t, homeDir)
-	logF := logger.LoggerBuilder(t)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 	args := "root --home " + homeDir + " --db=/foobar/doesnotexist3454/" + " --genesis-file " + rootGenesis
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -216,7 +212,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// prepare genesis files
 	// generate money node genesis
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -272,7 +268,6 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
-		log := logger.New(t)
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
@@ -287,9 +282,9 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log, nil)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, logF.DefaultLogger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, testobserv.NOPMetrics(), log)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, logF.DefaultObserver(), logF.DefaultLogger())
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

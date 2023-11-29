@@ -179,7 +179,7 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	}
 	defer feeManagerDB.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.Logger)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.observe)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func lockFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliCon
 	}
 	defer feeManagerDB.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.Logger)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, feeManagerDB, moneyBackendURL, walletConfig.Base.observe)
 	if err != nil {
 		return err
 	}

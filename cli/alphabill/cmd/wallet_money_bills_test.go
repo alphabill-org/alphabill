@@ -162,7 +162,7 @@ func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
 		Owner: templates.NewP2pkh256BytesFromKey(pubkey),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 

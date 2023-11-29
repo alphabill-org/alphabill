@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -11,6 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -50,19 +54,26 @@ const (
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
+func newWalletCmd(baseConfig *baseConfiguration, obsF Factory) *cobra.Command {
 	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
 		Short: "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initialize config so that baseConfig.HomeDir gets configured
-			if err := initializeConfig(cmd, baseConfig); err != nil {
+			if err := initializeConfig(cmd, baseConfig, obsF); err != nil {
 				return fmt.Errorf("initializing base configuration: %w", err)
 			}
+
+			ctx, span := config.Tracer().Start(cmd.Context(), "execute.wallet.cmd", trace.WithAttributes(semconv.ProcessCommandArgs(os.Args...)))
+			cmd.SetContext(ctx)
+			// when command returns error the PostRun hooks are not triggered so use OnFinalize to end the span
+			cobra.OnFinalize(func() { span.End() })
+
 			if err := initWalletConfig(cmd, config); err != nil {
 				return fmt.Errorf("initializing wallet configuration: %w", err)
 			}
+			span.SetAttributes(attribute.String("wallet.home", config.WalletHomeDir))
 			return nil
 		},
 	}
@@ -161,11 +172,14 @@ func sendCmd(config *walletConfig) *cobra.Command {
 }
 
 func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
+	ctx, span := config.Tracer().Start(ctx, "execSendCmd")
+	defer span.End()
+
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.New(apiUri)
+	restClient, err := moneyclient.New(apiUri, config.Base.observe)
 	if err != nil {
 		return err
 	}
@@ -184,7 +198,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	defer feeManagerDB.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.observe.Logger())
 	if err != nil {
 		return err
 	}
@@ -254,11 +268,14 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
+	ctx, span := config.Tracer().Start(cmd.Context(), "execGetBalanceCmd")
+	defer span.End()
+
 	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.New(uri)
+	restClient, err := moneyclient.New(uri, config.Base.observe)
 	if err != nil {
 		return err
 	}
@@ -280,7 +297,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer feeManagerDB.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.observe.Logger())
 	if err != nil {
 		return err
 	}
@@ -306,7 +323,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		totals, sum, err := w.GetBalances(cmd.Context(), money.GetBalanceCmd{CountDCBills: showUnswapped})
+		totals, sum, err := w.GetBalances(ctx, money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -322,7 +339,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
-		balance, err := w.GetBalance(cmd.Context(), money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
+		balance, err := w.GetBalance(ctx, money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -392,7 +409,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.New(apiUri)
+	restClient, err := moneyclient.New(apiUri, config.Base.observe)
 	if err != nil {
 		return err
 	}
@@ -414,7 +431,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer feeManagerDB.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.Logger)
+	w, err := money.LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, config.Base.observe.Logger())
 	if err != nil {
 		return err
 	}
@@ -592,4 +609,8 @@ func groupPubKeysAndAmounts(pubKeys []string, amounts []string) ([]money.Receive
 		})
 	}
 	return receivers, nil
+}
+
+func (wc *walletConfig) Tracer() trace.Tracer {
+	return wc.Base.observe.Tracer("main")
 }

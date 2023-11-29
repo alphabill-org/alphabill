@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -728,7 +729,7 @@ func Test_New(t *testing.T) {
 	addr, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	cli := New(*addr)
+	cli := New(*addr, observability.Default(t))
 	rn, err := cli.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 900, rn)

@@ -109,7 +109,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 	txSystem, err := money.NewTxSystem(
-		config.Base.Logger,
+		config.Base.observe.Logger(),
 		money.WithSystemIdentifier(config.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),

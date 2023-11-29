@@ -14,6 +14,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -40,6 +42,10 @@ type (
 		transactionsURL  *url.URL
 		infoURL          *url.URL
 	}
+
+	Observability interface {
+		TracerProvider() trace.TracerProvider
+	}
 )
 
 const (
@@ -56,7 +62,7 @@ const (
 	paramIncludeDCBills = "includeDcBills"
 )
 
-func New(baseUrl string) (*MoneyBackendClient, error) {
+func New(baseUrl string, observe Observability) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = "http://" + baseUrl
 	}
@@ -66,7 +72,7 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 	}
 	return &MoneyBackendClient{
 		BaseUrl:          u,
-		HttpClient:       http.Client{Timeout: time.Minute},
+		HttpClient:       http.Client{Timeout: time.Minute, Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithServerName("money_backend"), otelhttp.WithTracerProvider(observe.TracerProvider()))},
 		balanceURL:       u.JoinPath(BalancePath),
 		roundNumberURL:   u.JoinPath(RoundNumberPath),
 		unitsURL:         u.JoinPath(UnitsPath),

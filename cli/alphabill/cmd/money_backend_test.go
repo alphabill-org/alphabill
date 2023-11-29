@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -47,7 +47,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	serverAddr := fmt.Sprintf("localhost:%d", port)
 	consoleWriter = &testConsoleWriter{}
 	go func() {
-		cmd := New(logger.LoggerBuilder(t))
+		cmd := New(testobserve.NewFactory(t))
 		args := fmt.Sprintf("money-backend --home %s start --server-addr %s --%s %s", homedir, serverAddr, alphabillNodeURLCmdName, alphabillNodeAddr)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

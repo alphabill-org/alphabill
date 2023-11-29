@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -152,11 +152,11 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root genesis verification failed: %w", err)
 	}
 	// Process partition node network
-	host, err := createHost(ctx, keys, config, config.Base.Logger, config.Base.observe.PrometheusRegisterer())
+	host, err := createHost(ctx, keys, config)
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
-	log := config.Base.Logger.With(logger.NodeID(host.ID()))
+	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -223,12 +223,13 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		if config.RESTAddress == "" {
+		pr := config.Base.observe.PrometheusRegisterer()
+		if pr == nil || config.RESTAddress == "" {
 			return nil // do not kill the group!
 		}
 
 		mux := http.NewServeMux()
-		mux.Handle("/api/v1/metrics", config.Base.observe.MetricsHandler())
+		mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.RESTAddress,
@@ -243,7 +244,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	return g.Wait()
 }
 
-func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger, prom prometheus.Registerer) (*network.Peer, error) {
+func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.Peer, error) {
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -257,7 +258,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.
 		return nil, err
 	}
 
-	return network.NewPeer(ctx, peerConf, log, prom)
+	return network.NewPeer(ctx, peerConf, cfg.Base.observe.Logger(), cfg.Base.observe.PrometheusRegisterer())
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

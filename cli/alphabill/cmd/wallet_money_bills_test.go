@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -23,7 +23,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: `{"bills": []}`})
 	defer mockServer.Close()
-	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(testobserve.NewFactory(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1 - empty")
 }
@@ -34,7 +34,7 @@ func TestWalletBillsListCmd_Single(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify bill in list command
-	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(testobserve.NewFactory(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
 }
@@ -50,7 +50,7 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify list bills shows all 4 bills
-	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(testobserve.NewFactory(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 0.000'000'01")
@@ -62,7 +62,7 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 
 func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money.NewBillID(nil, []byte{1}), billValue: 1})
 	defer mockServer.Close()
 
@@ -81,7 +81,7 @@ func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 
 func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 
 	// add new key
 	stdout, err := execCommand(logF, homedir, "add-key")
@@ -105,7 +105,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 
 func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 
 	// get pub key
 	stdout, err := execCommand(logF, homedir, "get-pubkeys")
@@ -142,7 +142,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	}
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: fmt.Sprintf(`{"bills": [%s]}`, strings.Join(billsList, ","))})
 	defer mockServer.Close()
-	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(testobserve.NewFactory(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (locked for adding fees)")
 	verifyStdout(t, stdout, "#2 0x000000000000000000000000000000000000000000000000000000000000000200 1.000'000'00 (locked for reclaiming fees)")
@@ -315,6 +315,6 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 	return tx, nil
 }
 
-func execBillsCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWriter, error) {
-	return execCommand(logF, homeDir, " bills "+command)
+func execBillsCommand(obsF Factory, homeDir, command string) (*testConsoleWriter, error) {
+	return execCommand(obsF, homeDir, " bills "+command)
 }

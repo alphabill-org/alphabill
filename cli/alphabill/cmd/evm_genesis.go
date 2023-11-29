@@ -88,7 +88,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return fmt.Errorf("load keys %v failed: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
-	txSystem, err := evm.NewEVMTxSystem(config.SystemIdentifier, config.Base.Logger)
+	txSystem, err := evm.NewEVMTxSystem(config.SystemIdentifier, config.Base.observe.Logger())
 	if err != nil {
 		return err
 	}

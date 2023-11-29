@@ -9,13 +9,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
 func TestIdentifier_KeysNotFound(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
 	file := filepath.Join(dir, defaultKeysFileName)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -28,7 +28,7 @@ func TestIdentifier_Ok(t *testing.T) {
 
 	_, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
-	cmd := New(logger.LoggerBuilder(t))
+	cmd := New(testobserve.NewFactory(t))
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())

@@ -92,6 +92,8 @@ type (
 		voteCnt    metric.Int64Counter
 		proposedCR metric.Int64Counter
 		fwdIRCRCnt metric.Int64Counter
+		qcSize     metric.Int64Counter
+		qcVoters   metric.Int64Counter
 	}
 )
 
@@ -207,6 +209,15 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
 	}
 
+	x.qcSize, err = m.Int64Counter("qc.vote.count", metric.WithDescription("Number of votes in the quorum certificate"))
+	if err != nil {
+		return fmt.Errorf("creating counter for votes in QC: %w", err)
+	}
+	x.qcVoters, err = m.Int64Counter("qc.participated", metric.WithDescription("Number of times node participated in the QC (vote was included)"))
+	if err != nil {
+		return fmt.Errorf("creating counter for votes by node included into QC: %w", err)
+	}
+
 	return nil
 }
 
@@ -295,6 +306,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 					if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
 						x.processQC(ctx, qc)
 						x.processNewRoundEvent(ctx)
+						x.updateQCMetrics(ctx, qc)
 					}
 				}
 			case pmsRoundTimeout:
@@ -495,6 +507,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	if qc != nil && mature {
 		x.processQC(ctx, qc)
 		x.processNewRoundEvent(ctx)
+		x.updateQCMetrics(ctx, qc)
 	}
 	return nil
 }
@@ -828,7 +841,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		return nil
 	}
 	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
-		return fmt.Errorf("recovery response verifition failed: %w", err)
+		return fmt.Errorf("recovery response verification failed: %w", err)
 	}
 	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
@@ -977,6 +990,23 @@ func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes 
 		}
 	}
 	return nodes
+}
+
+/*
+updateQCMetrics updates metrics about QC. Only leader should call it so we get "per round" counts.
+*/
+func (x *ConsensusManager) updateQCMetrics(ctx context.Context, qc *abtypes.QuorumCert) {
+	if qc == nil {
+		return
+	}
+
+	x.qcSize.Add(ctx, int64(len(qc.Signatures)))
+
+	// when node count gets big this is potentially bad metric (cardinality of the node id)
+	// but have it for debugging for now?
+	for nodeID := range qc.Signatures {
+		x.qcVoters.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("node.id", nodeID))))
+	}
 }
 
 func (ri *recoveryInfo) String() string {

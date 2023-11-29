@@ -64,7 +64,8 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	}
 	// Verify balance
 	balance := stateDB.GetBalance(attr.FromAddr())
-	if balance.Cmp(new(big.Int).Mul(gasUnitPrice, new(big.Int).SetUint64(attr.Gas))) == -1 {
+	projectedMaxFee := alphaToWei(weiToAlpha(new(big.Int).Mul(gasUnitPrice, new(big.Int).SetUint64(attr.Gas))))
+	if balance.Cmp(projectedMaxFee) == -1 {
 		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
 	}
 	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
@@ -106,10 +107,13 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	}
 	txPrice := calcGasPrice(execResult.UsedGas, gasUnitPrice)
 	fee := weiToAlpha(txPrice)
-	// if rounding isn't clean, reimburse remaining amount
-	remainingCredit := new(big.Int).Sub(txPrice, alphaToWei(fee))
-	if remainingCredit.Cmp(new(big.Int)) == +1 {
-		stateDB.AddBalance(msg.From, remainingCredit)
+	// if rounding isn't clean, add or subtract balance accordingly
+	feeInWei := alphaToWei(fee)
+	if txPrice.Cmp(feeInWei) == +1 {
+		stateDB.AddBalance(msg.From, new(big.Int).Sub(txPrice, feeInWei))
+	}
+	if txPrice.Cmp(feeInWei) == -1 {
+		stateDB.SubBalance(msg.From, new(big.Int).Sub(feeInWei, txPrice))
 	}
 
 	log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee), logger.Round(currentBlockNumber))

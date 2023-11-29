@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
@@ -314,7 +315,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 				return err
 			}
 			accNum := accountIndex + 1
-			amountString := amountToString(fcb.GetValue(), 8)
+			amountString := util.AmountToString(fcb.GetValue(), 8)
 			consoleWriter.Println(fmt.Sprintf("Account #%d %s%s", accNum, amountString, getLockedReasonString(fcb)))
 		}
 	} else {
@@ -323,7 +324,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 		if err != nil {
 			return err
 		}
-		amountString := amountToString(fcb.GetValue(), 8)
+		amountString := util.AmountToString(fcb.GetValue(), 8)
 		consoleWriter.Println("Partition: " + c.partitionType)
 		consoleWriter.Println(fmt.Sprintf("Account #%d %s%s", accountNumber, amountString, getLockedReasonString(fcb)))
 	}
@@ -331,7 +332,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 }
 
 func addFees(ctx context.Context, accountNumber uint64, amountString string, c *cliConf, w FeeCreditManager) error {
-	amount, err := stringToAmount(amountString, 8)
+	amount, err := util.StringToAmount(amountString, 8)
 	if err != nil {
 		return err
 	}
@@ -341,10 +342,10 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 	})
 	if err != nil {
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
-			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
+			return fmt.Errorf("minimum fee credit amount to add is %s", util.AmountToString(fees.MinimumFeeAmount, 8))
 		}
 		if errors.Is(err, fees.ErrInsufficientBalance) {
-			return fmt.Errorf("insufficient balance for transaction. Bills smaller than the minimum amount (%s) are not counted", amountToString(fees.MinimumFeeAmount, 8))
+			return fmt.Errorf("insufficient balance for transaction. Bills smaller than the minimum amount (%s) are not counted", util.AmountToString(fees.MinimumFeeAmount, 8))
 		}
 		if errors.Is(err, fees.ErrInvalidPartition) {
 			return fmt.Errorf("pending fee process exists for another partition, run the command for the correct partition: %w", err)
@@ -356,7 +357,7 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		feeSum += proof.GetFees()
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(feeSum, 8), "ALPHA fee for transactions.")
+	consoleWriter.Println("Paid", util.AmountToString(feeSum, 8), "ALPHA fee for transactions.")
 	return nil
 }
 
@@ -366,7 +367,7 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 	})
 	if err != nil {
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
-			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", amountToString(fees.MinimumFeeAmount, 8))
+			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", util.AmountToString(fees.MinimumFeeAmount, 8))
 		}
 		if errors.Is(err, fees.ErrInvalidPartition) {
 			return fmt.Errorf("wallet contains locked bill for different partition, run the command for the correct partition: %w", err)
@@ -374,7 +375,7 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(rsp.Proofs.GetFees(), 8), "ALPHA fee for transactions.")
+	consoleWriter.Println("Paid", util.AmountToString(rsp.Proofs.GetFees(), 8), "ALPHA fee for transactions.")
 	return nil
 }
 

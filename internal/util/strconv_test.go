@@ -1,4 +1,4 @@
-package cmd
+package util
 
 import (
 	"testing"
@@ -125,7 +125,7 @@ func Test_stringToAmount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := stringToAmount(tt.args.amount, tt.args.decimals)
+			got, err := StringToAmount(tt.args.amount, tt.args.decimals)
 			if len(tt.wantErrStr) > 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Equal(t, uint64(0), got)
@@ -220,7 +220,7 @@ func Test_amountToString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := amountToString(tt.args.amount, tt.args.decPlaces)
+			got := AmountToString(tt.args.amount, tt.args.decPlaces)
 			if got != tt.want {
 				t.Errorf("amountToString() got = %v, want %v", got, tt.want)
 			}

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/term"
 
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -227,7 +228,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		for _, proof := range proofs {
 			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
 		}
-		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fees for transaction(s).")
+		consoleWriter.Println("Paid", util.AmountToString(feeSum, 8), "fees for transaction(s).")
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}
@@ -311,10 +312,10 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		if !total {
 			for i, v := range totals {
-				consoleWriter.Println(fmt.Sprintf("#%d %s", i+1, amountToString(v, 8)))
+				consoleWriter.Println(fmt.Sprintf("#%d %s", i+1, util.AmountToString(v, 8)))
 			}
 		}
-		sumStr := amountToString(sum, 8)
+		sumStr := util.AmountToString(sum, 8)
 		if quiet {
 			consoleWriter.Println(sumStr)
 		} else {
@@ -325,7 +326,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		balanceStr := amountToString(balance, 8)
+		balanceStr := util.AmountToString(balance, 8)
 		if quiet {
 			consoleWriter.Println(balanceStr)
 		} else {
@@ -441,9 +442,9 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 					"ALPHA into an existing target bill with unit identifier 0x%s. Paid %s fees for transaction(s).",
 				dcResult.AccountIndex+1,
 				len(attr.DcTransfers),
-				amountToString(attr.TargetValue, 8),
+				util.AmountToString(attr.TargetValue, 8),
 				dcResult.DustCollectionResult.SwapProof.TxRecord.TransactionOrder.UnitID(),
-				amountToString(feeSum, 8),
+				util.AmountToString(feeSum, 8),
 			))
 		} else {
 			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", dcResult.AccountIndex+1))
@@ -577,7 +578,7 @@ func groupPubKeysAndAmounts(pubKeys []string, amounts []string) ([]money.Receive
 	}
 	var receivers []money.ReceiverData
 	for i := 0; i < len(pubKeys); i++ {
-		amount, err := stringToAmount(amounts[i], 8)
+		amount, err := util.StringToAmount(amounts[i], 8)
 		if err != nil {
 			return nil, fmt.Errorf("invalid amount: %w", err)
 		}

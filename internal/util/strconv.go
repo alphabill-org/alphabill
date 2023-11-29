@@ -1,4 +1,4 @@
-package cmd
+package util
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// stringToAmount converts string and decimals to uint64 amount
-func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
+// StringToAmount converts string and decimals to uint64 amount
+func StringToAmount(amountIn string, decimals uint32) (uint64, error) {
 	if amountIn == "" {
 		return 0, fmt.Errorf("invalid empty amount string")
 	}
@@ -52,28 +52,28 @@ func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
 	return amount, nil
 }
 
-// amountToString converts amount to string with specified decimals
+// AmountToString converts amount to string with specified decimals
 // NB! it is assumed that the decimal places value is sane and verified before
 // calling this method.
-func amountToString(amount uint64, decimals uint32) string {
+func AmountToString(amount uint64, decimals uint32) string {
 	amountStr := strconv.FormatUint(amount, 10)
 	if decimals == 0 {
-		return insertSeparator(amountStr, false)
+		return InsertSeparator(amountStr, false)
 	}
 	// length of amount string is less than decimal places, insert decimal point in value
 	if decimals < uint32(len(amountStr)) {
-		return insertSeparator(amountStr[:uint32(len(amountStr))-decimals], false) + "." + insertSeparator(amountStr[uint32(len(amountStr))-decimals:], true)
+		return InsertSeparator(amountStr[:uint32(len(amountStr))-decimals], false) + "." + InsertSeparator(amountStr[uint32(len(amountStr))-decimals:], true)
 	}
 	// resulting amount is less than 0
 	resultStr := ""
 	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
-	return "0." + insertSeparator(resultStr+amountStr, true)
+	return "0." + InsertSeparator(resultStr+amountStr, true)
 }
 
-// insert apostrophe as thousands separator. The reverse flag defines the direction in which the insertion should happen
-// insertSeparator("1234", false) => 1'234 (for the integral part)
-// insertSeparator("1234", true) => 123'4 (for the fractional part)
-func insertSeparator(value string, reverse bool) string {
+// InsertSeparator inserts apostrophe as thousands separator. The reverse flag defines the direction in which the insertion should happen
+// InsertSeparator("1234", false) => 1'234 (for the integral part)
+// InsertSeparator("1234", true) => 123'4 (for the fractional part)
+func InsertSeparator(value string, reverse bool) string {
 	var re *regexp.Regexp
 	if reverse {
 		re = regexp.MustCompile(`(\d{3})(\d+)`)

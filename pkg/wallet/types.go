@@ -9,6 +9,7 @@ const (
 	LockReasonAddFees = 1 + iota
 	LockReasonReclaimFees
 	LockReasonCollectDust
+	LockReasonManual
 )
 
 type TxHash []byte
@@ -81,6 +82,8 @@ func (r LockReason) String() string {
 		return "locked for reclaiming fees"
 	case LockReasonCollectDust:
 		return "locked for dust collection"
+	case LockReasonManual:
+		return "manually locked by user"
 	}
 	return ""
 }

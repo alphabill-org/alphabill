@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -119,6 +120,14 @@ func (o *otelMetricsAndTrace) initMeterProvider(exporter string, res *resource.R
 		o.pr = prometheus.NewRegistry()
 		if reader, err = promexp.New(promexp.WithRegisterer(o.pr), promexp.WithNamespace("ab")); err != nil {
 			return nil, fmt.Errorf("creating Prometheus exporter: %w", err)
+		}
+		// the "native" OTEL Go runtime metrics collector seems to not expose all the available
+		// metrics so we cheat a bit and use Prometheus' Go runtime collector
+		if err := o.pr.Register(collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll))); err != nil {
+			return nil, fmt.Errorf("registering Go collector with Prometheus registry: %w", err)
+		}
+		if err := o.pr.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})); err != nil {
+			return nil, fmt.Errorf("registering process collector with Prometheus registry: %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported exporter %q", exporter)

@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
@@ -202,10 +203,17 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	if len(cmd.Receivers) > 1 {
 		// if more than one receiver then perform transaction as N-way split and require sufficiently large bill
 		largestBill := bills[0]
-		if largestBill.Value <= totalAmount {
-			return nil, fmt.Errorf("sending to multiple addresses is performed using a single N-way split "+
-				"transaction which requires sufficiently large bill, need at least %d Tema value bill, have largest "+
-				"%d Tema value bill", totalAmount+1, largestBill.Value) // +1 because 0 remaining value is not allowed
+		if largestBill.Value < totalAmount {
+			return nil, fmt.Errorf("sending to multiple addresses is performed using N-way split transaction which "+
+				"requires a single sufficiently large bill, wallet needs a bill with at least %s tema value, "+
+				"largest bill in wallet currently is %s tema",
+				util.AmountToString(totalAmount+1, 8), // +1 because 0 remaining value is not allowed
+				util.AmountToString(largestBill.Value, 8))
+		}
+		if largestBill.Value == totalAmount {
+			return nil, errors.New("sending to multiple addresses is performed using N-way split transaction " +
+				"which requires a single sufficiently large bill and cannot result in a bill with 0 value after the " +
+				"transaction")
 		}
 		// convert send cmd targets to transaction units
 		var targetUnits []*money.TargetUnit

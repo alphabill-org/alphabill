@@ -16,6 +16,7 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -68,7 +69,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// verify bill is received by wallet 1
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
+	}, fmt.Sprintf("#%d %s", 1, util.AmountToString(w1BalanceBilly, 8)))
 
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
@@ -90,13 +91,13 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w1BalanceBilly -= 50 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
+	}, fmt.Sprintf("#%d %s", 1, util.AmountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-2 received said bills
 	w2BalanceBilly := uint64(50 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(w2BalanceBilly, 8)))
+	}, fmt.Sprintf("#%d %s", 1, util.AmountToString(w2BalanceBilly, 8)))
 
 	// TS1.2: send bills back to wallet-1
 	// create fee credit for wallet-2
@@ -108,7 +109,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	waitForFeeCreditCLI(t, logF, homedir2, apiAddr, feeAmountAlpha*1e8-2, 0)
 
 	// send wallet-2 bills back to wallet-1
-	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
+	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("send --amount %s --address %s", util.AmountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-2 balance is reduced
@@ -131,13 +132,13 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w1BalanceBilly -= 200 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance -k 1 --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
+	}, fmt.Sprintf("#%d %s", 1, util.AmountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-1 account-2 received said bills
 	acc2BalanceBilly := uint64(200 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 2, amountToString(acc2BalanceBilly, 8)))
+	}, fmt.Sprintf("#%d %s", 2, util.AmountToString(acc2BalanceBilly, 8)))
 
 	// TS2.1:
 	// create fee credit for account 2
@@ -155,7 +156,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// verify account-2 fcb balance is reduced after send
 	stdout = execWalletCmd(t, logF, homedir1, "fees list -k 2")
 	acc2FeeCredit := feeAmountAlpha*1e8 - 3 // minus one for tx and minus one for creating fee credit
-	acc2FeeCreditString := amountToString(acc2FeeCredit, 8)
+	acc2FeeCreditString := util.AmountToString(acc2FeeCredit, 8)
 	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %s", acc2FeeCreditString))
 
 	// TS3:
@@ -178,7 +179,7 @@ func waitForBalanceCLI(t *testing.T, logF LoggerFactory, homedir string, url str
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, logF, homedir, "get-balance --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {
-			expectedBalanceStr := amountToString(expectedBalance, 8)
+			expectedBalanceStr := util.AmountToString(expectedBalance, 8)
 			if line == fmt.Sprintf("#%d %s", accountIndex+1, expectedBalanceStr) {
 				return true
 			}
@@ -191,7 +192,7 @@ func waitForFeeCreditCLI(t *testing.T, logF LoggerFactory, homedir string, url s
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, logF, homedir, "fees list --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {
-			expectedBalanceStr := amountToString(expectedBalance, 8)
+			expectedBalanceStr := util.AmountToString(expectedBalance, 8)
 			if line == fmt.Sprintf("Account #%d %s", accountIndex+1, expectedBalanceStr) {
 				return true
 			}

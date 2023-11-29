@@ -262,7 +262,11 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 
 	g.Go(func() error {
 		defer x.pacemaker.Stop()
-		x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
+		vote, err := x.blockStore.ReadLastVote()
+		if err != nil {
+			return fmt.Errorf("last vote read failed: %w", err)
+		}
+		x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber, vote)
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
@@ -363,6 +367,9 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			x.log.WarnContext(ctx, "signing timeout", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			return
+		}
+		if err := x.blockStore.StoreLastVote(timeoutVoteMsg); err != nil {
+			x.log.WarnContext(ctx, "timeout vote store failed", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 		}
 		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
@@ -617,7 +624,9 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		// wait for timeout, if others make progress this node will need to recover
 		return fmt.Errorf("failed to sign vote: %w", err)
 	}
-
+	if err = x.blockStore.StoreLastVote(voteMsg); err != nil {
+		x.log.WarnContext(ctx, "vote store failed", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
+	}
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
@@ -855,7 +864,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err != nil {
 		return fmt.Errorf("verifier construction failed: %w", err)
 	}
-	x.pacemaker.Reset(blockStore.GetHighQc().GetRound())
+	x.pacemaker.Reset(blockStore.GetHighQc().GetRound(), nil)
 
 	for i, n := range rsp.BlockNode {
 		// if received block has QC then process it first as with a block received normally

@@ -309,3 +309,13 @@ func (x *BlockStore) Block(round uint64) (*abtypes.BlockData, error) {
 	}
 	return eb.BlockData, nil
 }
+
+// StoreLastVote - store last sent vote message
+func (x *BlockStore) StoreLastVote(vote any) error {
+	return WriteVote(x.storage, vote)
+}
+
+// ReadLastVote - read last vote message
+func (x *BlockStore) ReadLastVote() (any, error) {
+	return ReadVote(x.storage)
+}

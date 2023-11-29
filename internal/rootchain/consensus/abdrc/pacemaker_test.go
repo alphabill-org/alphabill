@@ -20,7 +20,7 @@ func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound)
+	pacemaker.Reset(lastCommittedRound, nil)
 
 	// record vote
 	require.Nil(t, pacemaker.GetVoted())
@@ -52,7 +52,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound)
+	pacemaker.Reset(lastCommittedRound, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 
 	// record a vote in current round
@@ -92,7 +92,7 @@ func TestRoundState_RegisterVote(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound)
+	pacemaker.Reset(lastCommittedRound, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	vote := NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
 	qc, _, err := pacemaker.RegisterVote(vote, quorum)
@@ -115,7 +115,7 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound)
+	pacemaker.Reset(lastCommittedRound, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo := NewDummyVoteInfo(5, []byte{0, 1, 2, 3})
 	hQc := abtypes.NewQuorumCertificate(voteInfo, nil)
@@ -192,7 +192,7 @@ func TestPacemaker_setup(t *testing.T) {
 		}
 
 		// start the clock
-		pacemaker.Reset(10)
+		pacemaker.Reset(10, nil)
 		require.EqualValues(t, 10, pacemaker.lastQcToCommitRound)
 		require.EqualValues(t, 11, pacemaker.GetCurrentRound())
 		require.Nil(t, pacemaker.LastRoundTC())
@@ -385,7 +385,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4)
+		pacemaker.Reset(4, nil)
 		defer pacemaker.Stop()
 
 		// assign some values to fields, we do not care about validity, we
@@ -418,7 +418,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4)
+		pacemaker.Reset(4, nil)
 		defer pacemaker.Stop()
 
 		// Reset started new round, wait until timeout without consuming events
@@ -448,7 +448,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := 600 * time.Millisecond
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4)
+		pacemaker.Reset(4, nil)
 		defer pacemaker.Stop()
 
 		var timeoutCnt, matureCnt, otherCnt int
@@ -491,7 +491,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4)
+		pacemaker.Reset(4, nil)
 		defer pacemaker.Stop()
 
 		// register TO vote with quorum condition which allow no faulty nodes - this means

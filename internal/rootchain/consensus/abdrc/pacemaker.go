@@ -102,10 +102,19 @@ This method should only used to start the pacemaker and reset it's status
 on system recovery, during normal operation current round is advanced by
 calling AdvanceRoundQC or AdvanceRoundTC.
 */
-func (x *Pacemaker) Reset(highQCRound uint64) {
+func (x *Pacemaker) Reset(highQCRound uint64, lastVote any) {
 	x.lastRoundTC = nil
 	x.lastQcToCommitRound = highQCRound
 	x.startNewRound(highQCRound + 1)
+	// restore last sent vote for pace maker
+	if lastVote != nil {
+		switch lastVote.(type) {
+		case *abdrc.VoteMsg:
+			x.SetVoted(lastVote.(*abdrc.VoteMsg))
+		case *abdrc.TimeoutMsg:
+			x.SetTimeoutVote(lastVote.(*abdrc.TimeoutMsg))
+		}
+	}
 }
 
 func (x *Pacemaker) Stop() {

@@ -513,7 +513,7 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		s := &SafetyModule{
 			storage: db,
 		}
-		require.ErrorContains(t, s.isSafeToTimeout(2, 2, nil), "timeout round 2 is in the past, node has qc for round 2")
+		require.ErrorContains(t, s.isSafeToTimeout(2, 2, nil), "timeout round 2 is in the past, timeout msg high qc is for round 2")
 	})
 	t.Run("not safe - already signed vote for round", func(t *testing.T) {
 		db := memorydb.New()

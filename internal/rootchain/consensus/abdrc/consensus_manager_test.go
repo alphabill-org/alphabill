@@ -1219,7 +1219,7 @@ func TestConsensusManger_ResoreVote(t *testing.T) {
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 	lastTimeoutMsg := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, net, network.ProtocolRootTimeout)
 	require.NotNil(t, lastTimeoutMsg)
-	// make sure the stored timeout vote gets broadcasted
+	// make sure the stored timeout vote is broadcast
 	require.EqualValues(t, 2, lastTimeoutMsg.Timeout.Round)
 	require.EqualValues(t, "test", lastTimeoutMsg.Author)
 }

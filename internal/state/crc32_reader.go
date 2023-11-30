@@ -32,8 +32,8 @@ func (c *CRC32Reader) Read(p []byte) (n int, err error) {
 		// Got more than checksumLength bytes, no checksum in
 		// previously read data
 		checksumStart := n - checksumLength
-		c.hasher.Write(c.buf)
-		c.hasher.Write(p[:checksumStart])
+		_, _ = c.hasher.Write(c.buf)             // #nosec G104
+		_, _ = c.hasher.Write(p[:checksumStart]) // #nosec G104
 
 		// Store potential checksum
 		c.buf = c.buf[:checksumLength]
@@ -46,7 +46,7 @@ func (c *CRC32Reader) Read(p []byte) (n int, err error) {
 		if len(c.buf) > checksumLength {
 			// Add bytes that are certainly not checksum bytes
 			checksumStart := len(c.buf) - checksumLength
-			c.hasher.Write(c.buf[:checksumStart])
+			_, _ = c.hasher.Write(c.buf[:checksumStart]) // #nosec G104
 			c.buf = c.buf[checksumStart:]
 		}
 	}

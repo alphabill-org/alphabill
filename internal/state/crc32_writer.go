@@ -20,7 +20,7 @@ func NewCRC32Writer(writer io.Writer) *CRC32Writer {
 
 func (c *CRC32Writer) Write(p []byte) (n int, err error) {
 	n, err = c.writer.Write(p)
-	c.hasher.Write(p)
+	_, _ = c.hasher.Write(p) // #nosec G104
 	return
 }
 

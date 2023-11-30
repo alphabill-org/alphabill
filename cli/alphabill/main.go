@@ -9,11 +9,12 @@ import (
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/cli/alphabill/cmd"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 func main() {
 	ctx := quitSignalContext()
-	err := cmd.New(cmd.LoggerBuilder).Execute(ctx)
+	err := cmd.New(observability.NewFactory()).Execute(ctx)
 	if err != nil && !cancelledByQuitSignal(ctx) {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)

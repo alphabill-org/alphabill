@@ -7,6 +7,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -29,16 +30,16 @@ type (
 		Copy() UnitData
 	}
 
-	// log contains a state changes of the unit during the transaction execution.
-	log struct {
-		txRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
-		unitLedgerHeadHash []byte // the new head hash of the unit ledger
-		newBearer          predicates.PredicateBytes
-		newUnitData        UnitData
+	// Log contains a state changes of the unit during the transaction execution.
+	Log struct {
+		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
+		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
+		NewBearer          predicates.PredicateBytes
+		NewUnitData        UnitData
 	}
 
 	// logs contains a state changes of the unit during the current round.
-	logs []*log
+	logs []*Log
 )
 
 func NewUnit(bearer predicates.PredicateBytes, data UnitData) *Unit {
@@ -74,36 +75,49 @@ func (u *Unit) Data() UnitData {
 	return copyData(u.data)
 }
 
+func (u *Unit) Logs() []*Log {
+	return u.logs
+}
+
+func MarshalUnitData(u UnitData) ([]byte, error) {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, fmt.Errorf("cbor encoder init failed: %w", err)
+	}
+	return enc.Marshal(u)
+}
+
 func copyLogs(entries logs) logs {
-	logsCopy := make([]*log, len(entries))
+	logsCopy := make([]*Log, len(entries))
 	for i, e := range entries {
 		logsCopy[i] = e.Clone()
 	}
 	return logsCopy
 }
 
-func (l *log) Clone() *log {
+func (l *Log) Clone() *Log {
 	if l == nil {
 		return nil
 	}
-	return &log{
-		txRecordHash:       bytes.Clone(l.txRecordHash),
-		unitLedgerHeadHash: bytes.Clone(l.unitLedgerHeadHash),
-		newBearer:          bytes.Clone(l.newBearer),
-		newUnitData:        copyData(l.newUnitData),
+	return &Log{
+		TxRecordHash:       bytes.Clone(l.TxRecordHash),
+		UnitLedgerHeadHash: bytes.Clone(l.UnitLedgerHeadHash),
+		NewBearer:          bytes.Clone(l.NewBearer),
+		NewUnitData:        copyData(l.NewUnitData),
 	}
 }
 
-func (l *log) Hash(algorithm crypto.Hash) []byte {
+func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	hasher.Write(l.newBearer)
-	if l.newUnitData != nil {
-		l.newUnitData.Write(hasher)
+	hasher.Write(l.NewBearer)
+	if l.NewUnitData != nil {
+		// todo: change Hash interface to allow errors
+		_ = l.NewUnitData.Write(hasher)
 	}
 	//y_j
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
-	hasher.Write(l.unitLedgerHeadHash)
+	hasher.Write(l.UnitLedgerHeadHash)
 	hasher.Write(dataHash)
 	// z_j
 	return hasher.Sum(nil)
@@ -114,7 +128,7 @@ func (u *Unit) latestUnitBearer() []byte {
 	if l == 0 {
 		return u.bearer
 	}
-	return u.logs[l-1].newBearer
+	return u.logs[l-1].NewBearer
 }
 
 func (u *Unit) latestUnitData() UnitData {
@@ -122,5 +136,5 @@ func (u *Unit) latestUnitData() UnitData {
 	if l == 0 {
 		return u.data
 	}
-	return u.logs[l-1].newUnitData
+	return u.logs[l-1].NewUnitData
 }

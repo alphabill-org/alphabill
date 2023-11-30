@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -54,7 +55,9 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, obs partition.Observability, log *slog.Logger) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration,
+	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
+	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -95,8 +98,8 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, obs, log),
-			rpc.MetricsEndpoints(obs.MetricsHandler()),
+			rpc.NodeEndpoints(node, proofStore, obs, log),
+			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if restServerConf.router != nil {
@@ -180,6 +183,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs parti
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
 		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(obs.TracerProvider()))),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
@@ -192,7 +196,8 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs parti
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys, blockStore keyvaluedb.KeyValueDB, obs partition.Observability, log *slog.Logger) (*partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
+	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, obs Observability) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -206,22 +211,17 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		return nil, errors.New("root validator info is missing")
 	}
 	if blockStore == nil {
-		blockStore, err = initNodeBlockStore(cfg.DbFile)
+		blockStore, err = initStore(cfg.DbFile)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-	}
-
-	if cfg.TxIndexerDBFile != "" {
-		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
-		if err != nil {
-			return nil, fmt.Errorf("unable to load tx indexer: %w", err)
-		}
-		options = append(options, partition.WithTxIndexer(txIndexer))
+		partition.WithProofIndex(proofStore, 20),
+		// TODO history size!
 	}
 
 	node, err := partition.NewNode(
@@ -232,7 +232,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		pg,
 		nil,
 		obs,
-		log,
 		options...,
 	)
 	if err != nil {
@@ -257,7 +256,7 @@ func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addres
 	return rootID, rootAddress, nil
 }
 
-func initNodeBlockStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
+func initStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
 	if dbFile != "" {
 		return boltdb.New(dbFile)
 	}

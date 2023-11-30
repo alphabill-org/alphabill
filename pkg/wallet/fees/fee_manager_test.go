@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"log/slog"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,9 +26,9 @@ var (
 )
 
 /*
-Wallet has single bill with value 1.00000002
-Add fee credit with value 1.00000001
-Result should have 0 balance, 1.00000000 in fee credit and no error and any larger amount should return error.
+Wallet has single bill with value 1.00000000
+Add fee credit with the full value 1.00000000
+TransferFCTx with 1.00000000 value and AddFCTx transactions should be sent.
 */
 func TestAddFeeCredit_OK(t *testing.T) {
 	// create fee manager
@@ -37,106 +36,171 @@ func TestAddFeeCredit_OK(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{{
 		Id:     []byte{1},
-		Value:  100000002,
+		Value:  100000000,
 		TxHash: []byte{2},
 	}}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// verify that entire bill amount can be added
-	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000001})
+	// add fees
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
 	require.NoError(t, err)
-	require.NotNil(t, proofs)
-	require.NotNil(t, proofs.TransferFC)
-	require.NotNil(t, proofs.AddFC)
+	require.Len(t, res.Proofs, 1)
+	require.Nil(t, res.Proofs[0].LockFC)
+	require.NotNil(t, res.Proofs[0].TransferFC)
+	require.NotNil(t, res.Proofs[0].AddFC)
+
+	// verify fee context is deleted
+	pk, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	feeCtx, err := feeManagerDB.GetAddFeeContext(pk)
+	require.NoError(t, err)
+	require.Nil(t, feeCtx)
+
+	// verify correct transferFC amount was sent
+	var attr *transactions.TransferFeeCreditAttributes
+	err = res.Proofs[0].TransferFC.TxRecord.TransactionOrder.UnmarshalAttributes(&attr)
+	require.NoError(t, err)
+	require.EqualValues(t, 100000000, attr.Amount)
 }
 
 /*
-Wallet has multiple bills
-Add fee credit with amount higher than the biggest bill
-Result should have 2 transFC txs with the combined amount that matches what was requested
+Wallet has single bill and fee credit bill,
+when adding fees LockFCTx, TransferFCTx and AddFCTx transactions should be sent.
+*/
+func TestAddFeeCredit_ExistingFeeCreditBillOK(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		bills: []*wallet.Bill{{
+			Id:     []byte{1},
+			Value:  100000000,
+			TxHash: []byte{1},
+		}},
+		fcb: &wallet.Bill{
+			Id:     []byte{2},
+			Value:  100000000,
+			TxHash: []byte{2},
+		}}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// add fees
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Len(t, res.Proofs, 1)
+	proofs := res.Proofs[0]
+	require.NotNil(t, proofs.LockFC)
+	require.NotNil(t, proofs.TransferFC)
+	require.NotNil(t, proofs.AddFC)
+
+	// verify fee ctx is removed
+	pk, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	feeCtx, err := feeManagerDB.GetAddFeeContext(pk)
+	require.NoError(t, err)
+	require.Nil(t, feeCtx)
+}
+
+/*
+Wallet has multiple bills,
+when adding fee credit with amount greater than the largest bill then
+the result should have two sets of txs with the combined amount that matches what was requested
 */
 func TestAddFeeCredit_MultipleBills(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{
-		{
-			Id:     []byte{1},
-			Value:  100000001,
-			TxHash: []byte{2},
+	moneyBackendClient := &mockMoneyClient{
+		bills: []*wallet.Bill{
+			{
+				Id:     []byte{1},
+				Value:  100000001,
+				TxHash: []byte{1},
+			},
+			{
+				Id:     []byte{2},
+				Value:  100000002,
+				TxHash: []byte{2},
+			},
+			{
+				Id:     []byte{3},
+				Value:  100000003,
+				TxHash: []byte{3},
+			},
 		},
-		{
-			Id:     []byte{2},
-			Value:  100000002,
-			TxHash: []byte{3},
-		},
-		{
-			Id:     []byte{3},
-			Value:  100000003,
+		fcb: &wallet.Bill{
+			Id:     []byte{4},
+			Value:  100000004,
 			TxHash: []byte{4},
-		}}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		}}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// verify that there are 2 pairs of txs sent and that the amounts match
-	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 200000000})
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 200000000})
 	require.NoError(t, err)
-	require.NotNil(t, proofs)
-	require.Len(t, proofs.TransferFC, 2)
-	// first transfer amount should match the biggest bill
+	require.NotNil(t, res)
+	require.Len(t, res.Proofs, 2)
+	proofs := res.Proofs
+
+	// first transfer amount should match the largest bill
 	firstTransFCAttr := &transactions.TransferFeeCreditAttributes{}
-	err = proofs.TransferFC[0].TxRecord.TransactionOrder.UnmarshalAttributes(firstTransFCAttr)
+	err = proofs[0].TransferFC.TxRecord.TransactionOrder.UnmarshalAttributes(firstTransFCAttr)
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{3}, proofs.TransferFC[0].TxRecord.TransactionOrder.UnitID())
-	require.Equal(t, uint64(100000003), firstTransFCAttr.Amount)
+	require.EqualValues(t, []byte{3}, proofs[0].TransferFC.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, 100000003, firstTransFCAttr.Amount)
+
 	// second transfer amount should match the remaining value
 	secondTransFCAttr := &transactions.TransferFeeCreditAttributes{}
-	err = proofs.TransferFC[1].TxRecord.TransactionOrder.UnmarshalAttributes(secondTransFCAttr)
+	err = proofs[1].TransferFC.TxRecord.TransactionOrder.UnmarshalAttributes(secondTransFCAttr)
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{2}, proofs.TransferFC[1].TxRecord.TransactionOrder.UnitID())
-	require.Equal(t, uint64(200000000-100000003), secondTransFCAttr.Amount)
-	require.Len(t, proofs.AddFC, 2)
+	require.EqualValues(t, []byte{2}, proofs[1].TransferFC.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, 200000000-100000003, secondTransFCAttr.Amount)
 }
 
 /*
-Wallet has no bills
-Trying to create fee credit should return error "wallet does not contain any bills"
+Wallet has no bills.
+Trying to add fee credit should return error "wallet does not contain any bills".
 */
 func TestAddFeeCredit_NoBillsReturnsError(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// verify that error is returned
-	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
 	require.ErrorContains(t, err, "wallet does not contain any bills")
+	require.Nil(t, res)
 }
 
 /*
-Wallet contains locked bill for reclaim
-Return error "wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit"
+Wallet contains existing context for reclaim. Trying to add fee credit should return error
+"wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit"
 */
-func TestAddFeeCredit_WalletContainsLockedBillForReclaim(t *testing.T) {
+func TestAddFeeCredit_FeeManagerContainsExistingReclaimContext(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	accountKey, err := am.GetAccountKey(0)
 	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// lock bill with LockReasonReclaimFees
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, moneySystemID, unitlock.LockReasonReclaimFees))
+	// create fee context for reclaim
+	err = feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{})
 	require.NoError(t, err)
 
 	// verify error is returned
-	_, err = feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
 	require.ErrorContains(t, err, "wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
+	require.Nil(t, res)
 }
 
 /*
@@ -157,278 +221,25 @@ func TestAddFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T) {
 			Id:     []byte{2},
 			Value:  100000002,
 			TxHash: []byte{2},
+			Locked: unitlock.LockReasonCollectDust,
 		},
 	}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// lock the first bill with reason LockReasonCollectDust
-	publicKey, err := am.GetPublicKey(0)
+	// verify that the smaller bill is used to create fee credit
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000001})
 	require.NoError(t, err)
-	lockedDCBill := unitlock.NewLockedUnit(publicKey, []byte{1}, []byte{1}, moneySystemID, unitlock.LockReasonCollectDust)
-	require.NoError(t, unitLocker.LockUnit(lockedDCBill))
-
-	// verify that the second bill can be added to fee credit
-	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
-	require.NoError(t, err)
-	require.NotNil(t, proofs)
-	require.Len(t, proofs.TransferFC, 1)
-	require.Len(t, proofs.AddFC, 1)
-	require.EqualValues(t, []byte{2}, proofs.TransferFC[0].TxRecord.TransactionOrder.UnitID())
-
-	// and the first bill remains locked
-	lockedDCBillAfter, err := unitLocker.GetUnit(publicKey, []byte{1})
-	require.NoError(t, err)
-	require.Equal(t, lockedDCBill, lockedDCBillAfter)
+	require.NotNil(t, res)
+	require.Len(t, res.Proofs, 1)
+	proofs := res.Proofs[0]
+	require.Nil(t, proofs.LockFC)
+	require.NotNil(t, proofs.TransferFC)
+	require.NotNil(t, proofs.AddFC)
+	require.EqualValues(t, []byte{1}, proofs.TransferFC.TxRecord.TransactionOrder.UnitID())
 }
 
-/*
-Wallet contains locked bill for TransferFC and the tx is either:
-1. confirmed => send addFC using the confirmed transferFC
-2. timed out => create new tx
-3. still pending => re-send the tx
-*/
-func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
-	// create fee manager
-	am := newAccountManager(t)
-	accountKey, err := am.GetAccountKey(0)
-	require.NoError(t, err)
-	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{}
-	unitLocker := createUnitLocker(t)
-
-	transferFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	transferFCProof := &wallet.Proof{TxRecord: transferFCRecord, TxProof: &types.TxProof{}}
-	lockedUnitTxHash := []byte{200}
-	lockedTransferFCBill := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		transferFCRecord.TransactionOrder.UnitID(),
-		lockedUnitTxHash,
-		moneySystemID,
-		unitlock.LockReasonAddFees,
-		unitlock.NewTransaction(transferFCRecord.TransactionOrder),
-	)
-
-	t.Run("transferFC confirmed => send addFC using the confirmed transferFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedTransferFCBill)
-		require.NoError(t, err)
-
-		// mock tx confirmed on backend
-		*moneyBackendClient = mockMoneyClient{
-			proofs: map[string]*wallet.Proof{string(lockedTransferFCBill.UnitID): transferFCProof},
-		}
-
-		// when fees are added
-		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-
-		// then addFC tx must be sent using the confirmed transferFC
-		require.NotNil(t, res)
-		require.NotNil(t, res.TransferFC)
-		require.NotNil(t, res.AddFC)
-
-		sentAddFCAttr := &transactions.AddFeeCreditAttributes{}
-		err = res.AddFC[0].TxRecord.TransactionOrder.UnmarshalAttributes(sentAddFCAttr)
-		require.NoError(t, err)
-		require.Equal(t, transferFCRecord, sentAddFCAttr.FeeCreditTransfer)
-
-		// and bill must be unlocked
-		units, err := unitLocker.GetUnits(accountKey.PubKey)
-		require.NoError(t, err)
-		require.Len(t, units, 0)
-	})
-
-	t.Run("transferFC timed out => create new transferFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedTransferFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out and add bill to wallet
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transactions[0].TxOrder.Timeout(),
-			bills: []*wallet.Bill{{
-				Id:     []byte{123},
-				Value:  100,
-				TxHash: []byte{2},
-			}},
-		}
-
-		// when fees are added
-		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.TransferFC)
-		require.NotNil(t, res.AddFC)
-
-		// then new transferFC must be sent
-		require.EqualValues(t, []byte{123}, res.TransferFC[0].TxRecord.TransactionOrder.UnitID())
-
-		// and bill must be unlocked
-		units, err := unitLocker.GetUnits(accountKey.PubKey)
-		require.NoError(t, err)
-		require.Len(t, units, 0)
-	})
-
-	t.Run("transferFC still pending => re-send the transferFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedTransferFCBill)
-		require.NoError(t, err)
-
-		// mock tx not yet timed out
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transactions[0].TxOrder.Timeout() - 1,
-		}
-
-		// when fees are added
-		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-
-		// then the pending transferFC must be re-sent
-		require.Equal(t, transferFCProof, res.TransferFC[0])
-
-		// and bill must be unlocked
-		units, err := unitLocker.GetUnits(accountKey.PubKey)
-		require.NoError(t, err)
-		require.Len(t, units, 0)
-	})
-}
-
-/*
-Wallet contains locked bill for AddFC and tx is either:
-1. confirmed => return no error (and optionally the fee txs)
-2. still pending => re-send the tx
-3. partially timed out => create new tx
-4. fully timed out => return money lost error
-*/
-func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
-	// create fee manager
-	am := newAccountManager(t)
-	accountKey, err := am.GetAccountKey(0)
-	require.NoError(t, err)
-	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
-
-	addFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewAddFC(t, signer, nil,
-			testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 5, MaxTransactionFee: 2})),
-		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-	}
-	addFCProof := &wallet.Proof{TxRecord: addFCRecord, TxProof: &types.TxProof{}}
-	lockedUnitTxHash := []byte{200}
-	lockedAddFCBill := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		addFCRecord.TransactionOrder.UnitID(),
-		lockedUnitTxHash,
-		moneySystemID,
-		unitlock.LockReasonAddFees,
-		unitlock.NewTransaction(addFCRecord.TransactionOrder),
-	)
-
-	t.Run("addFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedAddFCBill)
-		require.NoError(t, err)
-
-		// mock tx confirmed on backend
-		*moneyBackendClient = mockMoneyClient{
-			proofs: map[string]*wallet.Proof{string(lockedAddFCBill.UnitID): addFCProof},
-		}
-
-		// when fees are added
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-
-		// then no error must be returned (and optionally the fee txs can be returned)
-		require.NotNil(t, res)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("addFC still pending => re-send the addFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedAddFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transactions[0].TxOrder.Timeout() - 1,
-		}
-
-		// when fees are added
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-		require.NotNil(t, res.AddFC)
-
-		// then AddFC must be re-sent
-		require.Equal(t, addFCRecord, res.AddFC[0].TxRecord)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("addFC partially timed out => create new addFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedAddFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out
-		// tx timeout (5) < round number (6) < latest addition time (10)
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transactions[0].TxOrder.Timeout() + 1,
-		}
-
-		// when fees are added
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.AddFC)
-
-		// then new addFC must be sent using the existing transferFC
-		// new addFC has new tx timeout = round number + txTimeoutBlockCount
-		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC[0].TxRecord.TransactionOrder.Timeout())
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("addFC fully timed out => return money lost error", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedAddFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out
-		// round number > latest addition time
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: 11,
-		}
-
-		// when fees are added
-		// then money lost error must be returned
-		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
-		require.ErrorContains(t, err, "transferFC latestAdditionTime exceeded, locked fee credit is no longer usable")
-		require.Nil(t, res)
-	})
-}
-
-func TestAddFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *testing.T) {
+func TestAddFeeCreditForMoneyPartition_ExistingAddProcessForTokensPartition(t *testing.T) {
 	// create fee manager for money partition
 	am := newAccountManager(t)
 	accountKey, err := am.GetAccountKey(0)
@@ -438,325 +249,72 @@ func TestAddFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *tes
 		fcb: &wallet.Bill{Value: 100, Id: []byte{111}},
 		bills: []*wallet.Bill{
 			{
-				Id:     []byte{1}, // locked for tokens fee credit
+				Id:     []byte{1},
+				Value:  100000001,
+				TxHash: []byte{1},
+			},
+			{
+				Id:     []byte{2},
 				Value:  100000002,
 				TxHash: []byte{2},
 			},
-			{
-				Id:     []byte{2}, // not locked
-				Value:  100000002,
-				TxHash: []byte{3},
-			},
 		},
 	}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// lock unit for tokens partition
-	lockedUnit := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		[]byte{1},
-		[]byte{100},
-		tokensSystemID,
-		unitlock.LockReasonAddFees,
-	)
-	require.NoError(t, unitLocker.LockUnit(lockedUnit))
+	// create fee context with token partition id
+	feeCtx := &AddFeeCreditCtx{
+		TargetPartitionID:  tokensSystemID,
+		TargetBillID:       []byte{2},
+		TargetBillBacklink: []byte{2},
+	}
+	err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, feeCtx)
+	require.NoError(t, err)
 
 	// when attempting to add fees for money partition
 	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 
 	// then error must be returned
-	require.ErrorIs(t, err, ErrLockedBillWrongPartition)
+	require.ErrorIs(t, err, ErrInvalidPartition)
 	require.Nil(t, res)
 
-	// and bill must remain locked
-	lockedUnitAfter, err := unitLocker.GetUnit(lockedUnit.AccountID, lockedUnit.UnitID)
+	// and feeCtx is not deleted
+	actualFeeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
 	require.NoError(t, err)
-	require.NotNil(t, lockedUnitAfter)
+	require.EqualValues(t, feeCtx, actualFeeCtx)
 }
 
-/*
-Wallet contains locked bill for closeFC and the tx is either:
-1. confirmed => send reclaimFC using the confirmed closeFC
-2. timed out => create new tx
-3. still pending => re-send the tx
-*/
-func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
-	// create fee manager
-	am := newAccountManager(t)
-	accountKey, err := am.GetAccountKey(0)
-	require.NoError(t, err)
-	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-
-	closeFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewCloseFC(t, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	closeFCProof := &wallet.Proof{TxRecord: closeFCRecord, TxProof: &types.TxProof{}}
-	lockedUnitTxHash := []byte{200}
-	lockedCloseFCBill := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		closeFCRecord.TransactionOrder.UnitID(),
-		lockedUnitTxHash,
-		moneySystemID,
-		unitlock.LockReasonReclaimFees,
-		unitlock.NewTransaction(closeFCRecord.TransactionOrder),
-	)
-
-	t.Run("closeFC confirmed => send reclaimFC using the confirmed closeFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedCloseFCBill)
-		require.NoError(t, err)
-
-		// mock tx confirmed on backend
-		*moneyBackendClient = mockMoneyClient{
-			proofs: map[string]*wallet.Proof{string(lockedCloseFCBill.UnitID): closeFCProof},
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-
-		// then reclaimFC tx must be sent using the confirmed closeFC
-		require.NotNil(t, res)
-		require.NotNil(t, res.CloseFC)
-		require.NotNil(t, res.ReclaimFC)
-
-		sentReclaimFCAttr := &transactions.ReclaimFeeCreditAttributes{}
-		err = res.ReclaimFC.TxRecord.TransactionOrder.UnmarshalAttributes(sentReclaimFCAttr)
-		require.NoError(t, err)
-		require.Equal(t, closeFCRecord, sentReclaimFCAttr.CloseFeeCreditTransfer)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("closeFC timed out => create new closeFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedCloseFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out and add bill to wallet
-		*moneyBackendClient = mockMoneyClient{
-			fcb:         &wallet.Bill{Value: 1e8, Id: []byte{111}},
-			roundNumber: lockedCloseFCBill.Transactions[0].TxOrder.Timeout(),
-			bills: []*wallet.Bill{{
-				Id:     []byte{123},
-				Value:  100,
-				TxHash: []byte{2},
-			}},
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.CloseFC)
-		require.NotNil(t, res.ReclaimFC)
-
-		// then new closeFC must be sent
-		var actualCloseFCAttr *transactions.CloseFeeCreditAttributes
-		err = res.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&actualCloseFCAttr)
-		require.NoError(t, err)
-
-		require.EqualValues(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
-		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                       // target unitID matches target bill ID
-		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)                   // target unit backlink matches target bill txhash
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("closeFC still pending => re-send the closeFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedCloseFCBill)
-		require.NoError(t, err)
-
-		// mock tx not yet timed out
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedCloseFCBill.Transactions[0].TxOrder.Timeout() - 1,
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-
-		// then the pending transferFC must be re-sent
-		require.Equal(t, closeFCProof, res.CloseFC)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-}
-
-/*
-Wallet contains locked bill for ReclaimFC and tx is either:
-1. confirmed => no error
-2. still pending => re-send the tx
-3. partially timed out => create new tx (target bill still usable)
-4. fully timed out => return money lost error (target bill has been used)
-*/
-func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
-	// create fee manager
-	am := newAccountManager(t)
-	accountKey, err := am.GetAccountKey(0)
-	require.NoError(t, err)
-	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
-	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
-
-	reclaimFCOrder := testutils.NewReclaimFC(t, signer, nil)
-	reclaimFCRecord := &types.TransactionRecord{
-		TransactionOrder: reclaimFCOrder,
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-	}
-	reclaimFCProof := &wallet.Proof{TxRecord: reclaimFCRecord, TxProof: &types.TxProof{}}
-	lockedUnitTxHash := []byte{200}
-	lockedReclaimFCBill := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		reclaimFCRecord.TransactionOrder.UnitID(),
-		lockedUnitTxHash,
-		moneySystemID,
-		unitlock.LockReasonReclaimFees,
-		unitlock.NewTransaction(reclaimFCOrder),
-	)
-
-	t.Run("reclaimFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedReclaimFCBill)
-		require.NoError(t, err)
-
-		// mock tx confirmed on backend
-		*moneyBackendClient = mockMoneyClient{
-			proofs: map[string]*wallet.Proof{string(lockedReclaimFCBill.UnitID): reclaimFCProof},
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-
-		// then reclaimFC proof must be returned
-		require.NotNil(t, res)
-		require.Equal(t, reclaimFCProof, res.ReclaimFC)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, reclaimFCOrder.UnitID())
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("reclaimFC still pending => re-send the reclaimFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedReclaimFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transactions[0].TxOrder.Timeout() - 1,
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-		require.NotNil(t, res.ReclaimFC)
-
-		// then AddFC must be re-sent
-		require.Equal(t, reclaimFCRecord, res.ReclaimFC.TxRecord)
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("reclaimFC partially timed out => create new reclaimFC", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedReclaimFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out and return locked bill
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transactions[0].TxOrder.Timeout() + 1,
-			bills:       []*wallet.Bill{{Id: lockedReclaimFCBill.UnitID, TxHash: lockedUnitTxHash}},
-		}
-
-		// when fees are reclaimed
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.ReclaimFC)
-
-		// then new reclaimFC must be sent using the existing closeFC
-		// new reclaimFC has new tx timeout = round number + tx timeout
-		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.ReclaimFC.TxRecord.TransactionOrder.Timeout())
-
-		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
-		require.NoError(t, err)
-		require.Nil(t, lockedBill)
-	})
-
-	t.Run("reclaimFC fully timed out => return money lost error", func(t *testing.T) {
-		// lock bill in db
-		err := unitLocker.LockUnit(lockedReclaimFCBill)
-		require.NoError(t, err)
-
-		// mock tx timed out and no bills are available
-		*moneyBackendClient = mockMoneyClient{
-			roundNumber: 11,
-		}
-
-		// when fees are reclaimed
-		// then money lost error must be returned
-		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.ErrorContains(t, err, "reclaimFC target unit is no longer usable")
-		require.Nil(t, res)
-	})
-}
-
-func TestReclaimFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *testing.T) {
+func TestReclaimFeeCreditForMoneyPartition_ExistingReclaimProcessForTokensPartition(t *testing.T) {
 	// create fee manager for money partition
 	am := newAccountManager(t)
 	accountKey, err := am.GetAccountKey(0)
 	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// lock unit for tokens partition
-	lockedUnit := unitlock.NewLockedUnit(
-		accountKey.PubKey,
-		[]byte{1},
-		[]byte{100},
-		tokensSystemID,
-		unitlock.LockReasonReclaimFees,
-	)
-	require.NoError(t, unitLocker.LockUnit(lockedUnit))
+	// create fee context with token partition id
+	feeCtx := &ReclaimFeeCreditCtx{
+		TargetPartitionID:  tokensSystemID,
+		TargetBillID:       []byte{2},
+		TargetBillBacklink: []byte{2},
+	}
+	err = feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, feeCtx)
+	require.NoError(t, err)
 
 	// when attempting to reclaim fees for money partition
 	res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
 
 	// then error must be returned
-	require.ErrorIs(t, err, ErrLockedBillWrongPartition)
+	require.ErrorIs(t, err, ErrInvalidPartition)
 	require.Nil(t, res)
 
-	// and bill must remain locked
-	lockedUnitAfter, err := unitLocker.GetUnit(lockedUnit.AccountID, lockedUnit.UnitID)
+	// and money fee context is not deleted
+	actualFeeCtx, err := feeManagerDB.GetReclaimFeeContext(accountKey.PubKey)
 	require.NoError(t, err)
-	require.NotNil(t, lockedUnitAfter)
+	require.Equal(t, feeCtx, actualFeeCtx)
 }
 
 /*
@@ -779,32 +337,24 @@ func TestReclaimFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T
 				Id:     []byte{2},
 				Value:  100000002,
 				TxHash: []byte{2},
+				Locked: unitlock.LockReasonCollectDust,
 			},
 		}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
-	// lock the first bill with reason LockReasonCollectDust
-	publicKey, err := am.GetPublicKey(0)
+	// verify that the non-locked bill can be reclaimed
+	res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
 	require.NoError(t, err)
-	lockedDCBill := unitlock.NewLockedUnit(publicKey, []byte{1}, []byte{1}, moneySystemID, unitlock.LockReasonCollectDust)
-	require.NoError(t, unitLocker.LockUnit(lockedDCBill))
-
-	// verify that the second bill can be added to fee credit
-	proofs, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-	require.NoError(t, err)
-	require.NotNil(t, proofs)
-	require.NotNil(t, proofs.CloseFC)
-	require.NotNil(t, proofs.ReclaimFC)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Proofs)
+	require.NotNil(t, res.Proofs.Lock)
+	require.NotNil(t, res.Proofs.CloseFC)
+	require.NotNil(t, res.Proofs.ReclaimFC)
 
 	var attr *transactions.CloseFeeCreditAttributes
-	require.NoError(t, proofs.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&attr))
-	require.Equal(t, []byte{2}, attr.TargetUnitID)
-
-	// and the first bill remains locked
-	lockedDCBillAfter, err := unitLocker.GetUnit(publicKey, []byte{1})
-	require.NoError(t, err)
-	require.Equal(t, lockedDCBill, lockedDCBillAfter)
+	require.NoError(t, res.Proofs.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&attr))
+	require.Equal(t, []byte{1}, attr.TargetUnitID)
 }
 
 func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
@@ -818,8 +368,8 @@ func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 			Value:  100000002,
 			TxHash: []byte{2},
 		}}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
 	require.ErrorIs(t, err, ErrMinimumFeeAmount)
@@ -839,14 +389,14 @@ func TestAddWithInsufficientBalance(t *testing.T) {
 			Value:  10,
 			TxHash: []byte{2},
 		}}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
-func TestAddWithSufficientBalanceInSmallBills(t *testing.T) {
+func TestAddWithInsufficientBalanceInSmallBills(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
@@ -874,15 +424,757 @@ func TestAddWithSufficientBalanceInSmallBills(t *testing.T) {
 				TxHash: []byte{5},
 			},
 		}}
-	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 4})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
-func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient, log *slog.Logger) *FeeManager {
-	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, log)
+func TestAddFeeCredit_FeeCreditRecordIsLocked(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		bills: []*wallet.Bill{
+			{Id: []byte{1}, Value: 100, TxHash: []byte{2}},
+		},
+		fcb: &wallet.Bill{Id: []byte{1}, Value: 100, Locked: wallet.LockReasonManual},
+	}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// add fees
+	addRes, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 10})
+	require.ErrorContains(t, err, "fee credit bill is locked")
+	require.Nil(t, addRes)
+
+	// reclaim fees
+	recRes, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.ErrorContains(t, err, "fee credit bill is locked")
+	require.Nil(t, recRes)
+}
+
+/*
+Fee manager contains LockFC ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => send lockFC
+3. if timed out => create new lockFC
+*/
+func TestAddFeeCredit_ExistingLockFC(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+
+	lockFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewLockFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	lockFCProof := &wallet.Proof{TxRecord: lockFCRecord, TxProof: &types.TxProof{}}
+
+	t.Run("lockFC confirmed => send follow-up transactions", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       []byte{1},
+			TargetBillBacklink: []byte{200},
+			TargetAmount:       50,
+			LockFCTx:           lockFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx confirmed on backend
+		*moneyBackendClient = mockMoneyClient{
+			proofs: map[string]*wallet.Proof{string(lockFCRecord.TransactionOrder.UnitID()): lockFCProof},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+
+		// then follow-up transactions are sent
+		require.NotNil(t, res)
+		require.Len(t, res.Proofs, 1)
+		proofs := res.Proofs[0]
+		require.NotNil(t, proofs.LockFC)
+		require.NotNil(t, proofs.TransferFC)
+		require.NotNil(t, proofs.AddFC)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("lockFC timed out => create new lockFC and send follow-up transactions", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       []byte{1},
+			TargetBillBacklink: []byte{200},
+			LockFCTx:           lockFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: lockFCRecord.TransactionOrder.Timeout() + 10,
+			fcb:         &wallet.Bill{Id: []byte{2}, Value: 100, TxHash: []byte{3}},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Len(t, res.Proofs, 1)
+		proofs := res.Proofs[0]
+		require.NotNil(t, proofs.LockFC)
+		require.NotNil(t, proofs.TransferFC)
+		require.NotNil(t, proofs.AddFC)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+}
+
+/*
+Fee manager contains TransferFC ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => send addFC using the confirmed transferFC
+3. if timed out and unit still valid => create new transferFC
+4. if timed out and unit no longer valid => return error, unlock units
+*/
+func TestAddFeeCredit_ExistingTransferFC(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+
+	transferFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	transferFCProof := &wallet.Proof{TxRecord: transferFCRecord, TxProof: &types.TxProof{}}
+
+	t.Run("transferFC confirmed => send addFC using the confirmed transferFC", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       transferFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       transferFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx confirmed on backend
+		*moneyBackendClient = mockMoneyClient{
+			proofs: map[string]*wallet.Proof{string(transferFCRecord.TransactionOrder.UnitID()): transferFCProof},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+
+		// then addFC tx must be sent using the confirmed transferFC
+		require.NotNil(t, res)
+		require.Len(t, res.Proofs, 1)
+		proofs := res.Proofs[0]
+		require.NotNil(t, proofs.TransferFC)
+		require.NotNil(t, proofs.AddFC)
+
+		sentAddFCAttr := &transactions.AddFeeCreditAttributes{}
+		err = proofs.AddFC.TxRecord.TransactionOrder.UnmarshalAttributes(sentAddFCAttr)
+		require.NoError(t, err)
+		require.Equal(t, transferFCRecord, sentAddFCAttr.FeeCreditTransfer)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("transferFC timed out => create new transferFC", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       transferFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       transferFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out and the same bill used for transferFC is still valid
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: transferFCRecord.TransactionOrder.Timeout() + 10,
+			bills: []*wallet.Bill{{
+				Id:     transferFCRecord.TransactionOrder.UnitID(),
+				Value:  50,
+				TxHash: []byte{200},
+			}},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Len(t, res.Proofs, 1)
+		proofs := res.Proofs[0]
+		require.NotNil(t, proofs.TransferFC)
+		require.NotNil(t, proofs.AddFC)
+
+		// then new transferFC must be sent (same id, new timeout)
+		require.EqualValues(t, transferFCRecord.TransactionOrder.UnitID(), proofs.TransferFC.TxRecord.TransactionOrder.UnitID())
+		require.EqualValues(t, moneyBackendClient.roundNumber+10, proofs.TransferFC.TxRecord.TransactionOrder.Timeout())
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("transferFC timed out and target unit no longer valid => return error", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       transferFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       transferFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out and transferFC unit no longer exists
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: transferFCRecord.TransactionOrder.Timeout(),
+		}
+
+		// when fees are added then error must be returned
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.Errorf(t, err, "transferFC target unit is no longer valid")
+		require.Nil(t, res)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+}
+
+/*
+Fee manager contains AddFC ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => send addFC using the confirmed transferFC
+3. if timed out and transferFC still usable => create new addFC
+3. if timed out and transferFC no longer usable => return money lost error
+*/
+func TestAddFeeCredit_ExistingAddFC(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
+
+	addFCAttr := testutils.NewAddFCAttr(t, signer)
+	addFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewAddFC(t, signer, addFCAttr,
+			testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 5, MaxTransactionFee: 2})),
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+	addFCProof := &wallet.Proof{TxRecord: addFCRecord, TxProof: &types.TxProof{}}
+
+	t.Run("addFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       addFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       addFCAttr.FeeCreditTransfer.TransactionOrder,
+			TransferFCProof:    &wallet.Proof{TxRecord: addFCAttr.FeeCreditTransfer, TxProof: addFCAttr.FeeCreditTransferProof},
+			AddFCTx:            addFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx confirmed on backend
+		*moneyBackendClient = mockMoneyClient{
+			proofs: map[string]*wallet.Proof{(string)(addFCRecord.TransactionOrder.UnitID()): addFCProof},
+		}
+
+		// when fees are added
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+
+		// then no error must be returned (and optionally the fee txs can be returned)
+		require.NotNil(t, res)
+
+		// and fee context must be cleared
+		lockedBill, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, lockedBill)
+	})
+
+	t.Run("addFC timed out => create new addFC", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       addFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       addFCAttr.FeeCreditTransfer.TransactionOrder,
+			TransferFCProof:    &wallet.Proof{TxRecord: addFCAttr.FeeCreditTransfer, TxProof: addFCAttr.FeeCreditTransferProof},
+			AddFCTx:            addFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out
+		// tx timeout (5) < round number (6) < latest addition time (10)
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: addFCRecord.TransactionOrder.Timeout() + 1,
+		}
+
+		// when fees are added
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs[0].AddFC)
+
+		// then new addFC must be sent using the existing transferFC
+		// new addFC has new tx timeout = round number + txTimeoutBlockCount
+		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.Proofs[0].AddFC.TxRecord.TransactionOrder.Timeout())
+
+		// and fee context must be cleared
+		lockedBill, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, lockedBill)
+	})
+
+	t.Run("addFC timed out and transferFC no longer usable => return money lost error", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetAddFeeContext(accountKey.PubKey, &AddFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       addFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			TransferFCTx:       addFCAttr.FeeCreditTransfer.TransactionOrder,
+			TransferFCProof:    &wallet.Proof{TxRecord: addFCAttr.FeeCreditTransfer, TxProof: addFCAttr.FeeCreditTransferProof},
+			AddFCTx:            addFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out
+		// round number > latest addition time
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: 11,
+		}
+
+		// when fees are added
+		// then money lost error must be returned
+		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+		require.ErrorContains(t, err, "addFC timed out and transferFC latestAdditionTime exceeded, the target bill is no longer usable")
+		require.Nil(t, res)
+	})
+}
+
+/*
+Fee manager contains Lock ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => send lock tx
+3. if timed out => create new lock tx
+*/
+func TestReclaimFeeCredit_ExistingLock(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+
+	lockRecord := &types.TransactionRecord{
+		TransactionOrder: testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeLock)),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	lockProof := &wallet.Proof{TxRecord: lockRecord, TxProof: &types.TxProof{}}
+
+	t.Run("lock tx confirmed => send follow-up transactions", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       []byte{1},
+			TargetBillBacklink: []byte{200},
+			LockTx:             lockRecord.TransactionOrder,
+			LockTxProof:        lockProof,
+		})
+		require.NoError(t, err)
+
+		// mock locked fee credit bill
+		*moneyBackendClient = mockMoneyClient{
+			fcb: &wallet.Bill{Id: []byte{1}, Value: 100, TxHash: []byte{200}, Locked: unitlock.LockReasonReclaimFees},
+		}
+
+		// when fees are reclaimed
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+
+		// then follow-up transactions are sent
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs, 1)
+		require.NotNil(t, res.Proofs.Lock)
+		require.NotNil(t, res.Proofs.CloseFC)
+		require.NotNil(t, res.Proofs.ReclaimFC)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("lock tx timed out => create new lock tx and send follow-up transactions", func(t *testing.T) {
+		// create fee context
+		err = feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       []byte{1},
+			TargetBillBacklink: []byte{200},
+			LockTx:             lockRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: lockRecord.TransactionOrder.Timeout() + 10,
+			fcb:         &wallet.Bill{Id: []byte{1}, Value: 100, TxHash: []byte{200}},
+		}
+
+		// when fees are reclaimed
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs)
+		require.NotNil(t, res.Proofs.Lock)
+		require.NotNil(t, res.Proofs.CloseFC)
+		require.NotNil(t, res.Proofs.ReclaimFC)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+}
+
+/*
+Fee manager contains CloseFC ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => send reclaimFC using the confirmed closeFC
+3. if timed out => create new closeFC and reclaimFC
+*/
+func TestReclaimFeeCredit_ExistingCloseFC(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	closeFCAttr := testutils.NewCloseFCAttr()
+	closeFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	closeFCProof := &wallet.Proof{TxRecord: closeFCRecord, TxProof: &types.TxProof{}}
+
+	t.Run("closeFC confirmed => send reclaimFC using the confirmed closeFC", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       closeFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			CloseFCTx:          closeFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx confirmed on backend
+		*moneyBackendClient = mockMoneyClient{
+			proofs: map[string]*wallet.Proof{string(closeFCRecord.TransactionOrder.UnitID()): closeFCProof},
+		}
+
+		// when fees are reclaimed
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+
+		// then reclaimFC tx must be sent using the confirmed closeFC
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs)
+		require.NotNil(t, res.Proofs.CloseFC)
+		require.NotNil(t, res.Proofs.ReclaimFC)
+
+		sentReclaimFCAttr := &transactions.ReclaimFeeCreditAttributes{}
+		err = res.Proofs.ReclaimFC.TxRecord.TransactionOrder.UnmarshalAttributes(sentReclaimFCAttr)
+		require.NoError(t, err)
+		require.Equal(t, closeFCRecord, sentReclaimFCAttr.CloseFeeCreditTransfer)
+
+		// and fee context must be cleared
+		lockedBill, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, lockedBill)
+	})
+
+	t.Run("closeFC timed out => create new closeFC", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       closeFCRecord.TransactionOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			CloseFCTx:          closeFCRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out and add bill to wallet
+		*moneyBackendClient = mockMoneyClient{
+			fcb:         &wallet.Bill{Value: 1e8, Id: closeFCRecord.TransactionOrder.UnitID(), TxHash: []byte{100}},
+			roundNumber: closeFCRecord.TransactionOrder.Timeout() + 10,
+		}
+
+		// when fees are reclaimed
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs)
+		require.NotNil(t, res.Proofs.CloseFC)
+		require.NotNil(t, res.Proofs.ReclaimFC)
+
+		// then new closeFC must be sent (same id but timeout changed)
+		require.Equal(t, closeFCRecord.TransactionOrder.UnitID(), res.Proofs.CloseFC.TxRecord.TransactionOrder.UnitID())
+		require.Equal(t, moneyBackendClient.roundNumber+10, res.Proofs.CloseFC.TxRecord.TransactionOrder.Timeout())
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+}
+
+/*
+Fee manager contains ReclaimFC ctx, test that fee manager:
+1. waits for confirmation
+2. if confirmed => ok
+3. if partially timed out => create new tx (target bill still usable)
+4. if fully timed out => return money lost error (target bill has been used)
+*/
+func TestReclaimFeeCredit_ExistingReclaimFC(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+	feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
+
+	reclaimFCAttr := testutils.NewReclaimFCAttr(t, signer)
+	reclaimFCOrder := testutils.NewReclaimFC(t, signer, reclaimFCAttr)
+	reclaimFCRecord := &types.TransactionRecord{
+		TransactionOrder: reclaimFCOrder,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	reclaimFCProof := &wallet.Proof{TxRecord: reclaimFCRecord, TxProof: &types.TxProof{}}
+
+	t.Run("reclaimFC confirmed => return proofs", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       reclaimFCOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			CloseFCTx:          reclaimFCAttr.CloseFeeCreditTransfer.TransactionOrder,
+			CloseFCProof:       &wallet.Proof{TxRecord: reclaimFCAttr.CloseFeeCreditTransfer, TxProof: reclaimFCAttr.CloseFeeCreditProof},
+			ReclaimFCTx:        reclaimFCProof.TxRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx confirmed on backend
+		*moneyBackendClient = mockMoneyClient{
+			proofs: map[string]*wallet.Proof{string(reclaimFCOrder.UnitID()): reclaimFCProof},
+		}
+
+		// when fees are reclaimed
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+
+		// then reclaimFC proof must be returned
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs)
+		require.Equal(t, reclaimFCProof, res.Proofs.ReclaimFC)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("reclaimFC timed out => create new reclaimFC", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       reclaimFCOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			CloseFCTx:          reclaimFCAttr.CloseFeeCreditTransfer.TransactionOrder,
+			CloseFCProof:       &wallet.Proof{TxRecord: reclaimFCAttr.CloseFeeCreditTransfer, TxProof: reclaimFCAttr.CloseFeeCreditProof},
+			ReclaimFCTx:        reclaimFCProof.TxRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out and return locked bill
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: reclaimFCOrder.Timeout() + 1,
+			bills:       []*wallet.Bill{{Id: reclaimFCOrder.UnitID(), TxHash: []byte{200}}},
+		}
+
+		// when fees are reclaimed
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.Proofs.ReclaimFC)
+
+		// then new reclaimFC must be sent using the existing closeFC
+		// new reclaimFC has new tx timeout = round number + tx timeout
+		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.Proofs.ReclaimFC.TxRecord.TransactionOrder.Timeout())
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+
+	t.Run("reclaimFC timed out and closeFC no longer usable => return money lost error", func(t *testing.T) {
+		// create fee context
+		err := feeManagerDB.SetReclaimFeeContext(accountKey.PubKey, &ReclaimFeeCreditCtx{
+			TargetPartitionID:  moneySystemID,
+			TargetBillID:       reclaimFCOrder.UnitID(),
+			TargetBillBacklink: []byte{200},
+			CloseFCTx:          reclaimFCAttr.CloseFeeCreditTransfer.TransactionOrder,
+			CloseFCProof:       &wallet.Proof{TxRecord: reclaimFCAttr.CloseFeeCreditTransfer, TxProof: reclaimFCAttr.CloseFeeCreditProof},
+			ReclaimFCTx:        reclaimFCProof.TxRecord.TransactionOrder,
+		})
+		require.NoError(t, err)
+
+		// mock tx timed out and no bills are available
+		*moneyBackendClient = mockMoneyClient{
+			roundNumber: 11,
+		}
+
+		// when fees are reclaimed
+		// then money lost error must be returned
+		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+		require.ErrorContains(t, err, "reclaimFC target bill is no longer usable")
+		require.Nil(t, res)
+
+		// and fee context must be cleared
+		feeCtx, err := feeManagerDB.GetAddFeeContext(accountKey.PubKey)
+		require.NoError(t, err)
+		require.Nil(t, feeCtx)
+	})
+}
+
+func TestLockFeeCredit(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+
+	lockFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewLockFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+
+	t.Run("lockFC => ok", func(t *testing.T) {
+		// fcb exists
+		*moneyBackendClient = mockMoneyClient{
+			fcb: &wallet.Bill{Id: lockFCRecord.TransactionOrder.UnitID()},
+		}
+
+		// when fee credit is successfully locked then lockFC proof should be returned
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.LockFeeCredit(context.Background(), LockFeeCreditCmd{LockStatus: wallet.LockReasonManual})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, transactions.PayloadTypeLockFeeCredit, res.TxRecord.TransactionOrder.PayloadType())
+	})
+
+	t.Run("lockFC => fcb already locked", func(t *testing.T) {
+		// fcb already locked
+		*moneyBackendClient = mockMoneyClient{
+			fcb: &wallet.Bill{Id: lockFCRecord.TransactionOrder.UnitID(), Locked: wallet.LockReasonManual},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.LockFeeCredit(context.Background(), LockFeeCreditCmd{LockStatus: wallet.LockReasonManual})
+		require.ErrorContains(t, err, "fee credit bill is already locked")
+		require.Nil(t, res)
+	})
+}
+
+func TestUnlockFeeCredit(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	feeManagerDB := createFeeManagerDB(t)
+
+	unlockFCRecord := &types.TransactionRecord{
+		TransactionOrder: testutils.NewUnlockFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+
+	t.Run("unlockFC => ok", func(t *testing.T) {
+		// locked fcb exists
+		*moneyBackendClient = mockMoneyClient{
+			fcb: &wallet.Bill{Id: unlockFCRecord.TransactionOrder.UnitID(), Locked: wallet.LockReasonManual},
+		}
+
+		// when fee credit is successfully unlocked then unlockFC proof should be returned
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.UnlockFeeCredit(context.Background(), UnlockFeeCreditCmd{})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, transactions.PayloadTypeUnlockFeeCredit, res.TxRecord.TransactionOrder.PayloadType())
+	})
+
+	t.Run("unlockFC => fcb already unlocked", func(t *testing.T) {
+		// mock fcb already locked
+		*moneyBackendClient = mockMoneyClient{
+			fcb: &wallet.Bill{Id: unlockFCRecord.TransactionOrder.UnitID()},
+		}
+
+		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, feeManagerDB, moneyTxPublisher, moneyBackendClient, logger.New(t))
+		res, err := feeManager.UnlockFeeCredit(context.Background(), UnlockFeeCreditCmd{})
+		require.ErrorContains(t, err, "fee credit bill is already unlocked")
+		require.Nil(t, res)
+	})
+}
+
+func newMoneyPartitionFeeManager(am account.Manager, db FeeManagerDB, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient, log *slog.Logger) *FeeManager {
+	return NewFeeManager(am, db, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, log)
 }
 
 func newAccountManager(t *testing.T) account.Manager {
@@ -894,11 +1186,10 @@ func newAccountManager(t *testing.T) account.Manager {
 	return am
 }
 
-func createUnitLocker(t *testing.T) *unitlock.UnitLocker {
-	dbFile := filepath.Join(t.TempDir(), "unitstore")
-	unitLocker, err := unitlock.NewUnitLocker(dbFile)
+func createFeeManagerDB(t *testing.T) *BoltStore {
+	feeManagerDB, err := NewFeeManagerDB(t.TempDir())
 	require.NoError(t, err)
-	return unitLocker
+	return feeManagerDB
 }
 
 type mockMoneyClient struct {

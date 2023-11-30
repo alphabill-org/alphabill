@@ -44,6 +44,10 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
+func (m *CounterTxSystem) StateStorage() txsystem.UnitAndProof {
+	return state.NewEmptyState().Clone()
+}
+
 func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if m.uncommitted {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
@@ -60,7 +64,7 @@ func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 }
 
 func (m *CounterTxSystem) State() *state.State {
-	return nil
+	return state.NewEmptyState().Clone()
 }
 
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {

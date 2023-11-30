@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -15,7 +14,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -24,13 +25,13 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -49,7 +50,7 @@ type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
 	TrustBase map[string]crypto.Verifier
 	Nodes     []*rootNode
-	log       *slog.Logger
+	obs       testobserve.Factory
 }
 
 type NodePartition struct {
@@ -59,8 +60,7 @@ type NodePartition struct {
 	ctx              context.Context
 	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
-	obs              partition.Observability
-	log              *slog.Logger
+	obs              testobserve.Factory
 }
 
 type partitionNode struct {
@@ -73,6 +73,7 @@ type partitionNode struct {
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
 	AddrGRPC     string
+	proofDB      keyvaluedb.KeyValueDB
 	cancel       context.CancelFunc
 	done         chan error
 }
@@ -99,9 +100,6 @@ func (rn *rootNode) Stop() error {
 	return <-rn.done
 }
 
-type ValidatorIndex int
-
-const ANY_VALIDATOR ValidatorIndex = -1
 const testNetworkTimeout = 600 * time.Millisecond
 
 // getGenesisFiles is a helper function to collect all node genesis files
@@ -208,16 +206,15 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
-		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.log, nil)
+		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.obs.DefaultLogger(), nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}
 	}
 	// start root nodes
-	obs := observability.NOPMetrics()
 	for i, rn := range r.Nodes {
 		rootPeer := rootPeers[i]
-		log := r.log.With(logger.NodeID(rootPeer.ID()))
+		log := r.obs.DefaultLogger().With(logger.NodeID(rootPeer.ID()))
 		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
 		for _, p := range rootPeers {
 			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
@@ -235,11 +232,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, obs, log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, r.obs.DefaultObserver(), log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs, log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, r.obs.DefaultObserver(), log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
@@ -264,8 +261,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
-		obs:          observability.NOPMetrics(),
-		log:          testlogger.New(t),
+		obs:          testobserve.NewFactory(t),
 	}
 	// create peer configurations
 	peerConfs, err := createPeerConfs(nodeCount)
@@ -321,19 +317,14 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		txIndexer, err := boltdb.New(nd.idxFile)
-		if err != nil {
-			return fmt.Errorf("unable to load tx indexer: %w", err)
-		}
-		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
+		nd.proofDB = memorydb.New()
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
-			partition.WithTxIndexer(txIndexer),
+			partition.WithProofIndex(nd.proofDB, 0),
 		)
-
 		if err = n.startNode(ctx, nd); err != nil {
 			return err
 		}
@@ -350,7 +341,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 }
 
 func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error {
-	log := n.log.With(logger.NodeID(pn.peerConf.ID))
+	log := n.obs.DefaultLogger().With(logger.NodeID(pn.peerConf.ID))
 	node, err := partition.NewNode(
 		ctx,
 		pn.peerConf,
@@ -358,8 +349,7 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error 
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
 		nil,
-		n.obs,
-		log,
+		observability.WithLogger(n.obs.DefaultObserver(), log),
 		pn.confOpts...,
 	)
 	if err != nil {
@@ -423,7 +413,7 @@ func getBootstrapNodes(t *testing.T, root *RootPartition) []peer.AddrInfo {
 }
 
 func (a *AlphabillNetwork) Start(t *testing.T) error {
-	a.RootPartition.log = testlogger.New(t)
+	a.RootPartition.obs = testobserve.NewFactory(t)
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {
@@ -493,6 +483,15 @@ func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartitio
 	return part, nil
 }
 
+func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.UnicityCertificateValidator, error) {
+	id, _ := sysID.Id32()
+	part, f := a.NodePartitions[id]
+	if !f {
+		return nil, fmt.Errorf("unknown partition %X", sysID)
+	}
+	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, gocrypto.SHA256)
+}
+
 // BroadcastTx sends transactions to all nodes.
 func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 	for _, n := range n.Nodes {
@@ -535,26 +534,19 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
-// WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
-// when tx has been executed and added to block
-// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
-func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+// WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
+// the UC. Returns both transaction record and proof when tx has been executed and added to block
+func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
 	t.Helper()
 	var (
 		txRecord *types.TransactionRecord
 		txProof  *types.TxProof
 	)
-	var nodes []*partitionNode
-	if idx == ANY_VALIDATOR {
-		nodes = part.Nodes
-	} else {
-		nodes = append(nodes, part.Nodes[idx])
-	}
 	txHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
-		for _, n := range nodes {
+		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
-			if err != nil || proof == nil {
+			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
 			}
 			txRecord = txRec
@@ -566,6 +558,28 @@ func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder 
 		return txRecord, txProof, nil
 	}
 	return nil, nil, fmt.Errorf("failed to confirm tx")
+}
+
+func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
+	t.Helper()
+	var (
+		unitProof *types.UnitDataAndProof
+	)
+	txOrderHash := txOrder.Hash(gocrypto.SHA256)
+	if ok := eventually(func() bool {
+		for _, n := range part.Nodes {
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
+			if err != nil {
+				continue
+			}
+			unitProof = unitDataAndProof
+			return true
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick); ok {
+		return unitProof, nil
+	}
+	return nil, fmt.Errorf("failed to confirm tx")
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.

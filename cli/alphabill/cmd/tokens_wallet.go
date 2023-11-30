@@ -197,7 +197,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%s", result.TokenTypeID))
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return nil
 }
@@ -284,7 +284,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%s", result.TokenTypeID))
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return nil
 }
@@ -351,7 +351,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 	// convert amount from string to uint64
-	amount, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	amount, err := util.StringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 
 	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%s", result.TokenID))
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return nil
 }
@@ -457,7 +457,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 
 	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%s", result.TokenID))
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return nil
 }
@@ -555,7 +555,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	// convert amount from string to uint64
-	targetValue, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	targetValue, err := util.StringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {
 		return err
 	}
@@ -567,7 +567,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return err
 }
@@ -625,7 +625,7 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return err
 }
@@ -680,7 +680,7 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig, accountNumber *uin
 	}
 	for _, result := range results {
 		if result.FeeSum > 0 {
-			consoleWriter.Println(fmt.Sprintf("Paid %s fees for dust collection on Account number %d.", amountToString(result.FeeSum, 8), result.AccountNumber))
+			consoleWriter.Println(fmt.Sprintf("Paid %s fees for dust collection on Account number %d.", util.AmountToString(result.FeeSum, 8), result.AccountNumber))
 		}
 	}
 	return err
@@ -736,7 +736,7 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	if result.FeeSum > 0 {
-		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
 	}
 	return err
 }
@@ -870,7 +870,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 			kind := fmt.Sprintf(" (%v)", tok.Kind)
 
 			if tok.Kind == backend.Fungible {
-				amount := amountToString(tok.Amount, tok.Decimals)
+				amount := util.AmountToString(tok.Amount, tok.Decimals)
 				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', amount='%v', token-type='%s'",
 					tok.ID, tok.Symbol, amount, tok.TypeID) + typeName + kind)
 			} else {
@@ -955,7 +955,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil, config.Base.Logger)
+	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil, config.Base.observe, config.Base.observe.Logger())
 	if err != nil {
 		return nil, err
 	}

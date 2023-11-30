@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -24,9 +25,10 @@ const (
 	pathTransactions         = "/transactions"
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
+	pathUnits                = "/units/{unitID}"
 )
 
-func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) RegistrarFunc {
+func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability, log *slog.Logger) RegistrarFunc {
 	return func(r *mux.Router) {
 		// submit transaction
 		r.HandleFunc(pathTransactions, submitTransaction(node, obs.Meter(metricsScopeRESTAPI), log)).Methods(http.MethodPost, http.MethodOptions)
@@ -35,7 +37,11 @@ func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) Regi
 		r.HandleFunc(pathGetTransactionRecord, getTransactionRecord(node, log)).Methods(http.MethodGet, http.MethodOptions)
 
 		// get latest round number
-		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log))
+		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log)).Methods(http.MethodGet, http.MethodOptions)
+
+		// get unit data and proof
+		r.HandleFunc(pathUnits, getUnit(node, unitProofDB, log)).Methods(http.MethodGet, http.MethodOptions)
+		// Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}") - fields are not mandatory
 	}
 }
 
@@ -99,12 +105,10 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 		}
 		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
+			if errors.Is(err, partition.ErrIndexNotFound) {
+				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+			}
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
-			return
-		}
-
-		if txRecord == nil {
-			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			return
 		}
 

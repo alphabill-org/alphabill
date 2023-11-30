@@ -73,6 +73,16 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
+	blockStore, err := initStore(cfg.Node.DbFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
+	proofStore, err := initStore(cfg.Node.TxIndexerDBFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize proof DB: %w", err)
+	}
+
 	txs, err := tokens.NewTxSystem(
 		log,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
@@ -82,9 +92,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, nil, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, obs)
+	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
 }

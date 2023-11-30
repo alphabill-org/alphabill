@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -71,6 +73,7 @@ type partitionNode struct {
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
 	AddrGRPC     string
+	proofDB      keyvaluedb.KeyValueDB
 	cancel       context.CancelFunc
 	done         chan error
 }
@@ -97,9 +100,6 @@ func (rn *rootNode) Stop() error {
 	return <-rn.done
 }
 
-type ValidatorIndex int
-
-const ANY_VALIDATOR ValidatorIndex = -1
 const testNetworkTimeout = 600 * time.Millisecond
 
 // getGenesisFiles is a helper function to collect all node genesis files
@@ -317,19 +317,14 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		txIndexer, err := boltdb.New(nd.idxFile)
-		if err != nil {
-			return fmt.Errorf("unable to load tx indexer: %w", err)
-		}
-		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
+		nd.proofDB = memorydb.New()
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
-			partition.WithTxIndexer(txIndexer),
+			partition.WithProofIndex(nd.proofDB, 0),
 		)
-
 		if err = n.startNode(ctx, nd); err != nil {
 			return err
 		}
@@ -488,6 +483,15 @@ func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartitio
 	return part, nil
 }
 
+func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.UnicityCertificateValidator, error) {
+	id, _ := sysID.Id32()
+	part, f := a.NodePartitions[id]
+	if !f {
+		return nil, fmt.Errorf("unknown partition %X", sysID)
+	}
+	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, gocrypto.SHA256)
+}
+
 // BroadcastTx sends transactions to all nodes.
 func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 	for _, n := range n.Nodes {
@@ -530,26 +534,19 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
-// WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
-// when tx has been executed and added to block
-// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
-func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+// WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
+// the UC. Returns both transaction record and proof when tx has been executed and added to block
+func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
 	t.Helper()
 	var (
 		txRecord *types.TransactionRecord
 		txProof  *types.TxProof
 	)
-	var nodes []*partitionNode
-	if idx == ANY_VALIDATOR {
-		nodes = part.Nodes
-	} else {
-		nodes = append(nodes, part.Nodes[idx])
-	}
 	txHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
-		for _, n := range nodes {
+		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
-			if err != nil || proof == nil {
+			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
 			}
 			txRecord = txRec
@@ -561,6 +558,28 @@ func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder 
 		return txRecord, txProof, nil
 	}
 	return nil, nil, fmt.Errorf("failed to confirm tx")
+}
+
+func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
+	t.Helper()
+	var (
+		unitProof *types.UnitDataAndProof
+	)
+	txOrderHash := txOrder.Hash(gocrypto.SHA256)
+	if ok := eventually(func() bool {
+		for _, n := range part.Nodes {
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
+			if err != nil {
+				continue
+			}
+			unitProof = unitDataAndProof
+			return true
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick); ok {
+		return unitProof, nil
+	}
+	return nil, fmt.Errorf("failed to confirm tx")
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.

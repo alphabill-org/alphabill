@@ -196,6 +196,7 @@ func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
+	initialValue := initialBill.Value
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	unitID := initialBill.ID
@@ -208,18 +209,25 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transferFC
 	require.NoError(t, moneyPart.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
-
+	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBill.ID, transferFC)
+	require.NoError(t, err)
+	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, unitState.UnitData, ucValidator))
+	var bill money.BillData
+	require.NoError(t, unitState.UnmarshalUnitData(&bill))
+	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 
 	// send addFC
 	require.NoError(t, moneyPart.SubmitTx(addFC))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, addFC)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, addFC)
 	require.NoError(t, err, "add fee credit tx failed")
 
 	// create transfer tx
@@ -229,7 +237,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transfer tx
 	require.NoError(t, moneyPart.SubmitTx(tx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, tx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, tx)
 	require.NoError(t, err, "transfer tx failed")
 	return remainingValue
 }

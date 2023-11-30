@@ -29,7 +29,7 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 	require.NoError(t, err)
 	require.NoError(t, moneyPartition.SubmitTx(transferFC))
 
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPartition, testpartition.ANY_VALIDATOR, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPartition, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// send addFC
 	addFC := NewAddFC(t, network.RootPartition.Nodes[0].RootSigner,

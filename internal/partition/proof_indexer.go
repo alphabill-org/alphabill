@@ -162,12 +162,13 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	if err = dbTx.Write(keyLatestRoundNumber, roundNumber); err != nil {
 		return fmt.Errorf("round number update failed: %w", err)
 	}
-
 	// write delete index
-	if err = dbTx.Write(util.Uint64ToBytes(roundNumber), history); err != nil {
-		return fmt.Errorf("history index write failed: %w", err)
+	// only add if there were any transactions
+	if len(block.Transactions) > 0 {
+		if err = dbTx.Write(util.Uint64ToBytes(roundNumber), history); err != nil {
+			return fmt.Errorf("history index write failed: %w", err)
+		}
 	}
-
 	return nil
 }
 

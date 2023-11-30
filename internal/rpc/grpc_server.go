@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -35,6 +36,7 @@ type (
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
+		WriteStateFile(writer io.Writer) error
 	}
 )
 

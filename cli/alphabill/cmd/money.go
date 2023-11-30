@@ -73,6 +73,12 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Value: params.InitialBillValue,
 		Owner: templates.AlwaysTrueBytes(),
 	}
+
+	state, err := loadStateFile(cfg.Node.StateFile, money.NewUnitData)
+	if err != nil {
+		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
+	}
+
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
@@ -95,6 +101,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
+		money.WithState(state),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
 		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
 		money.WithTrustBase(trustBase),

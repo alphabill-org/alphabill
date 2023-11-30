@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -71,6 +72,10 @@ func (mn *MockNode) SystemIdentifier() []byte {
 }
 
 func (mn *MockNode) GetPeer() *network.Peer {
+	return nil
+}
+
+func (mn *MockNode) WriteStateFile(writer io.Writer) error {
 	return nil
 }
 

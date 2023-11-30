@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -28,6 +29,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -43,6 +45,7 @@ type baseNodeConfiguration struct {
 type startNodeConfiguration struct {
 	Address                    string
 	Genesis                    string
+	StateFile                  string
 	KeyFile                    string
 	DbFile                     string
 	TxIndexerDBFile            string
@@ -269,10 +272,34 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 	return pg, nil
 }
 
+func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, error) {
+	if stateFilePath == "" {
+		return state.NewEmptyState(), nil
+	}
+
+	if !util.FileExists(stateFilePath) {
+		return nil, fmt.Errorf("state file %s not found", stateFilePath)
+	}
+
+	reader, err := os.Open(stateFilePath)
+	if err != nil {
+		return nil, err
+	}
+	state, err := state.New(
+		state.WithReader(reader),
+		state.WithUnitDataConstructor(unitDataConstructor),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
 	nodeCmd.Flags().StringVarP(&config.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
+	nodeCmd.Flags().StringVarP(&config.StateFile, "state", "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/state.cbor)", partitionSuffix))
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")

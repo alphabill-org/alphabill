@@ -44,6 +44,18 @@ type (
 	IntKey int
 )
 
+func NewBalancedNode[K Key[K], V Value[V]](key K, value V, left *Node[K, V], right *Node[K, V]) *Node[K, V] {
+	node := &Node[K, V]{
+		key:   key,
+		value: value,
+		left:  left,
+		right: right,
+		clean: false,
+	}
+	node.depth = calculateDepth(node)
+	return node
+}
+
 // newLeaf returns a new leaf node with given key and value. The new leaf is marked as dirty to enable destructive
 // updates.
 func newLeaf[K Key[K], V Value[V]](key K, value V) *Node[K, V] {

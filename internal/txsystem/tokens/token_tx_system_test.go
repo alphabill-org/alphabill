@@ -78,7 +78,7 @@ func TestExecuteCreateNFTType_WithoutParentID(t *testing.T) {
 	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := txs.GetState().GetUnit(nftTypeID1, false)
+	u, err := txs.State().GetUnit(nftTypeID1, false)
 	require.NoError(t, err)
 	require.IsType(t, &NonFungibleTokenTypeData{}, u.Data())
 	d := u.Data().(*NonFungibleTokenTypeData)
@@ -343,7 +343,7 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	require.NoError(t, txs.GetState().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
+	require.NoError(t, txs.State().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
@@ -403,7 +403,7 @@ func TestRevertTransaction_Ok(t *testing.T) {
 	require.NoError(t, err)
 	txs.Revert()
 
-	_, err = txs.GetState().GetUnit(nftTypeID1, false)
+	_, err = txs.State().GetUnit(nftTypeID1, false)
 	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", nftTypeID1))
 }
 
@@ -521,7 +521,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	_, err = txs.Execute(tx)
 	require.NoError(t, err)
 
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	txHash := tx.Hash(gocrypto.SHA256)
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
@@ -968,7 +968,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
 	d := u.Data().(*NonFungibleTokenData)
@@ -1006,7 +1006,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
 	require.EqualValues(t, templates.AlwaysFalseBytes(), []byte(u.Bearer()))
@@ -1058,7 +1058,7 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify unit was locked
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	tokenData := u.Data().(*NonFungibleTokenData)
 	require.EqualValues(t, 1, tokenData.Locked)
@@ -1187,7 +1187,7 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify unit was locked
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	tokenData := u.Data().(*NonFungibleTokenData)
 	require.EqualValues(t, 1, tokenData.Locked)
@@ -1298,7 +1298,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
 	d := u.Data().(*NonFungibleTokenData)
@@ -1316,7 +1316,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 // Test LockFC -> UnlockFC
 func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	s := txs.GetState()
+	s := txs.State()
 
 	err := txs.BeginBlock(1)
 	require.NoError(t, err)

@@ -79,22 +79,18 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 	return txs, nil
 }
 
-func (m *GenericTxSystem) GetState() *state.State {
+func (m *GenericTxSystem) State() *state.State {
 	return m.state
 }
 
-func (m *GenericTxSystem) CurrentBlockNumber() uint64 {
-	return m.currentBlockNumber
-}
-
-func (m *GenericTxSystem) StateSummary() (State, error) {
+func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, ErrStateContainsUncommittedChanges
 	}
-	return m.getState()
+	return m.getStateSummary()
 }
 
-func (m *GenericTxSystem) getState() (State, error) {
+func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
@@ -185,13 +181,13 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) EndBlock() (State, error) {
+func (m *GenericTxSystem) EndBlock() (StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
-	return m.getState()
+	return m.getStateSummary()
 }
 
 func (m *GenericTxSystem) Revert() {

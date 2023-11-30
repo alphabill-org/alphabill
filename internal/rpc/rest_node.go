@@ -24,6 +24,7 @@ const (
 	pathTransactions         = "/transactions"
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
+	pathState                = "/state"
 )
 
 func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) RegistrarFunc {
@@ -36,6 +37,9 @@ func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) Regi
 
 		// get latest round number
 		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log))
+
+		// get the state file
+		r.HandleFunc(pathState, getState(node, log))
 	}
 }
 
@@ -127,5 +131,16 @@ func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc
 			return
 		}
 		util.WriteCBORResponse(w, nr, http.StatusOK, log)
+	}
+}
+
+func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/cbor")
+		w.WriteHeader(http.StatusOK)
+		err := node.WriteStateFile(w);
+		if err != nil {
+			log.Error("writing state file", logger.Error(err))
+		}
 	}
 }

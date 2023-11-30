@@ -5,12 +5,15 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -26,6 +29,7 @@ type (
 		mutex                    sync.RWMutex
 		hashAlgorithm            crypto.Hash
 		committedTree            *avl.Tree[types.UnitID, *Unit]
+		committedTreeUC          *types.UnicityCertificate
 		committedTreeBlockNumber uint64
 		savepoints               []*savepoint
 	}
@@ -33,6 +37,11 @@ type (
 	// savepoint is a special marker that allows all actions that are executed after savepoint was established to
 	// be rolled back, restoring the state to what it was at the time of the savepoint.
 	savepoint = avl.Tree[types.UnitID, *Unit]
+
+	Node = avl.Node[types.UnitID, *Unit]
+
+	// UnitDataConstructor is a function that constructs an empty UnitData structure based on UnitID
+	UnitDataConstructor func(types.UnitID) (UnitData, error)
 )
 
 func NewEmptyState() *State {
@@ -42,7 +51,24 @@ func NewEmptyState() *State {
 // New creates a new state with given options.
 func New(opts ...Option) (*State, error) {
 	options := loadOptions(opts...)
-	s := newEmptySate(options)
+
+	var s *State
+	if options.reader != nil {
+		recoveredState, err := newRecoveredState(options)
+		if err != nil {
+			return nil, err
+		}
+		if _, _, err := recoveredState.CalculateRoot(); err != nil {
+			return nil, err
+		}
+		if err := recoveredState.Commit(); err != nil {
+			return nil, err
+		}
+		s = recoveredState
+	} else {
+		s = newEmptySate(options)
+	}
+
 	if len(options.actions) > 0 {
 		if err := s.Apply(options.actions...); err != nil {
 			return nil, err
@@ -68,6 +94,81 @@ func newEmptySate(options *Options) *State {
 	}
 }
 
+func newRecoveredState(options *Options) (*State, error) {
+	if options.unitDataConstructor == nil {
+		return nil, fmt.Errorf("missing unit data construct")
+	}
+
+	crc32Reader := NewCRC32Reader(options.reader)
+	decoder := cbor.NewDecoder(crc32Reader)
+
+	var header StateFileHeader
+	err := decoder.Decode(&header)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode header: %w", err)
+	}
+
+	var nodeStack util.Stack[*Node]
+	for i := uint64(0); i < header.NodeRecordCount; i++ {
+		var nodeRecord nodeRecord
+		err := decoder.Decode(&nodeRecord)
+		if err != nil {
+			return nil, fmt.Errorf("unable to decode node record: %w", err)
+		}
+
+		unitData, err := options.unitDataConstructor(nodeRecord.UnitID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to construct unit data: %w", err)
+		}
+
+		err = cbor.Unmarshal(nodeRecord.UnitData, &unitData)
+		if err != nil {
+			return nil, fmt.Errorf("unable to decode unit data: %w", err)
+		}
+
+		unitLogs := []*log{{
+			unitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
+			newBearer:          nodeRecord.OwnerCondition,
+			newUnitData:        unitData,
+		}}
+		unit := &Unit{logs: unitLogs}
+
+		var left, right *Node
+		if nodeRecord.HasLeft {
+			left = nodeStack.Pop()
+		}
+		if nodeRecord.HasRight {
+			right = nodeStack.Pop()
+		}
+
+		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, unit, left, right))
+	}
+
+	root := nodeStack.Pop()
+	if !nodeStack.IsEmpty() {
+		return nil, fmt.Errorf("%d unexpected node record(s)", len(nodeStack))
+	}
+
+	var checksum []byte
+	if err = decoder.Decode(&checksum); err != nil {
+		return nil, fmt.Errorf("unable to decode checksum: %w", err)
+	}
+	if util.BytesToUint32(checksum) != crc32Reader.Sum() {
+		return nil, fmt.Errorf("checksum mismatch")
+	}
+
+	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
+	tree := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
+
+	return &State{
+		hashAlgorithm:            options.hashAlgorithm,
+		savepoints:               []*savepoint{tree},
+		committedTreeUC:          header.UnicityCertificate,
+		// The following Commit() increases committedTreeBlockNumber by one
+		committedTreeBlockNumber: header.UnicityCertificate.GetRoundNumber()-1,
+	}, nil
+}
+
 // Clone returns a clone of the state. The original state and the cloned state can be used by different goroutines but
 // can never be merged. The cloned state is usually used by read only operations (e.g. unit proof generation).
 func (s *State) Clone() *State {
@@ -76,6 +177,7 @@ func (s *State) Clone() *State {
 	return &State{
 		hashAlgorithm:            s.hashAlgorithm,
 		committedTree:            s.committedTree.Clone(),
+		committedTreeUC:          s.committedTreeUC,
 		savepoints:               []*savepoint{s.committedTree.Clone()},
 		committedTreeBlockNumber: s.committedTreeBlockNumber,
 	}
@@ -88,6 +190,13 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 		return s.committedTree.Get(id)
 	}
 	return s.latestSavepoint().Get(id)
+}
+
+func (s *State) GetCommittedTreeUC() *types.UnicityCertificate {
+	if s != nil {
+		return s.committedTreeUC
+	}
+	return nil
 }
 
 func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, error) {
@@ -229,6 +338,36 @@ func (s *State) PruneLog(id types.UnitID) error {
 		newUnitData:        copyData(unit.Data()),
 	}}
 	return s.latestSavepoint().Update(id, unit)
+}
+
+// WriteStateFile writes the current committed state to the given writer.
+// Not concurrency safe. Should clone the state before calling this.
+func (s *State) WriteStateFile(writer io.Writer, header *StateFileHeader) error {
+	crc32Writer := NewCRC32Writer(writer)
+	encoder := cbor.NewEncoder(crc32Writer)
+
+	// Add node record count to header
+	snc := NewStateNodeCounter()
+	s.committedTree.Traverse(snc)
+	header.NodeRecordCount = snc.GetNodeCount()
+
+	// Write header
+	if err := encoder.Encode(header); err != nil {
+		return fmt.Errorf("unable to write header: %w", err)
+	}
+
+	// Write node records
+	ss := NewStateSerializer(encoder)
+	if s.committedTree.Traverse(ss); ss.err != nil {
+		return fmt.Errorf("unable to write node records: %w", ss.err)
+	}
+
+	// Write checksum (as a fixed length byte array for easier decoding)
+	if err := encoder.Encode(util.Uint32ToBytes(crc32Writer.Sum())); err != nil {
+		return fmt.Errorf("unable to write checksum: %w", err)
+	}
+
+	return nil
 }
 
 func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*UnitStateProof, error) {
@@ -381,28 +520,28 @@ func (s *State) latestSavepoint() *savepoint {
 	return s.savepoints[l-1]
 }
 
-func getSubTreeLogRootHash(n *avl.Node[types.UnitID, *Unit]) []byte {
+func getSubTreeLogRootHash(n *Node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
 	return n.Value().logRoot
 }
 
-func getSubTreeSummaryValue(n *avl.Node[types.UnitID, *Unit]) uint64 {
+func getSubTreeSummaryValue(n *Node) uint64 {
 	if n == nil || n.Value() == nil {
 		return 0
 	}
 	return n.Value().subTreeSummaryValue
 }
 
-func getSummaryValueInput(node *avl.Node[types.UnitID, *Unit]) uint64 {
+func getSummaryValueInput(node *Node) uint64 {
 	if node == nil || node.Value() == nil || node.Value().data == nil {
 		return 0
 	}
 	return node.Value().data.SummaryValueInput()
 }
 
-func getSubTreeSummaryHash(node *avl.Node[types.UnitID, *Unit]) []byte {
+func getSubTreeSummaryHash(node *Node) []byte {
 	if node == nil || node.Value() == nil {
 		return nil
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -270,6 +272,14 @@ func (n *Node) GetPeer() *network.Peer {
 func (n *Node) initState(ctx context.Context) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state", n.log)
 
+	uc := n.transactionSystem.State().GetCommittedTreeUC()
+	if uc != nil {
+		// TODO: n.lastStoredBlock remains nil, node starts recovery immediately.
+		// Should not attempt to recover blocks before this uc?
+		n.luc.Store(uc)
+		return nil
+	}
+
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	empty, err := keyvaluedb.IsEmpty(n.blockStore)
@@ -301,7 +311,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 			return fmt.Errorf("invalid blockchain (previous block %v hash='%X', current block %v backlink='%X')",
 				prevBlock.GetRoundNumber(), prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.GetRoundNumber(), bl.Header.PreviousBlockHash)
 		}
-		var state txsystem.State
+		var state txsystem.StateSummary
 		var sumOfEarnedFees uint64
 		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
@@ -374,7 +384,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 }
 
-func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
+func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
 	if ucIR == nil {
 		return errors.New("unicity certificate input record is nil")
 	}
@@ -388,7 +398,7 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 	return nil
 }
 
-func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
+func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, uint64, error) {
 	var sumOfEarnedFees uint64
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
@@ -1067,7 +1077,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 		n.log.DebugContext(ctx, fmt.Sprintf("Recovering block from round %d", recoveringRoundNo))
 		// make sure it extends current state
-		var state txsystem.State
+		var state txsystem.StateSummary
 		state, err = n.transactionSystem.StateSummary()
 		if err != nil {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("error reading current state, %w", err))
@@ -1274,7 +1284,7 @@ It's part of the public API exposed by node.
 */
 func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 	if status := n.status.Load(); status != normal {
-		return nil, fmt.Errorf("node is in invalid status: %s", status)
+		return nil, fmt.Errorf("node not ready: %s", status)
 	}
 
 	// could just return n.lastStoredBlock but then we'd have to make that field concurrency safe?
@@ -1327,9 +1337,25 @@ It's part of the public API exposed by node.
 */
 func (n *Node) GetLatestRoundNumber() (uint64, error) {
 	if status := n.status.Load(); status != normal {
-		return 0, fmt.Errorf("node is in invalid status: %s", status)
+		return 0, fmt.Errorf("node not ready: %s", status)
 	}
 	return n.luc.Load().GetRoundNumber(), nil
+}
+
+func (n *Node) WriteStateFile(writer io.Writer) error {
+	if status := n.status.Load(); status != normal {
+		return fmt.Errorf("node not ready: %s", status)
+	}
+
+	// TODO: luc should be for the committed state that is being
+	// written - currently it's a race. They can get out of
+	// sync. Probably need to store luc in state.State with each
+	// commit.
+	header := &state.StateFileHeader{
+		SystemIdentifier: n.SystemIdentifier(),
+		UnicityCertificate: n.luc.Load(),
+	}
+	return n.transactionSystem.State().Clone().WriteStateFile(writer, header)
 }
 
 func (n *Node) SystemIdentifier() []byte {

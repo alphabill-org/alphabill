@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -141,8 +142,8 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Content-Type", "application/cbor")
 		w.WriteHeader(http.StatusOK)
-		err := node.WriteStateFile(w);
-		if err != nil {
+
+		if err := node.WriteStateFile(w); err != nil {
 			log.Error("writing state file", logger.Error(err))
 		}
 	}

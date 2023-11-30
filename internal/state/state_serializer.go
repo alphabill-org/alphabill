@@ -54,7 +54,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 	logSize := len(n.Value().logs)
 	var stateHash []byte
 	if logSize > 0 {
-		stateHash = n.Value().logs[logSize-1].unitLedgerHeadHash
+		stateHash = n.Value().logs[logSize-1].UnitLedgerHeadHash
 	}
 
 	unitDataBytes, err := cbor.Marshal(n.Value().Data())

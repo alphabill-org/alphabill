@@ -126,10 +126,10 @@ func newRecoveredState(options *Options) (*State, error) {
 			return nil, fmt.Errorf("unable to decode unit data: %w", err)
 		}
 
-		unitLogs := []*log{{
-			unitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
-			newBearer:          nodeRecord.OwnerCondition,
-			newUnitData:        unitData,
+		unitLogs := []*Log{{
+			UnitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
+			NewBearer:          nodeRecord.OwnerCondition,
+			NewUnitData:        unitData,
 		}}
 		unit := &Unit{logs: unitLogs}
 

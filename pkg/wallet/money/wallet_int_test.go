@@ -45,11 +45,21 @@ var (
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	log := logger.New(t)
+
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = CreateNewWallet(am, "")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
 	// start server
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: templates.AlwaysTrueBytes(),
+		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
 	}
 	abNet := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
@@ -74,7 +84,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: templates.AlwaysTrueBytes(),
+					Predicate: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
 				},
 				SystemDescriptionRecords: createSDRs(),
 				Logger:                   log,
@@ -83,11 +93,6 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	}()
 
 	// setup wallet
-	dir := t.TempDir()
-	am, err := account.NewManager(dir, "", true)
-	require.NoError(t, err)
-	err = CreateNewWallet(am, "")
-	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
@@ -96,17 +101,15 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	w, err := LoadExistingWallet(am, unitLocker, restClient, log)
 	require.NoError(t, err)
 	defer w.Close()
-	pubKeys, err := am.GetPublicKeys()
-	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, accKey.PrivKey, accKey.PubKey, abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
@@ -160,11 +163,21 @@ wallet account 2 and 3 should have only single bill
 */
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	log := logger.New(t)
-	// start network
+
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = CreateNewWallet(am, "")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
+	// start server
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: templates.AlwaysTrueBytes(),
+		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
@@ -195,11 +208,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	}()
 
 	// setup wallet with multiple keys
-	dir := t.TempDir()
-	am, err := account.NewManager(dir, "", true)
-	require.NoError(t, err)
-	err = CreateNewWallet(am, "")
-	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
@@ -216,14 +224,14 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, accKey.PrivKey, accKey.PubKey, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
@@ -275,11 +283,20 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	log := logger.New(t)
-	// start network
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = CreateNewWallet(am, "")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
+	// start server
 	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
-		Owner: templates.AlwaysTrueBytes(),
+		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
 	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
@@ -310,11 +327,6 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	}()
 
 	// setup wallet with multiple keys
-	dir := t.TempDir()
-	am, err := account.NewManager(dir, "", true)
-	require.NoError(t, err)
-	err = CreateNewWallet(am, "")
-	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
@@ -332,13 +344,13 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, accKey.PrivKey, accKey.PubKey, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),

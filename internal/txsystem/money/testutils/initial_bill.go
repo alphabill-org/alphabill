@@ -1,16 +1,21 @@
 package testutils
 
 import (
-	"github.com/alphabill-org/alphabill/internal/hash"
+	"testing"
+
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
-func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
+func CreateInitialBillTransferTx(t *testing.T, accountKey *account.AccountKey, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &moneytx.TransferAttributes{
-		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
+		NewBearer:   templates.NewP2pkh256BytesFromKey(accountKey.PubKey),
 		TargetValue: billValue,
 		Backlink:    backlink,
 	}
@@ -18,7 +23,7 @@ func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, bill
 	if err != nil {
 		return nil, err
 	}
-	return &types.TransactionOrder{
+	txo := &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:   []byte{0, 0, 0, 0},
 			Type:       moneytx.PayloadTypeTransfer,
@@ -30,6 +35,11 @@ func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, bill
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: nil,
-	}, nil
+	}
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(accountKey.PrivKey)
+	sigBytes, err := txo.PayloadBytes()
+	require.NoError(t, err)
+	sigData, _ := signer.SignBytes(sigBytes)
+	txo.OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accountKey.PubKey)
+	return txo, nil
 }

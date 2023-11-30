@@ -15,6 +15,9 @@ import (
 	"testing"
 	"time"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+
 	"github.com/ainvaltin/httpsrv"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -140,6 +143,15 @@ func Test_txHistory(t *testing.T) {
 	walletService := newWalletBackend(t)
 	port, api := startServer(t, walletService)
 
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = am.CreateKeys("")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
 	makePostTxRequest := func(owner sdk.PubKey, body []byte) *http.Response {
 		req := httptest.NewRequest("POST", fmt.Sprintf("http://localhost:%d/api/v1/transactions/0x%x", port, owner), bytes.NewReader(body))
 		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(owner)})
@@ -156,18 +168,23 @@ func Test_txHistory(t *testing.T) {
 		return w.Result()
 	}
 
-	pubkey := sdk.PubKey(test.RandomBytes(33))
 	pubkey2 := sdk.PubKey(test.RandomBytes(33))
 	bearerPredicate := templates.NewP2pkh256BytesFromKeyHash(pubkey2.Hash())
 	attrs := &money.TransferAttributes{NewBearer: bearerPredicate}
-	b, err := cbor.Marshal(sdk.Transactions{Transactions: []*types.TransactionOrder{
+	txs := sdk.Transactions{Transactions: []*types.TransactionOrder{
 		testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},
-	})
+	}
+	txBytes, err := txs.Transactions[0].PayloadBytes()
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(accKey.PrivKey)
 	require.NoError(t, err)
-	resp := makePostTxRequest(pubkey, b)
+	sigData, _ := signer.SignBytes(txBytes)
+	txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
+
+	b, err := cbor.Marshal(txs)
+	resp := makePostTxRequest(accKey.PubKey, b)
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
 
-	txHistResp := makeTxHistoryRequest(pubkey)
+	txHistResp := makeTxHistoryRequest(accKey.PubKey)
 	require.Equal(t, http.StatusOK, txHistResp.StatusCode)
 
 	buf, err := io.ReadAll(txHistResp.Body)
@@ -525,15 +542,68 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port, _ := startServer(t, walletBackend)
 
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = am.CreateKeys("")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
 	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
 		testtransaction.NewTransactionOrder(t),
 		testtransaction.NewTransactionOrder(t),
 		testtransaction.NewTransactionOrder(t),
 	}}
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(accKey.PrivKey)
+	txBytes1, _ := txs.Transactions[0].PayloadBytes()
+	sigData, _ := signer.SignBytes(txBytes1)
+	txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
+	txBytes2, _ := txs.Transactions[1].PayloadBytes()
+	sigData, _ = signer.SignBytes(txBytes2)
+	txs.Transactions[1].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
+	txBytes3, _ := txs.Transactions[2].PayloadBytes()
+	sigData, _ = signer.SignBytes(txBytes3)
+	txs.Transactions[2].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
 
-	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, hexutil.Encode(accKey.PubKey)), txs, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
+}
+
+func TestPostTransactionsRequest_InvalidOwner(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port, _ := startServer(t, walletBackend)
+
+	// setup account
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	err = am.CreateKeys("")
+	require.NoError(t, err)
+	accKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+	}}
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(accKey.PrivKey)
+	txBytes1, _ := txs.Transactions[0].PayloadBytes()
+	sigData, _ := signer.SignBytes(txBytes1)
+	txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
+	txBytes2, _ := txs.Transactions[1].PayloadBytes()
+	sigData, _ = signer.SignBytes(txBytes2)
+	txs.Transactions[1].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accKey.PubKey)
+	txBytes3, _ := txs.Transactions[2].PayloadBytes()
+	sigData, _ = signer.SignBytes(txBytes3)
+	txs.Transactions[2].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, test.RandomBytes(33))
+
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, hexutil.Encode(accKey.PubKey)), txs, nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }
 
 func TestInfoRequest_Ok(t *testing.T) {

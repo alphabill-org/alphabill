@@ -32,10 +32,19 @@ Test scenario 2.1: wallet-1 account 2 sends one transaction to wallet-1 account 
 Test scenario 3: wallet-1 sends tx without confirming
 */
 func TestSendingMoneyUsingWallets_integration(t *testing.T) {
+	// create 2 wallets
+	am1, homedir1 := createNewWallet(t)
+	w1AccKey, _ := am1.GetAccountKey(0)
+	am1.Close()
+
+	am2, homedir2 := createNewWallet(t)
+	w2PubKey, _ := am2.GetPublicKey(0)
+	am2.Close()
+
 	initialBill := &moneytx.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: templates.AlwaysTrueBytes(),
+		Owner: templates.NewP2pkh256BytesFromKey(w1AccKey.PubKey),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	logF := logger.LoggerBuilder(t)
@@ -45,22 +54,13 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// start wallet backend
 	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, initialBill)
 
-	// create 2 wallets
-	am1, homedir1 := createNewWallet(t)
-	w1PubKey, _ := am1.GetPublicKey(0)
-	am1.Close()
-
-	am2, homedir2 := createNewWallet(t)
-	w2PubKey, _ := am2.GetPublicKey(0)
-	am2.Close()
-
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, w1AccKey.PrivKey, w1AccKey.PubKey, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, w1AccKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	require.NoError(t, moneyPartition.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
@@ -108,7 +108,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	waitForFeeCreditCLI(t, logF, homedir2, apiAddr, feeAmountAlpha*1e8-2, 0)
 
 	// send wallet-2 bills back to wallet-1
-	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
+	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1AccKey.PubKey)))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-2 balance is reduced
@@ -163,7 +163,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send -w false --amount 2 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 
-	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1PubKey, "", 0)
+	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1AccKey.PubKey, "", 0)
 	require.NoError(t, err)
 	require.NotNil(t, w1TxHistory)
 	require.Len(t, w1TxHistory, 6)

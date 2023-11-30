@@ -152,7 +152,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		initialBill   = &InitialBill{
 			ID:    NewBillID(nil, []byte{1}),
 			Value: moneyInvariant,
-			Owner: templates.AlwaysTrueBytes(),
+			Owner: templates.NewP2pkh256BytesFromKey(decodeHex(pubKey1)),
 		}
 	)
 	total := moneyInvariant
@@ -181,11 +181,16 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, decodeHex(privKey1), decodeHex(pubKey1), abNet)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
+	sigBytes, err := transferInitialBillTx.PayloadBytes()
+	require.NoError(t, err)
+	sig, _ := signer.SignBytes(sigBytes)
+	transferInitialBillTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
 	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, transferInitialBillTx)
@@ -258,10 +263,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 
 	// #nosec G104
-	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
-	sigBytes, err := swapTx.PayloadBytes()
+	sigBytes, err = swapTx.PayloadBytes()
 	require.NoError(t, err)
-	sig, _ := signer.SignBytes(sigBytes)
+	sig, _ = signer.SignBytes(sigBytes)
 	swapTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))

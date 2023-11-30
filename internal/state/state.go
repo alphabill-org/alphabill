@@ -197,6 +197,8 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 }
 
 func (s *State) GetCommittedTreeUC() *types.UnicityCertificate {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	if s != nil {
 		return s.committedTreeUC
 	}

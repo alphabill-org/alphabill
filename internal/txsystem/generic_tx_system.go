@@ -80,7 +80,7 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 }
 
 func (m *GenericTxSystem) State() *state.State {
-	return m.state.Clone()
+	return m.state
 }
 
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {

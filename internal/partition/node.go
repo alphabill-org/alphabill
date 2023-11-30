@@ -1393,7 +1393,7 @@ func (n *Node) WriteStateFile(writer io.Writer) error {
 		SystemIdentifier: n.SystemIdentifier(),
 		UnicityCertificate: n.luc.Load(),
 	}
-	return n.transactionSystem.State().WriteStateFile(writer, header)
+	return n.transactionSystem.State().Clone().WriteStateFile(writer, header)
 }
 
 func (n *Node) SystemIdentifier() []byte {

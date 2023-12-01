@@ -66,7 +66,7 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 	}
 
 	txSystem, err := tokens.NewTxSystem(
-		config.Base.Logger,
+		config.Base.observe.Logger(),
 		tokens.WithSystemIdentifier(config.SystemIdentifier),
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
 	)

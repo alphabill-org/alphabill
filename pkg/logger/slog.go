@@ -11,6 +11,7 @@ import (
 
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -94,9 +95,7 @@ func (cfg *LogConfiguration) Handler(out io.Writer) (slog.Handler, error) {
 		return nil, fmt.Errorf("unknown log format %q", cfg.Format)
 	}
 
-	if cfg.ShowGoroutineID == nil || *cfg.ShowGoroutineID {
-		h = NewABHandler(h)
-	}
+	h = NewABHandler(h, cfg.ShowGoroutineID == nil || *cfg.ShowGoroutineID)
 
 	return h, nil
 }
@@ -225,22 +224,33 @@ func filenameToWriter(name string) (io.Writer, error) {
 
 /*
 ABHandler is a slog handler which does some AB specific processing to the log:
-  - adds goroutine id field to the log record;
+  - adds goroutine id field to the log record (if flag is set);
+  - adds trace/span id attributes (if present in the context);
 */
 type ABHandler struct {
-	handler slog.Handler
+	handler     slog.Handler
+	goroutineID bool
 }
 
-func NewABHandler(h slog.Handler) *ABHandler {
+func NewABHandler(h slog.Handler, goroutineID bool) *ABHandler {
 	// Optimization: avoid chains of ABHandler
 	if lh, ok := h.(*ABHandler); ok {
 		h = lh.Handler()
 	}
-	return &ABHandler{h}
+	return &ABHandler{h, goroutineID}
 }
 
 func (h *ABHandler) Handle(ctx context.Context, r slog.Record) error {
-	r.AddAttrs(slog.Uint64(GoIDKey, goroutineID()))
+	if h.goroutineID {
+		r.AddAttrs(slog.Uint64(GoIDKey, goroutineID()))
+	}
+
+	if spanCtx := trace.SpanContextFromContext(ctx); spanCtx.HasTraceID() {
+		r.AddAttrs(slog.String(traceID, spanCtx.TraceID().String()))
+		if spanCtx.HasSpanID() {
+			r.AddAttrs(slog.String(spanID, spanCtx.SpanID().String()))
+		}
+	}
 
 	return h.handler.Handle(ctx, r)
 }
@@ -250,11 +260,11 @@ func (h *ABHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *ABHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return NewABHandler(h.handler.WithAttrs(attrs))
+	return NewABHandler(h.handler.WithAttrs(attrs), h.goroutineID)
 }
 
 func (h *ABHandler) WithGroup(name string) slog.Handler {
-	return NewABHandler(h.handler.WithGroup(name))
+	return NewABHandler(h.handler.WithGroup(name), h.goroutineID)
 }
 
 func (h *ABHandler) Handler() slog.Handler {

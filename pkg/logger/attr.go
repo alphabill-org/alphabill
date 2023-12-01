@@ -27,6 +27,9 @@ const (
 	RoundKey  = "round"
 	UnitIDKey = "unit_id"
 	DataKey   = "data"
+
+	traceID = "TraceId" // OTEL data model
+	spanID  = "SpanId"  // OTEL data model
 )
 
 /*
@@ -210,6 +213,10 @@ func formatAttrECS(groups []string, a slog.Attr) slog.Attr {
 		// as ie `data:"string value"` and `data: 42` would cause type conflict in Elastic index.
 		// different struct types might also have a field with the same name but different type!
 		return slog.Group(DataKey, slog.Any(dataName(a.Value), a.Value))
+	case traceID:
+		return slog.Group("trace", slog.String("id", a.Value.String()))
+	case spanID:
+		return slog.Group("span", slog.String("id", a.Value.String()))
 	}
 	return a
 }

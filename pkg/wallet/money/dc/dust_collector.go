@@ -353,7 +353,7 @@ func (w *DustCollector) lockTargetBill(ctx context.Context, k *account.AccountKe
 	if err != nil {
 		return nil, nil, err
 	}
-	lockTx, err := tx_builder.NewLockTx(k, w.systemID, targetBill, unitlock.LockReasonCollectDust, timeout)
+	lockTx, err := tx_builder.NewLockTx(k, w.systemID, targetBill.Id, targetBill.TxHash, unitlock.LockReasonCollectDust, timeout)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -420,11 +420,7 @@ func (w *DustCollector) fetchDCProofsForTargetUnit(ctx context.Context, k *accou
 }
 
 func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transaction) (*wallet.Proof, error) {
-	roundNumber, err := w.backend.GetRoundNumber(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch round number: %w", err)
-	}
-	for roundNumber < tx.TxOrder.Timeout() {
+	for {
 		proof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
@@ -432,12 +428,15 @@ func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transactio
 		if proof != nil {
 			return proof, nil
 		}
+		roundNumber, err := w.backend.GetRoundNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch round number: %w", err)
+		}
+		if roundNumber >= tx.TxOrder.Timeout() {
+			break
+		}
 		select {
 		case <-time.After(time.Second):
-			roundNumber, err = w.backend.GetRoundNumber(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to fetch round number: %w", err)
-			}
 		case <-ctx.Done():
 			return nil, errors.New("context canceled")
 		}

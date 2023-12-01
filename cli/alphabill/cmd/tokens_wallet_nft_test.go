@@ -9,7 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -20,7 +20,7 @@ import (
 )
 
 func TestNFTs_Integration(t *testing.T) {
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	network := NewAlphabillNetwork(t)
 	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)

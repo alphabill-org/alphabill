@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -47,7 +47,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		Owner: templates.NewP2pkh256BytesFromKey(w1AccKey.PubKey),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
@@ -174,7 +174,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	require.Len(t, w2TxHistory, 2)
 }
 
-func waitForBalanceCLI(t *testing.T, logF LoggerFactory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
+func waitForBalanceCLI(t *testing.T, logF Factory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, logF, homedir, "get-balance --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {
@@ -187,7 +187,7 @@ func waitForBalanceCLI(t *testing.T, logF LoggerFactory, homedir string, url str
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func waitForFeeCreditCLI(t *testing.T, logF LoggerFactory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
+func waitForFeeCreditCLI(t *testing.T, logF Factory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, logF, homedir, "fees list --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {

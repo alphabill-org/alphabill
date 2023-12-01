@@ -27,8 +27,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -715,11 +715,12 @@ func withFeeCreditBills(bills ...*Bill) option {
 func startServer(t *testing.T, service WalletBackendService) (port int, api *moneyRestAPI) {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
+	observe := observability.Default(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: logger.New(t), SystemID: moneySystemID}
+		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: observe.Logger(), tracer: observe.Tracer("moneyRestAPI"), SystemID: moneySystemID}
 		err := httpsrv.Run(ctx,
 			http.Server{
 				Addr:              fmt.Sprintf("localhost:%d", port),

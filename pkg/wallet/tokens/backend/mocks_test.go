@@ -188,8 +188,6 @@ type mockStorage struct {
 	getTxProof       func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	getFeeCreditBill func(unitID types.UnitID) (*FeeCreditBill, error)
 	setFeeCreditBill func(fcb *FeeCreditBill, proof *sdk.Proof) error
-	getClosedFC      func(fcbID types.UnitID) (*types.TransactionRecord, error)
-	setClosedFC      func(fcbID types.UnitID, tx *types.TransactionRecord) error
 }
 
 func (ms *mockStorage) Close() error { return nil }

@@ -44,7 +44,7 @@ var (
 )
 
 func TestCollectDustTimeoutReached(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
 
 	// setup account
 	dir := t.TempDir()
@@ -66,7 +66,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 	serverService := testserver.NewTestAlphabillServiceServer()
-	server, _ := testserver.StartServer(serverService)
+	server, _ := testserver.StartServer(serverService, observe.TracerProvider())
 	t.Cleanup(server.GracefulStop)
 
 	// start wallet backend
@@ -87,18 +87,22 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 					Predicate: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
 				},
 				SystemDescriptionRecords: createSDRs(),
-				Logger:                   log,
+				Logger:                   observe.Logger(),
+				Observe:                  observe,
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// setup wallet
-	restClient, err := beclient.New(restAddr)
+	restClient, err := beclient.New(restAddr, observe)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 	defer unitLocker.Close()
-	w, err := LoadExistingWallet(am, unitLocker, restClient, log)
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+	defer feeManagerDB.Close()
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, observe.Logger())
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -109,7 +113,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
@@ -162,7 +166,7 @@ wallet runs dust collection
 wallet account 2 and 3 should have only single bill
 */
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
 
 	// setup account
 	dir := t.TempDir()
@@ -202,18 +206,22 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: createSDRs(),
-				Logger:                   log,
+				Logger:                   observe.Logger(),
+				Observe:                  observe,
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// setup wallet with multiple keys
-	restClient, err := beclient.New(restAddr)
+	restClient, err := beclient.New(restAddr, observe)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 	defer unitLocker.Close()
-	w, err := LoadExistingWallet(am, unitLocker, restClient, log)
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+	defer feeManagerDB.Close()
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, observe.Logger())
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -231,7 +239,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
@@ -282,7 +290,8 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 }
 
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
+
 	// setup account
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
@@ -321,18 +330,22 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: createSDRs(),
-				Logger:                   log,
+				Logger:                   observe.Logger(),
+				Observe:                  observe,
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// setup wallet with multiple keys
-	restClient, err := beclient.New(restAddr)
+	restClient, err := beclient.New(restAddr, observe)
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 	defer unitLocker.Close()
-	w, err := LoadExistingWallet(am, unitLocker, restClient, log)
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+	defer feeManagerDB.Close()
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, observe.Logger())
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -350,7 +363,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(t, accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, log)
+	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
 		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
@@ -450,7 +463,7 @@ func startRPCServer(t *testing.T, partition *testpartition.NodePartition) (addr 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	grpcServer, err := initRPCServer(partition.Nodes[0].Node)
+	grpcServer, err := initRPCServer(partition.Nodes[0].Node, observability.Default(t))
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -463,8 +476,8 @@ func startRPCServer(t *testing.T, partition *testpartition.NodePartition) (addr 
 	return listener.Addr().String()
 }
 
-func initRPCServer(node *partition.Node) (*grpc.Server, error) {
-	rpcServer, err := rpc.NewGRPCServer(node, observability.NOPMetrics())
+func initRPCServer(node *partition.Node, obs rpc.Observability) (*grpc.Server, error) {
+	rpcServer, err := rpc.NewGRPCServer(node, obs)
 	if err != nil {
 		return nil, err
 	}

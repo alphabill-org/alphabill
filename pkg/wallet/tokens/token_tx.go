@@ -217,6 +217,21 @@ func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []by
 	}
 }
 
+func newLockTxAttrs(backlink []byte, lockStatus uint64) *ttxs.LockTokenAttributes {
+	return &ttxs.LockTokenAttributes{
+		LockStatus:                   lockStatus,
+		Backlink:                     backlink,
+		InvariantPredicateSignatures: nil,
+	}
+}
+
+func newUnlockTxAttrs(backlink []byte) *ttxs.UnlockTokenAttributes {
+	return &ttxs.UnlockTokenAttributes{
+		Backlink:                     backlink,
+		InvariantPredicateSignatures: nil,
+	}
+}
+
 func bearerPredicateFromHash(receiverPubKeyHash []byte) wallet.Predicate {
 	var bytes []byte
 	if receiverPubKeyHash != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -280,6 +281,67 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", util.InsertSeparator(fmt.Sprint(expectedTotal), false)))
+}
+
+func TestFungibleTokens_LockUnlock_Integration(t *testing.T) {
+	network := NewAlphabillNetwork(t)
+	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	homedirW1 := network.walletHomedir
+	backendUrl := network.tokenBackendURL
+
+	typeID := randomFungibleTokenTypeID(t)
+	symbol := "AB"
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible  --symbol %s -r %s --type %s --decimals 0", symbol, backendUrl, typeID))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
+
+	// mint tokens
+	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
+		return func(tx *types.TransactionOrder) bool {
+			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
+				attrs := &tokens.MintFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(attrs))
+				return attrs.Value == amount
+			}
+			return false
+		}
+	}
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible  -r %s --type %s --amount 5", backendUrl, typeID))
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, crit(5)), test.WaitDuration, test.WaitTick)
+
+	// get minted token id
+	var tokenID string
+	out := execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	for _, l := range out.lines {
+		id := extractID(l)
+		if id != "" {
+			tokenID = id
+			break
+		}
+	}
+
+	// lock token
+	execTokensCmd(t, homedirW1, fmt.Sprintf("lock -r %s --token-identifier %s -k 1", backendUrl, tokenID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, "locked='manually locked by user'")
+
+	// unlock token
+	execTokensCmd(t, homedirW1, fmt.Sprintf("unlock -r %s --token-identifier %s -k 1", backendUrl, tokenID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, "locked=''")
+}
+
+func extractID(input string) string {
+	re := regexp.MustCompile(`ID='([^']+)'`)
+	match := re.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return ""
+	}
+	return match[1]
 }
 
 type AlphabillNetwork struct {

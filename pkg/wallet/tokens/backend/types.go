@@ -84,6 +84,13 @@ func (tu *TokenUnit) WriteSSE(w io.Writer) error {
 	return err
 }
 
+func (tu *TokenUnit) IsLocked() bool {
+	if tu != nil {
+		return tu.Locked > 0
+	}
+	return false
+}
+
 func (kind Kind) String() string {
 	switch kind {
 	case Any:

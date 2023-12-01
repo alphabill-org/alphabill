@@ -856,6 +856,92 @@ func TestUpdateNFTData(t *testing.T) {
 	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
 }
 
+func TestLockToken(t *testing.T) {
+	var token *backend.TokenUnit
+	recTxs := make(map[string]*types.TransactionOrder)
+	be := &mockTokenBackend{
+		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
+			return token, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recTxs[string(tx.UnitID())] = tx
+			}
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
+			}, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+
+	// test token is already locked
+	token = &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), Locked: wallet.LockReasonManual}
+	result, err := tw.LockToken(context.Background(), 1, token.ID, []*PredicateInput{{Argument: nil}})
+	require.ErrorContains(t, err, "token is already locked")
+	require.Nil(t, result)
+
+	// test lock token ok
+	token = &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)}
+	result, err = tw.LockToken(context.Background(), 1, token.ID, []*PredicateInput{{Argument: nil}})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	tx, found := recTxs[string(token.ID)]
+	require.True(t, found)
+	require.EqualValues(t, token.ID, tx.UnitID())
+	require.Equal(t, ttxs.PayloadTypeLockToken, tx.PayloadType())
+}
+
+func TestUnlockToken(t *testing.T) {
+	var token *backend.TokenUnit
+	recTxs := make(map[string]*types.TransactionOrder)
+	be := &mockTokenBackend{
+		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
+			return token, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recTxs[string(tx.UnitID())] = tx
+			}
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
+			}, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+
+	// test token is already unlocked
+	token = &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)}
+	result, err := tw.UnlockToken(context.Background(), 1, token.ID, []*PredicateInput{{Argument: nil}})
+	require.ErrorContains(t, err, "token is already unlocked")
+	require.Nil(t, result)
+
+	// test unlock token ok
+	token = &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), Locked: wallet.LockReasonManual}
+	result, err = tw.UnlockToken(context.Background(), 1, token.ID, []*PredicateInput{{Argument: nil}})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	tx, found := recTxs[string(token.ID)]
+	require.True(t, found)
+	require.EqualValues(t, token.ID, tx.UnitID())
+	require.Equal(t, ttxs.PayloadTypeUnlockToken, tx.PayloadType())
+}
+
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
 	return &Wallet{

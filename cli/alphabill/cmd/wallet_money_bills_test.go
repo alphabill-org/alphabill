@@ -149,8 +149,54 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	verifyStdout(t, stdout, "#3 0x000000000000000000000000000000000000000000000000000000000000000300 1.000'000'00 (locked for dust collection)")
 }
 
+func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
+	// create wallet
+	am, homedir := createNewWallet(t)
+	pubkey, _ := am.GetPublicKey(0)
+	am.Close()
+
+	// start money partition
+	initialBill := &money.InitialBill{
+		ID:    defaultInitialBillID,
+		Value: 2e8,
+		Owner: templates.NewP2pkh256BytesFromKey(pubkey),
+	}
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	logF := testobserve.NewFactory(t)
+	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+
+	// start wallet backend
+	addr, _ := startMoneyBackend(t, moneyPartition, initialBill)
+
+	// create fee credit for txs
+	stdout, err := execCommand(logF, homedir, fmt.Sprintf("fees add --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+
+	// lock bill
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("lock --alphabill-api-uri %s --bill-id %s", addr, defaultInitialBillID))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "Bill locked successfully.")
+
+	// verify bill locked
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("list --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (manually locked by user)")
+
+	// unlock bill
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("unlock --alphabill-api-uri %s --bill-id %s", addr, defaultInitialBillID))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "Bill unlocked successfully.")
+
+	// verify bill unlocked
+	stdout, err = execBillsCommand(logF, homedir, fmt.Sprintf("list --alphabill-api-uri %s", addr))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
+}
+
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
+	initialValue := initialBill.Value
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	unitID := initialBill.ID
@@ -163,18 +209,25 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transferFC
 	require.NoError(t, moneyPart.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
-
+	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBill.ID, transferFC)
+	require.NoError(t, err)
+	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, unitState.UnitData, ucValidator))
+	var bill money.BillData
+	require.NoError(t, unitState.UnmarshalUnitData(&bill))
+	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 
 	// send addFC
 	require.NoError(t, moneyPart.SubmitTx(addFC))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, addFC)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, addFC)
 	require.NoError(t, err, "add fee credit tx failed")
 
 	// create transfer tx
@@ -184,7 +237,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transfer tx
 	require.NoError(t, moneyPart.SubmitTx(tx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, tx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, tx)
 	require.NoError(t, err, "transfer tx failed")
 	return remainingValue
 }

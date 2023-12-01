@@ -3,6 +3,8 @@ package txsystem
 import (
 	"errors"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -38,6 +40,8 @@ type (
 		// the transaction system must commit all the changes made during the BeginBlock,
 		// EndBlock, and Execute method calls.
 		Commit() error
+		// StateStorage returns clone of transaction system state
+		StateStorage() UnitAndProof
 	}
 
 	// State represents the root hash and summary value of the transaction system.
@@ -46,6 +50,14 @@ type (
 		Root() []byte
 		// Summary returns the summary value of the state.
 		Summary() []byte
+	}
+
+	// UnitAndProof read access to state to access unit and unit proofs
+	UnitAndProof interface {
+		// GetUnit - access tx system unit state
+		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		// CreateUnitStateProof - create unit proofs
+		CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*types.UnitStateProof, error)
 	}
 
 	// StateSummary is a default implementation of State interface.

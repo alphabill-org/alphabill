@@ -114,7 +114,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(createTypeTx))
-	txRecord, txProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, createTypeTx)
+	txRecord, txProof, err := testpartition.WaitTxProof(t, tokenPrt, createTypeTx)
 	require.NoError(t, err, "token create type tx failed")
 	RequireFungibleTokenTypeState(t, state0, fungibleTokenTypeUnitData{
 		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
@@ -147,7 +147,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
-	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, mintTx)
+	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
 	require.NoError(t, err, "token mint tx failed")
 	txHash := mintTxRecord.TransactionOrder.Hash(gocrypto.SHA256)
 
@@ -181,7 +181,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
-	split1TxRecord, split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, splitTx1)
+	split1TxRecord, split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx1)
 	require.NoError(t, err, "token split tx failed")
 	split1GenTxHash := split1TxRecord.TransactionOrder.Hash(gocrypto.SHA256)
 
@@ -224,7 +224,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx2))
-	split2TxRecord, split2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, splitTx2)
+	split2TxRecord, split2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx2)
 	require.NoError(t, err, "token split 2 tx failed")
 	require.NoError(t, types.VerifyTxProof(split2TxProof, split2TxRecord, trustBase, hashAlgorithm))
 
@@ -266,7 +266,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(transferTx))
-	transferTxRecord, transferTxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, transferTx)
+	transferTxRecord, transferTxProof, err := testpartition.WaitTxProof(t, tokenPrt, transferTx)
 	require.NoError(t, err, "token transfer tx failed")
 	require.NoError(t, types.VerifyTxProof(transferTxProof, transferTxRecord, trustBase, hashAlgorithm))
 
@@ -300,7 +300,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx))
-	burnTxRecord, burnTxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, burnTx)
+	burnTxRecord, burnTxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx)
 	require.NoError(t, err, "token burn tx failed")
 	require.NoError(t, types.VerifyTxProof(burnTxProof, burnTxRecord, trustBase, hashAlgorithm))
 
@@ -323,7 +323,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx2))
-	burn2TxRecord, burn2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, burnTx2)
+	burn2TxRecord, burn2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx2)
 	require.NoError(t, err, "token burn 2 tx failed")
 	require.NoError(t, types.VerifyTxProof(burn2TxProof, burn2TxRecord, trustBase, hashAlgorithm))
 
@@ -364,7 +364,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(joinTx))
-	joinTxRecord, joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, joinTx)
+	joinTxRecord, joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, joinTx)
 	require.NoError(t, err, "token join tx failed")
 	require.NoError(t, types.VerifyTxProof(joinTxProof, joinTxRecord, trustBase, hashAlgorithm))
 	joinTXRHash := joinTxRecord.TransactionOrder.Hash(gocrypto.SHA256)

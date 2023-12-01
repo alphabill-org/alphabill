@@ -343,7 +343,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.EqualValues(t, 1, sm.ActualFee)
-	require.Len(t, sm.TargetUnits, 1)
+	require.Len(t, sm.TargetUnits, 2)
 	require.Equal(t, lockTx.UnitID(), sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit())
 
@@ -363,7 +363,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.EqualValues(t, 1, sm.ActualFee)
-	require.Len(t, sm.TargetUnits, 1)
+	require.Len(t, sm.TargetUnits, 2)
 	require.Equal(t, unlockTx.UnitID(), sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit())
 

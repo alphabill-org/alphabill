@@ -1,19 +1,15 @@
 package testutils
 
 import (
-	"testing"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/fxamacker/cbor/v2"
 )
 
-func CreateInitialBillTransferTx(t *testing.T, accountKey *account.AccountKey, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
+func CreateInitialBillTransferTx(accountKey *account.AccountKey, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &moneytx.TransferAttributes{
 		NewBearer:   templates.NewP2pkh256BytesFromKey(accountKey.PubKey),
 		TargetValue: billValue,
@@ -38,7 +34,6 @@ func CreateInitialBillTransferTx(t *testing.T, accountKey *account.AccountKey, b
 	}
 	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(accountKey.PrivKey)
 	sigBytes, err := txo.PayloadBytes()
-	require.NoError(t, err)
 	sigData, _ := signer.SignBytes(sigBytes)
 	txo.OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, accountKey.PubKey)
 	return txo, nil

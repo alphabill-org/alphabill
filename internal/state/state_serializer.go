@@ -8,6 +8,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+const CBORChecksumLength = 5
+
 type (
 	StateFileHeader struct {
 		_                  struct{} `cbor:",toarray"`

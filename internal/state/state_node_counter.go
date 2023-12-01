@@ -19,6 +19,6 @@ func (s *stateNodeCounter) Traverse(n *Node) {
 	s.nodeCount++
 }
 
-func (s *stateNodeCounter) GetNodeCount() uint64 {
+func (s *stateNodeCounter) NodeCount() uint64 {
 	return s.nodeCount
 }

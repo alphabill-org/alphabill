@@ -99,7 +99,7 @@ func newRecoveredState(options *Options) (*State, error) {
 		return nil, fmt.Errorf("missing unit data construct")
 	}
 
-	crc32Reader := NewCRC32Reader(options.reader)
+	crc32Reader := NewCRC32Reader(options.reader, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
 	var header StateFileHeader
@@ -133,12 +133,12 @@ func newRecoveredState(options *Options) (*State, error) {
 		}}
 		unit := &Unit{logs: unitLogs}
 
-		var left, right *Node
-		if nodeRecord.HasLeft {
-			left = nodeStack.Pop()
-		}
+		var right, left *Node
 		if nodeRecord.HasRight {
 			right = nodeStack.Pop()
+		}
+		if nodeRecord.HasLeft {
+			left = nodeStack.Pop()
 		}
 
 		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, unit, left, right))
@@ -355,7 +355,7 @@ func (s *State) WriteStateFile(writer io.Writer, header *StateFileHeader) error 
 	// Add node record count to header
 	snc := NewStateNodeCounter()
 	s.committedTree.Traverse(snc)
-	header.NodeRecordCount = snc.GetNodeCount()
+	header.NodeRecordCount = snc.NodeCount()
 
 	// Write header
 	if err := encoder.Encode(header); err != nil {

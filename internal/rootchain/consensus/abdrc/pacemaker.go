@@ -102,10 +102,16 @@ This method should only used to start the pacemaker and reset it's status
 on system recovery, during normal operation current round is advanced by
 calling AdvanceRoundQC or AdvanceRoundTC.
 */
-func (x *Pacemaker) Reset(highQCRound uint64, lastVote any) {
+func (x *Pacemaker) Reset(highQCRound uint64, lastTc *abtypes.TimeoutCert, lastVote any) {
 	x.lastRoundTC = nil
 	x.lastQcToCommitRound = highQCRound
-	x.startNewRound(highQCRound + 1)
+	lastRound := highQCRound
+	// If TC is from a more recent round then use it instead
+	if highQCRound < lastTc.GetRound() {
+		lastRound = lastTc.GetRound()
+		x.lastRoundTC = lastTc
+	}
+	x.startNewRound(lastRound + 1)
 	// restore last sent vote for pace maker
 	if lastVote != nil {
 		switch lastVote.(type) {

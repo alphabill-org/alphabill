@@ -5,13 +5,15 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 )
 
 const (
-	certPrefix  = "cert_"
-	blockPrefix = "block_"
+	certPrefix     = "cert_"
+	blockPrefix    = "block_"
+	timeoutCertKey = "tc"
 )
 const (
 	Unknown VoteType = iota
@@ -68,9 +70,9 @@ func ReadVote(db keyvaluedb.KeyValueDB) (any, error) {
 	if !found {
 		return nil, nil
 	}
-	// not found
-	if !found {
-		return nil, nil
+	// error
+	if err != nil {
+		return nil, err
 	}
 	switch voteStore.VoteType {
 	case VoteMsg:
@@ -88,4 +90,17 @@ func ReadVote(db keyvaluedb.KeyValueDB) (any, error) {
 	}
 
 	return &voteStore, err
+}
+
+func WriteLastTC(db keyvaluedb.KeyValueDB, tc *abtypes.TimeoutCert) error {
+	return db.Write([]byte(timeoutCertKey), tc)
+}
+
+func ReadLastTC(db keyvaluedb.KeyValueDB) (*abtypes.TimeoutCert, error) {
+	var tc abtypes.TimeoutCert
+	found, err := db.Read([]byte(timeoutCertKey), &tc)
+	if !found {
+		return nil, nil
+	}
+	return &tc, err
 }

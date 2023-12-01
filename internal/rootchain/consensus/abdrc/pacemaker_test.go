@@ -20,7 +20,7 @@ func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound, nil)
+	pacemaker.Reset(lastCommittedRound, nil, nil)
 
 	// record vote
 	require.Nil(t, pacemaker.GetVoted())
@@ -52,7 +52,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound, nil)
+	pacemaker.Reset(lastCommittedRound, nil, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 
 	// record a vote in current round
@@ -92,7 +92,7 @@ func TestRoundState_RegisterVote(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound, nil)
+	pacemaker.Reset(lastCommittedRound, nil, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	vote := NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
 	qc, _, err := pacemaker.RegisterVote(vote, quorum)
@@ -115,7 +115,7 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	pacemaker, err := NewPacemaker(testBlockRate, testLocalTimeout, observability.NOPMetrics())
 	require.NoError(t, err)
 	defer pacemaker.Stop()
-	pacemaker.Reset(lastCommittedRound, nil)
+	pacemaker.Reset(lastCommittedRound, nil, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo := NewDummyVoteInfo(5, []byte{0, 1, 2, 3})
 	hQc := abtypes.NewQuorumCertificate(voteInfo, nil)
@@ -138,8 +138,6 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 }
 
 func TestPacemaker_setup(t *testing.T) {
-	t.Parallel()
-
 	t.Run("state of new instance", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
@@ -192,7 +190,7 @@ func TestPacemaker_setup(t *testing.T) {
 		}
 
 		// start the clock
-		pacemaker.Reset(10, nil)
+		pacemaker.Reset(10, nil, nil)
 		require.EqualValues(t, 10, pacemaker.lastQcToCommitRound)
 		require.EqualValues(t, 11, pacemaker.GetCurrentRound())
 		require.Nil(t, pacemaker.LastRoundTC())
@@ -222,8 +220,6 @@ func TestPacemaker_setup(t *testing.T) {
 }
 
 func TestPacemaker_startRoundClock(t *testing.T) {
-	t.Parallel()
-
 	t.Run("stepping through statuses", func(t *testing.T) {
 		minRoundLen := 500 * time.Millisecond
 		roundTO := time.Second
@@ -376,8 +372,6 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 }
 
 func TestPacemaker_startNewRound(t *testing.T) {
-	t.Parallel()
-
 	t.Run("field values", func(t *testing.T) {
 		// test do fields which need to be reset when new round starts do
 		// get reset and fields which need to retain their value do
@@ -385,7 +379,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4, nil)
+		pacemaker.Reset(4, nil, nil)
 		defer pacemaker.Stop()
 
 		// assign some values to fields, we do not care about validity, we
@@ -418,7 +412,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4, nil)
+		pacemaker.Reset(4, nil, nil)
 		defer pacemaker.Stop()
 
 		// Reset started new round, wait until timeout without consuming events
@@ -448,7 +442,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := 600 * time.Millisecond
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4, nil)
+		pacemaker.Reset(4, nil, nil)
 		defer pacemaker.Stop()
 
 		var timeoutCnt, matureCnt, otherCnt int
@@ -491,7 +485,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
 		require.NoError(t, err)
-		pacemaker.Reset(4, nil)
+		pacemaker.Reset(4, nil, nil)
 		defer pacemaker.Stop()
 
 		// register TO vote with quorum condition which allow no faulty nodes - this means
@@ -530,8 +524,6 @@ func TestPacemaker_startNewRound(t *testing.T) {
 }
 
 func TestPacemaker_setState(t *testing.T) {
-	t.Parallel()
-
 	t.Run("already in pmsRoundTimeout state", func(t *testing.T) {
 		roundTO := 500 * time.Millisecond
 		pacemaker, err := NewPacemaker(100*time.Millisecond, roundTO, observability.NOPMetrics())
@@ -592,5 +584,40 @@ func TestPacemaker_setState(t *testing.T) {
 		case <-time.After(roundTO + 100*time.Millisecond):
 			t.Error("haven't got another tick from clock")
 		}
+	})
+}
+
+func TestPacemaker_Reset(t *testing.T) {
+	t.Run("simulate start with last round TC", func(t *testing.T) {
+		// test do fields which need to be reset when new round starts do
+		// get reset and fields which need to retain their value do
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
+		tc := &abtypes.TimeoutCert{
+			Timeout: &abtypes.Timeout{
+				Round: 5,
+			},
+		}
+		pacemaker.Reset(4, tc, nil)
+		require.EqualValues(t, 6, pacemaker.GetCurrentRound())
+		require.NotNil(t, pacemaker.lastRoundTC)
+	})
+	t.Run("simulate start with TC from past", func(t *testing.T) {
+		// test do fields which need to be reset when new round starts do
+		// get reset and fields which need to retain their value do
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.NOPMetrics())
+		require.NoError(t, err)
+		tc := &abtypes.TimeoutCert{
+			Timeout: &abtypes.Timeout{
+				Round: 3,
+			},
+		}
+		pacemaker.Reset(4, tc, nil)
+		require.EqualValues(t, 5, pacemaker.GetCurrentRound())
+		require.Nil(t, pacemaker.lastRoundTC)
 	})
 }

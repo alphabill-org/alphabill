@@ -266,7 +266,12 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("last vote read failed: %w", err)
 		}
-		x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber, vote)
+		hQc := x.blockStore.GetHighQc()
+		lastTC, err := x.blockStore.GetLastTC()
+		if err != nil {
+			return fmt.Errorf("failed to read last TC from block store: %w", err)
+		}
+		x.pacemaker.Reset(hQc.GetRound(), lastTC, vote)
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
@@ -864,7 +869,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err != nil {
 		return fmt.Errorf("verifier construction failed: %w", err)
 	}
-	x.pacemaker.Reset(blockStore.GetHighQc().GetRound(), nil)
+	x.pacemaker.Reset(blockStore.GetHighQc().GetRound(), nil, nil)
 
 	for i, n := range rsp.BlockNode {
 		// if received block has QC then process it first as with a block received normally
@@ -926,6 +931,11 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
 			return fmt.Errorf("failed to send vote to next leader: %w", err)
 		}
+	}
+	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
+		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
+		// todo: timeout votes are not buffered
+		x.processTC(tmo.Timeout.LastTC)
 	}
 	x.replayVoteBuffer(ctx)
 	return nil

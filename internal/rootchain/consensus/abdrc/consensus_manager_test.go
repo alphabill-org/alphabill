@@ -115,7 +115,7 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	}
 
 	// we need to init pacemaker into correct round, otherwise IR validation fails
-	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil)
+	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
@@ -517,7 +517,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 	t.Run("stale vote", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(8, nil)
+		cms[0].pacemaker.Reset(8, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, 7)
@@ -531,7 +531,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// vote verification failures should be tested by vote.Verify unit tests...
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
@@ -546,7 +546,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -560,7 +560,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -576,7 +576,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Run("quorum of votes for next round should trigger recovery", func(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		// as we have single CM vote means quorum and recovery should be triggered as CM hasn't
@@ -591,7 +591,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cms[0].leaderSelector = constLeader{leader: cms[1].id, nodes: cms[1].leaderSelector.GetNodes()} // make sure this CM won't be the leader
-		cms[0].pacemaker.Reset(votedRound-1, nil)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)

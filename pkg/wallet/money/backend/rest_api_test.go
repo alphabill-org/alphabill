@@ -147,6 +147,7 @@ func Test_txHistory(t *testing.T) {
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
+	defer am.Close()
 	err = am.CreateKeys("")
 	require.NoError(t, err)
 	accKey, err := am.GetAccountKey(0)

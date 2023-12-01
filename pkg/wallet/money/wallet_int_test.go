@@ -84,7 +84,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
+					Predicate: initialBill.Owner,
 				},
 				SystemDescriptionRecords: createSDRs(),
 				Logger:                   observe.Logger(),
@@ -106,28 +106,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	defer w.Close()
 
-	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, accKey.PrivKey, accKey.PubKey, abNet)
-	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount
-
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
-	require.NoError(t, err)
-	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
-	batch.Add(&txsubmitter.TxSubmission{
-		UnitID:      transferInitialBillTx.UnitID(),
-		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
-		Transaction: transferInitialBillTx,
-	})
-	err = batch.SendTx(ctx, false)
-
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
-
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
 		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
-		return balance == initialBillValue
+		return balance == initialBill.Value
 	}, test.WaitDuration*2, time.Second)
 
 	// when CollectDust is called

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"testing"
 
@@ -13,9 +12,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -49,27 +46,11 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	logF := testobserve.NewFactory(t)
-	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
 	// start wallet backend
 	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, initialBill)
-
-	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, w1AccKey.PrivKey, w1AccKey.PubKey, network)
-	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	w1BalanceBilly := initialBill.Value - fcrAmount
-
-	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1AccKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
-	require.NoError(t, err)
-	require.NoError(t, moneyPartition.SubmitTx(transferInitialBillTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
-
-	// verify bill is received by wallet 1
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, util.AmountToString(w1BalanceBilly, 8)))
 
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
@@ -77,7 +58,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
-	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8
+	w1BalanceBilly := initialBill.Value - feeAmountAlpha*1e8
 	waitForFeeCreditCLI(t, logF, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
 
 	// TS1:
@@ -167,7 +148,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1AccKey.PubKey, "", 0)
 	require.NoError(t, err)
 	require.NotNil(t, w1TxHistory)
-	require.Len(t, w1TxHistory, 6)
+	require.Len(t, w1TxHistory, 5)
 
 	w2TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w2PubKey, "", 0)
 	require.NoError(t, err)

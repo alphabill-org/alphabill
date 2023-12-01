@@ -288,14 +288,6 @@ func (n *Node) initState(ctx context.Context) (err error) {
 	ctx, span := n.tracer.Start(ctx, "node.initState")
 	defer span.End()
 
-	uc := n.transactionSystem.State().GetCommittedTreeUC()
-	if uc != nil {
-		// TODO: n.lastStoredBlock remains nil, node starts recovery immediately.
-		// Should not attempt to recover blocks before this uc?
-		n.luc.Store(uc)
-		return nil
-	}
-
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	empty, err := keyvaluedb.IsEmpty(n.blockStore)

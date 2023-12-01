@@ -280,12 +280,14 @@ func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConst
 		return nil, fmt.Errorf("state file %s not found", stateFilePath)
 	}
 
-	reader, err := os.Open(stateFilePath)
+	stateFile, err := os.Open(stateFilePath)
 	if err != nil {
 		return nil, err
 	}
+	defer stateFile.Close()
+
 	state, err := state.New(
-		state.WithReader(reader),
+		state.WithReader(stateFile),
 		state.WithUnitDataConstructor(unitDataConstructor),
 	)
 	if err != nil {

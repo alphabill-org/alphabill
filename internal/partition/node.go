@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
@@ -97,7 +98,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
-		txIndexer                   keyvaluedb.KeyValueDB
+		proofIndexer                *ProofIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
@@ -170,7 +171,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		txIndexer:                   conf.txIndexer,
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -263,6 +264,11 @@ func (n *Node) Run(ctx context.Context) error {
 		return n.eventHandlerLoop(ctx)
 	})
 
+	// start proof indexer
+	g.Go(func() error {
+		return n.proofIndexer.loop(ctx)
+	})
+
 	g.Go(func() error {
 		err := n.loop(ctx)
 		n.log.DebugContext(ctx, "node main loop exit", logger.Error(err))
@@ -323,6 +329,10 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		// commit changes
 		if err = n.transactionSystem.Commit(); err != nil {
 			return fmt.Errorf("unable to commit block %v: %w", roundNo, err)
+		}
+		// node must have exited before block was indexed
+		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
+			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.StateStorage())
 		}
 		prevBlock = &bl
 	}
@@ -915,14 +925,11 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 		}
 		return err
 	}
-
-	if err := n.writeTxIndex(ctx, b, roundNoInBytes); err != nil {
-		return fmt.Errorf("unable to write transaction index: %w", err)
-	}
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
 	n.sendEvent(event.BlockFinalized, b)
+	n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
 	return nil
 }
 
@@ -1329,26 +1336,14 @@ func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 }
 
 func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
-	if n.txIndexer == nil {
-		return nil, nil, errors.New("not allowed")
-	}
-	index := &struct {
-		RoundNumber  []byte
-		TxOrderIndex int
-	}{}
-	f, err := n.txIndexer.Read(hash, index)
+	proofs := n.proofIndexer.GetDB()
+	index, err := ReadTransactionIndex(proofs, hash)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
 	}
-	if !f {
-		return nil, nil, nil
-	}
-	b, err := n.GetBlock(ctx, util.BytesToUint64(index.RoundNumber))
+	b, err := n.GetBlock(ctx, index.RoundNumber)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load block: %w", err)
-	}
-	if len(b.Transactions)-1 < index.TxOrderIndex {
-		return nil, nil, errors.New("transaction index is invalid: invalid transaction order index key")
 	}
 	proof, record, err := types.NewTxProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
 	if err != nil {
@@ -1377,6 +1372,30 @@ func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 
 func (n *Node) SystemIdentifier() []byte {
 	return n.configuration.GetSystemIdentifier()
+}
+
+func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
+	clonedState := n.transactionSystem.StateStorage()
+	unit, err := clonedState.GetUnit(unitID, true)
+	if err != nil {
+		return nil, err
+	}
+	response := &types.UnitDataAndProof{}
+	if returnData {
+		res, err := cbor.Marshal(unit.Data())
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode unit data: %w", err)
+		}
+		response.UnitData = &types.StateUnitData{Data: res, Bearer: unit.Bearer()}
+	}
+	if returnProof {
+		p, err := clonedState.CreateUnitStateProof(unitID, len(unit.Logs())-1, n.luc.Load())
+		if err != nil {
+			return nil, err
+		}
+		response.Proof = p
+	}
+	return response, nil
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
@@ -1443,42 +1462,6 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 		Transactions: n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
-}
-
-func (n *Node) writeTxIndex(ctx context.Context, b *types.Block, roundNo []byte) (retErr error) {
-	_, span := n.tracer.Start(ctx, "node.writeTxIndex")
-	defer span.End()
-	if n.txIndexer == nil {
-		return nil
-	}
-
-	dbTx, err := n.txIndexer.StartTx()
-	if err != nil {
-		return fmt.Errorf("starting indexer transaction: %w", err)
-	}
-	defer func() {
-		if retErr != nil {
-			if err := dbTx.Rollback(); err != nil {
-				retErr = errors.Join(retErr, fmt.Errorf("transaction indexer rollback: %w", err))
-			}
-		} else {
-			retErr = dbTx.Commit()
-		}
-	}()
-
-	for i, tx := range b.Transactions {
-		hash := tx.TransactionOrder.Hash(n.configuration.hashAlgorithm)
-		if err = dbTx.Write(hash, &struct {
-			RoundNumber  []byte
-			TxOrderIndex int
-		}{
-			RoundNumber:  roundNo,
-			TxOrderIndex: i,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (n *Node) attrRound() attribute.KeyValue {

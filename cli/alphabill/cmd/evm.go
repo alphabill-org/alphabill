@@ -63,9 +63,14 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err = cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
-	blockStore, err := initNodeBlockStore(cfg.Node.DbFile)
+	blockStore, err := initStore(cfg.Node.DbFile)
 	if err != nil {
 		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
+	proofStore, err := initStore(cfg.Node.TxIndexerDBFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize proof DB: %w", err)
 	}
 
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
@@ -98,7 +103,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
@@ -109,5 +114,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, obs)
+	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
 }

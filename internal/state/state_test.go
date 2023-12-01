@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -118,7 +119,9 @@ func TestState_Commit_OK(t *testing.T) {
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 	require.NoError(t, s.Commit())
+	require.EqualValues(t, 2, s.CommittedTreeBlockNumber())
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
 	require.NotNil(t, committedRoot)
@@ -133,7 +136,10 @@ func TestState_Commit_RootNotCalculated(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 	require.ErrorContains(t, s.Commit(), "call CalculateRoot method before committing a state")
+	// If commit fails committed block number remains the same
+	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
 }
 
 func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
@@ -397,8 +403,13 @@ func TestState_GetUnit(t *testing.T) {
 
 	u2, err := s.GetUnit(unitID, true)
 	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, u, u2)
+	require.NotNil(t, u2)
+	// subtree hash and summaryCalculated do not get cloned - rest must match
+	require.Equal(t, u.logs, u2.logs)
+	require.Equal(t, u.logRoot, u2.logRoot)
+	require.Equal(t, u.bearer, u2.bearer)
+	require.Equal(t, u.data, u2.data)
+	require.Equal(t, u.subTreeSummaryValue, u2.subTreeSummaryValue)
 }
 
 func TestState_AddUnitLog_OK(t *testing.T) {
@@ -416,7 +427,7 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 2)
-	require.Equal(t, txrHash, u.logs[1].txRecordHash)
+	require.Equal(t, txrHash, u.logs[1].TxRecordHash)
 }
 
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
@@ -472,7 +483,7 @@ func TestState_PruneLog(t *testing.T) {
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 1)
-	require.Nil(t, u.logs[0].txRecordHash)
+	require.Nil(t, u.logs[0].TxRecordHash)
 }
 
 func TestState_PruneLog_UnitNotFound(t *testing.T) {
@@ -543,6 +554,60 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 	}
+}
+
+type alwaysValid struct{}
+
+func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
+	return nil
+}
+
+func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		s, root, summary := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(summary),
+		}})
+		require.NoError(t, err)
+		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		unitData, err := MarshalUnitData(unit.Data())
+		require.NoError(t, err)
+		data := &types.StateUnitData{
+			Data:   unitData,
+			Bearer: unit.Bearer(),
+		}
+		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
+	})
+	t.Run("invalid summary value", func(t *testing.T) {
+		s, root, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(1),
+		}})
+		require.NoError(t, err)
+		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		require.NoError(t, err)
+		unitData, err := MarshalUnitData(unit.Data())
+		require.NoError(t, err)
+		data := &types.StateUnitData{
+			Data:   unitData,
+			Bearer: unit.Bearer(),
+		}
+		require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
+	})
+	t.Run("unit not found", func(t *testing.T) {
+		s, root, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{1, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
+			Hash:         root,
+			SummaryValue: util.Uint64ToBytes(1),
+		}})
+		require.ErrorContains(t, err, "unable to get unit 01000005: item 01000005 does not exist: not found")
+		require.Nil(t, proof)
+	})
+}
+
+func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testing.T) {
 }
 
 func prepareState(t *testing.T) (*State, []byte, uint64) {

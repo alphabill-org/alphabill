@@ -77,6 +77,10 @@ func (m *TxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
+func (m *TxSystem) StateStorage() txsystem.UnitAndProof {
+	return m.state.Clone()
+}
+
 func (m *TxSystem) StateSummary() (txsystem.State, error) {
 	if !m.state.IsCommitted() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges

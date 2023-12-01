@@ -1,13 +1,15 @@
 package state
 
 import (
+	gocrypto "crypto"
+	"fmt"
 	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,9 +112,23 @@ type pruneUnitData struct {
 	i uint64
 }
 
+func (p *pruneUnitData) Hash(hashAlgo gocrypto.Hash) []byte {
+	hasher := hashAlgo.New()
+	_ = p.Write(hasher)
+	return hasher.Sum(nil)
+}
+
 func (p *pruneUnitData) Write(hasher hash.Hash) error {
-	hasher.Write(util.Uint64ToBytes(p.i))
-	return nil
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("unit data encode error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
 }
 
 func (p *pruneUnitData) SummaryValueInput() uint64 {

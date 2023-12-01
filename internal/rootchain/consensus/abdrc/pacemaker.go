@@ -113,13 +113,11 @@ func (x *Pacemaker) Reset(highQCRound uint64, lastTc *abtypes.TimeoutCert, lastV
 	}
 	x.startNewRound(lastRound + 1)
 	// restore last sent vote for pace maker
-	if lastVote != nil {
-		switch lastVote.(type) {
-		case *abdrc.VoteMsg:
-			x.SetVoted(lastVote.(*abdrc.VoteMsg))
-		case *abdrc.TimeoutMsg:
-			x.SetTimeoutVote(lastVote.(*abdrc.TimeoutMsg))
-		}
+	switch lastVote.(type) {
+	case *abdrc.VoteMsg:
+		x.SetVoted(lastVote.(*abdrc.VoteMsg))
+	case *abdrc.TimeoutMsg:
+		x.SetTimeoutVote(lastVote.(*abdrc.TimeoutMsg))
 	}
 }
 

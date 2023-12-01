@@ -72,7 +72,7 @@ func ReadVote(db keyvaluedb.KeyValueDB) (any, error) {
 	}
 	// error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading vote from db: %w", err)
 	}
 	switch voteStore.VoteType {
 	case VoteMsg:

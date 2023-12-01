@@ -173,10 +173,13 @@ func Test_VoteMsg_Verify(t *testing.T) {
 
 	t.Run("invalid signature", func(t *testing.T) {
 		vi := validVoteMsg(t)
-		vi.Signature[0] = 0
-		require.ErrorContains(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: verification failed`)
+		vi.Signature[0] = vi.Signature[0] + 1
+		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: verification failed`)
+
+		vi.Signature = []byte{0, 1, 2, 3, 4}
+		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: signature length is 5 b (expected 64 b)`)
 
 		vi.Signature = nil
-		require.ErrorContains(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: invalid nil argument`)
+		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: invalid nil argument`)
 	})
 }

@@ -47,6 +47,32 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	}
 }
 
+func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
+	proofDB := memorydb.New()
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
+	require.Equal(t, proofDB, indexer.GetDB())
+	// start indexing loop
+	ctx := context.Background()
+	blockRound1 := simulateEmptyInput(1)
+	require.NoError(t, indexer.create(ctx, blockRound1))
+	blockRound2 := simulateEmptyInput(2)
+	require.NoError(t, indexer.create(ctx, blockRound2))
+	// add the same block again
+	require.ErrorContains(t, indexer.create(ctx, blockRound2), "block 2 already indexed")
+	blockRound3 := simulateEmptyInput(3)
+	require.NoError(t, indexer.create(ctx, blockRound3))
+	// run clean-up
+	require.NoError(t, indexer.historyCleanup(ctx, 3))
+	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
+	// index db contains only latest round number
+	dbIt := proofDB.First()
+	require.True(t, dbIt.Valid())
+	require.Equal(t, keyLatestRoundNumber, dbIt.Key())
+	dbIt.Next()
+	require.False(t, dbIt.Valid())
+	require.NoError(t, dbIt.Close())
+}
+
 func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - no history clean-up", func(t *testing.T) {
 		proofDB := memorydb.New()
@@ -152,6 +178,20 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{RoundNumber: round},
+		},
+	}
+	return &BlockAndState{
+		Block: block,
+		State: mockStateStoreOK{},
+	}
+}
+
+func simulateEmptyInput(round uint64) *BlockAndState {
+	block := &types.Block{
+		Header:       &types.Header{SystemID: []byte{0, 0, 0, 1}},
+		Transactions: []*types.TransactionRecord{},
 		UnicityCertificate: &types.UnicityCertificate{
 			InputRecord: &types.InputRecord{RoundNumber: round},
 		},

@@ -125,7 +125,7 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	require.Nil(t, tc)
 	// node 1 send duplicate
 	tc, err = pacemaker.RegisterTimeoutVote(vote, quorum)
-	require.ErrorContains(t, err, "inserting to pending votes: failed to add vote to timeout certificate: node1 already voted")
+	require.EqualError(t, err, "inserting to pending votes: failed to add vote to timeout certificate: node1 already voted in round 6")
 	require.Nil(t, tc)
 	vote = NewDummyTimeoutVote(hQc, 6, "node2")
 	tc, err = pacemaker.RegisterTimeoutVote(vote, quorum)

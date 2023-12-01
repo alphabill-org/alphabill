@@ -467,7 +467,7 @@ func (w *FeeManager) sendLockFCTx(ctx context.Context, accountKey *account.Accou
 	// if confirmed => store proof
 	// if not confirmed => create new transaction
 	if feeCtx.LockFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.LockFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.LockFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -540,7 +540,7 @@ func (w *FeeManager) sendTransferFCTx(ctx context.Context, accountKey *account.A
 	//   if confirmed => store proof
 	//   if not confirmed => verify target bill and create new transaction, or return error
 	if feeCtx.TransferFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.TransferFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.TransferFCTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -643,7 +643,7 @@ func (w *FeeManager) sendAddFCTx(ctx context.Context, accountKey *account.Accoun
 	//     if yes => create new addFC with existing transferFC proof
 	//     if not => unlock remote fee credit record and delete fee context
 	if feeCtx.AddFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.AddFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.AddFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -783,7 +783,7 @@ func (w *FeeManager) sendLockTx(ctx context.Context, accountKey *account.Account
 	}
 	// if lock tx already exists then wait for confirmation => if confirmed store proof else create new transaction
 	if feeCtx.LockTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.LockTx)
+		proof, err := w.waitForConf(ctx, feeCtx.LockTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -855,7 +855,7 @@ func (w *FeeManager) sendCloseFCTx(ctx context.Context, accountKey *account.Acco
 	// if confirmed => store proof
 	// if not confirmed => create new transaction
 	if feeCtx.CloseFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.CloseFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.CloseFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -921,7 +921,7 @@ func (w *FeeManager) sendReclaimFCTx(ctx context.Context, accountKey *account.Ac
 	//     if yes => create new reclaimFC with existing closeFC proof
 	//     if not => unlock target bill and delete fee context
 	if feeCtx.ReclaimFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.ReclaimFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.ReclaimFCTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -1030,19 +1030,20 @@ func (w *FeeManager) sumValues(bills []*wallet.Bill) uint64 {
 	return sum
 }
 
-func (w *FeeManager) waitForConf(ctx context.Context, tx *types.TransactionOrder) (*wallet.Proof, error) {
+func (w *FeeManager) waitForConf(ctx context.Context, tx *types.TransactionOrder, api PartitionDataProvider) (*wallet.Proof, error) {
 	txHash := tx.Hash(crypto.SHA256)
 	for {
-		proof, err := w.targetPartitionBackendClient.GetTxProof(ctx, tx.UnitID(), txHash)
+		// fetch round number before proof to ensure that we cannot miss the proof
+		roundNumber, err := api.GetRoundNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch target partition round number: %w", err)
+		}
+		proof, err := api.GetTxProof(ctx, tx.UnitID(), txHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
 		}
 		if proof != nil {
 			return proof, nil
-		}
-		roundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch target partition round number: %w", err)
 		}
 		if roundNumber >= tx.Timeout() {
 			break

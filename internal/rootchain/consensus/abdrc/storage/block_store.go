@@ -138,22 +138,22 @@ func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*
 	}, nil
 }
 
-func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) (err error) {
+func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) (rErr error) {
 	if tc == nil {
 		return fmt.Errorf("error tc is nil")
 	}
 	// persist last known TC
-	if e := WriteLastTC(x.storage, tc); e != nil {
+	if err := WriteLastTC(x.storage, tc); err != nil {
 		// store DB error and continue
-		err = fmt.Errorf("TC write failed: %w", e)
+		rErr = fmt.Errorf("TC write failed: %w", err)
 	}
 	// Remove proposal/block for TC round if it exists, since quorum voted for timeout.
 	// It will never be committed, hence it can be removed immediately.
 	// It is fine if the block is not found, it does not matter anyway
-	if e := x.blockTree.RemoveLeaf(tc.GetRound()); e != nil {
-		return errors.Join(err, fmt.Errorf("removing timeout block %v: %w", tc.GetRound(), e))
+	if err := x.blockTree.RemoveLeaf(tc.GetRound()); err != nil {
+		return errors.Join(rErr, fmt.Errorf("removing timeout block %v: %w", tc.GetRound(), err))
 	}
-	return err
+	return rErr
 }
 
 func (x *BlockStore) IsChangeInProgress(sysId types.SystemID32) bool {

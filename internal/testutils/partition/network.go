@@ -215,6 +215,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	for i, rn := range r.Nodes {
 		rootPeer := rootPeers[i]
 		log := r.obs.DefaultLogger().With(logger.NodeID(rootPeer.ID()))
+		obs := observability.WithLogger(r.obs.DefaultObserver(), log)
 		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
 		for _, p := range rootPeers {
 			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
@@ -232,11 +233,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, r.obs.DefaultObserver(), log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, r.obs.DefaultObserver(), log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}

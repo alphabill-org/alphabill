@@ -12,30 +12,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abdrctu "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 var partitionID types.SystemID32 = 0x00FF0001
@@ -70,7 +70,8 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, observability.NOPMetrics(), testlogger.New(t).With(logger.NodeID(id)))
+	observe := testobservability.Default(t)
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -604,16 +605,22 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 	t.Parallel()
 
+	observe := testobservability.NOPMetrics()
+	pm, err := NewPacemaker(time.Minute, 2*time.Minute, observe)
+	if err != nil {
+		t.Fatalf("creating Pacemaker: %v", err)
+	}
+
 	t.Run("untyped nil msg", func(t *testing.T) {
-		cm := &ConsensusManager{}
-		require.NoError(t, cm.initMetrics(observability.NOPMetrics()))
+		cm := &ConsensusManager{pacemaker: pm, tracer: observe.Tracer("cm")}
+		require.NoError(t, cm.initMetrics(observe))
 		err := cm.handleRootNetMsg(context.Background(), nil)
 		require.EqualError(t, err, `unknown message type <nil>`)
 	})
 
 	t.Run("type not known for the handler", func(t *testing.T) {
-		cm := &ConsensusManager{}
-		require.NoError(t, cm.initMetrics(observability.NOPMetrics()))
+		cm := &ConsensusManager{pacemaker: pm, tracer: observe.Tracer("cm")}
+		require.NoError(t, cm.initMetrics(observe))
 		err := cm.handleRootNetMsg(context.Background(), "foobar")
 		require.EqualError(t, err, `unknown message type string`)
 	})
@@ -1201,11 +1208,12 @@ func TestConsensusManger_ResoreVote(t *testing.T) {
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{Timeout: &abtypes.Timeout{Round: 2}, Author: "test"}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))
+	observe := testobservability.Default(t)
 	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer,
-		observability.NOPMetrics(),
-		testlogger.New(t).With(logger.NodeID(id)),
+		observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))),
 		consensus.WithStorage(db),
 	)
+	require.NoError(t, err)
 	// replace leader selector
 	allNodes := cm.leaderSelector.GetNodes()
 	leaderId, err := p2ptest.RandPeerID()

@@ -30,6 +30,7 @@ type (
 
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Logger() *slog.Logger
 	}
 
 	MsgVerification interface {
@@ -56,7 +57,6 @@ func New(
 	ps partitions.PartitionConfiguration,
 	cm consensus.Manager,
 	observe Observability,
-	log *slog.Logger,
 ) (*Node, error) {
 	if p == nil {
 		return nil, fmt.Errorf("partition listener is nil")
@@ -64,7 +64,7 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	log.Info(fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", p.MultiAddresses(), debug.ReadBuildInfo()))
+	observe.Logger().Info(fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", p.MultiAddresses(), debug.ReadBuildInfo()))
 	node := &Node{
 		peer:             p,
 		partitions:       ps,
@@ -72,7 +72,7 @@ func New(
 		subscription:     NewSubscriptions(),
 		net:              pNet,
 		consensusManager: cm,
-		log:              log,
+		log:              observe.Logger(),
 	}
 	if err := node.initMetrics(observe); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
@@ -81,7 +81,7 @@ func New(
 }
 
 func (n *Node) initMetrics(observe Observability) (err error) {
-	m := observe.Meter("rootchain")
+	m := observe.Meter("rootchain", metric.WithInstrumentationAttributes(attribute.String("node_id", string(n.peer.ID()))))
 
 	n.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
 	if err != nil {

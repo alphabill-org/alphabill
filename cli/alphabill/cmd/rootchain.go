@@ -29,6 +29,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 const (
@@ -157,6 +158,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
 	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
+	obs := observability.WithLogger(config.Base.observe, log)
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -200,8 +202,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
-			config.Base.observe,
-			log,
+			obs,
 			consensus.WithStorage(store))
 	}
 	if err != nil {
@@ -212,8 +213,8 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		partitionNet,
 		partitionCfg,
 		cm,
-		config.Base.observe,
-		log)
+		obs,
+	)
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}

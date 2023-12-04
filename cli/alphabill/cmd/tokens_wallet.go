@@ -8,12 +8,14 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -871,8 +873,8 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 
 			if tok.Kind == backend.Fungible {
 				amount := util.AmountToString(tok.Amount, tok.Decimals)
-				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', amount='%v', token-type='%s'",
-					tok.ID, tok.Symbol, amount, tok.TypeID) + typeName + kind)
+				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', amount='%v', token-type='%s', locked='%s'",
+					tok.ID, tok.Symbol, amount, tok.TypeID, sdk.LockReason(tok.Locked).String()) + typeName + kind)
 			} else {
 				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', name='%s', token-type='%s'",
 					tok.ID, tok.Symbol, tok.NftName, tok.TypeID) + typeName + nftURI + nftData + kind)

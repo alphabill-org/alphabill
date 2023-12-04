@@ -196,15 +196,6 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 	return u.Clone(), nil
 }
 
-func (s *State) GetCommittedTreeUC() *types.UnicityCertificate {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	if s != nil {
-		return s.committedTreeUC
-	}
-	return nil
-}
-
 func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

@@ -227,7 +227,7 @@ func TestVoteRegister_Tc(t *testing.T) {
 	require.EqualValues(t, 2, voteCnt)
 	// attempt to add vote1 again should fail
 	tc, voteCnt, err = register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
-	require.EqualError(t, err, `failed to add vote to timeout certificate: node1 already voted`)
+	require.EqualError(t, err, `failed to add vote to timeout certificate: node1 already voted in round 4`)
 	require.Nil(t, tc)
 	require.Zero(t, voteCnt)
 	// adding another unique vote should get us quorum

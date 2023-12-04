@@ -138,17 +138,22 @@ func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*
 	}, nil
 }
 
-func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) error {
+func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) (rErr error) {
 	if tc == nil {
 		return fmt.Errorf("error tc is nil")
+	}
+	// persist last known TC
+	if err := WriteLastTC(x.storage, tc); err != nil {
+		// store DB error and continue
+		rErr = fmt.Errorf("TC write failed: %w", err)
 	}
 	// Remove proposal/block for TC round if it exists, since quorum voted for timeout.
 	// It will never be committed, hence it can be removed immediately.
 	// It is fine if the block is not found, it does not matter anyway
 	if err := x.blockTree.RemoveLeaf(tc.GetRound()); err != nil {
-		return fmt.Errorf("unexpected error when removing timeout block %v, %v", tc.GetRound(), err)
+		return errors.Join(rErr, fmt.Errorf("removing timeout block %v: %w", tc.GetRound(), err))
 	}
-	return nil
+	return rErr
 }
 
 func (x *BlockStore) IsChangeInProgress(sysId types.SystemID32) bool {
@@ -246,6 +251,10 @@ func (x *BlockStore) GetHighQc() *abtypes.QuorumCert {
 	return x.blockTree.HighQc()
 }
 
+func (x *BlockStore) GetLastTC() (*abtypes.TimeoutCert, error) {
+	return ReadLastTC(x.storage)
+}
+
 func (x *BlockStore) updateCertificateCache(certs map[types.SystemID32]*types.UnicityCertificate) error {
 	x.lock.Lock()
 	defer x.lock.Unlock()
@@ -308,4 +317,14 @@ func (x *BlockStore) Block(round uint64) (*abtypes.BlockData, error) {
 		return nil, err
 	}
 	return eb.BlockData, nil
+}
+
+// StoreLastVote - store last sent vote message
+func (x *BlockStore) StoreLastVote(vote any) error {
+	return WriteVote(x.storage, vote)
+}
+
+// ReadLastVote - read last vote message
+func (x *BlockStore) ReadLastVote() (any, error) {
+	return ReadVote(x.storage)
 }

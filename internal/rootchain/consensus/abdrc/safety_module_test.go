@@ -466,90 +466,91 @@ func TestSafetyModule_isCommitCandidate(t *testing.T) {
 }
 
 func TestSafetyModule_isSafeToTimeout(t *testing.T) {
-	type fields struct {
-		highestVotedRound uint64
-		highestQcRound    uint64
-		signer            crypto.Signer
-	}
-	type args struct {
-		round   uint64               // timeout round
-		qcRound uint64               // timeout highest seen QC round
-		tc      *abtypes.TimeoutCert // previous round TC
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name:   "OK",
-			fields: fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
-			args: args{round: 2, qcRound: 1,
-				tc: &abtypes.TimeoutCert{
-					Timeout: &abtypes.Timeout{Round: 2,
-						HighQc: &abtypes.QuorumCert{
-							VoteInfo: &abtypes.RoundInfo{RoundNumber: 1},
-						}}}},
-			wantErrStr: "",
-		},
-		{
-			name:       "Not safe to timeout, last round was not TC, but QC round is smaller than the QC we have seen",
-			fields:     fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
-			args:       args{round: 2, qcRound: 1, tc: nil},
-			wantErrStr: "qc round 1 is smaller than highest qc round 2 seen",
-		},
-		{
-			name:       "Already voted for round 2 and can vote again for timeout",
-			fields:     fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
-			args:       args{round: 2, qcRound: 1, tc: nil},
-			wantErrStr: "",
-		},
-		{
-			name:   "try timeout a past round",
-			fields: fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
-			args: args{round: 2, qcRound: 2,
-				tc: &abtypes.TimeoutCert{
-					Timeout: &abtypes.Timeout{Round: 3,
-						HighQc: &abtypes.QuorumCert{
-							VoteInfo: &abtypes.RoundInfo{RoundNumber: 1},
-						}}}},
-			wantErrStr: "timeout round 2 is in the past, highest voted round 1, hqc round 2",
-		},
-		{
-			name:       "round does not follow QC",
-			fields:     fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
-			args:       args{round: 4, qcRound: 2, tc: nil},
-			wantErrStr: "round 4 does not follow last qc round 2 or tc round 0",
-		},
-		{
-			name:   "round does not follow TC",
-			fields: fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
-			args: args{round: 5, qcRound: 2,
-				tc: &abtypes.TimeoutCert{
-					Timeout: &abtypes.Timeout{Round: 3,
-						HighQc: &abtypes.QuorumCert{
-							VoteInfo: &abtypes.RoundInfo{RoundNumber: 2},
-						}}}},
-			wantErrStr: "round 5 does not follow last qc round 2 or tc round 3",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			db := memorydb.New()
-			require.NoError(t, db.Write([]byte(highestVotedKey), tt.fields.highestVotedRound))
-			require.NoError(t, db.Write([]byte(highestQcKey), tt.fields.highestQcRound))
-
-			s := &SafetyModule{
-				signer:  tt.fields.signer,
-				storage: db,
-			}
-			err := s.isSafeToTimeout(tt.args.round, tt.args.qcRound, tt.args.tc)
-			if tt.wantErrStr != "" {
-				require.ErrorContains(t, err, tt.wantErrStr)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+	t.Run("OK", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 1
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		tc := &abtypes.TimeoutCert{
+			Timeout: &abtypes.Timeout{Round: 2,
+				HighQc: &abtypes.QuorumCert{
+					VoteInfo: &abtypes.RoundInfo{RoundNumber: 1},
+				}}}
+		require.NoError(t, s.isSafeToTimeout(2, 1, tc))
+	})
+	t.Run("not safe - last round was not TC, but QC round is smaller than the QC we have seen", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 2
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		require.ErrorContains(t, s.isSafeToTimeout(2, 1, nil), "qc round 1 is smaller than highest qc round 2 seen")
+	})
+	t.Run("ok - already voted for round 2 and can vote again for timeout", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 1
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		require.NoError(t, s.isSafeToTimeout(2, 1, nil))
+	})
+	t.Run("not safe - timeout round is in past", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 1
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		require.ErrorContains(t, s.isSafeToTimeout(2, 2, nil), "timeout round 2 is in the past, timeout msg high qc is for round 2")
+	})
+	t.Run("not safe - already signed vote for round", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 3
+		var highestQcRound uint64 = 1
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		require.ErrorContains(t, s.isSafeToTimeout(2, 1, nil), "timeout round 2 is in the past, already signed vote for round 3")
+	})
+	t.Run("not safe - round does not follow QC", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 2
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		require.ErrorContains(t, s.isSafeToTimeout(4, 2, nil), "round 4 does not follow last qc round 2 or tc round 0")
+	})
+	t.Run("not safe - round does not follow TC", func(t *testing.T) {
+		db := memorydb.New()
+		var highestVotedRound uint64 = 2
+		var highestQcRound uint64 = 2
+		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
+		require.NoError(t, db.Write([]byte(highestQcKey), highestQcRound))
+		s := &SafetyModule{
+			storage: db,
+		}
+		lastRoundTC := &abtypes.TimeoutCert{
+			Timeout: &abtypes.Timeout{Round: 3,
+				HighQc: &abtypes.QuorumCert{
+					VoteInfo: &abtypes.RoundInfo{RoundNumber: 2},
+				}}}
+		require.ErrorContains(t, s.isSafeToTimeout(5, 2, lastRoundTC), "round 5 does not follow last qc round 2 or tc round 3")
+	})
 }

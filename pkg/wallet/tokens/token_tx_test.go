@@ -33,9 +33,9 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
 			getRoundNumberCalled = true
-			return 100, nil
+			return &wallet.RoundNumber{RoundNumber: 100, LastIndexedRoundNumber: 100}, nil
 		},
 		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled = true
@@ -58,12 +58,12 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
 			getRoundNumberCalled++
 			if getRoundNumberCalled == 1 {
-				return 100, nil
+				return &wallet.RoundNumber{RoundNumber: 100, LastIndexedRoundNumber: 100}, nil
 			}
-			return 103, nil
+			return &wallet.RoundNumber{RoundNumber: 103, LastIndexedRoundNumber: 103}, nil
 		},
 		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled++
@@ -89,18 +89,20 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 func TestCachingRoundNumberFetcher(t *testing.T) {
 	getRoundNumberCalled := 0
 	backend := &mockTokenBackend{
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
 			getRoundNumberCalled++
-			return 100, nil
+			return &wallet.RoundNumber{RoundNumber: 100, LastIndexedRoundNumber: 100}, nil
 		},
 	}
 	fetcher := &cachingRoundNumberFetcher{delegate: backend.GetRoundNumber}
-	num, err := fetcher.getRoundNumber(context.Background())
+	rnr, err := fetcher.getRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 100, rnr.RoundNumber)
+	require.EqualValues(t, 100, rnr.LastIndexedRoundNumber)
 	require.EqualValues(t, 1, getRoundNumberCalled)
-	num, err = fetcher.getRoundNumber(context.Background())
+	rnr, err = fetcher.getRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 100, rnr.RoundNumber)
+	require.EqualValues(t, 100, rnr.LastIndexedRoundNumber)
 	require.EqualValues(t, 1, getRoundNumberCalled)
 }

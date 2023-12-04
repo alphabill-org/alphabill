@@ -34,7 +34,7 @@ type (
 		GetBills(pubKey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder)
@@ -289,9 +289,20 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
-// GetRoundNumber returns latest round number.
-func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.abc.GetRoundNumber(ctx)
+// GetRoundNumber returns the latest round number in node and backend.
+func (w *WalletBackend) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	nodeRoundNumber, err := w.abc.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch node round number: %w", err)
+	}
+	backendRoundNumber, err := w.store.Do().GetBlockNumber()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load backend round number: %w", err)
+	}
+	return &sdk.RoundNumber{
+		RoundNumber:            nodeRoundNumber,
+		LastIndexedRoundNumber: backendRoundNumber,
+	}, nil
 }
 
 // TODO: Share functionaly with tokens partiton

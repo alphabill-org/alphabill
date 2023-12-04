@@ -414,19 +414,23 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	require.Contains(t, res.Message, fmt.Sprintf("no proof found for tx 0x00 (unit 0x%s)", billID))
 }
 
-func TestBlockHeightRequest_Ok(t *testing.T) {
-	roundNumber := uint64(150)
+func TestRoundNumberRequest_Ok(t *testing.T) {
+	nodeRoundNumber := uint64(150)
+	backendRoundNumber := uint64(10)
 	alphabillClient := &mockABClient{
-		getRoundNumber: func(ctx context.Context) (uint64, error) { return roundNumber, nil },
+		getRoundNumber: func(ctx context.Context) (uint64, error) { return nodeRoundNumber, nil },
 	}
 	service := newWalletBackend(t, withABClient(alphabillClient))
 	port, _ := startServer(t, service)
+	err := service.store.Do().SetBlockNumber(backendRoundNumber)
+	require.NoError(t, err)
 
-	res := &RoundNumberResponse{}
+	res := &sdk.RoundNumber{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/round-number", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.EqualValues(t, roundNumber, res.RoundNumber)
+	require.EqualValues(t, nodeRoundNumber, res.RoundNumber)
+	require.EqualValues(t, backendRoundNumber, res.LastIndexedRoundNumber)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {

@@ -173,11 +173,11 @@ func execLockCmd(cmd *cobra.Command, config *walletConfig) error {
 	if bill.IsLocked() {
 		return errors.New("bill is already locked")
 	}
-	roundNumber, err := restClient.GetRoundNumber(cmd.Context())
+	rnr, err := restClient.GetRoundNumber(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to fetch round number: %w", err)
 	}
-	tx, err := txbuilder.NewLockTx(accountKey, systemID, bill.Id, bill.TxHash, wallet.LockReasonManual, roundNumber+10)
+	tx, err := txbuilder.NewLockTx(accountKey, systemID, bill.Id, bill.TxHash, wallet.LockReasonManual, rnr.RoundNumber+10)
 	if err != nil {
 		return fmt.Errorf("failed to create lock tx: %w", err)
 	}
@@ -243,11 +243,11 @@ func execUnlockCmd(cmd *cobra.Command, config *walletConfig) error {
 	if !bill.IsLocked() {
 		return errors.New("bill is already unlocked")
 	}
-	roundNumber, err := restClient.GetRoundNumber(cmd.Context())
+	rnr, err := restClient.GetRoundNumber(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to fetch round number: %w", err)
 	}
-	tx, err := txbuilder.NewUnlockTx(accountKey, systemID, bill, roundNumber+10)
+	tx, err := txbuilder.NewUnlockTx(accountKey, systemID, bill, rnr.RoundNumber+10)
 	if err != nil {
 		return fmt.Errorf("failed to create unlock tx: %w", err)
 	}

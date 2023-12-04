@@ -122,13 +122,13 @@ func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sd
 	return res.Bills, nil
 }
 
-func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	var res *backend.RoundNumberResponse
+func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	var res *sdk.RoundNumber
 	_, err := c.get(ctx, c.roundNumberURL, &res, false)
 	if err != nil {
-		return 0, fmt.Errorf("get round number request failed: %w", err)
+		return nil, fmt.Errorf("get round number request failed: %w", err)
 	}
-	return res.RoundNumber, nil
+	return res, nil
 }
 
 func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {

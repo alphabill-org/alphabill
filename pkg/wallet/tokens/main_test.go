@@ -30,7 +30,7 @@ func Test_Load(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/api/v1/round-number", r.URL.Path)
-		_, err := fmt.Fprint(w, `{"roundNumber": "42"}`)
+		_, err := fmt.Fprint(w, `{"roundNumber": "42", "lastIndexedRoundNumber": "40"}`)
 		require.NoError(t, err)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -40,9 +40,10 @@ func Test_Load(t *testing.T) {
 	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil, observe.DefaultObserver(), observe.DefaultLogger())
 	require.NoError(t, err)
 
-	rn, err := w.GetRoundNumber(context.Background())
+	rnr, err := w.GetRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.EqualValues(t, 42, rn)
+	require.EqualValues(t, 42, rnr.RoundNumber)
+	require.EqualValues(t, 40, rnr.LastIndexedRoundNumber)
 }
 
 func Test_ListTokens(t *testing.T) {
@@ -267,8 +268,8 @@ func TestNewTypes(t *testing.T) {
 			}
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -380,8 +381,8 @@ func TestMintFungibleToken(t *testing.T) {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -457,8 +458,8 @@ func TestSendFungible(t *testing.T) {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -640,8 +641,8 @@ func TestMintNFT(t *testing.T) {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -735,8 +736,8 @@ func TestTransferNFT(t *testing.T) {
 			}
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -805,8 +806,8 @@ func TestUpdateNFTData(t *testing.T) {
 			}
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -877,7 +878,7 @@ type mockTokenBackend struct {
 	getToken         func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
 	getTokens        func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error)
 	getTokenTypes    func(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error)
-	getRoundNumber   func(ctx context.Context) (uint64, error)
+	getRoundNumber   func(ctx context.Context) (*wallet.RoundNumber, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -905,11 +906,11 @@ func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind,
 	return nil, "", fmt.Errorf("GetTokenTypes not implemented")
 }
 
-func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	if m.getRoundNumber != nil {
 		return m.getRoundNumber(ctx)
 	}
-	return 0, fmt.Errorf("GetRoundNumber not implemented")
+	return nil, fmt.Errorf("GetRoundNumber not implemented")
 }
 
 func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {

@@ -12,7 +12,7 @@ import (
 
 type (
 	Client interface {
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		PostTransaction(ctx context.Context, tx *types.TransactionOrder) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -39,12 +39,12 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("confirming transaction interrupted: %w", err)
 		}
-		roundNr, err := w.cli.GetRoundNumber(ctx)
+		rnr, err := w.cli.GetRoundNumber(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read latest round from evm node: %w", err)
 		}
-		if roundNr >= timeout {
-			return nil, fmt.Errorf("confirmation timeout evm round %v, tx timeout round %v", roundNr, timeout)
+		if rnr.LastIndexedRoundNumber >= timeout {
+			return nil, fmt.Errorf("confirmation timeout evm round %v, tx timeout round %v", rnr.LastIndexedRoundNumber, timeout)
 		}
 		proof, err := w.cli.GetTxProof(ctx, tx.UnitID(), txHash)
 		if err != nil {

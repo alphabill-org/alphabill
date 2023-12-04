@@ -61,7 +61,7 @@ type (
 		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error)
 		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
@@ -509,7 +509,7 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.B
 	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
-func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (w *Wallet) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 

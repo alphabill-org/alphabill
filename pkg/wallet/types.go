@@ -87,3 +87,8 @@ func (r LockReason) String() string {
 	}
 	return ""
 }
+
+type RoundNumber struct {
+	RoundNumber            uint64 `json:"roundNumber,string"`            // last known round number
+	LastIndexedRoundNumber uint64 `json:"lastIndexedRoundNumber,string"` // last indexed round number
+}

@@ -30,7 +30,7 @@ type BackendAPIMock struct {
 	GetBalanceFn       func(pubKey []byte, includeDCBills bool) (uint64, error)
 	ListBillsFn        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 	GetBillsFn         func(pubKey []byte) ([]*wallet.Bill, error)
-	GetRoundNumberFn   func() (uint64, error)
+	GetRoundNumberFn   func() (*wallet.RoundNumber, error)
 	GetTxProofFn       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	GetFeeCreditBillFn func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	PostTransactionsFn func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
@@ -43,11 +43,11 @@ func (b *BackendAPIMock) GetBills(ctx context.Context, pubKey []byte) ([]*wallet
 	return nil, errors.New("GetBillsFn not implemented")
 }
 
-func (b *BackendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (b *BackendAPIMock) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	if b.GetRoundNumberFn != nil {
 		return b.GetRoundNumberFn()
 	}
-	return 0, errors.New("getRoundNumber not implemented")
+	return nil, errors.New("getRoundNumber not implemented")
 }
 
 func (b *BackendAPIMock) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {

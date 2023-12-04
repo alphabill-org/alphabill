@@ -295,9 +295,9 @@ func TestEvmClient_GetRoundNumber(t *testing.T) {
 				},
 			}},
 		}
-		rn, err := cli.GetRoundNumber(context.Background())
+		rnr, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
-		require.Zero(t, rn)
+		require.NotNil(t, rnr)
 	})
 
 	createClient := func(t *testing.T, data any) *EvmClient {
@@ -325,9 +325,9 @@ func TestEvmClient_GetRoundNumber(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		round := uint64(3)
 		cli := createClient(t, round)
-		rn, err := cli.GetRoundNumber(context.Background())
+		rnr, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 3, rn)
+		require.EqualValues(t, 3, rnr.RoundNumber)
 	})
 }
 

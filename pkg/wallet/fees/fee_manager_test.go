@@ -1204,8 +1204,8 @@ func testFeeCreditRecordIDFromPublicKey(shardPart, pubKey []byte) types.UnitID {
 	return money.NewFeeCreditRecordID(shardPart, unitPart)
 }
 
-func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return m.roundNumber, nil
+func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
+	return &wallet.RoundNumber{RoundNumber: m.roundNumber, LastIndexedRoundNumber: m.roundNumber}, nil
 }
 
 func (m *mockMoneyClient) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {

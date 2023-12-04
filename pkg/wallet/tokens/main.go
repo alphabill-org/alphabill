@@ -442,6 +442,34 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	}
 }
 
+// SendFungibleByID sends fungible tokens by given unit ID, if amount matches, does the transfer, otherwise splits the token
+func (w *Wallet) SendFungibleByID(ctx context.Context, accountNumber uint64, tokenID backend.TokenID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
+	if accountNumber < 1 {
+		return nil, fmt.Errorf("invalid account number: %d", accountNumber)
+	}
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return nil, err
+	}
+	err = w.ensureFeeCredit(ctx, acc, 1)
+	if err != nil {
+		return nil, err
+	}
+	token, err := w.GetToken(ctx, acc.PubKey, backend.Fungible, tokenID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get token %X: %w", tokenID, err)
+	}
+	if targetAmount > token.Amount {
+		return nil, fmt.Errorf("insufficient FT value: got %v, need %v", token.Amount, targetAmount)
+	}
+	sub, err := w.prepareSplitOrTransferTx(ctx, acc, targetAmount, token, receiverPubKey, invariantPredicateArgs, w.GetRoundNumber)
+	if err != nil {
+		return nil, err
+	}
+	err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
+	return newSingleResult(sub, accountNumber), err
+}
+
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	if accountNumber < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accountNumber)

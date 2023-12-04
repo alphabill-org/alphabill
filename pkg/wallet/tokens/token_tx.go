@@ -197,7 +197,7 @@ func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (sdk.Pre
 	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
 }
 
-func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
+func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) (*ttxs.TransferFungibleTokenAttributes, string) {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
@@ -205,7 +205,7 @@ func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte)
 		Value:                        token.Amount,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
-	}
+	}, ttxs.PayloadTypeTransferFungibleToken
 }
 
 func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferNonFungibleTokenAttributes {
@@ -233,7 +233,7 @@ func BearerPredicateFromPubKey(receiverPubKey sdk.PubKey) sdk.Predicate {
 	return bearerPredicateFromHash(h)
 }
 
-func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
+func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) (*ttxs.SplitFungibleTokenAttributes, string) {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.TxHash, amount))
 	return &ttxs.SplitFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
@@ -242,7 +242,7 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-	}
+	}, ttxs.PayloadTypeSplitFungibleToken
 }
 
 func newBurnTxAttrs(token *backend.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
@@ -292,11 +292,9 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 	var attrs AttrWithInvariantPredicateInputs
 	var payloadType string
 	if amount >= token.Amount {
-		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
-		payloadType = ttxs.PayloadTypeTransferFungibleToken
+		attrs, payloadType = newFungibleTransferTxAttrs(token, receiverPubKey)
 	} else {
-		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
-		payloadType = ttxs.PayloadTypeSplitFungibleToken
+		attrs, payloadType = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
 	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, token.ID, acc, rn, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)

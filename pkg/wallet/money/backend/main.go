@@ -205,9 +205,9 @@ func Run(ctx context.Context, config *Config) error {
 			http.Server{
 				Addr:              config.ServerAddr,
 				Handler:           routes,
-				ReadTimeout:       5 * time.Second,
-				ReadHeaderTimeout: time.Second,
-				WriteTimeout:      10 * time.Second,
+				ReadTimeout:       10 * time.Second,
+				ReadHeaderTimeout:  2 * time.Second,
+				WriteTimeout:      20 * time.Second,
 				IdleTimeout:       30 * time.Second,
 			},
 			httpsrv.ShutdownTimeout(5*time.Second),

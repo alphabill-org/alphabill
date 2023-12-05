@@ -535,3 +535,76 @@ func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.Accoun
 	}
 	return nil
 }
+
+func (w *Wallet) LockToken(ctx context.Context, accountNumber uint64, tokenID []byte, ib []*PredicateInput) (*SubmissionResult, error) {
+	key, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return nil, err
+	}
+	err = w.ensureFeeCredit(ctx, key, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := w.GetToken(ctx, key.PubKey, backend.NonFungible, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if token.IsLocked() {
+		return nil, errors.New("token is already locked")
+	}
+	attrs := newLockTxAttrs(token.TxHash, wallet.LockReasonManual)
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeLockToken, attrs, tokenID, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, ib, tx, attrs)
+		if err != nil {
+			return err
+		}
+		attrs.InvariantPredicateSignatures = signatures
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = sub.ToBatch(w.backend, key.PubKey, w.log).SendTx(ctx, w.confirmTx)
+	if sub.Confirmed() {
+		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
+	}
+	return &SubmissionResult{}, err
+}
+
+func (w *Wallet) UnlockToken(ctx context.Context, accountNumber uint64, tokenID []byte, ib []*PredicateInput) (*SubmissionResult, error) {
+	key, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return nil, err
+	}
+	err = w.ensureFeeCredit(ctx, key, 1)
+	if err != nil {
+		return nil, err
+	}
+	token, err := w.GetToken(ctx, key.PubKey, backend.Any, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if !token.IsLocked() {
+		return nil, errors.New("token is already unlocked")
+	}
+	attrs := newUnlockTxAttrs(token.TxHash)
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeUnlockToken, attrs, tokenID, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, ib, tx, attrs)
+		if err != nil {
+			return err
+		}
+		attrs.InvariantPredicateSignatures = signatures
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = sub.ToBatch(w.backend, key.PubKey, w.log).SendTx(ctx, w.confirmTx)
+	if sub.Confirmed() {
+		return &SubmissionResult{FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, err
+	}
+	return &SubmissionResult{}, err
+}

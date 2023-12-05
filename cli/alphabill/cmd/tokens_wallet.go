@@ -70,6 +70,8 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
+	cmd.AddCommand(tokenCmdLock(config))
+	cmd.AddCommand(tokenCmdUnlock(config))
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultTokensBackendApiURL, "alphabill tokens backend API uri to connect to")
 	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	return cmd
@@ -876,8 +878,8 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', amount='%v', token-type='%s', locked='%s'",
 					tok.ID, tok.Symbol, amount, tok.TypeID, sdk.LockReason(tok.Locked).String()) + typeName + kind)
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', name='%s', token-type='%s'",
-					tok.ID, tok.Symbol, tok.NftName, tok.TypeID) + typeName + nftURI + nftData + kind)
+				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', name='%s', token-type='%s', locked='%s'",
+					tok.ID, tok.Symbol, tok.NftName, tok.TypeID, sdk.LockReason(tok.Locked).String()) + typeName + nftURI + nftData + kind)
 			}
 		}
 	}
@@ -938,6 +940,100 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, accountNumb
 		consoleWriter.Println(fmt.Sprintf("ID=%s, symbol=%s", tok.ID, tok.Symbol) + name + kind)
 	}
 	return nil
+}
+
+func tokenCmdLock(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "lock",
+		Short: "locks a fungible or non-fungible token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdLock(cmd, config)
+		},
+	}
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
+	if err := cmd.MarkFlagRequired(cmdFlagTokenId); err != nil {
+		panic(err)
+	}
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
+	return addCommonAccountFlags(cmd)
+}
+
+func execTokenCmdLock(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tokenID, err := getHexFlag(cmd, cmdFlagTokenId)
+	if err != nil {
+		return err
+	}
+
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, accountNumber, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
+	result, err := tw.LockToken(cmd.Context(), accountNumber, tokenID, ib)
+	if err != nil {
+		return err
+	}
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
+	}
+	return err
+}
+
+func tokenCmdUnlock(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unlock",
+		Short: "unlocks a fungible or non-fungible token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdUnlock(cmd, config)
+		},
+	}
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
+	if err := cmd.MarkFlagRequired(cmdFlagTokenId); err != nil {
+		panic(err)
+	}
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
+	return addCommonAccountFlags(cmd)
+}
+
+func execTokenCmdUnlock(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tokenID, err := getHexFlag(cmd, cmdFlagTokenId)
+	if err != nil {
+		return err
+	}
+
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, accountNumber, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
+	result, err := tw.UnlockToken(cmd.Context(), accountNumber, tokenID, ib)
+	if err != nil {
+		return err
+	}
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", util.AmountToString(result.FeeSum, 8)))
+	}
+	return err
 }
 
 func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet, error) {

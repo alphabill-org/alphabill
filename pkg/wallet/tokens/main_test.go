@@ -870,8 +870,8 @@ func TestLockToken(t *testing.T) {
 			}
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1, LastIndexedRoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
@@ -913,8 +913,8 @@ func TestUnlockToken(t *testing.T) {
 			}
 			return nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{RoundNumber: 1, LastIndexedRoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{

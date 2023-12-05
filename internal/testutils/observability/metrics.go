@@ -146,9 +146,15 @@ In tests sometimes ad-hoc client is used which do not propagate trace-id
 so attach an ID to traces which should allow to filter out all traces for
 particular test run.
 */
-var reg map[*testing.T]int64
+var (
+	reg map[*testing.T]int64
+	m   sync.Mutex
+)
 
 func testID(t *testing.T) int64 {
+	m.Lock()
+	defer m.Unlock()
+
 	if reg == nil {
 		reg = make(map[*testing.T]int64)
 	}

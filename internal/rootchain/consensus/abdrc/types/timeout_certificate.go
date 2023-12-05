@@ -122,7 +122,7 @@ func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) err
 	}
 	// if already added then reject
 	if _, found := x.Signatures[author]; found {
-		return fmt.Errorf("%s already voted", author)
+		return fmt.Errorf("%s already voted in round %d", author, x.Timeout.Round)
 	}
 
 	// Keep the highest QC certificate

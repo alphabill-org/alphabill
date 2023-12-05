@@ -22,10 +22,11 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 var partitionID types.SystemID32 = 0x00FF0001
@@ -100,8 +101,9 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
 
+	observe := testobservability.Default(t)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, net, partitionStore, cm, observability.NOPMetrics(), testlogger.New(t).With(logger.NodeID(id)))
+	validator, err := New(p, net, partitionStore, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -129,8 +131,9 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	observe := testobservability.Default(t)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, mockNet, partitionStore, cm, observability.NOPMetrics(), log)
+	validator, err := New(p, mockNet, partitionStore, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }
@@ -149,18 +152,17 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	rootNetMock := testnetwork.NewMockNetwork(t)
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	obs := observability.NOPMetrics()
-	log := testlogger.New(t).With(logger.NodeID(id))
+	obs := testobservability.Default(t)
+	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
 	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
 		partitionStore,
 		rootNetMock,
 		rootHost.Signer,
-		obs,
-		log)
+		observe)
 	require.NoError(t, err)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, partitionNetMock, partitionStore, cm, obs, log)
+	validator, err := New(p, partitionNetMock, partitionStore, cm, observe)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }

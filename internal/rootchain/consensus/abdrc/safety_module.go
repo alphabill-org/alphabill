@@ -182,25 +182,28 @@ func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
 	s.SetHighestQcRound(max(s.GetHighestQcRound(), qcRound))
 }
 
-func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *abtypes.TimeoutCert) error {
-	if qcRound < s.GetHighestQcRound() {
+func (s *SafetyModule) isSafeToTimeout(round, tmoHighQCRound uint64, lastRoundTC *abtypes.TimeoutCert) error {
+	if tmoHighQCRound < s.GetHighestQcRound() {
 		// respect highest qc round
-		return fmt.Errorf("qc round %v is smaller than highest qc round %v seen", qcRound, s.GetHighestQcRound())
+		return fmt.Errorf("timeout high qc round %v is smaller than highest qc round %v seen", tmoHighQCRound, s.GetHighestQcRound())
 	}
-	highestVotedRound := s.GetHighestVotedRound() - 1
-	if round <= max(highestVotedRound, qcRound) {
+	if round <= tmoHighQCRound {
+		return fmt.Errorf("timeout round %v is in the past, timeout msg high qc is for round %v",
+			round, tmoHighQCRound)
+	}
+	if round < s.GetHighestVotedRound() {
 		// don’t time out in a past round
-		return fmt.Errorf("timeout round %v is in the past, highest voted round %v, hqc round %v",
-			round, highestVotedRound, qcRound)
+		return fmt.Errorf("timeout round %v is in the past, already signed vote for round %v",
+			round, s.GetHighestVotedRound())
 	}
 	var tcRound uint64 = 0
 	if lastRoundTC != nil {
 		tcRound = lastRoundTC.GetRound()
 	}
 	// timeout round must follow either last qc or tc
-	if !isConsecutive(round, qcRound) && !isConsecutive(round, tcRound) {
+	if !isConsecutive(round, tmoHighQCRound) && !isConsecutive(round, tcRound) {
 		return fmt.Errorf("round %v does not follow last qc round %v or tc round %v",
-			round, qcRound, tcRound)
+			round, tmoHighQCRound, tcRound)
 	}
 	return nil
 }

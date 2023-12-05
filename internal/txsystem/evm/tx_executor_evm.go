@@ -109,12 +109,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	fee := weiToAlpha(txPrice)
 	// if rounding isn't clean, add or subtract balance accordingly
 	feeInWei := alphaToWei(fee)
-	if txPrice.Cmp(feeInWei) == +1 {
-		stateDB.AddBalance(msg.From, new(big.Int).Sub(txPrice, feeInWei))
-	}
-	if txPrice.Cmp(feeInWei) == -1 {
-		stateDB.SubBalance(msg.From, new(big.Int).Sub(feeInWei, txPrice))
-	}
+	stateDB.AddBalance(msg.From, new(big.Int).Sub(txPrice, feeInWei))
 
 	log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee), logger.Round(currentBlockNumber))
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil

@@ -107,7 +107,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	defer w.Close()
 
-	// verify initial bill tx is received by wallet
+	// verify backend is up and running
 	require.Eventually(t, func() bool {
 		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBill.Value

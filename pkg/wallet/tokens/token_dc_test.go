@@ -126,8 +126,8 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return &sdk.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: recordedTx, ServerMetadata: &types.ServerMetadata{ActualFee: tx_builder.MaxFee}}, TxProof: nil}, nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*sdk.RoundNumber, error) {
+			return &sdk.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 			return &sdk.Bill{

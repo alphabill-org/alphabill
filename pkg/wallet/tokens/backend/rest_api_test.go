@@ -739,18 +739,26 @@ func Test_restAPI_getRoundNumber(t *testing.T) {
 		abc := &mockABClient{
 			roundNumber: func(context.Context) (uint64, error) { return 42, nil },
 		}
-		resp := makeRequest(&tokensRestAPI{ab: abc})
+		db := &mockStorage{
+			getBlockNumber: func() (uint64, error) {
+				return 41, nil
+			},
+		}
+		resp := makeRequest(&tokensRestAPI{ab: abc, db: db})
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}
 		defer resp.Body.Close()
 
-		rnr := &RoundNumberResponse{}
+		rnr := &sdk.RoundNumber{}
 		if err := json.NewDecoder(resp.Body).Decode(rnr); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
 		if rnr.RoundNumber != 42 {
 			t.Errorf("expected response to be 42, got %d", rnr.RoundNumber)
+		}
+		if rnr.LastIndexedRoundNumber != 41 {
+			t.Errorf("expected response to be 41, got %d", rnr.LastIndexedRoundNumber)
 		}
 	})
 }

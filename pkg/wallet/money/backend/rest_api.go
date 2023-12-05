@@ -52,10 +52,6 @@ type (
 	AddKeyRequest struct {
 		Pubkey string `json:"pubkey"`
 	}
-
-	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber,string"`
-	}
 )
 
 var (
@@ -82,7 +78,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", api.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/round-number", api.roundNumberFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
@@ -189,10 +185,11 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 				rec.State = sdk.CONFIRMED
 			} else {
 				if roundNr == 0 {
-					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					rsp, err := api.Service.GetRoundNumber(r.Context())
 					if err != nil {
 						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
 					}
+					roundNr = rsp.LastIndexedRoundNumber
 				}
 				if roundNr > rec.Timeout {
 					rec.State = sdk.FAILED
@@ -277,13 +274,13 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	api.rw.WriteCborResponse(w, proof)
 }
 
-func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
-	lastRoundNumber, err := api.Service.GetRoundNumber(r.Context())
+func (api *moneyRestAPI) roundNumberFunc(w http.ResponseWriter, r *http.Request) {
+	rsp, err := api.Service.GetRoundNumber(r.Context())
 	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelError, "GET /round-number error fetching round number", logger.Error(err))
+		api.log.LogAttrs(r.Context(), slog.LevelError, "GET /round-number error", logger.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		api.rw.WriteResponse(w, &RoundNumberResponse{RoundNumber: lastRoundNumber})
+		api.rw.WriteResponse(w, rsp)
 	}
 }
 

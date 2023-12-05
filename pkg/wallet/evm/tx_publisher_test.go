@@ -37,9 +37,12 @@ func NewClientMock(round uint64, proof *wallet.Proof) Client {
 	}
 }
 
-func (m *MockClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (m *MockClient) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	defer func() { m.RoundNr++ }()
-	return m.RoundNr, m.RoundNrError
+	return &wallet.RoundNumber{
+		RoundNumber:            m.RoundNr,
+		LastIndexedRoundNumber: m.RoundNr,
+	}, m.RoundNrError
 }
 
 func (m *MockClient) PostTransaction(ctx context.Context, tx *types.TransactionOrder) error {

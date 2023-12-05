@@ -133,12 +133,12 @@ func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txH
 	return proof, nil
 }
 
-func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	var rn backend.RoundNumberResponse
+func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	var rn *sdk.RoundNumber
 	if _, err := tb.get(ctx, tb.getURL(apiPathPrefix, "round-number"), &rn, false); err != nil {
-		return 0, fmt.Errorf("get round-number request failed: %w", err)
+		return nil, fmt.Errorf("get round-number request failed: %w", err)
 	}
-	return rn.RoundNumber, nil
+	return rn, nil
 }
 
 func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {

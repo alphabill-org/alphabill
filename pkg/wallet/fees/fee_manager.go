@@ -37,7 +37,7 @@ type (
 	}
 
 	PartitionDataProvider interface {
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -467,7 +467,7 @@ func (w *FeeManager) sendLockFCTx(ctx context.Context, accountKey *account.Accou
 	// if confirmed => store proof
 	// if not confirmed => create new transaction
 	if feeCtx.LockFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.LockFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.LockFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -491,11 +491,15 @@ func (w *FeeManager) sendLockFCTx(ctx context.Context, accountKey *account.Accou
 	if fcb.Value == 0 {
 		return nil
 	}
+	// verify fee credit bill is not locked
+	if fcb.IsLocked() {
+		return errors.New("fee credit bill is locked")
+	}
 
 	// fetch round number for timeout
-	targetPartitionRoundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+	targetPartitionTimeout, err := w.getTargetPartitionTimeout(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to fetch target partition round number: %w", err)
+		return err
 	}
 
 	// create lockFC
@@ -505,7 +509,7 @@ func (w *FeeManager) sendLockFCTx(ctx context.Context, accountKey *account.Accou
 		w.targetPartitionSystemID,
 		fcb,
 		unitlock.LockReasonAddFees,
-		targetPartitionRoundNumber+txTimeoutBlockCount,
+		targetPartitionTimeout,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create lockFC transaction: %w", err)
@@ -540,7 +544,7 @@ func (w *FeeManager) sendTransferFCTx(ctx context.Context, accountKey *account.A
 	//   if confirmed => store proof
 	//   if not confirmed => verify target bill and create new transaction, or return error
 	if feeCtx.TransferFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.TransferFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.TransferFCTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -581,11 +585,12 @@ func (w *FeeManager) sendTransferFCTx(ctx context.Context, accountKey *account.A
 	if err != nil {
 		return err
 	}
-	userPartitionRoundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+	rnr, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch target partition round number: %w", err)
 	}
-	latestAdditionTime := userPartitionRoundNumber + transferFCLatestAdditionTime
+	earliestAdditionTime := rnr.RoundNumber
+	latestAdditionTime := rnr.RoundNumber + transferFCLatestAdditionTime
 
 	// create transferFC transaction
 	w.log.InfoContext(ctx, "sending transfer fee credit transaction")
@@ -604,7 +609,7 @@ func (w *FeeManager) sendTransferFCTx(ctx context.Context, accountKey *account.A
 		feeCtx.TargetBillID,
 		feeCtx.TargetBillBacklink,
 		moneyTimeout,
-		userPartitionRoundNumber,
+		earliestAdditionTime,
 		latestAdditionTime,
 	)
 	if err != nil {
@@ -643,7 +648,7 @@ func (w *FeeManager) sendAddFCTx(ctx context.Context, accountKey *account.Accoun
 	//     if yes => create new addFC with existing transferFC proof
 	//     if not => unlock remote fee credit record and delete fee context
 	if feeCtx.AddFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.AddFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.AddFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -658,11 +663,11 @@ func (w *FeeManager) sendAddFCTx(ctx context.Context, accountKey *account.Accoun
 		if err := feeCtx.TransferFCProof.TxRecord.TransactionOrder.UnmarshalAttributes(transferFCAttr); err != nil {
 			return fmt.Errorf("failed to unmarshal transferFC attributes: %w", err)
 		}
-		targetPartitionRoundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+		rnr, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch target partition round number: %w", err)
 		}
-		if targetPartitionRoundNumber >= transferFCAttr.LatestAdditionTime {
+		if rnr.LastIndexedRoundNumber >= transferFCAttr.LatestAdditionTime {
 			_, err := w.unlockFeeCreditRecord(ctx, accountKey)
 			if err != nil {
 				return fmt.Errorf("failed to unlock remote fee credit record: %w", err)
@@ -783,7 +788,7 @@ func (w *FeeManager) sendLockTx(ctx context.Context, accountKey *account.Account
 	}
 	// if lock tx already exists then wait for confirmation => if confirmed store proof else create new transaction
 	if feeCtx.LockTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.LockTx)
+		proof, err := w.waitForConf(ctx, feeCtx.LockTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -798,27 +803,25 @@ func (w *FeeManager) sendLockTx(ctx context.Context, accountKey *account.Account
 
 	moneyFCB, err := w.fetchMoneyPartitionFCB(ctx, accountKey)
 	if err != nil {
-		return fmt.Errorf("faild to fetch money fee credit bill: %w", err)
+		return fmt.Errorf("failed to fetch money fee credit bill: %w", err)
 	}
 	// do not lock target bill if there's not enough fee credit on money partition
 	if moneyFCB.GetValue() == 0 {
 		return nil
 	}
 
-	// fetch round number for timeout
-	userPartitionRoundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch target partition round number: %w", err)
-	}
-
 	// create lock tx
+	timeout, err := w.getMoneyPartitionTimeout(ctx)
+	if err != nil {
+		return err
+	}
 	tx, err := txbuilder.NewLockTx(
 		accountKey,
 		w.targetPartitionSystemID,
 		feeCtx.TargetBillID,
 		feeCtx.TargetBillBacklink,
 		unitlock.LockReasonReclaimFees,
-		userPartitionRoundNumber+txTimeoutBlockCount,
+		timeout,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create lock transaction: %w", err)
@@ -855,7 +858,7 @@ func (w *FeeManager) sendCloseFCTx(ctx context.Context, accountKey *account.Acco
 	// if confirmed => store proof
 	// if not confirmed => create new transaction
 	if feeCtx.CloseFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.CloseFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.CloseFCTx, w.targetPartitionBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -921,7 +924,7 @@ func (w *FeeManager) sendReclaimFCTx(ctx context.Context, accountKey *account.Ac
 	//     if yes => create new reclaimFC with existing closeFC proof
 	//     if not => unlock target bill and delete fee context
 	if feeCtx.ReclaimFCTx != nil {
-		proof, err := w.waitForConf(ctx, feeCtx.ReclaimFCTx)
+		proof, err := w.waitForConf(ctx, feeCtx.ReclaimFCTx, w.moneyBackendClient)
 		if err != nil {
 			return fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -982,19 +985,19 @@ func (w *FeeManager) sendReclaimFCTx(ctx context.Context, accountKey *account.Ac
 }
 
 func (w *FeeManager) getMoneyPartitionTimeout(ctx context.Context) (uint64, error) {
-	roundNumber, err := w.moneyBackendClient.GetRoundNumber(ctx)
+	rnr, err := w.moneyBackendClient.GetRoundNumber(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch money partition round number: %w", err)
 	}
-	return roundNumber + txTimeoutBlockCount, nil
+	return rnr.RoundNumber + txTimeoutBlockCount, nil
 }
 
 func (w *FeeManager) getTargetPartitionTimeout(ctx context.Context) (uint64, error) {
-	roundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+	rnr, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch target partition round number: %w", err)
 	}
-	return roundNumber + txTimeoutBlockCount, nil
+	return rnr.RoundNumber + txTimeoutBlockCount, nil
 }
 
 // fetchBills fetches bills from backend and sorts them by value (descending, largest first)
@@ -1030,21 +1033,23 @@ func (w *FeeManager) sumValues(bills []*wallet.Bill) uint64 {
 	return sum
 }
 
-func (w *FeeManager) waitForConf(ctx context.Context, tx *types.TransactionOrder) (*wallet.Proof, error) {
+func (w *FeeManager) waitForConf(ctx context.Context, tx *types.TransactionOrder, api PartitionDataProvider) (*wallet.Proof, error) {
 	txHash := tx.Hash(crypto.SHA256)
 	for {
-		proof, err := w.targetPartitionBackendClient.GetTxProof(ctx, tx.UnitID(), txHash)
+		// fetch round number before proof to ensure that we cannot miss the proof
+		rnr, err := api.GetRoundNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch target partition round number: %w", err)
+		}
+		proof, err := api.GetTxProof(ctx, tx.UnitID(), txHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
 		}
 		if proof != nil {
 			return proof, nil
 		}
-		roundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch target partition round number: %w", err)
-		}
-		if roundNumber >= tx.Timeout() {
+		if rnr.LastIndexedRoundNumber >= tx.Timeout() {
+			w.log.InfoContext(ctx, fmt.Sprintf("tx not confirmed txHash=%x", txHash))
 			break
 		}
 		select {
@@ -1074,11 +1079,11 @@ func (w *FeeManager) unlockFeeCreditRecord(ctx context.Context, accountKey *acco
 	if !fcb.IsLocked() {
 		return nil, nil
 	}
-	roundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+	timeout, err := w.getTargetPartitionTimeout(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch round number for target partition: %w", err)
+		return nil, err
 	}
-	tx, err := txbuilder.NewUnlockFCTx(accountKey, w.targetPartitionSystemID, fcb, roundNumber+txTimeoutBlockCount)
+	tx, err := txbuilder.NewUnlockFCTx(accountKey, w.targetPartitionSystemID, fcb, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unlockFC transaction: %w", err)
 	}
@@ -1093,11 +1098,11 @@ func (w *FeeManager) unlockBill(ctx context.Context, accountKey *account.Account
 	for _, b := range bills {
 		if bytes.Equal(b.Id, unitID) {
 			if b.IsLocked() {
-				roundNumber, err := w.targetPartitionBackendClient.GetRoundNumber(ctx)
+				timeout, err := w.getMoneyPartitionTimeout(ctx)
 				if err != nil {
-					return nil, fmt.Errorf("failed to fetch round number: %w", err)
+					return nil, err
 				}
-				unlockTx, err := txbuilder.NewUnlockTx(accountKey, w.moneySystemID, b, roundNumber+txTimeoutBlockCount)
+				unlockTx, err := txbuilder.NewUnlockTx(accountKey, w.moneySystemID, b, timeout)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create unlock tx: %w", err)
 				}

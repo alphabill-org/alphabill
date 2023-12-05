@@ -44,7 +44,7 @@ type (
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -146,8 +146,8 @@ func (w *Wallet) GetBalances(ctx context.Context, cmd GetBalanceCmd) ([]uint64, 
 	return totals, sum, err
 }
 
-// GetRoundNumber returns latest round number known to the wallet, including empty rounds.
-func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+// GetRoundNumber returns the latest round number in node and backend.
+func (w *Wallet) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 
@@ -174,7 +174,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, errors.New("insufficient balance for transaction")
 	}
 
-	roundNumber, err := w.backend.GetRoundNumber(ctx)
+	rnr, err := w.backend.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	if err != nil {
 		return nil, err
 	}
-	timeout := roundNumber + txTimeoutBlockCount
+	timeout := rnr.RoundNumber + txTimeoutBlockCount
 	batch := txsubmitter.NewBatch(k.PubKey, w.backend, w.log)
 
 	var txs []*types.TransactionOrder

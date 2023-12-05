@@ -148,15 +148,16 @@ func TestGetTxProof_404_UrlNOK(t *testing.T) {
 	require.Nil(t, res)
 }
 
-func TestBlockHeight(t *testing.T) {
-	mockServer, mockAddress := mockGetBlockHeightCall(t)
+func TestGetRoundNumber(t *testing.T) {
+	mockServer, mockAddress := mockGetRoundNumber(t)
 	defer mockServer.Close()
 
 	restClient, _ := New(mockAddress.Host, observability.Default(t))
-	blockHeight, err := restClient.GetRoundNumber(context.Background())
+	rsp, err := restClient.GetRoundNumber(context.Background())
 
 	require.NoError(t, err)
-	require.EqualValues(t, 1000, blockHeight)
+	require.EqualValues(t, 1000, rsp.RoundNumber)
+	require.EqualValues(t, 999, rsp.LastIndexedRoundNumber)
 }
 
 func Test_NewClient(t *testing.T) {
@@ -336,13 +337,13 @@ func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
+func mockGetRoundNumber(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + RoundNumberPath) {
 			t.Errorf("Expected to request '%v', got: %s", RoundNumberPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"roundNumber": "1000"}`))
+		w.Write([]byte(`{"roundNumber": "1000", "lastIndexedRoundNumber": "999"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

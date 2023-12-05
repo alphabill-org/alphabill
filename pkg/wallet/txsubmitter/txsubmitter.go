@@ -29,7 +29,7 @@ type (
 	}
 
 	BackendAPI interface {
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -98,21 +98,16 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			return fmt.Errorf("confirming transactions interrupted: %w", err)
 		}
 
-		roundNr, err := t.backend.GetRoundNumber(ctx)
+		rnr, err := t.backend.GetRoundNumber(ctx)
 		if err != nil {
 			return err
 		}
+		roundNr := rnr.LastIndexedRoundNumber
 		unconfirmed := false
 		for _, sub := range t.submissions {
 			if sub.Confirmed() {
 				continue
 			}
-
-			// Tx can be included in block sub.Transaction().Timeout()-1 at latest.
-			// But let's wait until node is at round sub.Transaction().Timeout()+1
-			// to give backend more time to fetch and process the block. A more reliable
-			// solution would be to use the latest round number that backend has processed,
-			// instead of the latest round number from node.
 			if roundNr <= sub.Transaction.Timeout() {
 				proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
 				if err != nil {

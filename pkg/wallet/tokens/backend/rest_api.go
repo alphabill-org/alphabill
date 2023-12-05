@@ -30,6 +30,7 @@ type dataSource interface {
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
 	GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
+	GetBlockNumber() (uint64, error)
 }
 
 type abClient interface {
@@ -215,7 +216,12 @@ func (api *tokensRestAPI) getRoundNumber(w http.ResponseWriter, r *http.Request)
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
-	api.rw.WriteResponse(w, RoundNumberResponse{RoundNumber: rn})
+	bn, err := api.db.GetBlockNumber()
+	if err != nil {
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+	api.rw.WriteResponse(w, sdk.RoundNumber{RoundNumber: rn, LastIndexedRoundNumber: bn})
 }
 
 func (api *tokensRestAPI) subscribeEvents(w http.ResponseWriter, r *http.Request) {
@@ -377,9 +383,3 @@ func (api *tokensRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 
 	api.rw.WriteCborResponse(w, proof)
 }
-
-type (
-	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber,string"`
-	}
-)

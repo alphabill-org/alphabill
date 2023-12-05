@@ -299,8 +299,8 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 
 	// wait for backend to start
 	require.Eventually(t, func() bool {
-		rn, err := restClient.GetRoundNumber(ctx)
-		return err == nil && rn > 0
+		rnr, err := restClient.GetRoundNumber(ctx)
+		return err == nil && rnr.RoundNumber > 0
 	}, test.WaitDuration, test.WaitTick)
 
 	return defaultAlphabillApiURL, restClient

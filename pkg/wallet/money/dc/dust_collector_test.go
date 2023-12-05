@@ -673,8 +673,8 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 	}
 
 	backendMock := &testutil.BackendAPIMock{
-		GetRoundNumberFn: func() (uint64, error) {
-			return 0, nil
+		GetRoundNumberFn: func() (*wallet.RoundNumber, error) {
+			return &wallet.RoundNumber{}, nil
 		},
 		ListBillsFn: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return &backend.ListBillsResponse{Bills: bills}, nil

@@ -40,7 +40,7 @@ type (
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -421,6 +421,11 @@ func (w *DustCollector) fetchDCProofsForTargetUnit(ctx context.Context, k *accou
 
 func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transaction) (*wallet.Proof, error) {
 	for {
+		// fetch round number before proof to ensure that we cannot miss the proof
+		rnr, err := w.backend.GetRoundNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch round number: %w", err)
+		}
 		proof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
@@ -428,11 +433,7 @@ func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transactio
 		if proof != nil {
 			return proof, nil
 		}
-		roundNumber, err := w.backend.GetRoundNumber(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch round number: %w", err)
-		}
-		if roundNumber >= tx.TxOrder.Timeout() {
+		if rnr.LastIndexedRoundNumber >= tx.TxOrder.Timeout() {
 			break
 		}
 		select {
@@ -453,11 +454,11 @@ func (w *DustCollector) extractProofsFromBatch(dcBatch *txsubmitter.TxSubmission
 }
 
 func (w *DustCollector) getTxTimeout(ctx context.Context) (uint64, error) {
-	roundNr, err := w.backend.GetRoundNumber(ctx)
+	rnr, err := w.backend.GetRoundNumber(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch round number: %w", err)
 	}
-	return roundNr + w.txTimeout, nil
+	return rnr.RoundNumber + w.txTimeout, nil
 }
 
 func (w *DustCollector) getBillByID(bills []*wallet.Bill, id types.UnitID) *wallet.Bill {

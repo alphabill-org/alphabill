@@ -37,11 +37,11 @@ func newClientMock() *evmClientMock {
 	return &evmClientMock{}
 }
 
-func (e *evmClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (e *evmClientMock) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	if e.SimulateErr != nil {
-		return 0, e.SimulateErr
+		return nil, e.SimulateErr
 	}
-	return uint64(3), nil
+	return &wallet.RoundNumber{RoundNumber: 3, LastIndexedRoundNumber: 3}, nil
 }
 
 func (e *evmClientMock) PostTransaction(ctx context.Context, tx *types.TransactionOrder) error {

@@ -189,20 +189,6 @@ func Test_execute(t *testing.T) {
 		wantUpdatedUnits     int
 	}{
 		{
-			name: "err - from address is account with code",
-			args: args{
-				attr: &TxAttributes{
-					From:  evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
-					Value: big.NewInt(0),
-					Gas:   1000000,
-					Nonce: 1,
-				},
-				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
-				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
-			},
-			wantErrStr: core.ErrSenderNoEOA.Error(),
-		},
-		{
 			name: "err - nonce too high",
 			args: args{
 				attr: &TxAttributes{
@@ -245,11 +231,42 @@ func Test_execute(t *testing.T) {
 			wantErrStr: "nonce has max value",
 		},
 		{
+			name: "err - from address is account with code",
+			args: args{
+				attr: &TxAttributes{
+					From:  evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Gas:   1000000,
+					Nonce: 2,
+				},
+				gp: new(core.GasPool).AddGas(DefaultBlockGasLimit),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{
+					{Addr: fromAddr, Balance: oneEth, Code: counterContractCode},
+					{Addr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0), Balance: oneEth, Code: counterContractCode}}),
+			},
+			wantErrStr: core.ErrSenderNoEOA.Error(),
+		},
+		{
 			name: "err - insufficient funds",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
-					Value: big.NewInt(0),
+					Value: big.NewInt(1),
+					Gas:   10,
+					Data:  common.Hex2Bytes(counterContractCode),
+					Nonce: 1,
+				},
+				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 10 * DefaultGasPrice, Code: counterContractCode}}),
+			},
+			wantErrStr: core.ErrInsufficientFunds.Error(),
+		},
+		{
+			name: "err - insufficient fee balance",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(10),
 					Gas:   1000000,
 					Data:  common.Hex2Bytes(counterContractCode),
 					Nonce: 1,
@@ -257,7 +274,7 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 10, Code: counterContractCode}}),
 			},
-			wantErrStr: core.ErrInsufficientFunds.Error(),
+			wantErrStr: "insufficient fee credit balance for transaction",
 		},
 		{
 			name: "err - insufficient funds to execute call get",
@@ -516,7 +533,7 @@ func Test_ReplayContractCreation(t *testing.T) {
 func Test_ReplayCall(t *testing.T) {
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	gasPrice := big.NewInt(DefaultGasPrice)
-	stateDB := initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 53000 * DefaultGasPrice, Code: counterContractCode}})
+	stateDB := initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 2 * (53000 * DefaultGasPrice), Code: counterContractCode}})
 	gasPool := new(core.GasPool).AddGas(DefaultBlockGasLimit)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -535,7 +552,7 @@ func Test_ReplayCall(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
-	initialBalance := big.NewInt(53000 * DefaultGasPrice) // this is the value set as balance in initStateDBWithAccountAndSC
+	initialBalance := big.NewInt(2 * (53000 * DefaultGasPrice)) // this is the value set as balance in initStateDBWithAccountAndSC
 	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
 
 	// try to replay

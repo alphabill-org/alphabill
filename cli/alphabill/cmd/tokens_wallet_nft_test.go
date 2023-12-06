@@ -209,3 +209,41 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, id)
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), "symbol='ABNFT'")
 }
+
+func TestNFT_LockUnlock_Integration(t *testing.T) {
+	network := NewAlphabillNetwork(t)
+	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	homedirW1 := network.walletHomedir
+	backendUrl := network.tokenBackendURL
+	backendClient := network.tokenBackendClient
+	w1key := network.walletKey1
+	ctx := network.ctx
+
+	typeID := randomNonFungibleTokenTypeID(t)
+	nftID := randomNonFungibleTokenID(t)
+	symbol := "ABNFT"
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -k 1 --symbol %s -r %s --type %s", symbol, backendUrl, typeID))
+	ensureTokenTypeIndexed(t, network.ctx, backendClient, w1key.PubKey, typeID)
+
+	// mint NFT
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -k 1 -r %s --type %s --token-identifier %s", backendUrl, typeID, nftID))
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return tx.PayloadType() == tokens.PayloadTypeMintNFT && bytes.Equal(tx.UnitID(), nftID)
+	}), test.WaitDuration, test.WaitTick)
+	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, nftID)
+
+	// lock NFT
+	execTokensCmd(t, homedirW1, fmt.Sprintf("lock -r %s --token-identifier %s -k 1", backendUrl, nftID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -r %s", backendUrl))
+	}, "locked='manually locked by user'")
+
+	// unlock NFT
+	execTokensCmd(t, homedirW1, fmt.Sprintf("unlock -r %s --token-identifier %s -k 1", backendUrl, nftID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -r %s", backendUrl))
+	}, "locked=''")
+}

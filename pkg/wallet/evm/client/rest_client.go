@@ -98,12 +98,12 @@ func (e *EvmClient) PostTransaction(ctx context.Context, tx *types.TransactionOr
 }
 
 // GetRoundNumber returns node round number
-func (e *EvmClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (e *EvmClient) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
 	var round uint64
 	if err := e.get(ctx, e.getURL(apiPathPrefix, "rounds/latest"), &round, false); err != nil {
-		return 0, fmt.Errorf("get round-number request failed: %w", err)
+		return nil, fmt.Errorf("get round-number request failed: %w", err)
 	}
-	return round, nil
+	return &sdk.RoundNumber{RoundNumber: round, LastIndexedRoundNumber: round}, nil
 }
 
 // GetTxProof - get transaction proof for tx hash. NB! node must be configured to run with indexer.

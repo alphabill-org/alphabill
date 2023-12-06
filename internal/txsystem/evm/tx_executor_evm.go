@@ -62,6 +62,12 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
+	// Verify balance
+	balance := stateDB.GetBalance(attr.FromAddr())
+	projectedMaxFee := alphaToWei(weiToAlpha(new(big.Int).Mul(gasUnitPrice, new(big.Int).SetUint64(attr.Gas))))
+	if balance.Cmp(projectedMaxFee) == -1 {
+		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
+	}
 	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
 	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)
@@ -100,14 +106,13 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		return nil, fmt.Errorf("evm result encode error %w", err)
 	}
 	txPrice := calcGasPrice(execResult.UsedGas, gasUnitPrice)
-	// calculate gas based fee in alpha and refund the remainder
-	fee, remainderWei := weiToAlphaWithReminder(txPrice)
-	// HACK: AB-1207 - quick hack for first evm release, refund remainder back to the account
-	// Todo: AB-1208 Create a proper solution and implement ApplyMessage in this project
-	stateDB.AddBalance(msg.From, remainderWei)
+	fee := weiToAlpha(txPrice)
+	// if rounding isn't clean, add or subtract balance accordingly
+	feeInWei := alphaToWei(fee)
+	stateDB.AddBalance(msg.From, new(big.Int).Sub(txPrice, feeInWei))
 
 	log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee), logger.Round(currentBlockNumber))
-	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
 func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {

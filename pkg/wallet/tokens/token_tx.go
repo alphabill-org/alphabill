@@ -22,20 +22,20 @@ import (
 
 type (
 	txPreprocessor     func(tx *types.TransactionOrder) error
-	roundNumberFetcher func(ctx context.Context) (uint64, error)
+	roundNumberFetcher func(ctx context.Context) (*wallet.RoundNumber, error)
 
 	cachingRoundNumberFetcher struct {
-		roundNumber uint64
+		roundNumber *wallet.RoundNumber
 		delegate    roundNumberFetcher
 	}
 )
 
-func (f *cachingRoundNumberFetcher) getRoundNumber(ctx context.Context) (uint64, error) {
-	if f.roundNumber == 0 {
+func (f *cachingRoundNumberFetcher) getRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
+	if f.roundNumber == nil {
 		var err error
 		f.roundNumber, err = f.delegate(ctx)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 	}
 	return f.roundNumber, nil
@@ -130,7 +130,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ttxs.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber.RoundNumber+txTimeoutRoundCount, ttxs.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)
@@ -213,6 +213,21 @@ func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []by
 		NFTTypeID:                    token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                     token.TxHash,
+		InvariantPredicateSignatures: nil,
+	}
+}
+
+func newLockTxAttrs(backlink []byte, lockStatus uint64) *ttxs.LockTokenAttributes {
+	return &ttxs.LockTokenAttributes{
+		LockStatus:                   lockStatus,
+		Backlink:                     backlink,
+		InvariantPredicateSignatures: nil,
+	}
+}
+
+func newUnlockTxAttrs(backlink []byte) *ttxs.UnlockTokenAttributes {
+	return &ttxs.UnlockTokenAttributes{
+		Backlink:                     backlink,
 		InvariantPredicateSignatures: nil,
 	}
 }

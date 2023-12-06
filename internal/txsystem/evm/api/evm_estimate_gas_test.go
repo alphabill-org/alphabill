@@ -45,7 +45,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 
-	require.EqualValues(t, 148629, resp.GasUsed)
+	require.EqualValues(t, 177717, resp.GasUsed)
 }
 
 func TestAPI_EstimateGas_Call_OK(t *testing.T) {
@@ -77,7 +77,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
-	require.EqualValues(t, 23479, resp.GasUsed)
+	require.EqualValues(t, 23377, resp.GasUsed)
 
 	call = &CallEVMRequest{
 		From:  address.Bytes(),
@@ -93,7 +93,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
-	require.EqualValues(t, 45013, resp.GasUsed)
+	require.EqualValues(t, 44813, resp.GasUsed)
 }
 
 func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
@@ -129,6 +129,112 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 	}{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 	require.Contains(t, resp.Err, "gas required exceeds allowance")
+}
+
+func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
+	tree := abstate.NewEmptyState()
+	address, contractAddr := initState(t, tree)
+
+	a := &API{
+		state:            tree,
+		systemIdentifier: []byte{0, 0, 0, 1},
+		gasUnitPrice:     big.NewInt(1),
+		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
+	}
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
+
+	call := &CallEVMRequest{
+		From:  address.Bytes(),
+		To:    contractAddr.Bytes(),
+		Data:  cABI.Methods["get"].ID,
+		Value: big.NewInt(0),
+		Gas:   21000,
+	}
+	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
+	recorder := httptest.NewRecorder()
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	resp := &struct {
+		_   struct{} `cbor:",toarray"`
+		Err string
+	}{}
+	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.Contains(t, resp.Err, "gas required exceeds allowance")
+}
+
+func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
+	tree := abstate.NewEmptyState()
+	address, contractAddr := initState(t, tree)
+
+	a := &API{
+		state:            tree,
+		systemIdentifier: []byte{0, 0, 0, 1},
+		gasUnitPrice:     big.NewInt(1),
+		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
+	}
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
+	// try to reset to 2, will result in revert
+	fnCall, err := cABI.Pack("reset", big.NewInt(2))
+	require.NoError(t, err)
+	call := &CallEVMRequest{
+		From:  address.Bytes(),
+		To:    contractAddr.Bytes(),
+		Data:  fnCall,
+		Value: big.NewInt(0),
+	}
+	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
+	recorder := httptest.NewRecorder()
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	resp := &struct {
+		_   struct{} `cbor:",toarray"`
+		Err string
+	}{}
+	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.Equal(t, resp.Err, "execution reverted: can only be reset to 0")
+}
+
+func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
+	tree := abstate.NewEmptyState()
+	address, contractAddr := initState(t, tree)
+
+	a := &API{
+		state:            tree,
+		systemIdentifier: []byte{0, 0, 0, 1},
+		gasUnitPrice:     big.NewInt(1),
+		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
+	}
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
+	require.NoError(t, err)
+	call := &CallEVMRequest{
+		From:  address.Bytes(),
+		To:    contractAddr.Bytes(),
+		Data:  cABI.Methods["infiniteInc"].ID,
+		Gas:   50000,
+		Value: big.NewInt(0),
+	}
+	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
+	recorder := httptest.NewRecorder()
+	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	resp := &struct {
+		_   struct{} `cbor:",toarray"`
+		Err string
+	}{}
+	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.Equal(t, resp.Err, "gas required exceeds allowance (50000)")
 }
 
 func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {

@@ -1,29 +1,15 @@
 package consensus
 
 import (
-	"context"
 	gocrypto "crypto"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
-	// Manager is a consensus manager interface that must be implemented by all versions of consensus managers
-	Manager interface {
-		// RequestCertification returns channel where to send certification requests with proof of quorum or no-quorum
-		RequestCertification() chan<- IRChangeRequest
-		// CertificationResult read the channel to receive certification results
-		CertificationResult() <-chan *types.UnicityCertificate
-		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
-		GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
-		// Run consensus algorithm
-		Run(ctx context.Context) error
-	}
-
 	// Parameters are basic consensus parameters that need to be the same in all root validators.
 	// Extracted from root genesis where all validators in the root cluster must have signed them to signal agreement
 	Parameters struct {

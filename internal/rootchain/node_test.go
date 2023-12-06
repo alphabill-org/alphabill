@@ -65,8 +65,13 @@ func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.Partiti
 	}, nil
 }
 
-func (m *MockConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
-	return m.certReqCh
+func (m *MockConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case m.certReqCh <- cr:
+	}
+	return nil
 }
 
 func (m *MockConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {
@@ -255,7 +260,8 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// since consensus is simple majority, then consensus is now achieved and message should be forwarded
-	require.Eventually(t, func() bool { return len(rootValidator.consensusManager.RequestCertification()) == 1 }, 1*time.Second, 10*time.Millisecond)
+	mcm := rootValidator.consensusManager.(*MockConsensusManager)
+	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
@@ -297,7 +303,8 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, partitionNodes[2])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].PeerConf.ID, network.ProtocolBlockCertification, req3)
 	// no consensus can be achieved all reported different hashes
-	require.Eventually(t, func() bool { return len(rootValidator.consensusManager.RequestCertification()) == 1 }, 1*time.Second, 10*time.Millisecond)
+	mcm := rootValidator.consensusManager.(*MockConsensusManager)
+	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {

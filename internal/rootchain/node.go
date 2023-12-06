@@ -8,10 +8,11 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -20,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 type (
@@ -30,11 +32,19 @@ type (
 
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
 		Logger() *slog.Logger
 	}
 
-	MsgVerification interface {
-		IsValid(v crypto.Verifier) error
+	ConsensusManager interface {
+		// RequestCertification accepts certification requests with proof of quorum or no-quorum.
+		RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error
+		// CertificationResult read the channel to receive certification results
+		CertificationResult() <-chan *types.UnicityCertificate
+		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
+		GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
+		// Run consensus algorithm
+		Run(ctx context.Context) error
 	}
 
 	Node struct {
@@ -43,8 +53,10 @@ type (
 		incomingRequests *CertRequestBuffer
 		subscription     *Subscriptions
 		net              PartitionNet
-		consensusManager consensus.Manager
-		log              *slog.Logger
+		consensusManager ConsensusManager
+
+		log    *slog.Logger
+		tracer trace.Tracer
 
 		bcrCount metric.Int64Counter // Block Certification Request count
 	}
@@ -55,7 +67,7 @@ func New(
 	p *network.Peer,
 	pNet PartitionNet,
 	ps partitions.PartitionConfiguration,
-	cm consensus.Manager,
+	cm ConsensusManager,
 	observe Observability,
 ) (*Node, error) {
 	if p == nil {
@@ -73,6 +85,7 @@ func New(
 		net:              pNet,
 		consensusManager: cm,
 		log:              observe.Logger(),
+		tracer:           observe.Tracer("rootchain.node"),
 	}
 	if err := node.initMetrics(observe); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
@@ -81,7 +94,7 @@ func New(
 }
 
 func (n *Node) initMetrics(observe Observability) (err error) {
-	m := observe.Meter("rootchain", metric.WithInstrumentationAttributes(attribute.String("node_id", string(n.peer.ID()))))
+	m := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", n.peer.ID())))
 
 	n.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
 	if err != nil {
@@ -163,6 +176,9 @@ onBlockCertificationRequest handles Certification Request from partition nodes.
 Partition nodes can only extend the stored/certified state.
 */
 func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) (rErr error) {
+	ctx, span := v.tracer.Start(ctx, "node.onBlockCertificationRequest")
+	defer span.End()
+
 	sysID32, err := req.SystemIdentifier.Id32()
 	if err != nil {
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", "err.sysid"))))
@@ -171,9 +187,13 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	defer func() {
 		status := "ok"
 		if rErr != nil {
+			span.RecordError(rErr)
+			span.SetStatus(codes.Error, rErr.Error())
 			status = "err"
 		}
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), attribute.Int("partition", int(sysID32)))))
+		partition := observability.Partition(sysID32)
+		span.SetAttributes(partition)
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), partition)))
 	}()
 
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
@@ -208,32 +228,25 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	if err != nil {
 		return fmt.Errorf("storing request: %w", err)
 	}
+	var reason consensus.CertReqReason
 	switch res {
 	case QuorumAchieved:
 		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", sysID32, proof[0].InputRecord.Hash))
-		select {
-		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID32,
-			Reason:           consensus.Quorum,
-			Requests:         proof,
-		}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		reason = consensus.Quorum
 	case QuorumNotPossible:
 		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", sysID32))
-		// add all nodeRequest to prove that no consensus is possible
-		select {
-		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID32,
-			Reason:           consensus.QuorumNotPossible,
-			Requests:         proof,
-		}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		reason = consensus.QuorumNotPossible
 	case QuorumInProgress:
 		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", sysID32))
+		return nil
+	}
+	if err = v.consensusManager.RequestCertification(ctx,
+		consensus.IRChangeRequest{
+			SystemIdentifier: sysID32,
+			Reason:           reason,
+			Requests:         proof,
+		}); err != nil {
+		return fmt.Errorf("requesting certification: %w", err)
 	}
 	return nil
 }

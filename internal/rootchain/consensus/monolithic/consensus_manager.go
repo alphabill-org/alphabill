@@ -91,8 +91,13 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 	return x.loop(ctx)
 }
 
-func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
-	return x.certReqCh
+func (x *ConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case x.certReqCh <- cr:
+	}
+	return nil
 }
 
 func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {

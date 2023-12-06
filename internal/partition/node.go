@@ -525,6 +525,7 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	defer func(start time.Time) {
 		status := "ok"
 		if rErr != nil {
+			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 			n.sendEvent(event.Error, rErr)
 			status = "err"

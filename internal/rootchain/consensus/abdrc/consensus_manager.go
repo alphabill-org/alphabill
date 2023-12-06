@@ -61,9 +61,14 @@ type (
 		Logger() *slog.Logger
 	}
 
+	certRequest struct {
+		ircr consensus.IRChangeRequest
+		rsc  trace.SpanContext
+	}
+
 	ConsensusManager struct {
 		// channel via which validator sends "certification requests" to CM
-		certReqCh chan consensus.IRChangeRequest
+		certReqCh chan certRequest
 		// channel via which CM sends "certification request" response to validator
 		certResultCh chan *types.UnicityCertificate
 		// internal buffer for "certification request" response to allow CM to
@@ -150,7 +155,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		return nil, fmt.Errorf("creating Pacemaker: %w", err)
 	}
 	consensusManager := &ConsensusManager{
-		certReqCh:      make(chan consensus.IRChangeRequest),
+		certReqCh:      make(chan certRequest),
 		certResultCh:   make(chan *types.UnicityCertificate),
 		ucSink:         make(chan map[types.SystemID32]*types.UnicityCertificate, 1),
 		params:         cParams,
@@ -253,8 +258,16 @@ func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls
 	}
 }
 
-func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
-	return x.certReqCh
+func (x *ConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.RequestCertification")
+	defer span.End()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case x.certReqCh <- certRequest{ircr: cr, rsc: trace.SpanContextFromContext(ctx)}:
+	}
+	return nil
 }
 
 func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {
@@ -306,7 +319,8 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				x.log.WarnContext(ctx, fmt.Sprintf("processing %T", msg), logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			}
 		case req := <-x.certReqCh:
-			if err := x.onPartitionIRChangeReq(ctx, &req); err != nil {
+			ctx := trace.ContextWithRemoteSpanContext(ctx, req.rsc)
+			if err := x.onPartitionIRChangeReq(ctx, &req.ircr); err != nil {
 				x.log.WarnContext(ctx, "failed to process IR change request from partition", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			}
 		case event := <-x.pacemaker.StatusEvents():
@@ -326,6 +340,7 @@ func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) (rErr 
 		status := "ok"
 		if rErr != nil {
 			status = "err"
+			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
 		x.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
@@ -412,9 +427,10 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 // onPartitionIRChangeReq handle partition change requests. Received from go routine handling
 // partition communication when either partition reaches consensus or cannot reach consensus.
 func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *consensus.IRChangeRequest) (rErr error) {
-	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onPartitionIRChangeReq", trace.WithNewRoot(), trace.WithAttributes(observability.Round(x.pacemaker.GetCurrentRound())))
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onPartitionIRChangeReq", trace.WithAttributes(observability.Round(x.pacemaker.GetCurrentRound())))
 	defer func() {
 		if rErr != nil {
+			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
 		span.End()
@@ -477,7 +493,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(irChangeMsg.IrChangeReq.SystemIdentifier)), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
+	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(irChangeMsg.IrChangeReq.SystemIdentifier), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}
@@ -582,8 +598,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 	// when there is multiple consecutive timeout rounds and instance is in one of the previous round
 	// (ie haven't got enough timeout votes for the latest round quorum) recovery is not triggered as
 	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
-	// AdvanceRoundTC handles nil TC gracefully.
-	x.processTC(vote.Timeout.LastTC)
+	x.processTC(ctx, vote.Timeout.LastTC)
 
 	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if err != nil {
@@ -595,7 +610,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 	}
 	x.log.DebugContext(ctx, "timeout quorum achieved", logger.Round(vote.Timeout.Round))
 	// process timeout certificate to advance to next the view/round
-	x.processTC(tc)
+	x.processTC(ctx, tc)
 	// if this node is the leader in this round then issue a proposal
 	l := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	if l == x.id {
@@ -651,7 +666,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
 	x.processQC(ctx, proposal.Block.Qc)
-	x.processTC(proposal.LastRoundTc)
+	x.processTC(ctx, proposal.LastRoundTc)
 	// execute proposed payload
 	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
 	if err != nil {
@@ -711,7 +726,9 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *abtypes.QuorumCert
 }
 
 // processTC - handles timeout certificate
-func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
+func (x *ConsensusManager) processTC(ctx context.Context, tc *abtypes.TimeoutCert) {
+	_, span := x.tracer.Start(ctx, "ConsensusManager.processTC")
+	defer span.End()
 	if tc == nil {
 		return
 	}
@@ -949,7 +966,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// Every proposal must carry a QC or TC for previous round
 		// Process QC first, update round
 		x.processQC(ctx, prop.Block.Qc)
-		x.processTC(prop.LastRoundTc)
+		x.processTC(ctx, prop.LastRoundTc)
 		stateHash, err := x.blockStore.GetBlockRootHash(prop.Block.Round)
 		// assume block not found, was not sent with recovery info
 		if err != nil {
@@ -978,7 +995,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
 		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
 		// todo: timeout votes are not buffered
-		x.processTC(tmo.Timeout.LastTC)
+		x.processTC(ctx, tmo.Timeout.LastTC)
 	}
 	x.replayVoteBuffer(ctx)
 	return nil

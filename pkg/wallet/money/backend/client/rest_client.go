@@ -14,6 +14,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -40,6 +42,10 @@ type (
 		transactionsURL  *url.URL
 		infoURL          *url.URL
 	}
+
+	Observability interface {
+		TracerProvider() trace.TracerProvider
+	}
 )
 
 const (
@@ -56,7 +62,7 @@ const (
 	paramIncludeDCBills = "includeDcBills"
 )
 
-func New(baseUrl string) (*MoneyBackendClient, error) {
+func New(baseUrl string, observe Observability) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = "http://" + baseUrl
 	}
@@ -66,7 +72,7 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 	}
 	return &MoneyBackendClient{
 		BaseUrl:          u,
-		HttpClient:       http.Client{Timeout: time.Minute},
+		HttpClient:       http.Client{Timeout: time.Minute, Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithServerName("money_backend"), otelhttp.WithTracerProvider(observe.TracerProvider()))},
 		balanceURL:       u.JoinPath(BalancePath),
 		roundNumberURL:   u.JoinPath(RoundNumberPath),
 		unitsURL:         u.JoinPath(UnitsPath),
@@ -116,13 +122,13 @@ func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sd
 	return res.Bills, nil
 }
 
-func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	var res *backend.RoundNumberResponse
+func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	var res *sdk.RoundNumber
 	_, err := c.get(ctx, c.roundNumberURL, &res, false)
 	if err != nil {
-		return 0, fmt.Errorf("get round number request failed: %w", err)
+		return nil, fmt.Errorf("get round number request failed: %w", err)
 	}
-	return res.RoundNumber, nil
+	return res, nil
 }
 
 func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {

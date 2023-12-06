@@ -90,6 +90,11 @@ func TestFungibleTokenDC(t *testing.T) {
 				unitID := tx.UnitID()
 				recordedTx[string(unitID)] = tx
 				switch tx.PayloadType() {
+				case ttxs.PayloadTypeLockToken:
+					attrs := &ttxs.LockTokenAttributes{}
+					require.NoError(t, tx.UnmarshalAttributes(attrs))
+					tok := findToken(pubKey, unitID)
+					tok.Locked = attrs.LockStatus
 				case ttxs.PayloadTypeBurnFungibleToken:
 					tok := findToken(pubKey, unitID)
 					tok.Burned = true
@@ -121,8 +126,8 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return &sdk.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: recordedTx, ServerMetadata: &types.ServerMetadata{ActualFee: tx_builder.MaxFee}}, TxProof: nil}, nil
 		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
+		getRoundNumber: func(ctx context.Context) (*sdk.RoundNumber, error) {
+			return &sdk.RoundNumber{RoundNumber: 1}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 			return &sdk.Bill{
@@ -140,9 +145,9 @@ func TestFungibleTokenDC(t *testing.T) {
 	// this should only join tokens with type typeID3
 	results, err := tw.CollectDust(ctx, AllAccounts, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, recordedTx, 3) // 2 burns, 1 join
+	require.Len(t, recordedTx, 3) // 2 burns, 1 join (join overwrites lock because same unit id in map)
 	require.Len(t, results, 1)
-	require.Equal(t, uint64(3), results[0].FeeSum)
+	require.Equal(t, uint64(4), results[0].FeeSum)
 	// tx validation is done in postTransactions()
 
 	// repeat, but with the specific account number
@@ -151,7 +156,7 @@ func TestFungibleTokenDC(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, recordedTx, 3) // 2 burns, 1 join
 	require.Len(t, results, 1)
-	require.Equal(t, uint64(3), results[0].FeeSum)
+	require.Equal(t, uint64(4), results[0].FeeSum) // 1 lock, 2 burns, 1 join
 
 	// DC amount uint64 overflow, single batch
 	burnedValues, accTokens, recordedTx = resetFunc()
@@ -175,12 +180,12 @@ func TestFungibleTokenDC(t *testing.T) {
 	accTokens[string(pubKey2)] = append(accTokens[string(pubKey2)], &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: math.MaxUint64})
 	results, err = tw.CollectDust(ctx, 3, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, recordedTx, 101)               // 100 burns, 1 join from the first batch
+	require.Len(t, recordedTx, 101)               // 100 burns, 1 join from the first batch (join overwrites lock tx in map)
 	require.Len(t, accTokens[string(pubKey2)], 2) // 1 token joined and 1 left from the second batch
 	require.Equal(t, expectedToJoinInFirstBatch, accTokens[string(pubKey2)][0].Amount)
 	require.EqualValues(t, uint64(math.MaxUint64), accTokens[string(pubKey2)][1].Amount)
 	require.Len(t, results, 1)
-	require.Equal(t, uint64(101), results[0].FeeSum)
+	require.Equal(t, uint64(102), results[0].FeeSum)
 }
 
 func TestGetTokensForDC(t *testing.T) {

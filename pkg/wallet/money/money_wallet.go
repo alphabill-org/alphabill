@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
@@ -43,7 +44,7 @@ type (
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -86,10 +87,10 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, feeManagerDB fees.FeeManagerDB, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend, log)
-	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
+	feeManager := fees.NewFeeManager(am, feeManagerDB, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
 	dustCollector := dc.NewDustCollector(moneySystemID, maxBillsForDustCollection, txTimeoutBlockCount, backend, unitLocker, log)
 	return &Wallet{
 		am:            am,
@@ -145,8 +146,8 @@ func (w *Wallet) GetBalances(ctx context.Context, cmd GetBalanceCmd) ([]uint64, 
 	return totals, sum, err
 }
 
-// GetRoundNumber returns latest round number known to the wallet, including empty rounds.
-func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+// GetRoundNumber returns the latest round number in node and backend.
+func (w *Wallet) GetRoundNumber(ctx context.Context) (*wallet.RoundNumber, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 
@@ -173,7 +174,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, errors.New("insufficient balance for transaction")
 	}
 
-	roundNumber, err := w.backend.GetRoundNumber(ctx)
+	rnr, err := w.backend.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -195,17 +196,24 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	if err != nil {
 		return nil, err
 	}
-	timeout := roundNumber + txTimeoutBlockCount
+	timeout := rnr.RoundNumber + txTimeoutBlockCount
 	batch := txsubmitter.NewBatch(k.PubKey, w.backend, w.log)
 
 	var txs []*types.TransactionOrder
 	if len(cmd.Receivers) > 1 {
 		// if more than one receiver then perform transaction as N-way split and require sufficiently large bill
 		largestBill := bills[0]
-		if largestBill.Value <= totalAmount {
-			return nil, fmt.Errorf("sending to multiple addresses is performed using a single N-way split "+
-				"transaction which requires sufficiently large bill, need at least %d Tema value bill, have largest "+
-				"%d Tema value bill", totalAmount+1, largestBill.Value) // +1 because 0 remaining value is not allowed
+		if largestBill.Value < totalAmount {
+			return nil, fmt.Errorf("sending to multiple addresses is performed using N-way split transaction which "+
+				"requires a single sufficiently large bill, wallet needs a bill with at least %s tema value, "+
+				"largest bill in wallet currently is %s tema",
+				util.AmountToString(totalAmount+1, 8), // +1 because 0 remaining value is not allowed
+				util.AmountToString(largestBill.Value, 8))
+		}
+		if largestBill.Value == totalAmount {
+			return nil, errors.New("sending to multiple addresses is performed using N-way split transaction " +
+				"which requires a single sufficiently large bill and cannot result in a bill with 0 value after the " +
+				"transaction")
 		}
 		// convert send cmd targets to transaction units
 		var targetUnits []*money.TargetUnit

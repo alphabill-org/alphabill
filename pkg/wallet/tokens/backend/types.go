@@ -58,10 +58,10 @@ type (
 	Kind        byte
 
 	FeeCreditBill struct {
-		Id     []byte `json:"id"`
-		Value  uint64 `json:"value,string"`
-		TxHash []byte `json:"txHash"`
-		Locked uint64 `json:"locked,string"`
+		Id     []byte            `json:"id"`
+		Value  uint64            `json:"value,string"`
+		TxHash []byte            `json:"txHash"`
+		Locked wallet.LockReason `json:"locked,string"`
 	}
 )
 
@@ -82,6 +82,13 @@ func (tu *TokenUnit) WriteSSE(w io.Writer) error {
 	}
 	_, err = fmt.Fprintf(w, "event: token\ndata: %s\n\n", b)
 	return err
+}
+
+func (tu *TokenUnit) IsLocked() bool {
+	if tu != nil {
+		return tu.Locked > 0
+	}
+	return false
 }
 
 func (kind Kind) String() string {

@@ -14,8 +14,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
@@ -33,7 +33,7 @@ func TestRunEvmNode(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
-		logF := logger.LoggerBuilder(t)
+		logF := testobserve.NewFactory(t)
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
@@ -41,7 +41,7 @@ func TestRunEvmNode(t *testing.T) {
 		cmd := New(logF)
 		args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.addAndExecuteCommand(context.Background())
+		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
@@ -73,7 +73,7 @@ func TestRunEvmNode(t *testing.T) {
 			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-			err = cmd.addAndExecuteCommand(ctx)
+			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
@@ -108,7 +108,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	appStoppedWg := sync.WaitGroup{}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
@@ -116,7 +116,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	cmd := New(logF)
 	args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
@@ -148,7 +148,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 		args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-		err = cmd.addAndExecuteCommand(ctx)
+		err = cmd.Execute(ctx)
 		require.ErrorIs(t, err, context.Canceled)
 		appStoppedWg.Done()
 	}()

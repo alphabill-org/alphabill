@@ -11,14 +11,15 @@ import (
 	"strings"
 	"testing"
 
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
-
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
+
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 const pubKeyHex = "0x038003e218eea360cbf580ebb90cc8c8caf0ccef4bf660ea9ab4fc06b5c367b038"
@@ -30,7 +31,7 @@ func TestGetBalance(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	balance, err := restClient.GetBalance(context.Background(), pubKey, true)
@@ -44,7 +45,7 @@ func TestListBills(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
@@ -60,7 +61,7 @@ func TestListBillsWithPaging(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
@@ -107,7 +108,7 @@ func TestTxHistoryWithPaging(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(serverAddress.Host)
+	restClient, err := New(serverAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	historyResponse, offset, err := restClient.GetTxHistory(context.Background(), pubKey, offset, limit)
@@ -120,7 +121,7 @@ func TestGetTxProof(t *testing.T) {
 	mockServer, mockAddress := mockGetTxProofCall(t)
 	defer mockServer.Close()
 
-	restClient, _ := New(mockAddress.Host)
+	restClient, _ := New(mockAddress.Host, observability.Default(t))
 	proofResponse, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
 
 	require.NoError(t, err)
@@ -129,7 +130,7 @@ func TestGetTxProof(t *testing.T) {
 
 func TestGetTxProof_404_UrlOK(t *testing.T) {
 	mockAddr := mockNotFoundErrorResponse(t, "no proof found for tx")
-	restClient, err := New(mockAddr.Host)
+	restClient, err := New(mockAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	res, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
@@ -139,7 +140,7 @@ func TestGetTxProof_404_UrlOK(t *testing.T) {
 
 func TestGetTxProof_404_UrlNOK(t *testing.T) {
 	mockAddr := mockNotFoundResponse(t)
-	restClient, err := New(mockAddr.Host)
+	restClient, err := New(mockAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	res, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
@@ -147,20 +148,21 @@ func TestGetTxProof_404_UrlNOK(t *testing.T) {
 	require.Nil(t, res)
 }
 
-func TestBlockHeight(t *testing.T) {
-	mockServer, mockAddress := mockGetBlockHeightCall(t)
+func TestGetRoundNumber(t *testing.T) {
+	mockServer, mockAddress := mockGetRoundNumber(t)
 	defer mockServer.Close()
 
-	restClient, _ := New(mockAddress.Host)
-	blockHeight, err := restClient.GetRoundNumber(context.Background())
+	restClient, _ := New(mockAddress.Host, observability.Default(t))
+	rsp, err := restClient.GetRoundNumber(context.Background())
 
 	require.NoError(t, err)
-	require.EqualValues(t, 1000, blockHeight)
+	require.EqualValues(t, 1000, rsp.RoundNumber)
+	require.EqualValues(t, 999, rsp.LastIndexedRoundNumber)
 }
 
 func Test_NewClient(t *testing.T) {
 	t.Run("invalid URL", func(t *testing.T) {
-		mbc, err := New("x:y:z")
+		mbc, err := New("x:y:z", observability.Default(t))
 		require.ErrorContains(t, err, "error parsing Money Backend Client base URL")
 		require.Nil(t, mbc)
 	})
@@ -178,9 +180,10 @@ func Test_NewClient(t *testing.T) {
 			{param: "ab-dev.guardtime.com:7777", url: "http://ab-dev.guardtime.com:7777"},
 			{param: "https://ab-dev.guardtime.com:8888", url: "https://ab-dev.guardtime.com:8888"},
 		}
+		obs := observability.Default(t)
 
 		for _, tc := range cases {
-			mbc, err := New(tc.param)
+			mbc, err := New(tc.param, obs)
 			if err != nil {
 				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
 			}
@@ -193,7 +196,7 @@ func Test_NewClient(t *testing.T) {
 
 func TestGetFeeCreditBill(t *testing.T) {
 	serverURL := mockGetFeeCreditBillCall(t)
-	restClient, _ := New(serverURL.Host)
+	restClient, _ := New(serverURL.Host, observability.Default(t))
 	response, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
 	require.NoError(t, err)
 
@@ -203,7 +206,7 @@ func TestGetFeeCreditBill(t *testing.T) {
 
 func TestGetFeeCreditBill_404_UrlOK(t *testing.T) {
 	mockAddr := mockNotFoundErrorResponse(t, "fee credit bill does not exist")
-	restClient, err := New(mockAddr.Host)
+	restClient, err := New(mockAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	res, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
@@ -213,7 +216,7 @@ func TestGetFeeCreditBill_404_UrlOK(t *testing.T) {
 
 func TestGetFeeCreditBill_404_UrlNOK(t *testing.T) {
 	mockAddr := mockNotFoundResponse(t)
-	restClient, err := New(mockAddr.Host)
+	restClient, err := New(mockAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	res, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
@@ -227,7 +230,7 @@ func TestPostTransactions(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
@@ -246,7 +249,7 @@ func TestPostTransactionsError(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
@@ -263,7 +266,7 @@ func TestGetInfo(t *testing.T) {
 	mockServer, mockAddress := mockGetInfoRequest(t)
 	defer mockServer.Close()
 
-	restClient, err := New(mockAddress.Host)
+	restClient, err := New(mockAddress.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	infoResponse, err := restClient.GetInfo(context.Background())
@@ -334,13 +337,13 @@ func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
+func mockGetRoundNumber(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + RoundNumberPath) {
 			t.Errorf("Expected to request '%v', got: %s", RoundNumberPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"roundNumber": "1000"}`))
+		w.Write([]byte(`{"roundNumber": "1000", "lastIndexedRoundNumber": "999"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

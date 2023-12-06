@@ -13,6 +13,10 @@ schemas:
         type: string
         description: Value is uint64 encoded as string
         example: '265'
+      lastIndexedRoundNumber:
+        type: string
+        description: Value is uint64 encoded as string
+        example: '265'
   Bill:
     type: object
     properties:

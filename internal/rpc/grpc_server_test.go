@@ -5,10 +5,12 @@ import (
 	"context"
 	"crypto"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -29,13 +31,13 @@ type (
 		maxBlockNumber uint64
 		maxRoundNumber uint64
 		transactions   []*types.TransactionOrder
+		err            error
 	}
 )
 
 func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
-	zeroHash := [32]byte{}
-	if bytes.Equal(zeroHash[:], hash) {
-		return nil, nil, nil
+	if mn.err != nil {
+		return nil, nil, mn.err
 	}
 	return &types.TransactionRecord{}, &types.TxProof{}, nil
 }
@@ -62,7 +64,7 @@ func (mn *MockNode) GetLatestBlock() (*types.Block, error) {
 	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
 }
 
-func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
+func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 	return mn.maxRoundNumber, nil
 }
 
@@ -74,6 +76,29 @@ func (mn *MockNode) GetPeer() *network.Peer {
 	return nil
 }
 
+func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	unitAndProof := &types.UnitDataAndProof{}
+	if returnData {
+		unitAndProof.UnitData = &types.StateUnitData{
+			Data:   cbor.RawMessage{0x81, 0x00},
+			Bearer: predicates.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
+		}
+	}
+	if returnProof {
+		unitAndProof.Proof = &types.UnitStateProof{
+			UnitID: unitID,
+		}
+	}
+	return unitAndProof, nil
+}
+
+func (mn *MockNode) WriteStateFile(writer io.Writer) error {
+	return nil
+}
+
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
 	p, err := NewGRPCServer(nil, nil)
 	assert.Nil(t, p)
@@ -82,13 +107,13 @@ func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{}, observability.NOPMetrics())
+	p, err := NewGRPCServer(&MockNode{}, observability.Default(t))
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12, maxRoundNumber: 12}, observability.NOPMetrics())
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12, maxRoundNumber: 12}, observability.Default(t))
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
@@ -97,7 +122,7 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1, maxRoundNumber: 1}, observability.NOPMetrics())
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1, maxRoundNumber: 1}, observability.Default(t))
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
@@ -106,7 +131,7 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksMostlyEmpty(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 5, maxRoundNumber: 100}, observability.NOPMetrics())
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 5, maxRoundNumber: 100}, observability.Default(t))
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 50})
 	require.NoError(t, err)
@@ -117,7 +142,7 @@ func TestRpcServer_GetBlocksMostlyEmpty(t *testing.T) {
 }
 
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7, maxRoundNumber: 7}, observability.NOPMetrics())
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7, maxRoundNumber: 7}, observability.Default(t))
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
@@ -149,7 +174,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	rpcServer, _ := NewGRPCServer(&MockNode{}, observability.NOPMetrics())
+	rpcServer, _ := NewGRPCServer(&MockNode{}, observability.Default(t))
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

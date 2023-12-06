@@ -21,9 +21,8 @@ import (
 
 const (
 	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultTxBufferSize                = 1000
 	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10 * DefaultTxBufferSize
+	DefaultReplicationMaxTx     uint32 = 10000
 )
 
 var (
@@ -40,7 +39,7 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
-		txIndexer                   keyvaluedb.KeyValueDB
+		proofIndexConfig            proofIndexConfig
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      crypto.Signer
@@ -52,6 +51,15 @@ type (
 	}
 
 	NodeOption func(c *configuration)
+	// proofIndexConfig proof indexer config
+	// store - type of store, either a memory DB or bolt DB
+	// historyLen - number of rounds/blocks to keep in indexer:
+	// - if 0, there is no clean-up and all blocks are kept in the index;
+	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
+	proofIndexConfig struct {
+		store      keyvaluedb.KeyValueDB
+		historyLen uint64
+	}
 
 	ledgerReplicationConfig struct {
 		maxBlocks uint64
@@ -90,9 +98,10 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
-func WithTxIndexer(txIndexer keyvaluedb.KeyValueDB) NodeOption {
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *configuration) {
-		c.txIndexer = txIndexer
+		c.proofIndexConfig.store = db
+		c.proofIndexConfig.historyLen = history
 	}
 }
 
@@ -129,6 +138,10 @@ func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.Partiti
 		signer:        signer,
 		genesis:       genesis,
 		hashAlgorithm: gocrypto.SHA256,
+		proofIndexConfig: proofIndexConfig{
+			store:      memorydb.New(),
+			historyLen: 20,
+		},
 	}
 	for _, option := range nodeOptions {
 		option(c)
@@ -151,12 +164,11 @@ func (c *configuration) initMissingDefaults() error {
 	if c.blockStore == nil {
 		c.blockStore = memorydb.New()
 	}
-
-	var err error
-
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
+
+	var err error
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return fmt.Errorf("root trust base init error, %w", err)

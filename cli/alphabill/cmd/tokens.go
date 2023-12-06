@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 type (
@@ -69,7 +70,18 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
 
-	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
+	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
+	obs := observability.WithLogger(cfg.Base.observe, log)
+
+	blockStore, err := initStore(cfg.Node.DbFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
+	proofStore, err := initStore(cfg.Node.TxIndexerDBFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize proof DB: %w", err)
+	}
 
 	txs, err := tokens.NewTxSystem(
 		log,
@@ -80,9 +92,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, nil, cfg.Base.observe, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, cfg.Base.observe, log)
+	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
 }

@@ -79,22 +79,18 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 	return txs, nil
 }
 
-func (m *GenericTxSystem) GetState() *state.State {
+func (m *GenericTxSystem) State() *state.State {
 	return m.state
 }
 
-func (m *GenericTxSystem) CurrentBlockNumber() uint64 {
-	return m.currentBlockNumber
-}
-
-func (m *GenericTxSystem) StateSummary() (State, error) {
+func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, ErrStateContainsUncommittedChanges
 	}
-	return m.getState()
+	return m.getStateSummary()
 }
 
-func (m *GenericTxSystem) getState() (State, error) {
+func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
@@ -148,7 +144,6 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 			TransactionOrder: tx,
 			ServerMetadata:   sm,
 		}
-		targets := sm.TargetUnits
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close free credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
@@ -158,9 +153,9 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 				m.state.RollbackToSavepoint(savepointID)
 				return
 			}
-			targets = append(targets, feeCreditRecordID)
+			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
 		}
-		for _, targetID := range targets {
+		for _, targetID := range sm.TargetUnits {
 			// add log for each target unit
 			unitLogSize, err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
@@ -185,13 +180,17 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) EndBlock() (State, error) {
+func (m *GenericTxSystem) StateStorage() UnitAndProof {
+	return m.state.Clone()
+}
+
+func (m *GenericTxSystem) EndBlock() (StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
-	return m.getState()
+	return m.getStateSummary()
 }
 
 func (m *GenericTxSystem) Revert() {

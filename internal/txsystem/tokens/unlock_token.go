@@ -42,22 +42,22 @@ func updateUnlockTokenData(data state.UnitData, tx *types.TransactionOrder, roun
 }
 
 func updateUnlockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, roundNumber uint64, options *Options) (state.UnitData, error) {
-	d, ok := data.(*nonFungibleTokenData)
+	d, ok := data.(*NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
-	d.t = roundNumber
-	d.backlink = tx.Hash(options.hashAlgorithm)
-	d.locked = 0
+	d.T = roundNumber
+	d.Backlink = tx.Hash(options.hashAlgorithm)
+	d.Locked = 0
 	return d, nil
 }
 
 func updateUnlockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, roundNumber uint64, options *Options) (state.UnitData, error) {
-	d, ok := data.(*fungibleTokenData)
+	d, ok := data.(*FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
-	d.t = roundNumber
+	d.T = roundNumber
 	d.backlink = tx.Hash(options.hashAlgorithm)
 	d.locked = 0
 	return d, nil
@@ -92,19 +92,19 @@ func validateUnlockTokenTx(tx *types.TransactionOrder, attr *UnlockTokenAttribut
 }
 
 func validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, options *Options, u *state.Unit) error {
-	d, ok := u.Data().(*nonFungibleTokenData)
+	d, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
 		options.hashAlgorithm,
 		options.state,
-		d.nftType,
-		func(d *nonFungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.NftType,
+		func(d *NonFungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *nonFungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *NonFungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
@@ -114,19 +114,19 @@ func validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *UnlockToke
 }
 
 func validateUnlockFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, options *Options, u *state.Unit) error {
-	d, ok := u.Data().(*fungibleTokenData)
+	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		options.hashAlgorithm,
 		options.state,
-		d.tokenType,
-		func(d *fungibleTokenTypeData) []byte {
-			return d.invariantPredicate
+		d.TokenType,
+		func(d *FungibleTokenTypeData) []byte {
+			return d.InvariantPredicate
 		},
-		func(d *fungibleTokenTypeData) types.UnitID {
-			return d.parentTypeId
+		func(d *FungibleTokenTypeData) types.UnitID {
+			return d.ParentTypeId
 		},
 	)
 	if err != nil {
@@ -163,13 +163,13 @@ func (l *UnlockTokenAttributes) SigBytes() ([]byte, error) {
 
 func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, predicates []predicates.PredicateBytes, d tokenData) error {
 	// the token is locked
-	if d.Locked() == 0 {
+	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")
 	}
 	// the current transaction follows the previous valid transaction with the token
-	if !bytes.Equal(attr.Backlink, d.Backlink()) {
+	if !bytes.Equal(attr.Backlink, d.GetBacklink()) {
 		return fmt.Errorf("the transaction backlink is not equal to the token backlink: tx.backlink='%x' token.backlink='%x'",
-			attr.Backlink, d.Backlink())
+			attr.Backlink, d.GetBacklink())
 	}
 	return verifyOwnership(u.Bearer(), predicates, &unlockTokenOwnershipProver{tx: tx, attr: attr})
 }

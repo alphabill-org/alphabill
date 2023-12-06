@@ -7,6 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 )
@@ -42,6 +45,9 @@ type Pacemaker struct {
 	statusChan     chan paceMakerStatus
 	ticker         *time.Ticker
 	stopRoundClock context.CancelFunc
+
+	roundDur metric.Float64Histogram
+	roundCnt metric.Int64Counter
 }
 
 /*
@@ -52,7 +58,7 @@ NewPacemaker initializes new Pacemaker instance (zero value is not usable).
 
 The maxRoundLen must be greater than minRoundLen or the Pacemaker will crash at some point!
 */
-func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
+func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability) (*Pacemaker, error) {
 	pm := &Pacemaker{
 		minRoundLen:    minRoundLen,
 		maxRoundLen:    maxRoundLen,
@@ -62,7 +68,32 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
 		stopRoundClock: func() { /* init as NOP */ },
 	}
 	pm.ticker.Stop()
-	return pm
+
+	var err error
+	m := observe.Meter("pacemaker")
+	// we expect that the minRoundLen is relatively short (~0.5s) while maxRoundLen is
+	// relatively long (~10s). We hope that most rounds last only little bit longer than
+	// minRoundLen so generate few buckets between min and max with finer steps near the min end.
+	step := (100 * time.Millisecond).Seconds()
+	buckets := []float64{minRoundLen.Seconds()}
+	for i := 0; buckets[i] < 2*maxRoundLen.Seconds(); i++ {
+		n := time.Duration((buckets[i] + step) * float64(time.Second)).Truncate(time.Millisecond)
+		buckets = append(buckets, n.Seconds())
+		step *= 2
+	}
+	pm.roundDur, err = m.Float64Histogram("round.duration",
+		metric.WithDescription("How long it took from the start of round R to the start of R+1"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(buckets...))
+	if err != nil {
+		return nil, fmt.Errorf("creating histogram for round duration: %w", err)
+	}
+	pm.roundCnt, err = m.Int64Counter("round", metric.WithDescription("How many new rounds have been started"))
+	if err != nil {
+		return nil, fmt.Errorf("creating round counter: %w", err)
+	}
+
+	return pm, nil
 }
 
 /*
@@ -71,10 +102,23 @@ This method should only used to start the pacemaker and reset it's status
 on system recovery, during normal operation current round is advanced by
 calling AdvanceRoundQC or AdvanceRoundTC.
 */
-func (x *Pacemaker) Reset(highQCRound uint64) {
+func (x *Pacemaker) Reset(highQCRound uint64, lastTc *abtypes.TimeoutCert, lastVote any) {
 	x.lastRoundTC = nil
 	x.lastQcToCommitRound = highQCRound
-	x.startNewRound(highQCRound + 1)
+	lastRound := highQCRound
+	// If TC is from a more recent round then use it instead
+	if highQCRound < lastTc.GetRound() {
+		lastRound = lastTc.GetRound()
+		x.lastRoundTC = lastTc
+	}
+	x.startNewRound(lastRound + 1)
+	// restore last sent vote for pace maker
+	switch vote := lastVote.(type) {
+	case *abdrc.VoteMsg:
+		x.SetVoted(vote)
+	case *abdrc.TimeoutMsg:
+		x.SetTimeoutVote(vote)
+	}
 }
 
 func (x *Pacemaker) Stop() {
@@ -171,6 +215,7 @@ func (x *Pacemaker) AdvanceRoundQC(qc *abtypes.QuorumCert) bool {
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
 	x.startNewRound(qc.VoteInfo.RoundNumber + 1)
+	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
 	return true
 }
 
@@ -182,6 +227,7 @@ func (x *Pacemaker) AdvanceRoundTC(tc *abtypes.TimeoutCert) {
 	}
 	x.lastRoundTC = tc
 	x.startNewRound(tc.Timeout.Round + 1)
+	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
 }
 
 /*
@@ -189,18 +235,20 @@ startNewRound - sets new current round number, resets all stores and
 starts round clock which produces events into StatusEvents channel.
 */
 func (x *Pacemaker) startNewRound(round uint64) {
+	x.stopRoundClock()
+	start := time.Now()
 	x.currentQC = nil
 	x.voteSent = nil
 	x.timeoutVote = nil
 	x.pendingVotes.Reset()
 	x.currentRound.Store(round)
 
-	x.stopRoundClock()
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
 	x.stopRoundClock = func() {
 		cancel()
 		<-stopped
+		x.roundDur.Record(context.Background(), time.Since(start).Seconds())
 	}
 }
 

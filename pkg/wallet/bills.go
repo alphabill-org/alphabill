@@ -12,12 +12,12 @@ type (
 	}
 
 	Bill struct {
-		Id                   []byte `json:"id,omitempty"`
-		Value                uint64 `json:"value,omitempty,string"`
-		TxHash               []byte `json:"txHash,omitempty"`
-		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
-		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
-		Locked               uint64 `json:"locked,omitempty,string"`
+		Id                   []byte     `json:"id,omitempty"`
+		Value                uint64     `json:"value,omitempty,string"`
+		TxHash               []byte     `json:"txHash,omitempty"`
+		DCTargetUnitID       []byte     `json:"targetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte     `json:"targetUnitBacklink,omitempty"`
+		Locked               LockReason `json:"locked,omitempty,string"`
 	}
 )
 

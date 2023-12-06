@@ -58,7 +58,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.NoError(t, err)
 	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	b := NewExecutedBlockFromGenesis(hash, rootGenesis.Partitions)
+	b := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
 	require.Equal(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, data.SysID.ToSystemID())
@@ -86,7 +86,7 @@ func TestExecutedBlock(t *testing.T) {
 	require.NoError(t, err)
 	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	parent := NewExecutedBlockFromGenesis(hash, rootGenesis.Partitions)
+	parent := NewGenesisBlock(hash, rootGenesis.Partitions)
 	certReq := &certification.BlockCertificationRequest{
 		SystemIdentifier: partitionID1.ToSystemID(),
 		NodeIdentifier:   "1",

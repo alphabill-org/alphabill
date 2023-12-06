@@ -3,13 +3,14 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -33,8 +34,10 @@ type (
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		GetLatestBlock() (*types.Block, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
-		GetLatestRoundNumber() (uint64, error)
+		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() []byte
+		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
+		WriteStateFile(writer io.Writer) error
 	}
 )
 
@@ -91,8 +94,8 @@ func (r *grpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockReques
 	return &alphabill.GetBlockResponse{Block: bytes}, nil
 }
 
-func (r *grpcServer) GetRoundNumber(_ context.Context, _ *emptypb.Empty) (*alphabill.GetRoundNumberResponse, error) {
-	latestRn, err := r.node.GetLatestRoundNumber()
+func (r *grpcServer) GetRoundNumber(ctx context.Context, _ *emptypb.Empty) (*alphabill.GetRoundNumberResponse, error) {
+	latestRn, err := r.node.GetLatestRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +110,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 	if err != nil {
 		return nil, err
 	}
-	latestRn, err := r.node.GetLatestRoundNumber()
+	latestRn, err := r.node.GetLatestRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}

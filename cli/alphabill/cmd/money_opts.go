@@ -28,6 +28,13 @@ func convertOptsToRunnable(opts interface{}) moneyNodeRunnable {
 		executeOpts := Options{}
 		v(&executeOpts)
 		return executeOpts.nodeRunFunc
+	case []interface{}:
+		for _, op := range v {
+			if f := convertOptsToRunnable(op); f != nil {
+				return f
+			}
+		}
+		return nil
 	default:
 		return nil
 	}

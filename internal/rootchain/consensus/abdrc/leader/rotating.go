@@ -40,4 +40,6 @@ func (r *RoundRobin) GetNodes() []peer.ID {
 	return r.validators
 }
 
-func (r *RoundRobin) Update(qc *abtypes.QuorumCert, currentRound uint64) error { return nil }
+func (r *RoundRobin) Update(qc *abtypes.QuorumCert, currentRound uint64, b BlockLoader) error {
+	return nil
+}

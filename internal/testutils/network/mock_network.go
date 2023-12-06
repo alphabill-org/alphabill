@@ -2,20 +2,26 @@ package testnetwork
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"reflect"
 	"sync"
+	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -23,6 +29,7 @@ type MockNet struct {
 	mutex        sync.Mutex
 	err          error
 	MessageCh    chan any
+	txBuffer     *txbuffer.TxBuffer
 	sentMessages map[string][]PeerMessage
 	protocols    map[reflect.Type]string
 }
@@ -32,13 +39,18 @@ type PeerMessage struct {
 	Message any
 }
 
-func NewMockNetwork() *MockNet {
+func NewMockNetwork(t *testing.T) *MockNet {
+	obs := observability.NOPMetrics()
+	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs, testlogger.New(t))
+	require.NoError(t, err)
+
 	mn := &MockNet{
 		MessageCh:    make(chan any, 100),
+		txBuffer:     txBuffer,
 		sentMessages: make(map[string][]PeerMessage),
 		protocols:    make(map[reflect.Type]string),
 	}
-	err := mn.registerSendProtocols([]msgProtocol{
+	err = mn.registerSendProtocols([]msgProtocol{
 		{protocolID: network.ProtocolBlockProposal, msgStruct: blockproposal.BlockProposal{}},
 		{protocolID: network.ProtocolBlockCertification, msgStruct: certification.BlockCertificationRequest{}},
 		{protocolID: network.ProtocolInputForward, msgStruct: types.TransactionOrder{}},
@@ -118,6 +130,28 @@ func (m *MockNet) Receive(msg any) {
 
 func (m *MockNet) ReceivedChannel() <-chan any {
 	return m.MessageCh
+}
+
+func (m *MockNet) AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	if m.txBuffer != nil {
+		return m.txBuffer.Add(ctx, tx)
+	}
+	return nil, nil
+}
+
+func (m *MockNet) ProcessTransactions(ctx context.Context, txProcessor network.TxProcessor) {
+	for {
+		tx, err := m.txBuffer.Remove(ctx)
+		if err != nil {
+			return
+		}
+		if err := txProcessor(ctx, tx); err != nil {
+			continue
+		}
+	}
+}
+
+func (m *MockNet) ForwardTransactions(ctx context.Context, receiver peer.ID) {
 }
 
 type msgProtocol struct {

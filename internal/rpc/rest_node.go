@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -24,9 +25,11 @@ const (
 	pathTransactions         = "/transactions"
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
+	pathState                = "/state"
+	pathUnits                = "/units/{unitID}"
 )
 
-func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) RegistrarFunc {
+func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability, log *slog.Logger) RegistrarFunc {
 	return func(r *mux.Router) {
 		// submit transaction
 		r.HandleFunc(pathTransactions, submitTransaction(node, obs.Meter(metricsScopeRESTAPI), log)).Methods(http.MethodPost, http.MethodOptions)
@@ -35,7 +38,14 @@ func NodeEndpoints(node partitionNode, obs Observability, log *slog.Logger) Regi
 		r.HandleFunc(pathGetTransactionRecord, getTransactionRecord(node, log)).Methods(http.MethodGet, http.MethodOptions)
 
 		// get latest round number
-		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log))
+		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log)).Methods(http.MethodGet, http.MethodOptions)
+
+		// get unit data and proof
+		r.HandleFunc(pathUnits, getUnit(node, unitProofDB, log)).Methods(http.MethodGet, http.MethodOptions)
+		// Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}") - fields are not mandatory
+
+		// get the state file
+		r.HandleFunc(pathState, getState(node, log))
 	}
 }
 
@@ -75,7 +85,7 @@ func statusCodeOfTxError(err error) string {
 	switch {
 	case err == nil:
 		return "ok"
-	case errors.Is(err, txbuffer.ErrBufferIsFull):
+	case errors.Is(err, txbuffer.ErrTxBufferFull):
 		return "buf.full"
 	case errors.Is(err, txbuffer.ErrTxInBuffer):
 		return "buf.double"
@@ -99,12 +109,10 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 		}
 		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
+			if errors.Is(err, partition.ErrIndexNotFound) {
+				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+			}
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
-			return
-		}
-
-		if txRecord == nil {
-			util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			return
 		}
 
@@ -121,11 +129,22 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 
 func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		nr, err := node.GetLatestRoundNumber()
+		nr, err := node.GetLatestRoundNumber(request.Context())
 		if err != nil {
 			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return
 		}
 		util.WriteCBORResponse(w, nr, http.StatusOK, log)
+	}
+}
+
+func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/cbor")
+		w.WriteHeader(http.StatusOK)
+
+		if err := node.WriteStateFile(w); err != nil {
+			log.Error("writing state file", logger.Error(err))
+		}
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -200,7 +201,7 @@ func Test_GetRoundNumber(t *testing.T) {
 
 					w := httptest.NewRecorder()
 					w.WriteHeader(http.StatusOK)
-					if _, err := w.WriteString(`{"roundNumber": "0"}`); err != nil {
+					if _, err := w.WriteString(`{"roundNumber": "0", "lastIndexedRoundNumber": "0"}`); err != nil {
 						t.Errorf("failed to write response body: %v", err)
 					}
 					return w.Result(), nil
@@ -210,7 +211,7 @@ func Test_GetRoundNumber(t *testing.T) {
 
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
-		require.Zero(t, rn)
+		require.Empty(t, rn)
 	})
 
 	createClient := func(t *testing.T, respBody string) *TokenBackend {
@@ -237,18 +238,12 @@ func Test_GetRoundNumber(t *testing.T) {
 		require.Zero(t, rn)
 	})
 
-	t.Run("invalid response: negative value", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": "-8"}`)
-		rn, err := cli.GetRoundNumber(context.Background())
-		require.EqualError(t, err, `get round-number request failed: failed to decode response body: json: cannot unmarshal number -8 into Go struct field RoundNumberResponse.roundNumber of type uint64`)
-		require.Zero(t, rn)
-	})
-
 	t.Run("success", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": "3"}`)
+		cli := createClient(t, `{"roundNumber": "3", "lastIndexedRoundNumber": "2"}`)
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 3, rn)
+		require.EqualValues(t, 3, rn.RoundNumber)
+		require.EqualValues(t, 2, rn.LastIndexedRoundNumber)
 	})
 }
 
@@ -719,7 +714,7 @@ func Test_New(t *testing.T) {
 			t.Errorf("expected request %q, got: %q", rp, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"roundNumber": "900"}`)
+		fmt.Fprint(w, `{"roundNumber": "900", "lastIndexedRoundNumber": "899"}`)
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(h))
@@ -728,10 +723,11 @@ func Test_New(t *testing.T) {
 	addr, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	cli := New(*addr)
+	cli := New(*addr, observability.Default(t))
 	rn, err := cli.GetRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.EqualValues(t, 900, rn)
+	require.EqualValues(t, 900, rn.RoundNumber)
+	require.EqualValues(t, 899, rn.LastIndexedRoundNumber)
 }
 
 func Test_extractOffsetMarker(t *testing.T) {

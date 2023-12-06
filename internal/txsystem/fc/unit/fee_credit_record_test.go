@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,18 +18,20 @@ func TestFCR_HashIsCalculatedCorrectly(t *testing.T) {
 	}
 	// calculate actual hash
 	hasher := crypto.SHA256.New()
-	fcr.Write(hasher)
+	require.NoError(t, fcr.Write(hasher))
 	actualHash := hasher.Sum(nil)
 
 	// calculate expected hash
 	hasher.Reset()
-	hasher.Write(util.Uint64ToBytes(fcr.Balance))
-	hasher.Write(fcr.Backlink)
-	hasher.Write(util.Uint64ToBytes(fcr.Timeout))
-	hasher.Write(util.Uint64ToBytes(fcr.Locked))
+	res, err := cbor.Marshal(fcr)
+	require.NoError(t, err)
+	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
-
 	require.Equal(t, expectedHash, actualHash)
+	// check all fields serialized
+	var fcrFromSerialized FeeCreditRecord
+	require.NoError(t, cbor.Unmarshal(res, &fcrFromSerialized))
+	require.Equal(t, fcr, &fcrFromSerialized)
 }
 
 func TestFCR_SummaryValueIsZero(t *testing.T) {

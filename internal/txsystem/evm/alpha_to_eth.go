@@ -12,6 +12,7 @@ import (
 )
 
 var alpha2Wei = new(big.Int).Exp(big.NewInt(10), big.NewInt(10), nil)
+var alpha2WeiRoundCorrector = new(big.Int).Div(alpha2Wei, big.NewInt(2))
 
 func generateAddress(pubKeyBytes []byte) (common.Address, error) {
 	if pubKeyBytes == nil {
@@ -47,16 +48,8 @@ func alphaToWei(alpha uint64) *big.Int {
 	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
 }
 
-// weiToAlpha - converts from wei to alpha, rounding down.
+// weiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
 func weiToAlpha(wei *big.Int) uint64 {
-	return new(big.Int).Div(wei, alpha2Wei).Uint64()
-}
-
-// weiToAlphaWithReminder - converts from wei to alpha, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
-// and returns the mod as reminder in wei
-func weiToAlphaWithReminder(wei *big.Int) (*big.Int, *big.Int) {
-	remainder := new(big.Int)
-	amount, reminder := new(big.Int).DivMod(wei, alpha2Wei, remainder)
-	return amount, reminder
+	return new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
 }

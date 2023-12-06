@@ -11,14 +11,18 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -33,6 +37,7 @@ type (
 		ListBillsPageLimit int
 		rw                 *sdk.ResponseWriter
 		log                *slog.Logger
+		tracer             trace.Tracer
 		SystemID           []byte
 	}
 
@@ -46,10 +51,6 @@ type (
 
 	AddKeyRequest struct {
 		Pubkey string `json:"pubkey"`
-	}
-
-	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 )
 
@@ -77,7 +78,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", api.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/round-number", api.roundNumberFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
@@ -184,10 +185,11 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 				rec.State = sdk.CONFIRMED
 			} else {
 				if roundNr == 0 {
-					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					rsp, err := api.Service.GetRoundNumber(r.Context())
 					if err != nil {
 						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
 					}
+					roundNr = rsp.LastIndexedRoundNumber
 				}
 				if roundNr > rec.Timeout {
 					rec.State = sdk.FAILED
@@ -239,6 +241,9 @@ func (api *moneyRestAPI) getBalance(pubKey []byte, includeDCBills bool) (uint64,
 }
 
 func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
+	_, span := api.tracer.Start(r.Context(), "moneyRestAPI.getTxProof")
+	defer span.End()
+
 	vars := mux.Vars(r)
 	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
@@ -254,6 +259,7 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, "txHash", err)
 		return
 	}
+	span.SetAttributes(observability.UnitID(unitID), observability.TxHash(txHash))
 
 	proof, err := api.Service.GetTxProof(unitID, txHash)
 	if err != nil {
@@ -268,13 +274,13 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	api.rw.WriteCborResponse(w, proof)
 }
 
-func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
-	lastRoundNumber, err := api.Service.GetRoundNumber(r.Context())
+func (api *moneyRestAPI) roundNumberFunc(w http.ResponseWriter, r *http.Request) {
+	rsp, err := api.Service.GetRoundNumber(r.Context())
 	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelError, "GET /round-number error fetching round number", logger.Error(err))
+		api.log.LogAttrs(r.Context(), slog.LevelError, "GET /round-number error", logger.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		api.rw.WriteResponse(w, &RoundNumberResponse{RoundNumber: lastRoundNumber})
+		api.rw.WriteResponse(w, rsp)
 	}
 }
 
@@ -308,10 +314,13 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 }
 
 func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
+	ctx, span := api.tracer.Start(r.Context(), "moneyRestAPI.postTransactions")
+	defer span.End()
+
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /transactions request", logger.Error(err))
+		api.log.LogAttrs(ctx, slog.LevelDebug, "error parsing GET /transactions request", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to read request body: %w", err))
 		return
 	}
@@ -332,14 +341,25 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 		api.rw.ErrorResponse(w, http.StatusBadRequest, errors.New("request body contained no transactions to process"))
 		return
 	}
+	for _, tx := range txs.Transactions {
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
+		if err != nil {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to obtain owner proof from tx with unitID %v", tx.Payload.UnitID))
+			return
+		}
+		if !bytes.Equal(senderPubkey, pubKey) {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("transaction with unitID %v in request body does not match provided pubKey parameter", tx.Payload.UnitID))
+			return
+		}
+	}
 
-	egp, _ := errgroup.WithContext(r.Context())
+	egp, _ := errgroup.WithContext(ctx)
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
-	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
+	if errs := api.Service.SendTransactions(ctx, txs.Transactions); len(errs) > 0 {
 		for k, v := range errs {
 			err = fmt.Errorf("%s: %s", k, v)
-			api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+			api.log.LogAttrs(ctx, slog.LevelDebug, "error on POST /transactions", logger.Error(err))
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
@@ -347,7 +367,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	if err = egp.Wait(); err != nil {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "failed to store tx metadata", logger.Error(err))
+		api.log.LogAttrs(ctx, slog.LevelDebug, "failed to store tx metadata", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store tx metadata: %w", err))
 		return
 	}

@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -32,7 +34,7 @@ type (
 		GetBills(pubKey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder)
@@ -54,13 +56,13 @@ type (
 	}
 
 	Bill struct {
-		Id                   []byte `json:"id"`
-		Value                uint64 `json:"value"`
-		TxHash               []byte `json:"txHash"`
-		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
-		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
-		OwnerPredicate       []byte `json:"ownerPredicate"`
-		Locked               uint64 `json:"locked"`
+		Id                   []byte         `json:"id"`
+		Value                uint64         `json:"value"`
+		TxHash               []byte         `json:"txHash"`
+		DCTargetUnitID       []byte         `json:"dcTargetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte         `json:"dcTargetUnitBacklink,omitempty"`
+		OwnerPredicate       []byte         `json:"ownerPredicate"`
+		Locked               sdk.LockReason `json:"locked"`
 	}
 
 	Pubkey struct {
@@ -107,12 +109,19 @@ type (
 		InitialBill              InitialBill
 		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
 		Logger                   *slog.Logger
+		Observe                  Observability
 	}
 
 	InitialBill struct {
 		Id        []byte
 		Value     uint64
 		Predicate []byte
+	}
+
+	Observability interface {
+		Tracer(name string, options ...trace.TracerOption) trace.Tracer
+		TracerProvider() trace.TracerProvider
+		Logger() *slog.Logger
 	}
 )
 
@@ -165,7 +174,7 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Observe)
 	if err != nil {
 		return err
 	}
@@ -186,15 +195,19 @@ func Run(ctx context.Context, config *Config) error {
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
 			log:                config.Logger,
+			tracer:             config.Observe.Tracer("moneyRestAPI"),
 		}
+
+		routes := handler.Router()
+		routes.Use(otelmux.Middleware("money_backend", otelmux.WithTracerProvider(config.Observe.TracerProvider())))
 
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.ServerAddr,
-				Handler:           handler.Router(),
-				ReadTimeout:       5 * time.Second,
-				ReadHeaderTimeout: time.Second,
-				WriteTimeout:      10 * time.Second,
+				Handler:           routes,
+				ReadTimeout:       10 * time.Second,
+				ReadHeaderTimeout:  2 * time.Second,
+				WriteTimeout:      20 * time.Second,
 				IdleTimeout:       30 * time.Second,
 			},
 			httpsrv.ShutdownTimeout(5*time.Second),
@@ -276,9 +289,20 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
-// GetRoundNumber returns latest round number.
-func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.abc.GetRoundNumber(ctx)
+// GetRoundNumber returns the latest round number in node and backend.
+func (w *WalletBackend) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	nodeRoundNumber, err := w.abc.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch node round number: %w", err)
+	}
+	backendRoundNumber, err := w.store.Do().GetBlockNumber()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load backend round number: %w", err)
+	}
+	return &sdk.RoundNumber{
+		RoundNumber:            nodeRoundNumber,
+		LastIndexedRoundNumber: backendRoundNumber,
+	}, nil
 }
 
 // TODO: Share functionaly with tokens partiton

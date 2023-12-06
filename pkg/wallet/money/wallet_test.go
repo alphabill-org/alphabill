@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/testutil"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -35,11 +37,13 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	restClient, err := beclient.New(server.URL)
+	restClient, err := beclient.New(server.URL, observability.Default(t))
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(homedir)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(am, unitLocker, restClient, logger.New(t))
+	feeManagerDB, err := fees.NewFeeManagerDB(homedir)
+	require.NoError(t, err)
+	_, err = LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, logger.New(t))
 	require.NoError(t, err)
 }
 
@@ -106,13 +110,16 @@ func CreateTestWalletFromSeed(t *testing.T, br *testutil.BackendMockReturnConf) 
 	require.NoError(t, err)
 
 	_, serverAddr := MockBackendCalls(br)
-	restClient, err := beclient.New(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host, observability.Default(t))
 	require.NoError(t, err)
 
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitLocker, restClient, logger.New(t))
+	feeManagerDB, err := fees.NewFeeManagerDB(dir)
+	require.NoError(t, err)
+
+	w, err := LoadExistingWallet(am, unitLocker, feeManagerDB, restClient, logger.New(t))
 	require.NoError(t, err)
 	return w
 }

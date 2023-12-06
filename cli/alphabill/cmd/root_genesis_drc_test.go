@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ type consensusParams struct {
 // Happy path
 func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	consensus := consensusParams{totalNodes: 4, threshold: 3}
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensus)
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
@@ -35,7 +35,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
 	require.NoError(t, err)
 	require.Len(t, rootGenesis.Root.RootValidators, 4)
@@ -75,33 +75,31 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	homeDir := t.TempDir()
 	homeDir2 := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 4})
 	differentGenesisFiles := createRootGenesisFiles(t, homeDir2, consensusParams{totalNodes: 2, threshold: 2})
 	outputDir := filepath.Join(homeDir, "result")
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", differentGenesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis merge failed: not compatible root genesis files, consensus is different")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "root genesis merge failed: not compatible root genesis files, consensus is different")
 }
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 3})
 	// merge distributed root genesis file
 	outputDir := filepath.Join(homeDir, "result")
 	// genesis argument, repeat root node 2 genesis
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[2])
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
 	require.NoError(t, err)
 	// duplicate is ignored
@@ -113,12 +111,12 @@ func TestGenerateGenesisFilesAndSign(t *testing.T) {
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	outputDirNode1 := filepath.Join(homeDir, defaultRootChainDir+"1")
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -128,13 +126,13 @@ func TestGenerateGenesisFilesAndSign(t *testing.T) {
 		" --total-nodes=2" +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// create key for node 2 and sign genesis
 	outputDirNode2 := filepath.Join(homeDir, defaultRootChainDir+"2")
 	cmd = New(logF)
 	args = "root-genesis sign --home " + homeDir + " -o " + outputDirNode2 + " -g" + " --root-genesis=" + filepath.Join(outputDirNode1, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// read genesis file
 	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDirNode2, rootGenesisFileName), &genesis.RootGenesis{})
 	require.NoError(t, err)
@@ -145,12 +143,12 @@ func TestGenerateGenesisFilesAndSign_ErrTooMany(t *testing.T) {
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	outputDirNode1 := filepath.Join(homeDir, defaultRootChainDir+"1")
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -160,31 +158,31 @@ func TestGenerateGenesisFilesAndSign_ErrTooMany(t *testing.T) {
 		" --total-nodes=2" +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// create key for node 2 and sign genesis
 	outputDirNode2 := filepath.Join(homeDir, defaultRootChainDir+"2")
 	cmd = New(logF)
 	args = "root-genesis sign --home " + homeDir + " -o " + outputDirNode2 + " -g" + " --root-genesis=" + filepath.Join(outputDirNode1, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// create key for node 3 and sign genesis
 	outputDirNode3 := filepath.Join(homeDir, defaultRootChainDir+"3")
 	cmd = New(logF)
 	args = "root-genesis sign --home " + homeDir + " -o " + outputDirNode3 + " -g" + " --root-genesis=" + filepath.Join(outputDirNode2, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis add signature failed: genesis is already signed by maximum number of root nodes")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "root genesis add signature failed: genesis is already signed by maximum number of root nodes")
 }
 
 func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams) []string {
 	t.Helper()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	outputDirNode1 := filepath.Join(homeDir, defaultRootChainDir+"1")
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -194,7 +192,7 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 		" --total-nodes=2" +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	totalNodesStr := strconv.Itoa(int(params.totalNodes))
 	threshold := strconv.Itoa(int(params.threshold))
 	genesisFiles := make([]string, params.totalNodes)
@@ -210,7 +208,7 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 			" --quorum-threshold=" + threshold +
 			" -g"
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+		require.NoError(t, cmd.Execute(context.Background()))
 		genesisFiles[i] = filepath.Join(rootNodeDir, rootGenesisFileName)
 	}
 	return genesisFiles

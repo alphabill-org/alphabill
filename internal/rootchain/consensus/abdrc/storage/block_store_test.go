@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -44,7 +45,7 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *abtypes
 
 func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, memorydb.New())
+	bStore, err := New(gocrypto.SHA256, pg, memorydb.New())
 	require.NoError(t, err)
 	return bStore
 }
@@ -99,7 +100,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b8.CommitQc = &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.NotNil(t, bStore)
 	require.NoError(t, err)
 	// although store contains more than one root, the latest is preferred
@@ -132,7 +133,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.ErrorContains(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
 	require.Nil(t, bStore)
 }
@@ -255,4 +256,39 @@ func TestBlockStoreAdd(t *testing.T) {
 	b, err = bStore.Block(100)
 	require.ErrorContains(t, err, "block for round 100 not found")
 	require.Nil(t, b)
+}
+
+func TestBlockStoreStoreLastVote(t *testing.T) {
+	t.Run("error - store proposal", func(t *testing.T) {
+		bStore := initBlockStoreFromGenesis(t)
+		proposal := abdrc.ProposalMsg{}
+		require.ErrorContains(t, bStore.StoreLastVote(proposal), "unknown vote type")
+	})
+	t.Run("read blank store", func(t *testing.T) {
+		bStore := initBlockStoreFromGenesis(t)
+		msg, err := bStore.ReadLastVote()
+		require.NoError(t, err)
+		require.Nil(t, msg)
+	})
+	t.Run("ok - store vote", func(t *testing.T) {
+		bStore := initBlockStoreFromGenesis(t)
+		vote := &abdrc.VoteMsg{Author: "test"}
+		require.NoError(t, bStore.StoreLastVote(vote))
+		// read back
+		msg, err := bStore.ReadLastVote()
+		require.NoError(t, err)
+		require.IsType(t, &abdrc.VoteMsg{}, msg)
+		require.Equal(t, "test", msg.(*abdrc.VoteMsg).Author)
+	})
+	t.Run("ok - store timeout vote", func(t *testing.T) {
+		bStore := initBlockStoreFromGenesis(t)
+		vote := &abdrc.TimeoutMsg{Timeout: &abtypes.Timeout{Round: 1}, Author: "test"}
+		require.NoError(t, bStore.StoreLastVote(vote))
+		// read back
+		msg, err := bStore.ReadLastVote()
+		require.NoError(t, err)
+		require.IsType(t, &abdrc.TimeoutMsg{}, msg)
+		require.Equal(t, "test", msg.(*abdrc.TimeoutMsg).Author)
+		require.EqualValues(t, 1, msg.(*abdrc.TimeoutMsg).Timeout.Round)
+	})
 }

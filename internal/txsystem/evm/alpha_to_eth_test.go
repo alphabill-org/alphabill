@@ -161,9 +161,9 @@ func Test_weiToAlpha(t *testing.T) {
 			want: 0,
 		},
 		{
-			name: "10^10-1 wei is 0 alpha",
+			name: "10^10-1 wei is 1 alpha",
 			args: args{wei: bigIntFromString(t, "9999999999")},
-			want: 0,
+			want: 1,
 		},
 		{
 			name: "10^10 wei is 1 alpha",
@@ -176,12 +176,22 @@ func Test_weiToAlpha(t *testing.T) {
 			want: 1,
 		},
 		{
-			name: "(2*10^10)-1 wei is 1 alpha",
-			args: args{wei: bigIntFromString(t, "19999999999")},
+			name: "(1.5*10^10)-1 wei is 1 alpha",
+			args: args{wei: bigIntFromString(t, "14999999999")},
 			want: 1,
 		},
 		{
-			name: "2*10^10 wei is 1 alpha",
+			name: "(1.5*10^10) wei is 2 alpha",
+			args: args{wei: bigIntFromString(t, "15000000000")},
+			want: 2,
+		},
+		{
+			name: "(2*10^10)-1 wei is 2 alpha",
+			args: args{wei: bigIntFromString(t, "19999999999")},
+			want: 2,
+		},
+		{
+			name: "2*10^10 wei is 2 alpha",
 			args: args{wei: bigIntFromString(t, "20000000000")},
 			want: 2,
 		},
@@ -200,54 +210,6 @@ func Test_weiToAlpha(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := weiToAlpha(tt.args.wei); got != tt.want {
 				t.Errorf("weiToAlpha() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_weiToAlphaWithReminder(t *testing.T) {
-	type args struct {
-		wei *big.Int
-	}
-	tests := []struct {
-		name      string
-		args      args
-		amount    *big.Int
-		remainder *big.Int
-	}{
-		{
-			name:      "1 wei is 0 alpha",
-			args:      args{wei: bigIntFromString(t, "1")},
-			amount:    big.NewInt(0),
-			remainder: big.NewInt(1),
-		},
-		{
-			name:      "10 wei is 0 alpha",
-			args:      args{wei: bigIntFromString(t, "10")},
-			amount:    big.NewInt(0),
-			remainder: big.NewInt(10),
-		},
-		{
-			name:      "4410000000000 wei is 0 alpha",
-			args:      args{wei: bigIntFromString(t, "4410000000000")},
-			amount:    big.NewInt(441),
-			remainder: big.NewInt(0),
-		},
-		{
-			name:      "4412000000000 wei is 0 alpha",
-			args:      args{wei: bigIntFromString(t, "4412000000001")},
-			amount:    big.NewInt(441),
-			remainder: big.NewInt(2000000001),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := weiToAlphaWithReminder(tt.args.wei)
-			if !reflect.DeepEqual(got, tt.amount) {
-				t.Errorf("weiToAlphaWithReminder() got = %v, want %v", got, tt.amount)
-			}
-			if !reflect.DeepEqual(got1, tt.remainder) {
-				t.Errorf("weiToAlphaWithReminder() got1 = %v, want %v", got1, tt.remainder)
 			}
 		})
 	}

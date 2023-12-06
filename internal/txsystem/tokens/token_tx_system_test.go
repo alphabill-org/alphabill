@@ -78,17 +78,17 @@ func TestExecuteCreateNFTType_WithoutParentID(t *testing.T) {
 	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := txs.GetState().GetUnit(nftTypeID1, false)
+	u, err := txs.State().GetUnit(nftTypeID1, false)
 	require.NoError(t, err)
-	require.IsType(t, &nonFungibleTokenTypeData{}, u.Data())
-	d := u.Data().(*nonFungibleTokenTypeData)
+	require.IsType(t, &NonFungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*NonFungibleTokenTypeData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
-	require.Equal(t, symbol, d.symbol)
-	require.Nil(t, d.parentTypeId)
-	require.Equal(t, subTypeCreationPredicate, d.subTypeCreationPredicate)
-	require.Equal(t, tokenCreationPredicate, d.tokenCreationPredicate)
-	require.Equal(t, invariantPredicate, d.invariantPredicate)
-	require.Equal(t, dataUpdatePredicate, d.dataUpdatePredicate)
+	require.Equal(t, symbol, d.Symbol)
+	require.Nil(t, d.ParentTypeId)
+	require.Equal(t, subTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.Equal(t, tokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, invariantPredicate, d.InvariantPredicate)
+	require.Equal(t, dataUpdatePredicate, d.DataUpdatePredicate)
 }
 
 func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
@@ -343,7 +343,7 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	require.NoError(t, txs.GetState().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
+	require.NoError(t, txs.State().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
@@ -358,7 +358,7 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("unit %s data is not of type %T", parent1Identifier, &nonFungibleTokenTypeData{}))
+	require.ErrorContains(t, err, fmt.Sprintf("unit %s data is not of type %T", parent1Identifier, &NonFungibleTokenTypeData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
@@ -403,7 +403,7 @@ func TestRevertTransaction_Ok(t *testing.T) {
 	require.NoError(t, err)
 	txs.Revert()
 
-	_, err = txs.GetState().GetUnit(nftTypeID1, false)
+	_, err = txs.State().GetUnit(nftTypeID1, false)
 	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", nftTypeID1))
 }
 
@@ -521,19 +521,19 @@ func TestMintNFT_Ok(t *testing.T) {
 	_, err = txs.Execute(tx)
 	require.NoError(t, err)
 
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
 	txHash := tx.Hash(gocrypto.SHA256)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
-	d := u.Data().(*nonFungibleTokenData)
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+	d := u.Data().(*NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
-	require.Equal(t, nftTypeID2, d.nftType)
-	require.Equal(t, nftName, d.name)
-	require.Equal(t, []byte{10}, d.data)
-	require.Equal(t, validNFTURI, d.uri)
-	require.EqualValues(t, templates.AlwaysTrueBytes(), d.dataUpdatePredicate)
-	require.Equal(t, uint64(0), d.t)
-	require.Equal(t, txHash, d.backlink)
+	require.Equal(t, nftTypeID2, d.NftType)
+	require.Equal(t, nftName, d.Name)
+	require.Equal(t, []byte{10}, d.Data)
+	require.Equal(t, validNFTURI, d.URI)
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
+	require.Equal(t, uint64(0), d.T)
+	require.Equal(t, txHash, d.Backlink)
 }
 
 func TestMintNFT_UnitIDIsNil(t *testing.T) {
@@ -968,18 +968,18 @@ func TestTransferNFT_Ok(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
-	d := u.Data().(*nonFungibleTokenData)
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+	d := u.Data().(*NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
-	require.Equal(t, nftTypeID2, d.nftType)
-	require.Equal(t, nftName, d.name)
-	require.Equal(t, []byte{10}, d.data)
-	require.Equal(t, validNFTURI, d.uri)
-	require.EqualValues(t, templates.AlwaysTrueBytes(), d.dataUpdatePredicate)
-	require.Equal(t, uint64(0), d.t)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, nftTypeID2, d.NftType)
+	require.Equal(t, nftName, d.Name)
+	require.Equal(t, []byte{10}, d.Data)
+	require.Equal(t, validNFTURI, d.URI)
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
+	require.Equal(t, uint64(0), d.T)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Bearer()))
 }
 
@@ -1006,9 +1006,9 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
 	require.EqualValues(t, templates.AlwaysFalseBytes(), []byte(u.Bearer()))
 
 	// the token must be considered as burned and not transferable
@@ -1058,10 +1058,10 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify unit was locked
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	tokenData := u.Data().(*nonFungibleTokenData)
-	require.EqualValues(t, 1, tokenData.locked)
+	tokenData := u.Data().(*NonFungibleTokenData)
+	require.EqualValues(t, 1, tokenData.Locked)
 
 	// update nft
 	tx := testtransaction.NewTransactionOrder(
@@ -1187,10 +1187,10 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify unit was locked
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	tokenData := u.Data().(*nonFungibleTokenData)
-	require.EqualValues(t, 1, tokenData.locked)
+	tokenData := u.Data().(*NonFungibleTokenData)
+	require.EqualValues(t, 1, tokenData.Locked)
 
 	// update nft
 	tx := testtransaction.NewTransactionOrder(
@@ -1298,25 +1298,25 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
-	u, err := txs.GetState().GetUnit(unitID, false)
+	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.IsType(t, &nonFungibleTokenData{}, u.Data())
-	d := u.Data().(*nonFungibleTokenData)
+	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+	d := u.Data().(*NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
-	require.Equal(t, nftTypeID2, d.nftType)
-	require.Equal(t, nftName, d.name)
-	require.Equal(t, updatedData, d.data)
-	require.Equal(t, validNFTURI, d.uri)
-	require.EqualValues(t, templates.AlwaysTrueBytes(), d.dataUpdatePredicate)
-	require.Equal(t, uint64(0), d.t)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, nftTypeID2, d.NftType)
+	require.Equal(t, nftName, d.Name)
+	require.Equal(t, updatedData, d.Data)
+	require.Equal(t, validNFTURI, d.URI)
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
+	require.Equal(t, uint64(0), d.T)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Bearer()))
 }
 
 // Test LockFC -> UnlockFC
 func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	s := txs.GetState()
+	s := txs.State()
 
 	err := txs.BeginBlock(1)
 	require.NoError(t, err)
@@ -1414,7 +1414,7 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 
 type mockUnitData struct{}
 
-func (m mockUnitData) Write(hash.Hash) {}
+func (m mockUnitData) Write(hash.Hash) error { return nil }
 
 func (m mockUnitData) SummaryValueInput() uint64 {
 	return 0

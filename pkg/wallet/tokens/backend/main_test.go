@@ -221,9 +221,9 @@ func Test_Run_API(t *testing.T) {
 		}
 	}()
 
-	var rn RoundNumberResponse
-	require.NoError(t, doGet("/round-number", http.StatusOK, &rn))
-	require.EqualValues(t, 0, rn.RoundNumber, "expected that system starts with round-number 0")
+	var rnr *wallet.RoundNumber
+	require.NoError(t, doGet("/round-number", http.StatusOK, &rnr))
+	require.EqualValues(t, 0, rnr.RoundNumber, "expected that system starts with round-number 0")
 
 	// trigger block sync from (mocked) AB with an CreateNonFungibleTokenType tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})

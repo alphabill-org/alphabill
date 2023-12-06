@@ -16,9 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -628,8 +625,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	indexDB := memorydb.New()
-	tp := RunSingleNodePartition(t, system, WithTxIndexer(indexDB))
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
+	require.NoError(t, tp.partition.startNewRound(context.Background(), tp.partition.luc.Load()))
 	order := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
 	hash := order.Hash(tp.partition.configuration.hashAlgorithm)
 	require.NoError(t, tp.SubmitTx(order))
@@ -656,66 +653,10 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, system, WithTxIndexer(memorydb.New()))
+	tp := RunSingleNodePartition(t, system, WithProofIndex(memorydb.New(), 0))
 	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrIndexNotFound)
 	require.Nil(t, record)
 	require.Nil(t, proof)
-}
-
-func Test_txProcessorForRound(t *testing.T) {
-	nopObservability := observability.NOPMetrics()
-
-	t.Run("unknown leader", func(t *testing.T) {
-		n := &Node{log: logger.New(t)}
-		require.Nil(t, n.txProcessorForRound(22, UnknownLeader))
-	})
-
-	t.Run("node is not the leader", func(t *testing.T) {
-		// expected: the processor func will forward tx to the leader
-		nw := testnetwork.NewMockNetwork()
-		n := &Node{
-			configuration: &configuration{hashAlgorithm: gocrypto.SHA256},
-			network:       nw,
-			log:           logger.New(t),
-		}
-		// inits n.peer but does not override n.network
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t), nopObservability))
-		require.NoError(t, n.initMetrics(nopObservability))
-
-		f := n.txProcessorForRound(22, "leaderNodeID")
-		require.NotNil(t, f)
-
-		tx := testtransaction.NewTransactionOrder(t)
-		f(context.Background(), tx)
-		// check that the tx has been sent to the leader
-		msgs := nw.SentMessages(network.ProtocolInputForward)
-		require.Contains(t, msgs, testnetwork.PeerMessage{ID: "leaderNodeID", Message: tx})
-	})
-
-	t.Run("node is the leader", func(t *testing.T) {
-		// expected: tx will be added to proposedTransactions
-		txSys := &testtxsystem.CounterTxSystem{}
-		txVal, err := NewDefaultTxValidator([]byte{0, 0, 0, 0})
-		require.NoError(t, err)
-		n := &Node{
-			configuration:     &configuration{hashAlgorithm: gocrypto.SHA256},
-			transactionSystem: txSys,
-			txValidator:       txVal,
-			log:               logger.New(t),
-		}
-		require.NoError(t, n.initNetwork(context.Background(), createPeerConfiguration(t), nopObservability))
-		require.NoError(t, n.initMetrics(nopObservability))
-
-		tx := testtransaction.NewTransactionOrder(t)
-		tx.Payload.ClientMetadata.Timeout = 25
-
-		f := n.txProcessorForRound(22, n.peer.ID())
-		require.NotNil(t, f)
-
-		f(context.Background(), tx)
-		require.Len(t, n.proposedTransactions, 1)
-		require.EqualValues(t, 1, txSys.ExecuteCountDelta)
-	})
 }

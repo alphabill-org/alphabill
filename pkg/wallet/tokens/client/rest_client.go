@@ -11,11 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -33,14 +36,18 @@ type TokenBackend struct {
 	hc   *http.Client
 }
 
+type Observability interface {
+	TracerProvider() trace.TracerProvider
+}
+
 /*
 New creates REST API client for token wallet backend. The "abAddr" is
 address of the backend, Scheme and Host fields must be assigned.
 */
-func New(abAddr url.URL) *TokenBackend {
+func New(abAddr url.URL, observe Observability) *TokenBackend {
 	return &TokenBackend{
 		addr: abAddr,
-		hc:   &http.Client{Timeout: 10 * time.Second},
+		hc:   &http.Client{Timeout: 10 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithTracerProvider(observe.TracerProvider()))},
 	}
 }
 
@@ -126,12 +133,12 @@ func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txH
 	return proof, nil
 }
 
-func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	var rn backend.RoundNumberResponse
+func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (*sdk.RoundNumber, error) {
+	var rn *sdk.RoundNumber
 	if _, err := tb.get(ctx, tb.getURL(apiPathPrefix, "round-number"), &rn, false); err != nil {
-		return 0, fmt.Errorf("get round-number request failed: %w", err)
+		return nil, fmt.Errorf("get round-number request failed: %w", err)
 	}
-	return rn.RoundNumber, nil
+	return rn, nil
 }
 
 func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {

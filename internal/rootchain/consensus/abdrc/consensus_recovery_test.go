@@ -21,26 +21,31 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	abtypes "github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 	t.Parallel()
 
-	// the sendRecoveryRequests method depends only on "id", "net" and "recovery" fields
+	// the sendRecoveryRequests method depends only on "id", "net", "tracer" and "recovery" fields
 	// so we can use "shortcut" when creating the ConsensusManager for test (and init
 	// only required fields)
 
+	// NOP tracer can be shared between tests (most fail within method so no point tracing?)
+	observe := testobservability.NOPMetrics()
+	tracer := observe.Tracer("")
+
 	t.Run("invalid input msg type", func(t *testing.T) {
-		cm := &ConsensusManager{}
+		cm := &ConsensusManager{tracer: tracer}
 		err := cm.sendRecoveryRequests(context.Background(), "foobar")
 		require.EqualError(t, err, `failed to extract recovery info: unknown message type, cannot be used for recovery: string`)
 	})
 
 	t.Run("already in recovery status", func(t *testing.T) {
-		cm := &ConsensusManager{recovery: &recoveryInfo{toRound: 42, sent: time.Now()}}
+		cm := &ConsensusManager{recovery: &recoveryInfo{toRound: 42, sent: time.Now()}, tracer: tracer}
 
 		toMsg := &abdrc.TimeoutMsg{
 			Author: "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD",
@@ -91,6 +96,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			net: nw.Connect(nodeID),
 			// init the sent time so is is older than limit
 			recovery: &recoveryInfo{toRound: toMsg.Timeout.GetHqcRound(), sent: time.Now().Add(-statusReqShelfLife)},
+			tracer:   tracer,
 		}
 
 		// call Connect to "register" the ID with mock network...
@@ -129,7 +135,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 		nodeID, _, _, _ := generatePeerData(t)
 		authID, _, _, _ := generatePeerData(t)
 		nw := newMockNetwork(t)
-		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID)}
+		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID), tracer: tracer}
 
 		// single signature by the author so only that node should receive the request
 		toMsg := &abdrc.TimeoutMsg{
@@ -683,7 +689,7 @@ func Test_recoverState(t *testing.T) {
 func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgenesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *protocgenesis.RootGenesis) {
 	t.Helper()
 
-	log := testlogger.New(t)
+	observe := testobservability.Default(t)
 	signers := map[string]crypto.Signer{}
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
@@ -708,7 +714,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 		pStore, err := partitions.NewPartitionStoreFromGenesis(rootG.Partitions)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], log.With(logger.NodeID(nodeID)))
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}
@@ -776,4 +782,6 @@ func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader
 
 func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
 
-func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64) error { return nil }
+func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
+	return nil
+}

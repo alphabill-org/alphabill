@@ -5,18 +5,20 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -112,7 +114,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 }
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 
 	network := NewAlphabillNetwork(t)
 	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
@@ -278,7 +280,68 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", insertSeparator(fmt.Sprint(expectedTotal), false)))
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", util.InsertSeparator(fmt.Sprint(expectedTotal), false)))
+}
+
+func TestFungibleTokens_LockUnlock_Integration(t *testing.T) {
+	network := NewAlphabillNetwork(t)
+	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	homedirW1 := network.walletHomedir
+	backendUrl := network.tokenBackendURL
+
+	typeID := randomFungibleTokenTypeID(t)
+	symbol := "AB"
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible  --symbol %s -r %s --type %s --decimals 0", symbol, backendUrl, typeID))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
+
+	// mint tokens
+	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
+		return func(tx *types.TransactionOrder) bool {
+			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
+				attrs := &tokens.MintFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(attrs))
+				return attrs.Value == amount
+			}
+			return false
+		}
+	}
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible  -r %s --type %s --amount 5", backendUrl, typeID))
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, crit(5)), test.WaitDuration, test.WaitTick)
+
+	// get minted token id
+	var tokenID string
+	out := execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	for _, l := range out.lines {
+		id := extractID(l)
+		if id != "" {
+			tokenID = id
+			break
+		}
+	}
+
+	// lock token
+	execTokensCmd(t, homedirW1, fmt.Sprintf("lock -r %s --token-identifier %s -k 1", backendUrl, tokenID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, "locked='manually locked by user'")
+
+	// unlock token
+	execTokensCmd(t, homedirW1, fmt.Sprintf("unlock -r %s --token-identifier %s -k 1", backendUrl, tokenID))
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, "locked=''")
+}
+
+func extractID(input string) string {
+	re := regexp.MustCompile(`ID='([^']+)'`)
+	match := re.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return ""
+	}
+	return match[1]
 }
 
 type AlphabillNetwork struct {
@@ -299,7 +362,8 @@ type AlphabillNetwork struct {
 // sends initial bill to money wallet
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
-	log := logger.New(t)
+	observe := testobserve.NewFactory(t)
+	log := observe.DefaultLogger()
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
@@ -323,16 +387,21 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 
 	unitLocker, err := unitlock.NewUnitLocker(walletDir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient, log)
+	feeManagerDB, err := fees.NewFeeManagerDB(walletDir)
+	require.NoError(t, err)
+	defer feeManagerDB.Close()
+
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, feeManagerDB, moneyBackendClient, log)
 	require.NoError(t, err)
 	defer moneyWallet.Close()
 
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
-	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
+	tokenFeeManager := fees.NewFeeManager(am, feeManagerDB, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, moneywallet.FeeCreditRecordIDFormPublicKey, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
 	defer tokenFeeManager.Close()
 
-	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, log)
+	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, observe.DefaultObserver(), log)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
 	defer w1.Shutdown()

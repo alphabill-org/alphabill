@@ -343,7 +343,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.EqualValues(t, 1, sm.ActualFee)
-	require.Len(t, sm.TargetUnits, 1)
+	require.Len(t, sm.TargetUnits, 2)
 	require.Equal(t, lockTx.UnitID(), sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit())
 
@@ -363,7 +363,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.EqualValues(t, 1, sm.ActualFee)
-	require.Len(t, sm.TargetUnits, 1)
+	require.Len(t, sm.TargetUnits, 2)
 	require.Equal(t, unlockTx.UnitID(), sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit())
 
@@ -394,15 +394,20 @@ func TestBillData_AddToHasher(t *testing.T) {
 	}
 
 	hasher := crypto.SHA256.New()
-	hasher.Write(util.Uint64ToBytes(bd.V))
-	hasher.Write(util.Uint64ToBytes(bd.T))
-	hasher.Write(bd.Backlink)
-	hasher.Write(util.Uint64ToBytes(bd.Locked))
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	require.NoError(t, err)
+	res, err := enc.Marshal(bd)
+	require.NoError(t, err)
+	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
-	bd.Write(hasher)
+	require.NoError(t, bd.Write(hasher))
 	actualHash := hasher.Sum(nil)
 	require.Equal(t, expectedHash, actualHash)
+	// make sure all fields where serialized
+	var bdFormSerialized BillData
+	require.NoError(t, cbor.Unmarshal(res, &bdFormSerialized))
+	require.Equal(t, bd, &bdFormSerialized)
 }
 
 func TestEndBlock_DustBillsAreRemoved(t *testing.T) {

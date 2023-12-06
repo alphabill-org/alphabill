@@ -79,7 +79,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	if err != nil {
 		return nil, fmt.Errorf("from address generation failed: %w", err)
 	}
-	roundNumber, err := w.restCli.GetRoundNumber(ctx)
+	rnr, err := w.restCli.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("evm current round number read failed: %w", err)
 	}
@@ -96,7 +96,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	if attrs.Value == nil {
 		attrs.Value = big.NewInt(0)
 	}
-	payload, err := newTxPayload(w.systemID, "evm", from.Bytes(), roundNumber+txTimeoutBlockCount, attrs)
+	payload, err := newTxPayload(w.systemID, "evm", from.Bytes(), rnr.RoundNumber+txTimeoutBlockCount, attrs)
 	if err != nil {
 		return nil, fmt.Errorf("evm transaction payload error: %w", err)
 	}

@@ -15,11 +15,16 @@ servers:
 paths:
   /round-number:
     get:
-      summary: Get the latest round number of the money partition
+      summary: |-
+        Get the latest round number of the money partition and the 
+        round number of the last indexed block in the backend.
       description: |-
         Returns the round number of the latest certified round known
         to the partition node which indexing backend is connected
-        to. Useful for calculating transaction timeout values.
+        to and the round number of the last indexed block in the 
+        backend. The round number should be used for calculating
+        transaction timeout values and the backend round number should 
+        be used for confirming transactions.
       responses:
         '200':
           description: Successful operation

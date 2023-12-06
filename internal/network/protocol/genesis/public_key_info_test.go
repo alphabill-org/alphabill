@@ -30,11 +30,10 @@ func TestNewValidatorTrustBase(t *testing.T) {
 		},
 		{
 			name: "Invalid validator public key",
-			args: args{[]*PublicKeyInfo{
-				&PublicKeyInfo{
-					NodeIdentifier:      "1",
-					SigningPublicKey:    []byte{1, 1},
-					EncryptionPublicKey: []byte{1, 2}}},
+			args: args{[]*PublicKeyInfo{{
+				NodeIdentifier:      "1",
+				SigningPublicKey:    []byte{1, 1},
+				EncryptionPublicKey: []byte{1, 2}}},
 			},
 			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},

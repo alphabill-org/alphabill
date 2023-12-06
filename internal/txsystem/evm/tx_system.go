@@ -69,7 +69,7 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 	return txs, nil
 }
 
-func (m *TxSystem) GetState() *state.State {
+func (m *TxSystem) State() *state.State {
 	return m.state
 }
 
@@ -77,14 +77,18 @@ func (m *TxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *TxSystem) StateSummary() (txsystem.State, error) {
+func (m *TxSystem) StateStorage() txsystem.UnitAndProof {
+	return m.state.Clone()
+}
+
+func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return m.getState()
 }
 
-func (m *TxSystem) getState() (txsystem.State, error) {
+func (m *TxSystem) getState() (txsystem.StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
@@ -163,7 +167,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	return sm, err
 }
 
-func (m *TxSystem) EndBlock() (txsystem.State, error) {
+func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -27,9 +27,9 @@ import (
 
 func Test_evmCmdDeploy_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := testlogger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF.Logger)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm deploy --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"data\", \"max-gas\" not set")
@@ -67,8 +67,8 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 			ProcessingDetails: detailBytes,
 		},
 	}
-	logF := testlogger.LoggerBuilder(t)
-	mockServer, addr := mockClientCalls(mockConf, logF)
+	logF := testobserve.NewFactory(t)
+	mockServer, addr := mockClientCalls(mockConf, logF.Logger)
 	defer mockServer.Close()
 	stdout, err := execCommand(logF, homedir, "evm deploy --max-gas 10000 --data 9021ACFE0102 --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
@@ -94,9 +94,9 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 
 func Test_evmCmdExecute_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := testlogger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32), gasPrice: "20000000000000000000"}, logF)
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32), gasPrice: "20000000000000000000"}, logF.Logger)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm execute --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\", \"max-gas\" not set")
@@ -132,8 +132,8 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 			ProcessingDetails: detailBytes,
 		},
 	}
-	logF := testlogger.LoggerBuilder(t)
-	mockServer, addr := mockClientCalls(mockConf, logF)
+	logF := testobserve.NewFactory(t)
+	mockServer, addr := mockClientCalls(mockConf, logF.Logger)
 	defer mockServer.Close()
 	stdout, err := execCommand(logF, homedir, "evm execute --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
@@ -163,9 +163,9 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 
 func Test_evmCmdCall_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := testlogger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF.Logger)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm call --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\" not set")
@@ -193,8 +193,8 @@ func Test_evmCmdCall_ok(t *testing.T) {
 			ProcessingDetails: evmDetails,
 		},
 	}
-	logF := testlogger.LoggerBuilder(t)
-	mockServer, addr := mockClientCalls(mockConf, logF)
+	logF := testobserve.NewFactory(t)
+	mockServer, addr := mockClientCalls(mockConf, logF.Logger)
 	defer mockServer.Close()
 	stdout, err := execCommand(logF, homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
@@ -229,8 +229,8 @@ func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
 			ProcessingDetails: evmDetails,
 		},
 	}
-	logF := testlogger.LoggerBuilder(t)
-	mockServer, addr := mockClientCalls(mockConf, logF)
+	logF := testobserve.NewFactory(t)
+	mockServer, addr := mockClientCalls(mockConf, logF.Logger)
 	defer mockServer.Close()
 	stdout, err := execCommand(logF, homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
@@ -253,9 +253,9 @@ func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
 
 func Test_evmCmdBalance(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := testlogger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF.Logger)
 	defer mockServer.Close()
 	stdout, _ := execCommand(logF, homedir, "evm balance --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15.000'000'00 (eth: 15.000'000'000'000'000'000)")

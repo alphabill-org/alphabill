@@ -217,7 +217,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err := txo.UnmarshalAttributes(attr); err != nil {
 			return err
 		}
-		bill.Locked = attr.LockStatus
+		bill.Locked = sdk.LockReason(attr.LockStatus)
 		bill.TxHash = txHash
 		return dbTx.SetBill(bill, proof)
 	case moneytx.PayloadTypeUnlock:
@@ -358,7 +358,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err := txo.UnmarshalAttributes(attr); err != nil {
 			return fmt.Errorf("failed to unmarshal lockFC attributes: %w", err)
 		}
-		fcb.Locked = attr.LockStatus
+		fcb.Locked = sdk.LockReason(attr.LockStatus)
 		fcb.Value -= actualFee
 		fcb.TxHash = txHash
 		return dbTx.SetFeeCreditBill(fcb, proof)

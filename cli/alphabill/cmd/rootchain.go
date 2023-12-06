@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
@@ -26,6 +29,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 const (
@@ -43,6 +47,7 @@ type rootNodeConfig struct {
 	StoragePath        string // path to Bolt storage file
 	MaxRequests        uint   // validator partition certification request channel capacity
 	BootStrapAddresses string // boot strap addresses (libp2p multiaddress format)
+	RESTAddress        string // address on which http server is exposed with metrics endpoint
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -54,7 +59,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "root",
 		Short: "Starts a root chain node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return defaultRootNodeRunFunc(cmd.Context(), config)
+			return runRootNode(cmd.Context(), config)
 		},
 	}
 
@@ -64,6 +69,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
+	cmd.Flags().StringVar(&config.RESTAddress, "rest-server-address", "", `Specifies the TCP address for the REST server to listen on, in the form "host:port". REST server isn't initialised if address is empty.`)
 	return cmd
 }
 
@@ -133,7 +139,7 @@ func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
 	return nil, fmt.Errorf("persistent storage path not set")
 }
 
-func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
+func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
 		return fmt.Errorf("loading root node genesis file %s: %w", config.getGenesisFilePath(), err)
@@ -147,11 +153,12 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root genesis verification failed: %w", err)
 	}
 	// Process partition node network
-	host, err := createHost(ctx, keys, config, config.Base.Logger, config.Base.observe.PrometheusRegisterer())
+	host, err := createHost(ctx, keys, config)
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
-	log := config.Base.Logger.With(logger.NodeID(host.ID()))
+	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
+	obs := observability.WithLogger(config.Base.observe, log)
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -195,7 +202,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
-			log,
+			obs,
 			consensus.WithStorage(store))
 	}
 	if err != nil {
@@ -206,14 +213,39 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		partitionNet,
 		partitionCfg,
 		cm,
-		log)
+		obs,
+	)
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	return node.Run(ctx)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error { return node.Run(ctx) })
+
+	g.Go(func() error {
+		pr := config.Base.observe.PrometheusRegisterer()
+		if pr == nil || config.RESTAddress == "" {
+			return nil // do not kill the group!
+		}
+
+		mux := http.NewServeMux()
+		mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
+		return httpsrv.Run(ctx,
+			http.Server{
+				Addr:              config.RESTAddress,
+				Handler:           mux,
+				ReadTimeout:       3 * time.Second,
+				ReadHeaderTimeout: time.Second,
+				WriteTimeout:      5 * time.Second,
+				IdleTimeout:       30 * time.Second,
+			})
+	})
+
+	return g.Wait()
 }
 
-func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.Logger, prom prometheus.Registerer) (*network.Peer, error) {
+func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.Peer, error) {
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -227,7 +259,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, log *slog.
 		return nil, err
 	}
 
-	return network.NewPeer(ctx, peerConf, log, prom)
+	return network.NewPeer(ctx, peerConf, cfg.Base.observe.Logger(), cfg.Base.observe.PrometheusRegisterer())
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

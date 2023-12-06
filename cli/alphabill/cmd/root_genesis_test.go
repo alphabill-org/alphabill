@@ -8,24 +8,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func TestGenerateGenesisFiles_OK(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -34,7 +34,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// read resulting file
 	rootGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, rootGenesisFileName), &genesis.RootGenesis{})
 	require.NoError(t, err)
@@ -60,14 +60,14 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -76,19 +76,19 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	s := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), fmt.Sprintf("failed to read root chain keys from file '%s'", s))
+	require.ErrorContains(t, cmd.Execute(context.Background()), fmt.Sprintf("failed to read root chain keys from file '%s'", s))
 }
 
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -96,21 +96,21 @@ func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 		" -o " + rootDir +
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName))
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// invalidate the generated file signature
 	moneyGenesis, err := util.ReadJsonFile(filepath.Join(nodeGenesisFileLocation), &genesis.PartitionNode{})
 	require.NoError(t, err)
@@ -124,43 +124,41 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "signature verification failed")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "signature verification failed")
 }
 
 func TestGenerateGenesisFiles_ErrOnlyGenerateKeyFile(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	// create root node genesis with root node 1
 	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDir + " -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), `required flag(s) "partition-node-genesis-file"`)
+	require.ErrorContains(t, cmd.Execute(context.Background()), `required flag(s) "partition-node-genesis-file"`)
 }
 
 func TestGenerateGenesisFiles_ErrNoNodeGenesisFilesNorGenerateKeys(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
 	// create root node genesis with root node 1
 	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
-	cmd := New(logF)
+	cmd := New(testobserve.NewFactory(t))
 	args := "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), `required flag(s) "partition-node-genesis-file"`)
+	require.ErrorContains(t, cmd.Execute(context.Background()), `required flag(s) "partition-node-genesis-file"`)
 }
 
 func TestGenerateGenesis_ErrBlockRateInvalid(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -170,19 +168,19 @@ func TestGenerateGenesis_ErrBlockRateInvalid(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid block rate, must be at least 100")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "consensus parameters validation failed: invalid block rate, must be at least 100")
 }
 
 func TestGenerateGenesis_ErrTimeoutInvalid(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -193,19 +191,19 @@ func TestGenerateGenesis_ErrTimeoutInvalid(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid consensus timeout, must be at least 2000")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "consensus parameters validation failed: invalid consensus timeout, must be at least 2000")
 }
 
 func TestGenerateGenesis_ErrBlockRateBiggerThanTimeout(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -216,19 +214,19 @@ func TestGenerateGenesis_ErrBlockRateBiggerThanTimeout(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid timeout for block rate, must be at least 4500")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "consensus parameters validation failed: invalid timeout for block rate, must be at least 4500")
 }
 
 func TestGenerateGenesis_ErrQuorumTooBig(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -241,19 +239,19 @@ func TestGenerateGenesis_ErrQuorumTooBig(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid quorum threshold 3 is higher than total number of root nodes 2")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "consensus parameters validation failed: invalid quorum threshold 3 is higher than total number of root nodes 2")
 }
 
 func TestGenerateGenesis_ErrQuorumTooLittle(t *testing.T) {
 	homeDir := t.TempDir()
-	logF := logger.LoggerBuilder(t)
+	logF := testobserve.NewFactory(t)
 	// create partition genesis file (e.g. money)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd := New(logF)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	require.NoError(t, cmd.Execute(context.Background()))
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	// create root node 1 genesis with root node
 	cmd = New(logF)
@@ -266,5 +264,5 @@ func TestGenerateGenesis_ErrQuorumTooLittle(t *testing.T) {
 		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 		" -g"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "consensus parameters validation failed: invalid quorum threshold, for 6 nodes minimum quorum is 5")
+	require.ErrorContains(t, cmd.Execute(context.Background()), "consensus parameters validation failed: invalid quorum threshold, for 6 nodes minimum quorum is 5")
 }

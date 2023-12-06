@@ -80,12 +80,17 @@ func TestPartition_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
-	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, 2, transferFC)
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
-	// check that frcAmount is credited from initial bill
-	bill, err := s.GetUnit(initialBill.ID, true)
+	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, initialBill.ID, transferFC)
 	require.NoError(t, err)
-	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*BillData).V)
+	var billState BillData
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&billState))
+	require.Equal(t, moneyInvariant-fcrAmount, billState.V)
+	// verify proof
+	ucv, err := abNet.GetValidator(systemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
 	// send addFC
 	addFC := testfc.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
 		testfc.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
@@ -99,43 +104,51 @@ func TestPartition_Ok(t *testing.T) {
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
 	// before reading state make sure that node 2 has executed the transfer
-	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, 2, addFC)
+	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
 	require.NoError(t, err, "add fee credit tx failed")
-	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
-	feeCredit, err := s.GetUnit(fcrID, true)
+	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
-
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
+	var feeBillState unit.FeeCreditRecord
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
+	remainingFeeBalance := fcrAmount - transferFCRecord.ServerMetadata.ActualFee - addTxRecord.ServerMetadata.ActualFee
+	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
-	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, 2, transferInitialBillTx)
+	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
-	transferInitialBillTxRecord := txRecord
-	feeCredit, err = s.GetUnit(fcrID, true)
+	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
-
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
+	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
+	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
+	transferInitialBillTxRecord := txRecord
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
 	targetUnit := &TargetUnit{Amount: amountPK2, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
 	remainingValue := total - fcrAmount - amountPK2
 	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, tx)
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, tx)
 	require.NoError(t, err, "money split tx failed")
-	feeCredit, err = s.GetUnit(fcrID, true)
+	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-4, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
+	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
+	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)
 
 	// wrong partition tx
 	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	tx.Payload.SystemID = []byte{1, 1, 1, 1}
 	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid transaction system identifier")
-	// and unit is not changed
-	feeCredit, err = s.GetUnit(fcrID, true)
+	// and fee unit is not changed
+	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-4, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, remainingFeeBalance, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	for _, n := range moneyPrt.Nodes {
 		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)
@@ -147,9 +160,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	const nofDustToSwap = 3
 
 	var (
-		hashAlgorithm = crypto.SHA256
-		txsState      *state.State
-		initialBill   = &InitialBill{
+		txsState    *state.State
+		initialBill = &InitialBill{
 			ID:    NewBillID(nil, []byte{1}),
 			Value: moneyInvariant,
 			Owner: templates.AlwaysTrueBytes(),
@@ -181,15 +193,52 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+			testfc.WithAmount(fcrAmount),
+			testfc.WithTargetRecordID(fcrID),
+		),
+		testtransaction.WithUnitId(initialBill.ID),
+		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(transferFC))
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
+	// check that frcAmount is credited from initial bill
+	bill, err := txsState.GetUnit(initialBill.ID, true)
 	require.NoError(t, err)
+	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*BillData).V)
+	// send addFC
+	addFC := testfc.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
+		testfc.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
+			testfc.WithTransferFCTx(transferFCRecord),
+			testfc.WithTransferFCProof(transferFCProof),
+			testfc.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
+		),
+		testtransaction.WithUnitId(fcrID),
+		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(addFC))
+	// before reading state make sure that node 2 has executed the transfer
+	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
+	require.NoError(t, err, "add fee credit tx failed")
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
+	feeCredit, err := txsState.GetUnit(fcrID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
-	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, transferInitialBillTx)
-	require.NoError(t, err, "money split tx failed")
+	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
+	require.NoError(t, err, "transfer initial bill failed")
+	feeCredit, err = txsState.GetUnit(fcrID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// split initial bill using N-way split where N=nofDustToSwap
 	amount := uint64(1)
@@ -208,7 +257,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(splitTx))
 
 	// wait for transaction to be added to block
-	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, splitTx)
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, splitTx)
 	require.NoError(t, err, "money split tx failed")
 	require.EqualValues(t, splitTx, txRecord.TransactionOrder)
 
@@ -226,7 +275,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	dcRecordsProofs := make([]*types.TxProof, len(dcTxs))
 	for i, dcTx := range dcTxs {
 		require.NoError(t, moneyPrt.SubmitTx(dcTx))
-		dcRecords[i], dcRecordsProofs[i], err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, dcTx)
+		dcRecords[i], dcRecordsProofs[i], err = testpartition.WaitTxProof(t, moneyPrt, dcTx)
 		require.NoError(t, err, "dc tx failed")
 	}
 
@@ -265,7 +314,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))
-	_, _, err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, swapTx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPrt, swapTx)
 	require.NoError(t, err)
 	for _, n := range moneyPrt.Nodes {
 		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)

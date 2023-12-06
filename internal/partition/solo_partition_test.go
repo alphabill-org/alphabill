@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
-	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
@@ -26,15 +25,15 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -51,7 +50,6 @@ type SingleNodePartition struct {
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
 	obs        Observability
-	log        *slog.Logger
 }
 
 type partitionStartupDependencies struct {
@@ -59,7 +57,7 @@ type partitionStartupDependencies struct {
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
-	net         Net
+	network     ValidatorNetwork
 	nodeOptions []NodeOption
 }
 
@@ -105,7 +103,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		certs[sysID] = partition.Certificate
 	}
 
-	net := testnetwork.NewMockNetwork()
+	net := testnetwork.NewMockNetwork(t)
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
@@ -113,10 +111,11 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
-		net:         net,
+		network:     net,
 		nodeOptions: nodeOptions,
 	}
 
+	obs := testobserve.Default(t)
 	partition := &SingleNodePartition{
 		nodeDeps:   deps,
 		rootRound:  rootGenesis.GetRoundNumber(),
@@ -124,8 +123,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
-		obs:        observability.NOPMetrics(),
-		log:        testlogger.New(t).With(logger.NodeID(peerConf.ID)),
+		obs:        observability.WithLogger(obs, obs.Logger().With(logger.NodeID(peerConf.ID))),
 	}
 	return partition
 }
@@ -166,9 +164,8 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
-		sn.nodeDeps.net,
+		sn.nodeDeps.network,
 		sn.obs,
-		sn.log,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
@@ -190,7 +187,7 @@ func (sn *SingleNodePartition) newNode() error {
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	sn.mockNet.Receive(tx)
+	sn.mockNet.AddTransaction(context.Background(), tx)
 	return nil
 }
 

@@ -14,24 +14,28 @@ import (
 
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abdrctu "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 var partitionID types.SystemID32 = 0x00FF0001
@@ -66,7 +70,8 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)))
+	observe := testobservability.Default(t)
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -111,7 +116,7 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	}
 
 	// we need to init pacemaker into correct round, otherwise IR validation fails
-	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber)
+	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
@@ -513,7 +518,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 	t.Run("stale vote", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(8)
+		cms[0].pacemaker.Reset(8, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, 7)
@@ -527,13 +532,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// vote verification failures should be tested by vote.Verify unit tests...
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound - 1)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
 		vote.Author = "foobar"
 		err := cms[0].onVoteMsg(context.Background(), vote)
-		require.EqualError(t, err, `invalid vote: author "foobar" is not in the trustbase`)
+		require.EqualError(t, err, `invalid vote: author 'foobar' is not in the trustbase`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
 
@@ -542,7 +547,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound - 1)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -556,7 +561,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound - 1)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -572,7 +577,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Run("quorum of votes for next round should trigger recovery", func(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound - 1)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		// as we have single CM vote means quorum and recovery should be triggered as CM hasn't
@@ -587,7 +592,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cms[0].leaderSelector = constLeader{leader: cms[1].id, nodes: cms[1].leaderSelector.GetNodes()} // make sure this CM won't be the leader
-		cms[0].pacemaker.Reset(votedRound - 1)
+		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
@@ -600,14 +605,22 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 	t.Parallel()
 
+	observe := testobservability.NOPMetrics()
+	pm, err := NewPacemaker(time.Minute, 2*time.Minute, observe)
+	if err != nil {
+		t.Fatalf("creating Pacemaker: %v", err)
+	}
+
 	t.Run("untyped nil msg", func(t *testing.T) {
-		cm := &ConsensusManager{}
+		cm := &ConsensusManager{pacemaker: pm, tracer: observe.Tracer("cm")}
+		require.NoError(t, cm.initMetrics(observe))
 		err := cm.handleRootNetMsg(context.Background(), nil)
 		require.EqualError(t, err, `unknown message type <nil>`)
 	})
 
 	t.Run("type not known for the handler", func(t *testing.T) {
-		cm := &ConsensusManager{}
+		cm := &ConsensusManager{pacemaker: pm, tracer: observe.Tracer("cm")}
+		require.NoError(t, cm.initMetrics(observe))
 		err := cm.handleRootNetMsg(context.Background(), "foobar")
 		require.EqualError(t, err, `unknown message type string`)
 	})
@@ -621,7 +634,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctxCancel()
 		// and wait for cm to exit
 		select {
-		case <-time.After(1000 * time.Millisecond):
+		case <-time.After(1300 * time.Millisecond):
 			t.Fatal("consensus manager did not exit in time")
 		case <-doneCh:
 		}
@@ -1168,4 +1181,53 @@ func Test_rootNetworkRunning(t *testing.T) {
 		t.Fatal("consensus managers did not exit in time")
 	case <-done:
 	}
+}
+
+func TestConsensusManger_ResoreVote(t *testing.T) {
+	net := testnetwork.NewRootMockNetwork()
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	rootNode := testutils.NewTestNode(t)
+	verifier := rootNode.Verifier
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := rootNode.PeerConf.ID
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(),
+		rootNode.Signer,
+		rootPubKeyBytes,
+		[]*genesis.PartitionRecord{partitionRecord},
+		rootgenesis.WithBlockRate(200),
+		rootgenesis.WithConsensusTimeout(2200),
+	)
+	require.NoError(t, err)
+	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	// load timeout vote to DB
+	db := memorydb.New()
+	// init DB from genesis
+	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db)
+	require.NoError(t, err)
+	timeoutVote := &abdrc.TimeoutMsg{Timeout: &abtypes.Timeout{Round: 2}, Author: "test"}
+	require.NoError(t, storage.WriteVote(db, timeoutVote))
+	observe := testobservability.Default(t)
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer,
+		observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))),
+		consensus.WithStorage(db),
+	)
+	require.NoError(t, err)
+	// replace leader selector
+	allNodes := cm.leaderSelector.GetNodes()
+	leaderId, err := p2ptest.RandPeerID()
+	require.NoError(t, err)
+	allNodes = append(allNodes, leaderId)
+	cm.leaderSelector = constLeader{leader: leaderId, nodes: allNodes}
+	require.NoError(t, err)
+	require.NotNil(t, cm)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+	lastTimeoutMsg := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, net, network.ProtocolRootTimeout)
+	require.NotNil(t, lastTimeoutMsg)
+	// make sure the stored timeout vote is broadcast
+	require.EqualValues(t, 2, lastTimeoutMsg.Timeout.Round)
+	require.EqualValues(t, "test", lastTimeoutMsg.Author)
 }

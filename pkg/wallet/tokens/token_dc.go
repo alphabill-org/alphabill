@@ -45,7 +45,9 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedT
 }
 
 func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens []*twb.TokenUnit, invariantPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
-	if err := w.ensureFeeCredit(ctx, acc.AccountKey, len(typedTokens)); err != nil {
+	batchCount := ((len(typedTokens) - 1) / maxBurnBatchSize) + 1
+	txCount := len(typedTokens) + batchCount*2 // +lock fee and join fee for every batch
+	if err := w.ensureFeeCredit(ctx, acc.AccountKey, txCount); err != nil {
 		return nil, err
 	}
 	// first token to be joined into
@@ -78,6 +80,12 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 			}
 		}
 
+		var lockFee uint64
+		targetTokenBacklink, lockFee, err = w.lockTokenForDC(ctx, acc.AccountKey, targetTokenID, targetTokenBacklink, invariantPredicateArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock target token: %w", err)
+		}
+
 		burnBatchAmount, burnFee, proofs, err := w.burnTokensForDC(ctx, acc.AccountKey, burnBatch, targetTokenBacklink, targetTokenID, invariantPredicateArgs)
 		if err != nil {
 			return nil, err
@@ -91,7 +99,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 		}
 
 		totalAmountJoined += burnBatchAmount
-		totalFees += burnFee + joinFee
+		totalFees += lockFee + burnFee + joinFee
 	}
 	return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx + 1}, nil
 }
@@ -197,4 +205,29 @@ func (w *Wallet) getTokensForDC(ctx context.Context, key sdk.PubKey, allowedToke
 		}
 	}
 	return tokensByTypes, nil
+}
+
+func (w *Wallet) lockTokenForDC(ctx context.Context, acc *account.AccountKey, targetTokenID types.UnitID, targetTokenBacklink sdk.TxHash, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, uint64, error) {
+	attr := &tokens.LockTokenAttributes{
+		LockStatus: sdk.LockReasonCollectDust,
+		Backlink:   targetTokenBacklink,
+	}
+
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeLockToken, attr, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attr)
+		if err != nil {
+			return err
+		}
+		attr.InvariantPredicateSignatures = signatures
+		tx.Payload.Attributes, err = cbor.Marshal(attr)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, true); err != nil {
+		return nil, 0, err
+	}
+	return sub.Proof.TxRecord.TransactionOrder.Hash(crypto.SHA256), sub.Proof.TxRecord.ServerMetadata.ActualFee, nil
 }

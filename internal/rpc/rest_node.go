@@ -25,6 +25,7 @@ const (
 	pathTransactions         = "/transactions"
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
+	pathState                = "/state"
 	pathUnits                = "/units/{unitID}"
 )
 
@@ -42,6 +43,9 @@ func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Ob
 		// get unit data and proof
 		r.HandleFunc(pathUnits, getUnit(node, unitProofDB, log)).Methods(http.MethodGet, http.MethodOptions)
 		// Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}") - fields are not mandatory
+
+		// get the state file
+		r.HandleFunc(pathState, getState(node, log))
 	}
 }
 
@@ -131,5 +135,16 @@ func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc
 			return
 		}
 		util.WriteCBORResponse(w, nr, http.StatusOK, log)
+	}
+}
+
+func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/cbor")
+		w.WriteHeader(http.StatusOK)
+
+		if err := node.WriteStateFile(w); err != nil {
+			log.Error("writing state file", logger.Error(err))
+		}
 	}
 }

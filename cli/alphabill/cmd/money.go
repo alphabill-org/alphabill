@@ -74,6 +74,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Value: params.InitialBillValue,
 		Owner: templates.AlwaysTrueBytes(),
 	}
+
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
 		return fmt.Errorf("failed to create trust base validator: %w", err)

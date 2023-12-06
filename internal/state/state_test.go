@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"hash"
@@ -610,6 +611,52 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testing.T) {
 }
 
+func TestWriteStateFile(t *testing.T) {
+	state, _, _ := prepareState(t)
+	addLog(t, state, []byte{0, 0, 0, 0}, []byte{1})
+	addLog(t, state, []byte{0, 0, 0, 0}, []byte{2})
+
+	summaryValue, summaryHash, err := state.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, state.Commit())
+
+	header := &StateFileHeader{
+		SystemIdentifier:   []byte{1, 2, 3, 4},
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
+				Hash:         summaryHash,
+				SummaryValue: util.Uint64ToBytes(summaryValue),
+			},
+		},
+	}
+	buf := &bytes.Buffer{}
+	// Writes the pruned state
+	require.NoError(t, state.WriteStateFile(buf, header))
+
+	recoveredState, err := New(
+		WithHashAlgorithm(crypto.SHA256),
+		WithReader(buf),
+		WithUnitDataConstructor(func(_ types.UnitID) (UnitData, error) {
+			return &pruneUnitData{}, nil
+		}),
+	)
+	require.NoError(t, err)
+
+	recoveredSummaryValue, recoveredSummaryHash, err := recoveredState.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, recoveredState.Commit())
+	require.Equal(t, summaryValue, recoveredSummaryValue)
+	// summaryHash does not reflect the pruned state
+	require.NotEqual(t, summaryHash, recoveredSummaryHash)
+
+	require.NoError(t, state.PruneLog([]byte{0, 0, 0, 0}))
+	prunedSummaryValue, prunedSummaryHash, err := state.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, state.Commit())
+	require.Equal(t, prunedSummaryValue, recoveredSummaryValue)
+	require.Equal(t, prunedSummaryHash, recoveredSummaryHash)
+}
+
 func prepareState(t *testing.T) (*State, []byte, uint64) {
 	s := newEmptyState(t)
 	//			┌───┤ key=00000100
@@ -624,17 +671,17 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	//			└───┤ key=00000001
 	//				└───┤ key=00000000
 	require.NoError(t, s.Apply(
-		AddUnit([]byte{0, 0, 0, 1}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 10}),
-		AddUnit([]byte{0, 0, 0, 6}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 60}),
-		AddUnit([]byte{0, 0, 0, 2}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 20}),
-		AddUnit([]byte{0, 0, 0, 3}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 30}),
-		AddUnit([]byte{0, 0, 0, 7}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 70}),
-		AddUnit([]byte{0, 0, 0, 4}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 40}),
-		AddUnit([]byte{0, 0, 1, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 100}),
-		AddUnit([]byte{0, 0, 0, 8}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 80}),
-		AddUnit([]byte{0, 0, 0, 5}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 50}),
-		AddUnit([]byte{0, 0, 0, 9}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 90}),
-		AddUnit([]byte{0, 0, 0, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{i: 1}),
+		AddUnit([]byte{0, 0, 0, 1}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 10}),
+		AddUnit([]byte{0, 0, 0, 6}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 60}),
+		AddUnit([]byte{0, 0, 0, 2}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 20}),
+		AddUnit([]byte{0, 0, 0, 3}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 30}),
+		AddUnit([]byte{0, 0, 0, 7}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 70}),
+		AddUnit([]byte{0, 0, 0, 4}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 40}),
+		AddUnit([]byte{0, 0, 1, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 100}),
+		AddUnit([]byte{0, 0, 0, 8}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 80}),
+		AddUnit([]byte{0, 0, 0, 5}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 50}),
+		AddUnit([]byte{0, 0, 0, 9}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 90}),
+		AddUnit([]byte{0, 0, 0, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 1}),
 	))
 	txrHash := test.RandomBytes(32)
 
@@ -678,7 +725,7 @@ func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 func multiply(t uint64) func(data UnitData) (UnitData, error) {
 	return func(data UnitData) (UnitData, error) {
 		d := data.(*pruneUnitData)
-		d.i = d.i * t
+		d.I = d.I * t
 		return d, nil
 	}
 }

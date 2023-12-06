@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -36,6 +37,7 @@ type (
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() []byte
 		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
+		WriteStateFile(writer io.Writer) error
 	}
 )
 

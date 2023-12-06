@@ -44,6 +44,7 @@ type baseNodeConfiguration struct {
 type startNodeConfiguration struct {
 	Address                    string
 	Genesis                    string
+	StateFile                  string
 	KeyFile                    string
 	DbFile                     string
 	TxIndexerDBFile            string

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -92,6 +93,10 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 		}
 	}
 	return unitAndProof, nil
+}
+
+func (mn *MockNode) WriteStateFile(writer io.Writer) error {
+	return nil
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {

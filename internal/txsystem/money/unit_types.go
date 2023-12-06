@@ -1,6 +1,10 @@
 package money
 
 import (
+	"fmt"
+
+	"github.com/alphabill-org/alphabill/internal/state"
+	fc "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -21,4 +25,15 @@ func NewBillID(shardPart []byte, unitPart []byte) types.UnitID {
 
 func NewFeeCreditRecordID(shardPart []byte, unitPart []byte) types.UnitID {
 	return types.NewUnitID(UnitIDLength, shardPart, unitPart, FeeCreditRecordUnitType)
+}
+
+func NewUnitData(unitID types.UnitID) (state.UnitData, error) {
+	if unitID.HasType(BillUnitType) {
+		return &BillData{}, nil
+	}
+	if unitID.HasType(FeeCreditRecordUnitType) {
+		return &fc.FeeCreditRecord{}, nil
+	}
+
+	return nil, fmt.Errorf("unknown unit type in UnitID %s", unitID)
 }

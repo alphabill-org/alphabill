@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/testutils"
+	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
+	"github.com/alphabill-org/alphabill/testutils/partition"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
-	fcrID     = moneytx.NewFeeCreditRecordID(nil, []byte{1})
+	fcrID     = money.NewFeeCreditRecordID(nil, []byte{1})
 	fcrAmount = uint64(1e8)
 )
 
@@ -39,7 +38,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w2PubKey, _ := am2.GetPublicKey(0)
 	am2.Close()
 
-	initialBill := &moneytx.InitialBill{
+	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: templates.NewP2pkh256BytesFromKey(w1AccKey.PubKey),

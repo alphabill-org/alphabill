@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	wallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	sdk "github.com/alphabill-org/alphabill/wallet"
+	"github.com/alphabill-org/alphabill/wallet/account"
+	wallet "github.com/alphabill-org/alphabill/wallet/tokens"
+	"github.com/alphabill-org/alphabill/wallet/tokens/backend"
 )
 
 const (

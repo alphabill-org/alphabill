@@ -7,19 +7,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/testutils"
+	"github.com/alphabill-org/alphabill/testutils/observability"
+	"github.com/alphabill-org/alphabill/testutils/partition"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/wallet/fees"
+	"github.com/alphabill-org/alphabill/wallet/money/backend"
+	moneyclient "github.com/alphabill-org/alphabill/wallet/money/backend/client"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{
@@ -32,7 +32,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 }
 
 func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
 
 	// list fees
@@ -99,7 +99,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	// start money partition and create wallet with token partition as well
 	tokensPartition := createTokensPartition(t)
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition})
 
 	// start token partition
@@ -166,7 +166,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 }
 
 func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
 
 	// try to add invalid fee amount
@@ -209,7 +209,7 @@ func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
 }
 
 func TestWalletFeesLockCmds_Ok(t *testing.T) {
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
 
 	// create fee credit bill by adding fee credit
@@ -273,7 +273,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, initialBill *money.InitialBill) (string, *moneyclient.MoneyBackendClient) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
-	observe := testobserve.Default(t)
+	observe := observability.Default(t)
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
@@ -309,7 +309,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 func getFirstBillValue(t *testing.T, homedir string) string {
 	// Account #1
 	// #1 0x0000000000000000000000000000000000000000000000000000000000000001 9'999'999'849.999'999'91
-	stdout := execWalletCmd(t, testobserve.NewFactory(t), homedir, "bills list")
+	stdout := execWalletCmd(t, observability.NewFactory(t), homedir, "bills list")
 	require.Len(t, stdout.lines, 2)
 	parts := strings.Split(stdout.lines[1], " ") // split by whitespace, should have 3 parts
 	require.Len(t, parts, 3)

@@ -8,19 +8,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/testutils"
+	"github.com/alphabill-org/alphabill/testutils/http"
+	"github.com/alphabill-org/alphabill/testutils/net"
+	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
+	"github.com/alphabill-org/alphabill/testutils/partition"
+	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/wallet"
+	"github.com/alphabill-org/alphabill/wallet/money/backend"
 )
 
 func TestMoneyBackendCLI(t *testing.T) {

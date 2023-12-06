@@ -4,7 +4,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/util"
 	bolt "go.etcd.io/bbolt"
 )
 

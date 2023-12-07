@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/mt"
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/tree/mt"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 )

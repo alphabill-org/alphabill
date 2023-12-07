@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/smt"
+	"github.com/alphabill-org/alphabill/tree/smt"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

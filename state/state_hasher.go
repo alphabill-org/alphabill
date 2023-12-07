@@ -3,8 +3,8 @@ package state
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/mt"
 	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/alphabill-org/alphabill/tree/mt"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )

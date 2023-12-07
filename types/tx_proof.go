@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/mt"
+	"github.com/alphabill-org/alphabill/tree/mt"
 )
 
 var (

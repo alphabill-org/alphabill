@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/smt"
+	"github.com/alphabill-org/alphabill/tree/smt"
 )
 
 var ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")

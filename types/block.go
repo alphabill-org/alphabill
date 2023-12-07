@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/mt"
+	"github.com/alphabill-org/alphabill/tree/mt"
 )
 
 var (

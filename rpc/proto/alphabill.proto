@@ -3,7 +3,7 @@ package abrpc;
 
 import "google/protobuf/empty.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/alphabill/alphabill;alphabill";
+option go_package = "github.com/alphabill-org/alphabill/alphabill/alphabill;alphabill";
 
 service AlphabillService {
   rpc ProcessTransaction(Transaction) returns (google.protobuf.Empty) {};

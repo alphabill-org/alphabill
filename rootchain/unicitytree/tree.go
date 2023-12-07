@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/smt"
+	"github.com/alphabill-org/alphabill/tree/smt"
 	"github.com/alphabill-org/alphabill/types"
 )
 

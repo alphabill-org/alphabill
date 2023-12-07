@@ -3,10 +3,9 @@ all: clean tools generate test build build_scripts gosec
 clean:
 	rm -rf build/
 	rm -rf testab/
-	rm -rf internal/rpc/payment/*.pb.go
 
 generate:
-	go generate proto/generate.go
+	go generate rpc/proto/generate.go
 
 test:
 	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out

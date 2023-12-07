@@ -5,13 +5,12 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/network"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 )
 
 func CreatePeerConfiguration(t *testing.T) *network.PeerConfiguration {

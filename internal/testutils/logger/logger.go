@@ -7,9 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/neilotoole/slogt"
-
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 /*

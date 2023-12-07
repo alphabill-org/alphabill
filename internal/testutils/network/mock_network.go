@@ -9,20 +9,19 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
-	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/internal/txbuffer"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/network/protocol/replication"
+	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/txbuffer"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 type MockNet struct {

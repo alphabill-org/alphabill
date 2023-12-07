@@ -11,7 +11,6 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -27,6 +26,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -128,7 +128,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		b := &types.Block{
 			Header: &types.Header{
 				SystemID:          w.SystemID(),
-				PreviousBlockHash: hash.Sum256([]byte{}),
+				PreviousBlockHash: util.Sum256([]byte{}),
 			},
 			Transactions:       []*types.TransactionRecord{},
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNo}},

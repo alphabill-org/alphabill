@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/wallet"
@@ -1200,7 +1200,7 @@ type mockMoneyClient struct {
 }
 
 func testFeeCreditRecordIDFromPublicKey(shardPart, pubKey []byte) types.UnitID {
-	unitPart := hash.Sum256(pubKey)
+	unitPart := util.Sum256(pubKey)
 	return money.NewFeeCreditRecordID(shardPart, unitPart)
 }
 

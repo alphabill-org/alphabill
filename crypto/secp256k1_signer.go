@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/crypto/canonicalizer"
-	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
@@ -50,7 +50,7 @@ func (s *InMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, fmt.Errorf("data is nil")
 	}
-	return s.SignHash(hash.Sum256(data))
+	return s.SignHash(util.Sum256(data))
 }
 
 // SignHash creates a recoverable ECDSA signature.

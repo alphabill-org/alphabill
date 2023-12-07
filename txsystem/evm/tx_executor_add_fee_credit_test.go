@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -18,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -205,7 +205,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	pubKeyBytes, err := ver.MarshalPublicKey()
 	require.NoError(t, err)
-	pubHash := hash.Sum256(pubKeyBytes)
+	pubHash := util.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	addExecFn := addFeeCreditTx(
 		stateTree,
@@ -283,7 +283,7 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	stateDB := statedb.NewStateDB(stateTree, logger.New(t))
 	stateDB.CreateAccount(address)
 	stateDB.AddBalance(address, alphaToWei(100))
-	pubHash := hash.Sum256(pubKeyBytes)
+	pubHash := util.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	addExecFn := addFeeCreditTx(
 		stateTree,

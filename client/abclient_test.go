@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +65,7 @@ func TestTimeout(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		return &types.Block{
 			Header: &types.Header{
-				PreviousBlockHash: hash.Sum256([]byte{}),
+				PreviousBlockHash: util.Sum256([]byte{}),
 			},
 			Transactions:       []*types.TransactionRecord{},
 			UnicityCertificate: &types.UnicityCertificate{},
@@ -139,7 +139,7 @@ func TestSendTransactionWithRetry_RetryCanBeCanceledByUser(t *testing.T) {
 func createRandomTx() *types.TransactionOrder {
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			UnitID:         hash.Sum256([]byte{0x00}),
+			UnitID:         util.Sum256([]byte{0x00}),
 			ClientMetadata: &types.ClientMetadata{Timeout: 1000},
 		},
 		OwnerProof: nil,

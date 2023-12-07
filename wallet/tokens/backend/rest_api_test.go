@@ -16,13 +16,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
@@ -358,7 +358,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 		ds := &mockStorage{
 			queryTokens: func(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
-				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(util.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}

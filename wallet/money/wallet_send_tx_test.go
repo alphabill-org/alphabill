@@ -7,7 +7,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -91,7 +90,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	b := &wallet.Bill{
 		Id:     []byte{0},
 		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		TxHash: util.Sum256([]byte{0x01}),
 	}
 
 	var w *Wallet
@@ -314,7 +313,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	b := &wallet.Bill{
 		Id:     []byte{1},
 		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		TxHash: util.Sum256([]byte{0x01}),
 	}
 	var recordedTransactions []*types.TransactionOrder
 	backendMock := &testutil.BackendAPIMock{
@@ -389,11 +388,11 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 	bills := []*wallet.Bill{{
 		Id:     []byte{0},
 		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		TxHash: util.Sum256([]byte{0x01}),
 	}, {
 		Id:     []byte{1},
 		Value:  77,
-		TxHash: hash.Sum256([]byte{0x02}),
+		TxHash: util.Sum256([]byte{0x02}),
 	}}
 
 	var w *Wallet
@@ -449,7 +448,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 	bills := []*wallet.Bill{{
 		Id:     []byte{0},
 		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		TxHash: util.Sum256([]byte{0x01}),
 	}}
 
 	var w *Wallet
@@ -512,7 +511,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 	require.Len(t, attr.TargetUnits, 5)
 	for _, unit := range attr.TargetUnits {
 		require.EqualValues(t, 5, unit.Amount)
-		require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)), unit.OwnerCondition)
+		require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubKey)), unit.OwnerCondition)
 	}
 }
 
@@ -583,7 +582,7 @@ func createBill(value uint64) *wallet.Bill {
 	return &wallet.Bill{
 		Id:     util.Uint64ToBytes32(value),
 		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		TxHash: util.Sum256([]byte{byte(value)}),
 	}
 }
 

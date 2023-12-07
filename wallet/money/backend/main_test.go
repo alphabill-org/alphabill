@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -14,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -26,8 +26,8 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	bearer1 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey1))
-	bearer2 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey2))
+	bearer1 := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubkey1))
+	bearer2 := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubkey2))
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
@@ -87,7 +87,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 					SystemID:       moneySystemID,
 					Type:           moneytx.PayloadTypeTransfer,
 					UnitID:         billId1,
-					Attributes:     transferTxAttr(hash.Sum256(pubkey1)),
+					Attributes:     transferTxAttr(util.Sum256(pubkey1)),
 					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 				},
 			},
@@ -111,7 +111,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 					SystemID:       moneySystemID,
 					Type:           moneytx.PayloadTypeTransfer,
 					UnitID:         billId2,
-					Attributes:     transferTxAttr(hash.Sum256(pubkey2)),
+					Attributes:     transferTxAttr(util.Sum256(pubkey2)),
 					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 				},
 			},
@@ -131,7 +131,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 func TestGetBills_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
-	bearer := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
+	bearer := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubkey))
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
@@ -169,7 +169,7 @@ func TestGetBills_OK(t *testing.T) {
 
 func TestGetBills_Paging(t *testing.T) {
 	pubkey := test.RandomBytes(32)
-	bearerSHA256 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
+	bearerSHA256 := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubkey))
 	store := createTestBillStore(t)
 	service := &WalletBackend{store: store}
 

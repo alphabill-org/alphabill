@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -147,5 +147,5 @@ func calculateBlockHash(systemIdentifier, previousHash []byte, isEmpty bool) []b
 
 	treeHash := make([]byte, gocrypto.SHA256.Size())
 
-	return hash.Sum(gocrypto.SHA256, headerHash, txsHash, treeHash)
+	return util.Sum(gocrypto.SHA256, headerHash, txsHash, treeHash)
 }

@@ -10,7 +10,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
@@ -86,7 +85,7 @@ func main() {
 	// Make the initial fcrID different from the default
 	// sha256(pubKey), so that wallet can later create it's own
 	// fcrID for the same account with a different owner condition
-	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(hash.Sum256(pubKey)))
+	fcrID := money.NewFeeCreditRecordID(billID, util.Sum256(util.Sum256(pubKey)))
 
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
@@ -210,7 +209,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
 		&money.TransferAttributes{
-			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
+			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubKey)),
 			TargetValue: billValue,
 			Backlink:    backlink,
 		},

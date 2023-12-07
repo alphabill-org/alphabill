@@ -3,9 +3,9 @@ package templates
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -71,7 +71,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	t.Run("P2pkh256 template ok", func(t *testing.T) {
 		sigData := []byte{0x01}
 		sig, pubKey := testsig.SignBytes(t, sigData)
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		signature := &P2pkh256Signature{Sig: sig, PubKey: pubKey}
@@ -86,7 +86,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	t.Run("P2pkh256 template wrong signature", func(t *testing.T) {
 		_, pubKey := testsig.SignBytes(t, []byte{0x01})
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		require.ErrorContains(t, runner.Execute(payloadBytes, test.RandomBytes(10), nil), "failed to decode P2PKH256 signature")
@@ -94,7 +94,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	t.Run("P2pkh256 template wrong signature data", func(t *testing.T) {
 		sig, pubKey := testsig.SignBytes(t, []byte{0x01})
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		signature := &P2pkh256Signature{Sig: sig, PubKey: pubKey}
@@ -127,7 +127,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	t.Run("P2pkh256 template wrong signature size", func(t *testing.T) {
 		sig, pubKey := testsig.SignBytes(t, []byte{0x01})
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		signature := &P2pkh256Signature{Sig: sig[:64], PubKey: pubKey}
@@ -138,7 +138,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	t.Run("P2pkh256 template wrong pubkey size", func(t *testing.T) {
 		sig, pubKey := testsig.SignBytes(t, []byte{0x01})
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		signature := &P2pkh256Signature{Sig: sig, PubKey: pubKey[:32]}
@@ -150,7 +150,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	t.Run("P2pkh256 bad pubkey", func(t *testing.T) {
 		sig, _ := testsig.SignBytes(t, []byte{0x01})
 		pubKey := test.RandomBytes(33)
-		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
+		payload := &P2pkh256Payload{PubKeyHash: util.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)
 		signature := &P2pkh256Signature{Sig: sig, PubKey: pubKey}

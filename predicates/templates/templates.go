@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -98,7 +98,7 @@ func (t *P2pkh256) Execute(predicate, sig, sigData []byte) error {
 	if len(p2pkh256Signature.PubKey) != 33 {
 		return fmt.Errorf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey)
 	}
-	if !bytes.Equal(p2pkh256Payload.PubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
+	if !bytes.Equal(p2pkh256Payload.PubKeyHash, util.Sum256(p2pkh256Signature.PubKey)) {
 		return errors.New("pubkey hash does not match")
 	}
 
@@ -125,7 +125,7 @@ func AlwaysTrueBytes() predicates.PredicateBytes {
 }
 
 func NewP2pkh256FromKey(pubKey []byte) predicates.Predicate {
-	return NewP2pkh256FromKeyHash(hash.Sum256(pubKey))
+	return NewP2pkh256FromKeyHash(util.Sum256(pubKey))
 }
 
 func NewP2pkh256FromKeyHash(pubKeyHash []byte) predicates.Predicate {

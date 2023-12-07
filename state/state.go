@@ -8,7 +8,6 @@ import (
 	"io"
 	"sync"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/tree/mt"
 	"github.com/alphabill-org/alphabill/types"
@@ -213,10 +212,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 	}
 	if logsCount == 0 {
 		// newly created unit
-		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, nil, transactionRecordHash)
+		l.UnitLedgerHeadHash = util.Sum(s.hashAlgorithm, nil, transactionRecordHash)
 	} else {
 		// a pre-existing unit
-		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
+		l.UnitLedgerHeadHash = util.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
 	}
 	unit.logs = append(unit.logs, l)
 	return len(unit.logs), s.latestSavepoint().Update(id, unit)

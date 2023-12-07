@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -246,7 +245,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
 		backendMockWrapper.accountKey.PubKey,
 		targetBill.GetID(),
-		hash.Sum256(targetBill.GetTxHash()),
+		util.Sum256(targetBill.GetTxHash()),
 		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
@@ -361,7 +360,7 @@ func TestExistingDC_ServerAndClientSideLock(t *testing.T) {
 			{
 				Id:     util.Uint64ToBytes32(3),
 				Value:  3,
-				TxHash: hash.Sum256([]byte{byte(3)}),
+				TxHash: util.Sum256([]byte{byte(3)}),
 				Locked: unitlock.LockReasonCollectDust,
 			},
 		}
@@ -397,7 +396,7 @@ func TestExistingDC_ServerAndClientSideLock(t *testing.T) {
 		targetBill := &wallet.Bill{
 			Id:     util.Uint64ToBytes32(1),
 			Value:  1,
-			TxHash: hash.Sum256([]byte{byte(1)}),
+			TxHash: util.Sum256([]byte{byte(1)}),
 			Locked: unitlock.LockReasonCollectDust,
 		}
 		bills := []*wallet.Bill{
@@ -450,7 +449,7 @@ func TestExistingDC_FailedSwapTx(t *testing.T) {
 	targetBill := &wallet.Bill{
 		Id:     util.Uint64ToBytes32(5),
 		Value:  5,
-		TxHash: hash.Sum256([]byte{byte(5)}),
+		TxHash: util.Sum256([]byte{byte(5)}),
 		Locked: unitlock.LockReasonCollectDust,
 	}
 	bills := []*wallet.Bill{
@@ -514,7 +513,7 @@ func TestExistingDC_FailedDCTx(t *testing.T) {
 	targetBill := &wallet.Bill{
 		Id:     util.Uint64ToBytes32(5),
 		Value:  5,
-		TxHash: hash.Sum256([]byte{byte(5)}),
+		TxHash: util.Sum256([]byte{byte(5)}),
 		Locked: unitlock.LockReasonCollectDust,
 	}
 	bills := []*wallet.Bill{
@@ -573,7 +572,7 @@ func TestExistingDC_FailedLockTx(t *testing.T) {
 	targetBill := &wallet.Bill{
 		Id:     util.Uint64ToBytes32(5),
 		Value:  5,
-		TxHash: hash.Sum256([]byte{byte(5)}),
+		TxHash: util.Sum256([]byte{byte(5)}),
 		Locked: unitlock.LockReasonCollectDust,
 	}
 	bills := []*wallet.Bill{
@@ -624,7 +623,7 @@ func createBill(value uint64) *wallet.Bill {
 	return &wallet.Bill{
 		Id:     util.Uint64ToBytes32(value),
 		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		TxHash: util.Sum256([]byte{byte(value)}),
 	}
 }
 
@@ -632,7 +631,7 @@ func createDCBill(value uint64, targetBill *wallet.Bill) *wallet.Bill {
 	srcBill := &wallet.Bill{
 		Id:     util.Uint64ToBytes32(value),
 		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		TxHash: util.Sum256([]byte{byte(value)}),
 	}
 	srcBill.DCTargetUnitID = targetBill.GetID()
 	srcBill.DCTargetUnitBacklink = targetBill.TxHash

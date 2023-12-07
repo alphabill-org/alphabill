@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/types"
@@ -60,7 +59,7 @@ func TestAdd(t *testing.T) {
 				bearer:              templates.AlwaysTrueBytes(),
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
-				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
+				subTreeSummaryHash: util.Sum(crypto.SHA256,
 					[]byte{1},
 					nil, // h_s is nil (we do not have a log entry)
 					util.Uint64ToBytes(123),

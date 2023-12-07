@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -203,7 +203,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		Payload: &types.Payload{
 			Type:           PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         util.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},
@@ -226,7 +226,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 		Payload: &types.Payload{
 			Type:           PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         util.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},
@@ -248,7 +248,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		Payload: &types.Payload{
 			Type:           PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         util.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},

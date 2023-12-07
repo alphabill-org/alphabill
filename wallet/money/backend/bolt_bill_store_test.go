@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -397,7 +396,7 @@ func createTestBillStore(t *testing.T) *boltBillStore {
 
 func getOwnerPredicate(pubkey string) []byte {
 	pubKey, _ := hexutil.Decode(pubkey)
-	return templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey))
+	return templates.NewP2pkh256BytesFromKeyHash(util.Sum256(pubKey))
 }
 
 func newBillWithValueAndOwner(val byte, ownerPredicate []byte) *Bill {

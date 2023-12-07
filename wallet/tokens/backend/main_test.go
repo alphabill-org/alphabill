@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -272,7 +272,7 @@ func Test_Run_API(t *testing.T) {
 	pubKeyHex := hexutil.Encode(ownerID)
 	tx := randomTx(t,
 		&tokens.MintNonFungibleTokenAttributes{
-			Bearer:    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)),
+			Bearer:    templates.NewP2pkh256BytesFromKeyHash(util.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
 		})
 	tx.Payload.Type = tokens.PayloadTypeMintNFT

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -18,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -137,10 +137,10 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	childSigner, childPublicKey := createSigner(t)
 
 	// only parent2 can create sub-types from parent1
-	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(parent2PubKey))
+	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(parent2PubKey))
 
 	// parent2 and child together can create a sub-type because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
-	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(childPublicKey))
+	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(util.Sum256(childPublicKey))
 
 	txs := newTokenTxSystem(t)
 

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -16,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ var tokenSystemID = tokens.DefaultSystemIdentifier
 
 func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	pubKeyHash := hash.Sum256(pubKeyBytes)
+	pubKeyHash := util.Sum256(pubKeyBytes)
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
@@ -615,7 +615,7 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 	var targetUnits []*money.TargetUnit
 	for i := 1; i <= 5; i++ {
 		pubKeyBytes := []byte{byte(i)}
-		pubKeyHash := hash.Sum256(pubKeyBytes)
+		pubKeyHash := util.Sum256(pubKeyBytes)
 		ownerCondition := templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)
 		targetUnits = append(targetUnits, &money.TargetUnit{
 			Amount:         uint64(i),
@@ -1042,7 +1042,7 @@ func transferTxAttr(pubKeyHash []byte) []byte {
 	attr := &money.TransferAttributes{
 		TargetValue: 100,
 		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pubKeyHash),
-		Backlink:    hash.Sum256([]byte{}),
+		Backlink:    util.Sum256([]byte{}),
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes
@@ -1051,7 +1051,7 @@ func transferTxAttr(pubKeyHash []byte) []byte {
 func dustTxAttr() []byte {
 	attr := &money.TransferDCAttributes{
 		Value:              100,
-		Backlink:           hash.Sum256([]byte{}),
+		Backlink:           util.Sum256([]byte{}),
 		TargetUnitID:       []byte{0},
 		TargetUnitBacklink: []byte{1},
 	}
@@ -1063,7 +1063,7 @@ func splitTxAttr(remainingValue uint64, targetUnits ...*money.TargetUnit) []byte
 	attr := &money.SplitAttributes{
 		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
-		Backlink:       hash.Sum256([]byte{}),
+		Backlink:       util.Sum256([]byte{}),
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	acc "github.com/ethereum/go-ethereum/accounts"
@@ -121,7 +121,7 @@ func NewDerivationPath(accountIndex uint64) string {
 // NewKeyHash creates sha256/sha512 hash pair from given key
 func NewKeyHash(key []byte) *KeyHashes {
 	return &KeyHashes{
-		Sha256: hash.Sum256(key),
+		Sha256: util.Sum256(key),
 	}
 }
 

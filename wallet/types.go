@@ -1,8 +1,8 @@
 package wallet
 
 import (
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 )
 
 const (
@@ -36,7 +36,7 @@ type Proof struct {
 }
 
 func (pk PubKey) Hash() PubKeyHash {
-	return hash.Sum256(pk)
+	return util.Sum256(pk)
 }
 
 type (

@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
@@ -220,7 +219,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		for _, r := range cmd.Receivers {
 			targetUnits = append(targetUnits, &money.TargetUnit{
 				Amount:         r.Amount,
-				OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(r.PubKey)),
+				OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(util.Sum256(r.PubKey)),
 			})
 		}
 		remainingValue := largestBill.Value - totalAmount

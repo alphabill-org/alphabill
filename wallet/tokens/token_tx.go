@@ -7,10 +7,10 @@ import (
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/wallet"
@@ -245,7 +245,7 @@ func bearerPredicateFromHash(receiverPubKeyHash []byte) wallet.Predicate {
 func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
 	var h []byte
 	if receiverPubKey != nil {
-		h = hash.Sum256(receiverPubKey)
+		h = util.Sum256(receiverPubKey)
 	}
 	return bearerPredicateFromHash(h)
 }

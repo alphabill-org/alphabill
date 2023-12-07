@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/crypto/canonicalizer"
-	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill/util"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
@@ -44,7 +44,7 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 	if v == nil || v.pubKey == nil || sig == nil || data == nil {
 		return ErrInvalidArgument
 	}
-	return v.VerifyHash(sig, hash.Sum256(data))
+	return v.VerifyHash(sig, util.Sum256(data))
 }
 
 // VerifyHash verifies the hash against the signature, using the internal public key.

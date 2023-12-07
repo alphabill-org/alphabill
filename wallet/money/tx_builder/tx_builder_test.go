@@ -3,7 +3,6 @@ package tx_builder
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
@@ -23,7 +22,7 @@ var (
 )
 
 func TestSplitTransactionAmount(t *testing.T) {
-	receiverPubKeyHash := hash.Sum256(receiverPubKey)
+	receiverPubKeyHash := util.Sum256(receiverPubKey)
 	keys, _ := account.NewKeys(testMnemonic)
 	billID := money.NewBillID(nil, nil)
 	b := &wallet.Bill{

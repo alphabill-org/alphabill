@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/partition/event"
-	testutils "github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
-	"github.com/alphabill-org/alphabill/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
@@ -35,8 +35,8 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	// simulate UC with different state hash and block hash
 	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
-		Hash:         testutils.RandomBytes(32),
-		BlockHash:    testutils.RandomBytes(32),
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
 		RoundNumber:  bl.UnicityCertificate.InputRecord.RoundNumber + 1,
 	}
@@ -53,7 +53,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// on timeout second request is sent
-	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), ledgerReplicationTimeout+time.Second, testutils.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), ledgerReplicationTimeout+time.Second, test.WaitTick)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
@@ -69,8 +69,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// simulate UC with different state hash and block hash
 	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
-		Hash:         testutils.RandomBytes(32),
-		BlockHash:    testutils.RandomBytes(32),
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
 		RoundNumber:  bl.UnicityCertificate.InputRecord.RoundNumber + 1,
 	}
@@ -93,8 +93,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// increment round number
 	irNew := &types.InputRecord{
 		PreviousHash: ir.Hash,
-		Hash:         testutils.RandomBytes(32),
-		BlockHash:    testutils.RandomBytes(32),
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
 		RoundNumber:  ir.RoundNumber + 1,
 	}
@@ -178,7 +178,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 			}
 		}
 		return false
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 
 	// create new block
 	tp.CreateBlock(t)
@@ -326,11 +326,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	sum := bl.UnicityCertificate.InputRecord.SummaryValue
 	rootRound++
 	partitionRound++
-	newStateHash := testutils.RandomBytes(32)
+	newStateHash := test.RandomBytes(32)
 	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
 		Hash:         newStateHash,
-		BlockHash:    testutils.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: sum,
 		RoundNumber:  partitionRound,
 	}
@@ -355,8 +355,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	partitionRound++
 	ir = &types.InputRecord{
 		PreviousHash: newStateHash,
-		Hash:         testutils.RandomBytes(32),
-		BlockHash:    testutils.RandomBytes(32),
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: sum,
 		RoundNumber:  partitionRound,
 	}
@@ -609,7 +609,7 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
@@ -653,7 +653,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
@@ -710,7 +710,7 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
@@ -790,7 +790,7 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing.T) {
@@ -818,7 +818,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 		}
 	})
 	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, testutils.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
@@ -834,14 +834,14 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 			}
 		}
 		return false
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 	// simulate T1 timeout
 	// bad solution, but easiest for now
 	tp.partition.handleT1TimeoutEvent(ctx)
 	// block proposal is sent
 	require.Eventually(t, func() bool {
 		return len(tp.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
-	}, testutils.WaitDuration, testutils.WaitTick, "block certification request not found")
+	}, test.WaitDuration, test.WaitTick, "block certification request not found")
 	// set DB in error state
 	db.MockWriteError(fmt.Errorf("disk is full"))
 	// submit UC status from root
@@ -870,7 +870,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
@@ -898,7 +898,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 		}
 	})
 	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, testutils.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
@@ -915,7 +915,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 			}
 		}
 		return false
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 	// submit T1 timeout
 	// bad solution, but easiest for now
 	tp.partition.handleT1TimeoutEvent(ctx)
@@ -945,7 +945,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
@@ -1007,7 +1007,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	// and status is normal
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == normal
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
@@ -1029,7 +1029,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 				}
 			}
 			return count == 3
-		}, testutils.WaitDuration, testutils.WaitTick)
+		}, test.WaitDuration, test.WaitTick)
 		tp.CreateBlock(t)
 		bl := tp.GetLatestBlock(t)
 		require.Equal(t, 3, len(bl.Transactions))
@@ -1090,7 +1090,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 				}
 			}
 			return count == 3
-		}, testutils.WaitDuration, testutils.WaitTick)
+		}, test.WaitDuration, test.WaitTick)
 		tp.CreateBlock(t)
 		bl := tp.GetLatestBlock(t)
 		require.Equal(t, 3, len(bl.Transactions))

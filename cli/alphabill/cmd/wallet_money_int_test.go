@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/testutils"
-	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
-	"github.com/alphabill-org/alphabill/testutils/partition"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"

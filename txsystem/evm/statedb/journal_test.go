@@ -3,9 +3,9 @@ package statedb
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	abstate "github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

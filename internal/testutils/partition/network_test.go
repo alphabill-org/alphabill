@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
-	"github.com/alphabill-org/alphabill/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 )

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	"github.com/alphabill-org/alphabill/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 )

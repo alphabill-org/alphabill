@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/testutils/sig"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

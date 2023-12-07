@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/testutils/sig"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

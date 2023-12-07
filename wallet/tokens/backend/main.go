@@ -12,7 +12,7 @@ import (
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/client"
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/debug"
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"

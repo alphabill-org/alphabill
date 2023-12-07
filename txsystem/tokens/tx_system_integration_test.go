@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	testutils "github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	"github.com/alphabill-org/alphabill/testutils/partition"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
@@ -58,7 +58,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, tx), testutils.WaitDuration, testutils.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, tx), test.WaitDuration, test.WaitTick)
 }
 
 func TestFungibleTokenTransactions_Ok(t *testing.T) {
@@ -171,7 +171,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  splitValue1,
 				RemainingValue:               totalValue - splitValue1,
-				Nonce:                        testutils.RandomBytes(32),
+				Nonce:                        test.RandomBytes(32),
 				Backlink:                     txHash,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},

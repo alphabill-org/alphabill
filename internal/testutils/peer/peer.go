@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/testutils/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"

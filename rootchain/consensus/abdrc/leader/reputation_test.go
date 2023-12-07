@@ -5,8 +5,8 @@ import (
 	mrand "math/rand"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	test "github.com/alphabill-org/alphabill/testutils/peer"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )

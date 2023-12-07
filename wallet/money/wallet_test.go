@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	"github.com/alphabill-org/alphabill/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 

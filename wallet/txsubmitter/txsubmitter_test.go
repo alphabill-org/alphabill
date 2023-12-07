@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/stretchr/testify/require"
 )
 

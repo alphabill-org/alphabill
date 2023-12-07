@@ -10,6 +10,7 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -20,7 +21,6 @@ import (
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	testobservability "github.com/alphabill-org/alphabill/testutils/observability"
 	abtypes "github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"

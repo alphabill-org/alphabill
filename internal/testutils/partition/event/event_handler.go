@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/testutils"
 	"github.com/stretchr/testify/require"
 )
 

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"

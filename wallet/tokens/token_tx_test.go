@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/wallet"
 	"github.com/alphabill-org/alphabill/wallet/txsubmitter"

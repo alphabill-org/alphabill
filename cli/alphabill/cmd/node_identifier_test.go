@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/stretchr/testify/require"
 )
 

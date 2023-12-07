@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/testutils/sig"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/stretchr/testify/require"

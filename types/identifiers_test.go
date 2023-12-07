@@ -3,7 +3,7 @@ package types
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

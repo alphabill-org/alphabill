@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/testutils"
-	testlogger "github.com/alphabill-org/alphabill/testutils/logger"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

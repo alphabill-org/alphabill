@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/testutils"
-	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/types"

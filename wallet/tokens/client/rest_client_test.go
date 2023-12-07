@@ -11,12 +11,12 @@ import (
 	"path"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
 	sdk "github.com/alphabill-org/alphabill/wallet"

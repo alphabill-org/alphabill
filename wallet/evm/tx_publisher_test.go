@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/wallet"
 	"github.com/stretchr/testify/require"

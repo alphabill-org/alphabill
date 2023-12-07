@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"testing"
 
-	testutils "github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -39,7 +39,7 @@ func TestNewPeer_NewPeerCanBeCreated(t *testing.T) {
 func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
-			PrivateKey: testutils.RandomBytes(30),
+			PrivateKey: test.RandomBytes(30),
 		},
 	}
 
@@ -53,7 +53,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: privKeyBytes,
-			PublicKey:  testutils.RandomBytes(30),
+			PublicKey:  test.RandomBytes(30),
 		},
 	}
 	_, err := NewPeer(context.Background(), conf, logger.New(t), nil)
@@ -94,7 +94,7 @@ func TestBootstrapNodes(t *testing.T) {
 	peer1, err := NewPeer(context.Background(), peerConf1, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, testutils.WaitDuration, testutils.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
 
 	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
@@ -103,10 +103,10 @@ func TestBootstrapNodes(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, testutils.WaitDuration, testutils.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, testutils.WaitDuration, testutils.WaitTick)
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, testutils.WaitDuration, testutils.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, testutils.WaitDuration, testutils.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
 }
 
 /*

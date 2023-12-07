@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/wallet"

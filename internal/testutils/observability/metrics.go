@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/logger"
-	testlogr "github.com/alphabill-org/alphabill/testutils/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

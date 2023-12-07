@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
+	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/observability"
-	testlogr "github.com/alphabill-org/alphabill/testutils/logger"
 )
 
 /*

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/debug"
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"

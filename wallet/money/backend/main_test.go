@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
-	testutils "github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
 	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -100,7 +100,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, nextKey)
 		return len(bills) > 0
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 
 	// serve block with transaction to new pubkey
 	makeBlockAvailable(&types.Block{
@@ -125,7 +125,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, nextKey)
 		return len(bills) > 0
-	}, testutils.WaitDuration, testutils.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestGetBills_OK(t *testing.T) {
@@ -168,7 +168,7 @@ func TestGetBills_OK(t *testing.T) {
 }
 
 func TestGetBills_Paging(t *testing.T) {
-	pubkey := testutils.RandomBytes(32)
+	pubkey := test.RandomBytes(32)
 	bearerSHA256 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
 	store := createTestBillStore(t)
 	service := &WalletBackend{store: store}
@@ -226,8 +226,8 @@ func TestGetBills_Paging(t *testing.T) {
 }
 
 func Test_extractOwnerFromProof(t *testing.T) {
-	sig := testutils.RandomBytes(65)
-	pubkey := testutils.RandomBytes(33)
+	sig := test.RandomBytes(65)
+	pubkey := test.RandomBytes(33)
 	predicate := templates.NewP2pkh256SignatureBytes(sig, pubkey)
 	owner := extractOwnerKeyFromProof(predicate)
 	require.EqualValues(t, pubkey, owner)

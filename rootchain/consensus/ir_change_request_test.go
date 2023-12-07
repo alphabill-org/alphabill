@@ -3,8 +3,8 @@ package consensus
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/testutils"
 	"github.com/alphabill-org/alphabill/types"
 )
 

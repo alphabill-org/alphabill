@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/fxamacker/cbor/v2"

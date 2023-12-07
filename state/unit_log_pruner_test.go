@@ -6,8 +6,8 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/testutils"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"

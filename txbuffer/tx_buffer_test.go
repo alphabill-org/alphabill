@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/testutils"
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	"github.com/alphabill-org/alphabill/testutils/observability"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 

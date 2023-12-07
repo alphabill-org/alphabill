@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/testutils/block"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/block"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"

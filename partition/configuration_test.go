@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/testutils/logger"
-	test "github.com/alphabill-org/alphabill/testutils/peer"
-	"github.com/alphabill-org/alphabill/testutils/sig"
-	"github.com/alphabill-org/alphabill/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 )

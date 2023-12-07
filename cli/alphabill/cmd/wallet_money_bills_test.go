@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
-	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
-	"github.com/alphabill-org/alphabill/testutils/partition"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"

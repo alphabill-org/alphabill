@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/testutils/certificates"
-	"github.com/alphabill-org/alphabill/testutils/sig"
-	"github.com/alphabill-org/alphabill/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

@@ -3,7 +3,7 @@ package partition
 import (
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/testutils/peer"
+	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"

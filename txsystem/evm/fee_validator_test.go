@@ -3,7 +3,7 @@ package evm
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/types"
 )

@@ -13,7 +13,7 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/client"
-	"github.com/alphabill-org/alphabill/debug"
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"

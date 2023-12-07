@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	testobserve "github.com/alphabill-org/alphabill/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"

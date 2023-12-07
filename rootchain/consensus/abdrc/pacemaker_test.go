@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/testutils/observability"
 	"github.com/stretchr/testify/require"
 )
 

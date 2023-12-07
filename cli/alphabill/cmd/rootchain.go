@@ -179,7 +179,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("root store init failed: %w", err)
 	}
-	var cm consensus.Manager
+	var cm rootchain.ConsensusManager
 	if len(rootGenesis.Root.RootValidators) == 1 {
 		// use monolithic consensus algorithm
 		cm, err = monolithic.NewMonolithicConsensusManager(

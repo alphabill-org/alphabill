@@ -5,6 +5,8 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/alphabill-org/alphabill/types"
 )
 
 const TxTypeKey attribute.Key = "tx.type"
@@ -26,4 +28,8 @@ func TxHash(value []byte) attribute.KeyValue {
 
 func PeerID(key attribute.Key, id peer.ID) attribute.KeyValue {
 	return key.String(id.String())
+}
+
+func Partition(id types.SystemID32) attribute.KeyValue {
+	return attribute.Int("partition", int(id))
 }

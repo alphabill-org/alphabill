@@ -140,7 +140,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 		Reason:           consensus.Quorum,
 		Requests:         requests}
 	// submit IR change request from partition with quorum
-	cm.RequestCertification() <- req
+	require.NoError(t, cm.RequestCertification(ctx, req))
 	// require, that certificates are received for partition ID
 	result, err := readResult(cm.CertificationResult(), 2000*time.Millisecond)
 	require.NoError(t, err)

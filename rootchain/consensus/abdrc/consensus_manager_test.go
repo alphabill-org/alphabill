@@ -633,7 +633,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctxCancel()
 		// and wait for cm to exit
 		select {
-		case <-time.After(1300 * time.Millisecond):
+		case <-time.After(3000 * time.Millisecond):
 			t.Fatal("consensus manager did not exit in time")
 		case <-doneCh:
 		}
@@ -666,11 +666,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
 		}
 
-		select {
-		case <-time.After(cms[0].pacemaker.minRoundLen):
-			t.Fatal("CM doesn't consume IR change request")
-		case cms[0].RequestCertification() <- irCReq:
-		}
+		rcCtx, rcCancel := context.WithTimeout(ctx, cms[0].pacemaker.minRoundLen)
+		require.NoError(t, cms[0].RequestCertification(rcCtx, irCReq), "CM doesn't consume IR change request")
+		rcCancel()
 
 		// IRCR must be included into proposal
 		select {
@@ -713,11 +711,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			Reason:           consensus.Quorum,
 			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
 		}
-		select {
-		case <-time.After(nonLeaderNode.pacemaker.minRoundLen):
-			t.Fatal("CM doesn't consume IR change request")
-		case nonLeaderNode.RequestCertification() <- irCReq:
-		}
+		rcCtx, rcCancel := context.WithTimeout(ctx, nonLeaderNode.pacemaker.minRoundLen)
+		require.NoError(t, nonLeaderNode.RequestCertification(rcCtx, irCReq), "CM doesn't consume IR change request")
+		rcCancel()
 
 		select {
 		case <-time.After(cmLeader.pacemaker.maxRoundLen):

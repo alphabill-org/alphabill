@@ -3,6 +3,7 @@ all: clean tools generate test build build_scripts gosec
 clean:
 	rm -rf build/
 	rm -rf testab/
+	rm -rf rpc/payment/*.pb.go
 
 generate:
 	go generate rpc/proto/generate.go

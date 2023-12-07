@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 )
 
 /*

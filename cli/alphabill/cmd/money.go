@@ -5,11 +5,11 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -74,6 +74,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Value: params.InitialBillValue,
 		Owner: templates.AlwaysTrueBytes(),
 	}
+
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
 		return fmt.Errorf("failed to create trust base validator: %w", err)

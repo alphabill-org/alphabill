@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/internal/util"
-	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
+	evmwallet "github.com/alphabill-org/alphabill/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/wallet/evm/client"
 )
 
 const (

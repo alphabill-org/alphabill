@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -108,7 +108,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
 	cfg.RESTServer.router = api.NewAPI(
-		txs.GetState(),
+		txs.State(),
 		systemIdentifier,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,

@@ -3,11 +3,10 @@ package testtxsystem
 import (
 	"encoding/binary"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 )
 
 type CounterTxSystem struct {
@@ -49,7 +48,7 @@ func (m *CounterTxSystem) StateStorage() txsystem.UnitAndProof {
 	return state.NewEmptyState().Clone()
 }
 
-func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
+func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if m.uncommitted {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
@@ -62,6 +61,10 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
+}
+
+func (m *CounterTxSystem) State() *state.State {
+	return state.NewEmptyState().Clone()
 }
 
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
@@ -79,7 +82,7 @@ func (m *CounterTxSystem) Revert() {
 	m.uncommitted = false
 }
 
-func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
+func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount + m.ExecuteCountDelta

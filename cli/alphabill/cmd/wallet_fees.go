@@ -8,18 +8,18 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/wallet"
+	"github.com/alphabill-org/alphabill/wallet/account"
+	evmwallet "github.com/alphabill-org/alphabill/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/wallet/evm/client"
+	"github.com/alphabill-org/alphabill/wallet/fees"
+	moneywallet "github.com/alphabill-org/alphabill/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/wallet/money/backend/client"
+	tokenswallet "github.com/alphabill-org/alphabill/wallet/tokens"
+	tokensclient "github.com/alphabill-org/alphabill/wallet/tokens/client"
 )
 
 const (

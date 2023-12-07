@@ -7,9 +7,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
-
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 func Test_logger_for_tests(t *testing.T) {

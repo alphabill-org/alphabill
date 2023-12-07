@@ -8,12 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/util"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateGenesisFiles_OK(t *testing.T) {

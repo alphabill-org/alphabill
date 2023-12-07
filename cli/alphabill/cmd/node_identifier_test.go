@@ -7,9 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIdentifier_KeysNotFound(t *testing.T) {

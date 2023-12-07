@@ -14,22 +14,22 @@ import (
 	"strings"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/wallet/account"
+	"github.com/alphabill-org/alphabill/wallet/money/backend/client"
 )
 
 const walletBaseDir = "wallet"
@@ -54,7 +54,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
 
-	cmd := New(testobserve.NewFactory(t))
+	cmd := New(observability.NewFactory(t))
 	args := "wallet --home " + homeDir + " create"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
@@ -68,7 +68,7 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 
 	cmd := New(logF)
 	pw := "123456"
@@ -102,7 +102,7 @@ func TestWalletCreateCmd_invalidSeed(t *testing.T) {
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
 
-	cmd := New(testobserve.NewFactory(t))
+	cmd := New(observability.NewFactory(t))
 	cmd.baseCmd.SetArgs(strings.Split("wallet create -s --wallet-location "+homeDir, " "))
 	err := cmd.Execute(context.Background())
 	require.EqualError(t, err, `invalid value "--wallet-location" for flag "seed" (mnemonic)`)
@@ -113,7 +113,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(testobserve.NewFactory(t), homedir, "get-balance --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(observability.NewFactory(t), homedir, "get-balance --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15", "Total 15")
 }
 
@@ -121,7 +121,7 @@ func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	obsF := testobserve.NewFactory(t)
+	obsF := observability.NewFactory(t)
 	addAccount(t, obsF, homedir)
 	stdout, _ := execCommand(obsF, homedir, "get-balance --key 2 --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#2 15")
@@ -132,7 +132,7 @@ func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(testobserve.NewFactory(t), homedir, "get-balance --total --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(observability.NewFactory(t), homedir, "get-balance --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Total 15")
 	verifyStdoutNotExists(t, stdout, "#1 15")
 }
@@ -141,13 +141,13 @@ func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(testobserve.NewFactory(t), homedir, "get-balance --key 1 --total --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(observability.NewFactory(t), homedir, "get-balance --key 1 --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15")
 	verifyStdoutNotExists(t, stdout, "Total 15")
 }
 
 func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
@@ -177,7 +177,7 @@ func TestPubKeysCmd(t *testing.T) {
 	am, homedir := createNewWallet(t)
 	pk, _ := am.GetPublicKey(0)
 	am.Close()
-	stdout, _ := execCommand(testobserve.NewFactory(t), homedir, "get-pubkeys")
+	stdout, _ := execCommand(observability.NewFactory(t), homedir, "get-pubkeys")
 	verifyStdout(t, stdout, "#1 "+hexutil.Encode(pk))
 }
 
@@ -189,7 +189,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 5e8})
 	defer mockServer.Close()
 
-	_, err := execCommand(testobserve.NewFactory(t), homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
+	_, err := execCommand(observability.NewFactory(t), homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
@@ -244,7 +244,7 @@ func startRPCServer(t *testing.T, node *partition.Node, log *slog.Logger) string
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
-	}, testobserve.Default(t), log)
+	}, observability.Default(t), log)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

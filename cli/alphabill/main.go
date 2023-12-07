@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/cli/alphabill/cmd"
-	"github.com/alphabill-org/alphabill/pkg/observability"
+	"github.com/alphabill-org/alphabill/observability"
 )
 
 func main() {

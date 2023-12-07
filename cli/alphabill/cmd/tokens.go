@@ -5,13 +5,12 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 type (

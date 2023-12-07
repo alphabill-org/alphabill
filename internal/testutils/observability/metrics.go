@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -25,9 +27,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	tnop "go.opentelemetry.io/otel/trace/noop"
-
-	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 /*

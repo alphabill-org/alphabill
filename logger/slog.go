@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/lmittmann/tint"
@@ -214,6 +215,9 @@ func filenameToWriter(name string) (io.Writer, error) {
 	case "discard", os.DevNull:
 		return io.Discard, nil
 	default:
+		if err := os.MkdirAll(filepath.Dir(name), 0700); err != nil {
+			return nil, fmt.Errorf("create dir %q for log output: %w", filepath.Dir(name), err)
+		}
 		file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
 			return nil, fmt.Errorf("open file %q for log output: %w", name, err)

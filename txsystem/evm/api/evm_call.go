@@ -7,10 +7,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -36,7 +36,7 @@ type CallEVMResponse struct {
 func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
 	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
-		util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
+		rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}
 
@@ -52,7 +52,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.callContract(clonedState, attr)
 	if err != nil {
-		util.WriteCBORError(w, err, http.StatusBadRequest, a.log)
+		rpc.WriteCBORError(w, err, http.StatusBadRequest, a.log)
 		return
 	}
 	processingDetails := &evm.ProcessingDetails{
@@ -69,7 +69,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	processingDetails.Logs = stateDB.GetLogs()
 
-	util.WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
+	rpc.WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
 }
 
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {

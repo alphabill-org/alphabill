@@ -20,7 +20,6 @@ import (
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -845,7 +844,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Author:    x.id.String(),
 			Round:     round,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp(),
+			Timestamp: types.NewTimestamp(),
 			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, x.blockStore.IsChangeInProgress),
 			Qc:        x.blockStore.GetHighQc(),
 		},

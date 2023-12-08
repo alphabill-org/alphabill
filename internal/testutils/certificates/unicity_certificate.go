@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func CreateUnicityCertificate(
@@ -54,7 +53,7 @@ func CreateUnicityCertificate(
 func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
 	return &types.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            types.NewTimestamp(),
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}

@@ -1,4 +1,4 @@
-package util
+package smt
 
 import "testing"
 

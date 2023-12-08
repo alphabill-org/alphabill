@@ -1,4 +1,4 @@
-package util
+package smt
 
 func IsBitSet(bytes []byte, bitPosition int) bool {
 	byteIndex := bitPosition / 8

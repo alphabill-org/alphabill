@@ -16,10 +16,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -283,7 +283,7 @@ func mockClientCalls(br *clientMockConf, logF func(*logger.LogConfiguration) (*s
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/api/v1/evm/balance/"):
-			util.WriteCBORResponse(w, &struct {
+			rpc.WriteCBORResponse(w, &struct {
 				_        struct{} `cbor:",toarray"`
 				Balance  string
 				Backlink []byte
@@ -292,7 +292,7 @@ func mockClientCalls(br *clientMockConf, logF func(*logger.LogConfiguration) (*s
 				Backlink: br.backlink,
 			}, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/evm/transactionCount/"):
-			util.WriteCBORResponse(w, &struct {
+			rpc.WriteCBORResponse(w, &struct {
 				_     struct{} `cbor:",toarray"`
 				Nonce uint64
 			}{
@@ -301,37 +301,37 @@ func mockClientCalls(br *clientMockConf, logF func(*logger.LogConfiguration) (*s
 		case strings.Contains(r.URL.Path, "/api/v1/evm/call"):
 			br.callReq = &api.CallEVMRequest{}
 			if err := cbor.NewDecoder(r.Body).Decode(br.callReq); err != nil {
-				util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, log)
+				rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, log)
 				return
 			}
-			util.WriteCBORResponse(w, br.callResp, http.StatusOK, log)
+			rpc.WriteCBORResponse(w, br.callResp, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/evm/gasPrice"):
-			util.WriteCBORResponse(w, &struct {
+			rpc.WriteCBORResponse(w, &struct {
 				_        struct{} `cbor:",toarray"`
 				GasPrice string
 			}{
 				GasPrice: br.gasPrice,
 			}, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/rounds/latest"):
-			util.WriteCBORResponse(w, br.round, http.StatusOK, log)
+			rpc.WriteCBORResponse(w, br.round, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/transactions"):
 			if r.Method == "POST" {
 				buf := new(bytes.Buffer)
 				if _, err := buf.ReadFrom(r.Body); err != nil {
-					util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
+					rpc.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
 					return
 				}
 				tx := &types.TransactionOrder{}
 				if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
-					util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
+					rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 					return
 				}
 				br.receivedTx = tx
-				util.WriteCBORResponse(w, tx.Hash(crypto.SHA256), http.StatusAccepted, log)
+				rpc.WriteCBORResponse(w, tx.Hash(crypto.SHA256), http.StatusAccepted, log)
 				return
 			}
 			// GET
-			util.WriteCBORResponse(w, struct {
+			rpc.WriteCBORResponse(w, struct {
 				_        struct{} `cbor:",toarray"`
 				TxRecord *types.TransactionRecord
 				TxProof  *types.TxProof

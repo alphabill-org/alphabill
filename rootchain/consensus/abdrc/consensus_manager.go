@@ -867,7 +867,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 
 func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMsg) error {
 	if x.recovery != nil {
-		return fmt.Errorf("node is in recovery state")
+		return fmt.Errorf("node is in recovery: %s", x.recovery.String())
 	}
 
 	certs := x.blockStore.GetCertificates()

@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +14,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}

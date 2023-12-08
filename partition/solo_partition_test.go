@@ -29,7 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -242,7 +241,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
 	u := &types.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,
 	}
 	return u, u.Sign("test", sn.rootSigner)

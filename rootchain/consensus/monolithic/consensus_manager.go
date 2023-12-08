@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 type (
@@ -273,7 +272,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	rootHash := ut.GetRootHash()
 	uSeal := &types.UnicitySeal{
 		RootChainRoundNumber: round,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,
 	}
 	if err = uSeal.Sign(x.selfID, x.signer); err != nil {

@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -152,7 +151,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:       4,
 							ParentRoundNumber: 3,
 							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         util.MakeTimestamp(),
+							Timestamp:         types.NewTimestamp(),
 						},
 						LedgerCommitInfo: &types.UnicitySeal{
 							PreviousHash: test.RandomBytes(32),
@@ -164,7 +163,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						RoundNumber:       7,
 						ParentRoundNumber: 6,
 						CurrentRootHash:   test.RandomBytes(32),
-						Timestamp:         util.MakeTimestamp(),
+						Timestamp:         types.NewTimestamp(),
 					},
 					LedgerCommitInfo: &types.UnicitySeal{
 						PreviousHash: test.RandomBytes(32),
@@ -188,7 +187,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:       4,
 							ParentRoundNumber: 3,
 							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         util.MakeTimestamp(),
+							Timestamp:         types.NewTimestamp(),
 						},
 						LedgerCommitInfo: &types.UnicitySeal{
 							PreviousHash: test.RandomBytes(32),
@@ -221,7 +220,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			RoundNumber:       7,
 			ParentRoundNumber: 6,
 			CurrentRootHash:   test.RandomBytes(32),
-			Timestamp:         util.MakeTimestamp(),
+			Timestamp:         types.NewTimestamp(),
 		}
 		sm := &StateMsg{
 			Certificates: nil,
@@ -248,7 +247,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:       4,
 							ParentRoundNumber: 3,
 							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         util.MakeTimestamp(),
+							Timestamp:         types.NewTimestamp(),
 						},
 						LedgerCommitInfo: &types.UnicitySeal{
 							PreviousHash: test.RandomBytes(32),
@@ -279,7 +278,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			RoundNumber:       7,
 			ParentRoundNumber: 6,
 			CurrentRootHash:   test.RandomBytes(32),
-			Timestamp:         util.MakeTimestamp(),
+			Timestamp:         types.NewTimestamp(),
 		}
 		sm := &StateMsg{
 			Certificates: nil,
@@ -306,7 +305,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:       4,
 							ParentRoundNumber: 3,
 							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         util.MakeTimestamp(),
+							Timestamp:         types.NewTimestamp(),
 						},
 						LedgerCommitInfo: &types.UnicitySeal{
 							PreviousHash: test.RandomBytes(32),
@@ -346,7 +345,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:       5,
 							ParentRoundNumber: 4,
 							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         util.MakeTimestamp(),
+							Timestamp:         types.NewTimestamp(),
 						},
 						LedgerCommitInfo: &types.UnicitySeal{
 							PreviousHash: test.RandomBytes(32),
@@ -380,7 +379,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:       4,
 						ParentRoundNumber: 3,
 						CurrentRootHash:   test.RandomBytes(32),
-						Timestamp:         util.MakeTimestamp(),
+						Timestamp:         types.NewTimestamp(),
 					},
 					LedgerCommitInfo: &types.UnicitySeal{
 						PreviousHash: test.RandomBytes(32),
@@ -401,7 +400,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:       4,
 						ParentRoundNumber: 3,
 						CurrentRootHash:   test.RandomBytes(32),
-						Timestamp:         util.MakeTimestamp(),
+						Timestamp:         types.NewTimestamp(),
 					},
 					LedgerCommitInfo: &types.UnicitySeal{
 						PreviousHash: test.RandomBytes(32),
@@ -447,7 +446,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 					VoteInfo: &drctypes.RoundInfo{
 						RoundNumber:     4,
 						CurrentRootHash: test.RandomBytes(32),
-						Timestamp:       util.MakeTimestamp(),
+						Timestamp:       types.NewTimestamp(),
 					},
 					LedgerCommitInfo: &types.UnicitySeal{
 						PreviousHash: test.RandomBytes(32),
@@ -481,7 +480,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:       4,
 						ParentRoundNumber: 3,
 						CurrentRootHash:   test.RandomBytes(32),
-						Timestamp:         util.MakeTimestamp(),
+						Timestamp:         types.NewTimestamp(),
 					},
 					LedgerCommitInfo: &types.UnicitySeal{
 						PreviousHash: test.RandomBytes(32),

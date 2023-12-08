@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"hash"
 	"sort"
+	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 )
+
+// GenesisTime min timestamp Thursday, April 20, 2023 6:11:24 AM GMT+00:00
+// Epoch (or Unix time or POSIX time or Unix timestamp) is the number of seconds that have elapsed since January 1, 1970 (midnight UTC/GMT)
+const GenesisTime uint64 = 1681971084
 
 var (
 	ErrUnicitySealIsNil          = errors.New("unicity seal is nil")
@@ -70,6 +75,12 @@ func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
 	return nil
 }
 
+// NewTimestamp - returns timestamp in seconds from epoch
+func NewTimestamp() uint64 {
+	// Epoch in seconds
+	return uint64(time.Now().Unix())
+}
+
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if x == nil {
 		return ErrUnicitySealIsNil
@@ -83,7 +94,7 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
 	}
-	if x.Timestamp < util.GenesisTime {
+	if x.Timestamp < GenesisTime {
 		return errInvalidTimestamp
 	}
 	if len(x.Signatures) == 0 {

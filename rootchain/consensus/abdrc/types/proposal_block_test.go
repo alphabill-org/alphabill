@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -222,7 +221,7 @@ func TestBlockData_String(t *testing.T) {
 			Author:    "test",
 			Round:     6,
 			Epoch:     0,
-			Timestamp: util.GenesisTime,
+			Timestamp: types.GenesisTime,
 			Payload:   nil,
 		}
 		require.Equal(t, "round: 6, time: 1681971084, payload: empty", x.String())
@@ -232,7 +231,7 @@ func TestBlockData_String(t *testing.T) {
 			Author:    "test",
 			Round:     6,
 			Epoch:     0,
-			Timestamp: util.GenesisTime,
+			Timestamp: types.GenesisTime,
 			Payload:   &Payload{},
 		}
 		require.Equal(t, "round: 6, time: 1681971084, payload: empty", x.String())
@@ -242,7 +241,7 @@ func TestBlockData_String(t *testing.T) {
 			Author:    "test",
 			Round:     6,
 			Epoch:     0,
-			Timestamp: util.GenesisTime,
+			Timestamp: types.GenesisTime,
 			Payload: &Payload{Requests: []*IRChangeReq{
 				{SystemIdentifier: types.SystemID32(0), CertReason: Quorum},
 				{SystemIdentifier: types.SystemID32(1), CertReason: T2Timeout},

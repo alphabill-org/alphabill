@@ -224,13 +224,13 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		roundMeta := &abtypes.RoundInfo{
 			RoundNumber:       genesis.RootRound,
 			Epoch:             0,
-			Timestamp:         util.GenesisTime,
+			Timestamp:         types.GenesisTime,
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &types.UnicitySeal{
 			RootChainRoundNumber: genesis.RootRound,
-			Timestamp:            util.GenesisTime,
+			Timestamp:            types.GenesisTime,
 			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),
 			Hash:                 rootHash,
 		}

@@ -10,6 +10,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
@@ -17,12 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/alphabill-org/alphabill/wallet"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
@@ -234,7 +234,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 	}, nil
 }
 
-func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *types.TransactionOrder, latestRoundNumber, timeout uint64) (*wallet.Proof, error) {
+func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *types.TransactionOrder, latestRoundNumber, timeout uint64) (*Proof, error) {
 	for latestRoundNumber <= timeout {
 		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
 		if err != nil {
@@ -265,11 +265,29 @@ func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServic
 			}
 			for i, tx := range block.Transactions {
 				if bytes.Equal(tx.TransactionOrder.UnitID(), pendingTx.UnitID()) {
-					return wallet.NewTxProof(i, block, crypto.SHA256)
+					return NewTxProof(i, block, crypto.SHA256)
 				}
 			}
 			latestRoundNumber++
 		}
 	}
 	return nil, errors.New("error tx failed to confirm")
+}
+
+// Proof wrapper struct around TxRecord and TxProof
+type Proof struct {
+	_        struct{}                 `cbor:",toarray"`
+	TxRecord *types.TransactionRecord `json:"txRecord"`
+	TxProof  *types.TxProof           `json:"txProof"`
+}
+
+func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, error) {
+	txProof, txRecord, err := types.NewTxProof(b, txIdx, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	return &Proof{
+		TxRecord: txRecord,
+		TxProof:  txProof,
+	}, nil
 }

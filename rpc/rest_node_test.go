@@ -8,16 +8,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/tree/avl"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {

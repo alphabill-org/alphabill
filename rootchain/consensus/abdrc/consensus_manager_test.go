@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/network"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -654,10 +654,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			return false
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, stopCM := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
-		defer waitExit(t, cancel, done)
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -682,6 +681,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.EqualValues(t, irCReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
 			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
 		}
+		waitExit(t, stopCM, done)
 	})
 
 	t.Run("IR change request from partition forwarded to leader", func(t *testing.T) {

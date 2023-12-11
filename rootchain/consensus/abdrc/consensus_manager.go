@@ -725,7 +725,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCer
 
 // processTC - handles timeout certificate
 func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCert) {
-	ctx, span := x.tracer.Start(ctx, "ConsensusManager.processTC")
+	_, span := x.tracer.Start(ctx, "ConsensusManager.processTC")
 	defer span.End()
 	if tc == nil {
 		return

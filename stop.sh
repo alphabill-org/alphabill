@@ -41,7 +41,7 @@ usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop parti
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "harb:p:" o; do
+while getopts "harp:" o; do
   case "${o}" in
   a) #kill all
     stop "all"

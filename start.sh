@@ -11,7 +11,7 @@ usage() { echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money,
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "hb:rp:" o; do
+while getopts "hrp:" o; do
   case "${o}" in
   r)
     echo "starting root nodes..." && start_root_nodes

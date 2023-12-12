@@ -108,24 +108,31 @@ func (api *moneyRestAPI) getBlockByBlockNumber(w http.ResponseWriter, r *http.Re
 func (api *moneyRestAPI) getBlocks(w http.ResponseWriter, r *http.Request) {
 
 	qp := r.URL.Query()
-	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+
+	startBlockStr := qp.Get("startBlock")
+	limitStr:= qp.Get("limit")
+
+	startBlock, err := strconv.ParseUint(startBlockStr, 10, 64)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		http.Error(w, "Invalid 'startBlock' format", http.StatusBadRequest)
 		return
 	}
 
-	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		http.Error(w, "Invalid 'limit' format", http.StatusBadRequest)
 		return
 	}
-	recs, nextKey, err := api.Service.GetBlocks(startKey, limit)
+
+
+	recs, prevBlockNumber, err := api.Service.GetBlocks(startBlock, limit)
 	if err != nil {
 		log.Error("error on GET /blocks: ", err)
 		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch blocks: %w", err))
 		return
 	}
-	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	prevBlockNumberStr := strconv.FormatUint(prevBlockNumber , 10)
+	sdk.SetLinkHeader(r.URL, w, prevBlockNumberStr)
 	api.rw.WriteCborResponse(w, recs)
 }
 

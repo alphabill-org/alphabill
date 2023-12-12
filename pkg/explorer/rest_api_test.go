@@ -376,9 +376,9 @@ func (m *explorerBackendServiceMock) GetBlockByBlockNumber(blocknumber uint64) (
 	return nil, errors.New("not implemented")
 }
 
-func (m *explorerBackendServiceMock) GetBlocks(dbStartKey []byte, count int) (res []*types.Block, key []byte, err error) {
+func (m *explorerBackendServiceMock) GetBlocks(dbStartBlockNumber uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error) {
 	//TODO
-	return nil, nil, errors.New("not implemented")
+	return nil, 0, errors.New("not implemented")
 }
 
 func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {

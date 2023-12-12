@@ -27,13 +27,46 @@ func TestBillStore_SetBlock_GetBlockByBlockNumber(t *testing.T) {
 	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}
 
 	// set block
-	err:= bs.Do().SetBlock(b)
+	err := bs.Do().SetBlock(b)
 	require.NoError(t, err)
 
 	// get block
-	block, err:= bs.Do().GetBlockByBlockNumber(blockNumber)
+	block, err := bs.Do().GetBlockByBlockNumber(blockNumber)
 	require.NoError(t, err)
 	require.EqualValues(t, block.UnicityCertificate.InputRecord.RoundNumber, blockNumber)
+}
+func TestBillStore_SetBlocks_GetBlocks(t *testing.T) {
+	blockNumber1 := test.RandomUint64()
+	blockNumber2 := blockNumber1 + 1
+	blockNumber3 := blockNumber2 + 1
+
+	bs := createTestBillStore(t)
+	b1 := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber1}}}
+	b2 := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber2}}}
+	b3 := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber3}}}
+
+	// set blocks
+	err := bs.Do().SetBlock(b1)
+	require.NoError(t, err)
+	err = bs.Do().SetBlock(b2)
+	require.NoError(t, err)
+	err = bs.Do().SetBlock(b3)
+	require.NoError(t, err)
+
+	// get blocks
+	length := 2
+	blocks, prevBlockNumber, err := bs.Do().GetBlocks(blockNumber3, length)
+	require.NoError(t, err)
+	require.EqualValues(t, blocks[0].UnicityCertificate.InputRecord.RoundNumber, blockNumber3)
+	require.EqualValues(t, prevBlockNumber, blockNumber1)
+	require.EqualValues(t, len(blocks), length)
+
+	length2 := 4
+	blocks2, prevBlockNumber2, err2 := bs.Do().GetBlocks(blockNumber3, length2)
+	require.NoError(t, err2)
+	require.EqualValues(t, blocks2[0].UnicityCertificate.InputRecord.RoundNumber, blockNumber3)
+	require.EqualValues(t, prevBlockNumber2, 0)
+	require.EqualValues(t, len(blocks2), 3)
 }
 
 func TestBillStore_GetSetBlockNumber(t *testing.T) {

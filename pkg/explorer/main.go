@@ -23,7 +23,7 @@ import (
 type (
 	ExplorerBackendService interface {
 		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
-		GetBlocks(dbStartKey []byte, count int) (res []*types.Block, key []byte, err error)
+		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
@@ -66,7 +66,7 @@ type (
 	// BillStoreTx type for managing units by their ID and owner condition
 	BillStoreTx interface {
 		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
-		GetBlocks(dbStartKey []byte, count int) (res []*types.Block, key []byte, err error)
+		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		SetBlock(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
@@ -180,8 +180,8 @@ func (ex *ExplorerBackend) GetBlockByBlockNumber(blockNumber uint64) (*types.Blo
 }
 
 // GetBlock return amount of blocks provided with count
-func (ex *ExplorerBackend) GetBlocks(dbStartKey []byte, count int) (res []*types.Block, key []byte, err error) {
-	return ex.store.Do().GetBlocks(dbStartKey, count)
+func (ex *ExplorerBackend) GetBlocks(dbStartBlockNumber uint64, count int) (res []*types.Block, prevBlockNUmber uint64, err error) {
+	return ex.store.Do().GetBlocks(dbStartBlockNumber, count)
 }
 
 // GetBill returns most recently seen bill with given unit id.

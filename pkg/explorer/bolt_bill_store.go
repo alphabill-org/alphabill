@@ -134,39 +134,45 @@ func (s *boltBillStoreTx) SetBlock(b *types.Block) error {
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetBlocks(dbStartKey []byte, count int) (res []*types.Block, key []byte, err error) {
-	return res, key, s.withTx(s.tx, func(tx *bolt.Tx) error {
+func (s *boltBillStoreTx) GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error) {
+	return res, prevBlockNumber, s.withTx(s.tx, func(tx *bolt.Tx) error {
 		var err error
-		res, key, err = s.getBlocks(tx, dbStartKey, count)
+		res, prevBlockNumber, err = s.getBlocks(tx, dbStartBlock, count)
 		return err
 	}, false)
 }
 
-func (s *boltBillStoreTx) getBlocks(tx *bolt.Tx, dbStartKey []byte, count int) ([]*types.Block, []byte, error) {
+func (s *boltBillStoreTx) getBlocks(tx *bolt.Tx, dbStartBlock uint64, count int) ([]*types.Block, uint64, error) {
 	pb := tx.Bucket(blockBucket)
 
 	if pb == nil {
-		return nil, nil, fmt.Errorf("bucket %s not found", blockBucket)
+		return nil, 0, fmt.Errorf("bucket %s not found", blockBucket)
 	}
 
+	dbStartKeyBytes := util.Uint64ToBytes(dbStartBlock)
 	c := pb.Cursor()
 
 	var res []*types.Block
-	var prevKey []byte
-
-	for k, v := c.Seek(dbStartKey); k != nil && count > 0; k, v = c.Prev() {
+	var prevBlockNumberBytes []byte
+	var prevBlockNumber uint64
+	
+	for k, v := c.Seek(dbStartKeyBytes); k != nil && count > 0; k, v = c.Prev() {
 		rec := &types.Block{}
 		if err := json.Unmarshal(v, rec); err != nil {
-			return nil, nil, fmt.Errorf("failed to deserialize tx history record: %w", err)
+			return nil, 0, fmt.Errorf("failed to deserialize tx history record: %w", err)
 		}
 		res = append(res, rec)
 		if count--; count == 0 {
-			prevKey, _ = c.Prev()
+			prevBlockNumberBytes, _ = c.Prev()
 			break
 		}
 	}
-
-	return res, prevKey, nil
+	if len(prevBlockNumberBytes) != 0 {
+		prevBlockNumber = util.BytesToUint64(prevBlockNumberBytes)
+	} else {
+		prevBlockNumber = 0
+	}
+	return res, prevBlockNumber, nil
 }
 
 func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {

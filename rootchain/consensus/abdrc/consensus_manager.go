@@ -692,12 +692,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}
 	x.replayVoteBuffer(ctx)
-	// if everything goes fine, but the node is in recovery state, then clear it
-	// most likely ended up here because proposal was late and votes arrived before
-	if x.recovery != nil {
-		x.log.DebugContext(ctx, fmt.Sprintf("clearing recovery state on proposal: %s", x.recovery.String()), logger.Round(x.pacemaker.GetCurrentRound()))
-		x.recovery = nil
-	}
+
 	return nil
 }
 

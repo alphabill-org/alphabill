@@ -90,3 +90,40 @@ func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 	err = p1.IsValid(verifier)
 	require.NoError(t, err)
 }
+
+func TestBlockCertificationRequest_GetPreviousHash(t *testing.T) {
+	var req *BlockCertificationRequest = nil
+	require.Nil(t, req.IRPreviousHash())
+	req = &BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 0},
+		NodeIdentifier:   "1",
+		InputRecord:      nil,
+	}
+	require.Nil(t, req.IRPreviousHash())
+	req.InputRecord = &types.InputRecord{PreviousHash: []byte{1, 2, 3}}
+	require.Equal(t, []byte{1, 2, 3}, req.IRPreviousHash())
+}
+
+func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
+	var req *BlockCertificationRequest = nil
+	require.EqualValues(t, 0, req.IRRound())
+	req = &BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 0},
+		NodeIdentifier:   "1",
+		InputRecord:      nil,
+	}
+	require.EqualValues(t, 0, req.IRRound())
+	req.InputRecord = &types.InputRecord{RoundNumber: 10}
+	require.EqualValues(t, 10, req.IRRound())
+}
+
+func TestBlockCertificationRequest_RootRound(t *testing.T) {
+	var req *BlockCertificationRequest = nil
+	require.EqualValues(t, 0, req.RootRound())
+	req = &BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 0},
+		NodeIdentifier:   "1",
+		RootRoundNumber:  11,
+	}
+	require.EqualValues(t, 11, req.RootRound())
+}

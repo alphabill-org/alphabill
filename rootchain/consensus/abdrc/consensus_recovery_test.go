@@ -620,7 +620,6 @@ func Test_recoverState(t *testing.T) {
 		node_2 := cms[2]
 		require.Eventually(t, func() bool { return node_2.pacemaker.GetCurrentRound() >= 10 }, 15*time.Second, 100*time.Millisecond, "waiting for progress to be made")
 	})
-
 	t.Run("recovery triggered by missing proposal", func(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
@@ -703,7 +702,6 @@ func Test_recoverState(t *testing.T) {
 		// make sure leader still issues a proposal after recovery
 		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 5 }, 3*time.Second, 20*time.Millisecond, "make progress")
 	})
-
 	roundOfMsg := func(msg any) uint64 {
 		switch mt := msg.(type) {
 		case *abdrc.VoteMsg:

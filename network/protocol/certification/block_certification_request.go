@@ -26,6 +26,27 @@ type BlockCertificationRequest struct {
 	Signature        []byte             `json:"signature,omitempty"`
 }
 
+func (x *BlockCertificationRequest) IRRound() uint64 {
+	if x == nil || x.InputRecord == nil {
+		return 0
+	}
+	return x.InputRecord.RoundNumber
+}
+
+func (x *BlockCertificationRequest) IRPreviousHash() []byte {
+	if x == nil || x.InputRecord == nil {
+		return nil
+	}
+	return x.InputRecord.PreviousHash
+}
+
+func (x *BlockCertificationRequest) RootRound() uint64 {
+	if x == nil {
+		return 0
+	}
+	return x.RootRoundNumber
+}
+
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
 		return ErrBlockCertificationRequestIsNil

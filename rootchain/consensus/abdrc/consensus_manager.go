@@ -640,8 +640,6 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *drctypes.QuorumCert) error {
 // onProposalMsg handles block proposal messages from other validators.
 // Only a proposal made by the leader of this view/round shall be accepted and processed
 func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.ProposalMsg) error {
-	x.log.DebugContext(ctx, "proposal msg", logger.Round(x.pacemaker.GetCurrentRound()), logger.NodeID(x.id))
-
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onProposalMsg")
 	defer span.End()
 	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {

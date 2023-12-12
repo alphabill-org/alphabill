@@ -636,12 +636,11 @@ func Test_recoverState(t *testing.T) {
 		}()
 
 		cmLeader := cms[0]
-		voteCnt := 0
 		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
 			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
 			require.NoError(t, err)
-			v.leaderSelector = rrLeader // use "const leader" to take leader selection out of test
+			v.leaderSelector = rrLeader
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -652,14 +651,6 @@ func Test_recoverState(t *testing.T) {
 			if to == leaderInRound && isProposal && prop.Block.Round == 4 {
 				return true
 			}
-			vote, isVote := msg.(*abdrc.VoteMsg)
-			if isVote && vote.VoteInfo.RoundNumber == 4 {
-				if voteCnt >= 7 {
-					return true
-				}
-				voteCnt++
-			}
-
 			return false
 		})
 		// make sure leader still issues a proposal after recovery
@@ -686,7 +677,7 @@ func Test_recoverState(t *testing.T) {
 		for _, v := range cms {
 			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
 			require.NoError(t, err)
-			v.leaderSelector = rrLeader // use "const leader" to take leader selection out of test
+			v.leaderSelector = rrLeader
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}

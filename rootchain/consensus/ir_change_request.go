@@ -40,10 +40,12 @@ func CheckBlockCertificationRequest(req CertRequestVerifier, luc *types.UnicityC
 	if req.IRRound() != luc.InputRecord.RoundNumber+1 {
 		// Older UC, return current.
 		return fmt.Errorf("invalid partition round number %v, last certified round number %v", req.IRRound(), luc.InputRecord.RoundNumber)
-	} else if !bytes.Equal(req.IRPreviousHash(), luc.InputRecord.Hash) {
+	}
+	if !bytes.Equal(req.IRPreviousHash(), luc.InputRecord.Hash) {
 		// Extending of unknown State.
 		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.IRPreviousHash())
-	} else if req.RootRound() != luc.GetRootRoundNumber() {
+	}
+	if req.RootRound() != luc.GetRootRoundNumber() {
 		// Stale request, it has been sent before most recent UC was issued
 		return fmt.Errorf("request root round number %v does not match luc root round %v", req.RootRound(), luc.UnicitySeal.RootChainRoundNumber)
 	}

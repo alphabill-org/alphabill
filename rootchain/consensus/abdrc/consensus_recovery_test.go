@@ -620,7 +620,79 @@ func Test_recoverState(t *testing.T) {
 		node_2 := cms[2]
 		require.Eventually(t, func() bool { return node_2.pacemaker.GetCurrentRound() >= 10 }, 15*time.Second, 100*time.Millisecond, "waiting for progress to be made")
 	})
+	t.Run("recovery triggered by missing proposal", func(t *testing.T) {
+		t.Parallel()
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer func() {
+			cancel() // kill CMs
+			require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 2*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
+		}()
+
+		cmLeader := cms[0]
+		allNodes := cmLeader.leaderSelector.GetNodes()
+		for _, v := range cms {
+			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
+			require.NoError(t, err)
+			v.leaderSelector = rrLeader
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
+		}
+		// make sure leader will not receive it's own proposal for round 4
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			prop, isProposal := msg.(*abdrc.ProposalMsg)
+			leaderInRound := cmLeader.leaderSelector.GetLeaderForRound(5)
+			if to == leaderInRound && isProposal && prop.Block.Round == 4 {
+				return true
+			}
+			return false
+		})
+		// make sure leader still issues a proposal after recovery
+		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 5 }, 3*time.Second, 20*time.Millisecond, "make progress")
+	})
+
+	t.Run("recovery triggered by missing proposal - delay proposal", func(t *testing.T) {
+		t.Parallel()
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer func() {
+			cancel() // kill CMs
+			require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 2*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
+		}()
+
+		cmLeader := cms[0]
+		allNodes := cmLeader.leaderSelector.GetNodes()
+		for _, v := range cms {
+			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
+			require.NoError(t, err)
+			v.leaderSelector = rrLeader
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
+		}
+		// make sure leader will not receive it's own proposal for round 4
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			prop, isProposal := msg.(*abdrc.ProposalMsg)
+			leaderInRound := cmLeader.leaderSelector.GetLeaderForRound(5)
+			if to == leaderInRound && isProposal && prop.Block.Round == 4 {
+				time.Sleep(1 * time.Millisecond)
+			}
+			return false
+		})
+		// make sure leader still issues a proposal after recovery
+		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 5 }, 3*time.Second, 20*time.Millisecond, "make progress")
+	})
 	roundOfMsg := func(msg any) uint64 {
 		switch mt := msg.(type) {
 		case *abdrc.VoteMsg:

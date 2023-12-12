@@ -380,6 +380,14 @@ func (m *explorerBackendServiceMock) GetBlocks(dbStartBlockNumber uint64, count 
 	//TODO
 	return nil, 0, errors.New("not implemented")
 }
+func (m *explorerBackendServiceMock) GetBlockExplorerByBlockNumber(dbStartBlockNumber uint64) (res *BlockExplorer, err error) {
+	//TODO
+	return nil, errors.New("not implemented")
+}
+func (m *explorerBackendServiceMock) GetBlocksExplorer(dbStartBlockNumber uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error) {
+	//TODO
+	return nil, 0, errors.New("not implemented")
+}
 
 func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	if m.getRoundNumber != nil {

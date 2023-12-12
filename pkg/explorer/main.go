@@ -68,6 +68,9 @@ type (
 		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
 		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		SetBlock(b *types.Block) error
+		GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error)
+		GetBlocksExplorer(dbStartBlock uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error)
+		SetBlockExplorer(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)

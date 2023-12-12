@@ -351,6 +351,10 @@ func saveBlockToStorage(dbTx BillStoreTx, b *types.Block) error {
 		if err != nil{
 			return err
 		}
+		err2 := dbTx.SetBlockExplorer(b)
+		if err2 != nil{
+			return err2
+		}
 	}
 	return nil
 }

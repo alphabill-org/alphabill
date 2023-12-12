@@ -2,6 +2,7 @@ package explorer
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ const BoltExplorerStoreFileName = "explorer.db"
 
 var (
 	blockBucket           = []byte("BlockBucket")           // block_number => Block
+	blockExplorerBucket   = []byte("BlockExplorerBucket")   // block_number => BlockExplorer
 	unitsBucket           = []byte("unitsBucket")           // unitID => unit_bytes
 	predicatesBucket      = []byte("predicatesBucket")      // predicate => bucket[unitID]nil
 	metaBucket            = []byte("metaBucket")            // block_number_key => block_number_val
@@ -62,7 +64,7 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 	}
 	s := &boltBillStore{db: db}
 	err = sdk.CreateBuckets(db.Update,
-		blockBucket,
+		blockBucket, blockExplorerBucket,
 		unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket,
 		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, txProofsBucket, txHistoryBucket,
 	)
@@ -141,7 +143,6 @@ func (s *boltBillStoreTx) GetBlocks(dbStartBlock uint64, count int) (res []*type
 		return err
 	}, false)
 }
-
 func (s *boltBillStoreTx) getBlocks(tx *bolt.Tx, dbStartBlock uint64, count int) ([]*types.Block, uint64, error) {
 	pb := tx.Bucket(blockBucket)
 
@@ -174,7 +175,96 @@ func (s *boltBillStoreTx) getBlocks(tx *bolt.Tx, dbStartBlock uint64, count int)
 	}
 	return res, prevBlockNumber, nil
 }
+func (s *boltBillStoreTx) GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error) {
+	var b *BlockExplorer
+	blockNumberBytes := util.Uint64ToBytes(blockNumber)
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		blockExplorerBytes := tx.Bucket(blockExplorerBucket).Get(blockNumberBytes)
+		return json.Unmarshal(blockExplorerBytes, &b)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+func (s *boltBillStoreTx) GetBlocksExplorer(dbStartBlock uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error) {
+	return res, prevBlockNumber, s.withTx(s.tx, func(tx *bolt.Tx) error {
+		var err error
+		res, prevBlockNumber, err = s.getBlocksExplorer(tx, dbStartBlock, count)
+		return err
+	}, false)
+}
+func (s *boltBillStoreTx) getBlocksExplorer(tx *bolt.Tx, dbStartBlock uint64, count int) ([]*BlockExplorer, uint64, error) {
+	pb := tx.Bucket(blockExplorerBucket)
 
+	if pb == nil {
+		return nil, 0, fmt.Errorf("bucket %s not found", blockExplorerBucket)
+	}
+
+	dbStartKeyBytes := util.Uint64ToBytes(dbStartBlock)
+	c := pb.Cursor()
+
+	var res []*BlockExplorer
+	var prevBlockNumberBytes []byte
+	var prevBlockNumber uint64
+	
+	for k, v := c.Seek(dbStartKeyBytes); k != nil && count > 0; k, v = c.Prev() {
+		rec := &BlockExplorer{}
+		if err := json.Unmarshal(v, rec); err != nil {
+			return nil, 0, fmt.Errorf("failed to deserialize tx history record: %w", err)
+		}
+		res = append(res, rec)
+		if count--; count == 0 {
+			prevBlockNumberBytes, _ = c.Prev()
+			break
+		}
+	}
+	if len(prevBlockNumberBytes) != 0 {
+		prevBlockNumber = util.BytesToUint64(prevBlockNumberBytes)
+	} else {
+		prevBlockNumber = 0
+	}
+	return res, prevBlockNumber, nil
+}
+func (s *boltBillStoreTx) SetBlockExplorer(b *types.Block) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		blockExplorerBucket := tx.Bucket(blockExplorerBucket);
+		blockNumber := b.UnicityCertificate.InputRecord.RoundNumber;
+		blockNumberBytes := util.Uint64ToBytes(blockNumber);
+
+		var txHashes [][]byte
+
+		for _, tx := range b.Transactions {
+			hash := tx.Hash(crypto.SHA256); // crypto.SHA256?
+			txHashes = append(txHashes, hash)
+		}
+
+		header := &HeaderExplorer{
+			Timestamp: b.UnicityCertificate.UnicitySeal.Timestamp,
+			BlockHash: b.UnicityCertificate.InputRecord.BlockHash,
+			PreviousBlockHash: b.Header.PreviousBlockHash,
+			ProposerID: b.GetProposerID(),
+		} 
+		blockExplorer := &BlockExplorer{
+			SystemID: &b.Header.SystemID,
+			RoundNumber: b.GetRoundNumber(),
+			Header: header,
+			TxHashes: txHashes,
+			SummaryValue: b.UnicityCertificate.InputRecord.SummaryValue,
+			SumOfEarnedFees: b.UnicityCertificate.InputRecord.SumOfEarnedFees,	
+		}
+		blockExplorerBytes, err := json.Marshal(blockExplorer)
+
+		if err != nil {
+			return err
+		}
+		err = blockExplorerBucket.Put(blockNumberBytes, blockExplorerBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, true)
+}
 func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {
 	var units []*Bill
 	var nextKey []byte

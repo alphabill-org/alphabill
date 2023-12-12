@@ -1,6 +1,7 @@
 package explorer
 
 import (
+	"crypto"
 	"path/filepath"
 	"testing"
 
@@ -67,6 +68,72 @@ func TestBillStore_SetBlocks_GetBlocks(t *testing.T) {
 	require.EqualValues(t, blocks2[0].UnicityCertificate.InputRecord.RoundNumber, blockNumber3)
 	require.EqualValues(t, prevBlockNumber2, 0)
 	require.EqualValues(t, len(blocks2), 3)
+}
+func TestBillStore_SetBlockExplorer_GetBlockExplorerByBlockNumber(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	bs := createTestBillStore(t)
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	b := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber} , UnicitySeal: &types.UnicitySeal{}}}
+
+	// set block explorer
+	err := bs.Do().SetBlockExplorer(b)
+	require.NoError(t, err)
+
+	// get block explorer
+	block, err := bs.Do().GetBlockExplorerByBlockNumber(blockNumber)
+	require.NoError(t, err)
+	require.EqualValues(t, block.RoundNumber, blockNumber)
+	require.EqualValues(t, block.TxHashes[0] , tx.Hash(crypto.SHA256))
+}
+func TestBillStore_SetBlockExplorer_GetBlocksExplorerByBlockNumber(t *testing.T) {
+	blockNumber1 := test.RandomUint64()
+	blockNumber2 := blockNumber1 + 1
+	blockNumber3 := blockNumber2 + 1
+
+	tx1 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx2 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 50, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx3 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1111, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	bs := createTestBillStore(t)
+	b1 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx1} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber1} , UnicitySeal: &types.UnicitySeal{}}}
+	b2 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx2} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber2} , UnicitySeal: &types.UnicitySeal{}}}
+	b3 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx3} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber3} , UnicitySeal: &types.UnicitySeal{}}}
+
+	// set blocks
+	err := bs.Do().SetBlockExplorer(b1)
+	require.NoError(t, err)
+	err = bs.Do().SetBlockExplorer(b2)
+	require.NoError(t, err)
+	err = bs.Do().SetBlockExplorer(b3)
+	require.NoError(t, err)
+
+	// get blocks
+	length := 2
+	blocks, prevBlockNumber, err := bs.Do().GetBlocksExplorer(blockNumber3, length)
+	require.NoError(t, err)
+	require.EqualValues(t, blocks[0].RoundNumber, blockNumber3)
+	require.EqualValues(t, prevBlockNumber, blockNumber1)
+	require.EqualValues(t, len(blocks), length)
+	require.EqualValues(t, blocks[0].TxHashes[0] , tx3.Hash(crypto.SHA256))
+
+	length2 := 4
+	blocks2, prevBlockNumber2, err2 := bs.Do().GetBlocksExplorer(blockNumber3, length2)
+	require.NoError(t, err2)
+	require.EqualValues(t, blocks2[0].RoundNumber, blockNumber3)
+	require.EqualValues(t, prevBlockNumber2, 0)
+	require.EqualValues(t, len(blocks2), 3)
+	require.EqualValues(t, blocks2[2].TxHashes[0] , tx1.Hash(crypto.SHA256))
 }
 
 func TestBillStore_GetSetBlockNumber(t *testing.T) {

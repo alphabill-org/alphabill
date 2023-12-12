@@ -110,7 +110,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 		if len(hashCnt) != 1 {
 			return nil, fmt.Errorf("invalid partition %s quorum proof: contains proofs for different state hashes", x.SystemIdentifier)
 		}
-		// 2. more than 50% of the nodes must have voted for the same IR
+		// 2. quorum of the partition/shard nodes must have voted for the same IR
 		if count := getMaxHashCount(hashCnt); count < tb.GetQuorum() {
 			return nil, fmt.Errorf("invalid partition %s quorum proof: not enough requests to prove quorum", x.SystemIdentifier)
 		}

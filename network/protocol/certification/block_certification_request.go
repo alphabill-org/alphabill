@@ -27,20 +27,23 @@ type BlockCertificationRequest struct {
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
-	if x.InputRecord == nil {
+	if x == nil || x.InputRecord == nil {
 		return 0
 	}
 	return x.InputRecord.RoundNumber
 }
 
 func (x *BlockCertificationRequest) IRPreviousHash() []byte {
-	if x.InputRecord == nil {
+	if x == nil || x.InputRecord == nil {
 		return nil
 	}
 	return x.InputRecord.PreviousHash
 }
 
 func (x *BlockCertificationRequest) RootRound() uint64 {
+	if x == nil {
+		return 0
+	}
 	return x.RootRoundNumber
 }
 

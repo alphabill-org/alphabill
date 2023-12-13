@@ -3,10 +3,10 @@ package testtxsystem
 import (
 	"encoding/binary"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 )
 
 type CounterTxSystem struct {

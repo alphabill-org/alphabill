@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"syscall"
 
+	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
@@ -17,13 +19,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/wallet/account"
+	"github.com/alphabill-org/alphabill/wallet/fees"
+	"github.com/alphabill-org/alphabill/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/wallet/unitlock"
 )
 
 type walletConfig struct {

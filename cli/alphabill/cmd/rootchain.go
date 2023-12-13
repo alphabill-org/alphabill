@@ -10,26 +10,25 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/rootchain"
+	"github.com/alphabill-org/alphabill/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
-
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
-	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
 )
 
 const (
@@ -180,7 +179,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("root store init failed: %w", err)
 	}
-	var cm consensus.Manager
+	var cm rootchain.ConsensusManager
 	if len(rootGenesis.Root.RootValidators) == 1 {
 		// use monolithic consensus algorithm
 		cm, err = monolithic.NewMonolithicConsensusManager(

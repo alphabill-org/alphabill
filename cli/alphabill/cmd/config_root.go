@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
-
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (

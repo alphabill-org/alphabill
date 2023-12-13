@@ -13,25 +13,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/rootchain"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
+	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -48,7 +48,7 @@ type AlphabillNetwork struct {
 
 type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
-	TrustBase map[string]crypto.Verifier
+	TrustBase map[string]abcrypto.Verifier
 	Nodes     []*rootNode
 	obs       testobserve.Factory
 }
@@ -56,9 +56,9 @@ type RootPartition struct {
 type NodePartition struct {
 	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
-	txSystemFunc     func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem
+	txSystemFunc     func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
-	tb               map[string]crypto.Verifier
+	tb               map[string]abcrypto.Verifier
 	Nodes            []*partitionNode
 	obs              testobserve.Factory
 }
@@ -68,7 +68,7 @@ type partitionNode struct {
 	dbFile       string
 	idxFile      string
 	peerConf     *network.PeerConfiguration
-	signer       crypto.Signer
+	signer       abcrypto.Signer
 	genesis      *genesis.PartitionNode
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
@@ -81,7 +81,7 @@ type partitionNode struct {
 type rootNode struct {
 	*rootchain.Node
 	EncKeyPair *network.PeerKeyPair
-	RootSigner crypto.Signer
+	RootSigner abcrypto.Signer
 	genesis    *genesis.RootGenesis
 	id         peer.ID
 	addr       multiaddr.Multiaddr
@@ -123,7 +123,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	if err != nil {
 		return nil, fmt.Errorf("create signer failed, %w", err)
 	}
-	trustBase := make(map[string]crypto.Verifier)
+	trustBase := make(map[string]abcrypto.Verifier)
 	rootNodes := make([]*rootNode, nofRootNodes)
 	rootGenesisFiles := make([]*genesis.RootGenesis, nofRootNodes)
 	for i := 0; i < int(nofRootNodes); i++ {
@@ -254,7 +254,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
@@ -280,7 +280,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		signer := signers[i]
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
-			txSystemProvider(map[string]crypto.Verifier{"genesis": nil}),
+			txSystemProvider(map[string]abcrypto.Verifier{"genesis": nil}),
 			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
 			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
@@ -614,10 +614,10 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 	}
 }
 
-func createSigners(count uint8) ([]crypto.Signer, error) {
-	var signers = make([]crypto.Signer, count)
+func createSigners(count uint8) ([]abcrypto.Signer, error) {
+	var signers = make([]abcrypto.Signer, count)
 	for i := 0; i < int(count); i++ {
-		s, err := crypto.NewInMemorySecp256K1Signer()
+		s, err := abcrypto.NewInMemorySecp256K1Signer()
 		if err != nil {
 			return nil, err
 		}

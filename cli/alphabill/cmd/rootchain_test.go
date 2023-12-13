@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestRootValidator_DefaultDBPath(t *testing.T) {
 		Base: &baseConfiguration{
 			HomeDir: homeDir,
 			CfgFile: filepath.Join(homeDir, defaultConfigFile),
-			observe: testobserve.Default(t),
+			observe: observability.Default(t),
 		},
 		StoragePath: "",
 	}
@@ -45,7 +45,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	// prepare
 	// generate money node genesis
 	cmd := New(logF)
@@ -120,7 +120,7 @@ func Test_rootNodeConfig_defaultPath(t *testing.T) {
 func Test_StartMonolithicNode(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
-	observe := testobserve.NewFactory(t)
+	observe := observability.NewFactory(t)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
 		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
@@ -178,7 +178,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, _ := generateMonolithicSetup(t, homeDir)
-	cmd := New(testobserve.NewFactory(t))
+	cmd := New(observability.NewFactory(t))
 	dbLocation := filepath.Join(homeDir, defaultRootChainDir)
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 	// generate random key file
@@ -196,7 +196,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, _ := generateMonolithicSetup(t, homeDir)
-	cmd := New(testobserve.NewFactory(t))
+	cmd := New(observability.NewFactory(t))
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 	args := "root --home " + homeDir + " --db=/foobar/doesnotexist3454/" + " --genesis-file " + rootGenesis
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -212,7 +212,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// prepare genesis files
 	// generate money node genesis
-	logF := testobserve.NewFactory(t)
+	logF := observability.NewFactory(t)
 	cmd := New(logF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))

@@ -10,13 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func TestEvmGenesis_KeyFileNotFound(t *testing.T) {

@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

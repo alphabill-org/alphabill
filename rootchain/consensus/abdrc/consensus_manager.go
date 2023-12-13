@@ -443,12 +443,12 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	case consensus.QuorumNotPossible:
 		irReq.CertReason = drctypes.QuorumNotPossible
 	default:
-		return fmt.Errorf("invalid IR change request from %s: unknown reason %v", irReq.SystemIdentifier, req.Reason)
+		return fmt.Errorf("invalid IR change request from partition %s: unknown reason %v", irReq.SystemIdentifier, req.Reason)
 	}
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
-			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irReq.SystemIdentifier, err)
+			return fmt.Errorf("failed to add IR change request from partition %s into buffer: %w", irReq.SystemIdentifier, err)
 		}
 		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from partition %s buffered",
 			irReq.SystemIdentifier), logger.Round(x.pacemaker.GetCurrentRound()))
@@ -460,7 +460,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		IrChangeReq: irReq,
 	}
 	if err := x.safety.Sign(irMsg); err != nil {
-		return fmt.Errorf("failed to sign ir change request from %s: %w", irReq.SystemIdentifier, err)
+		return fmt.Errorf("failed to sign ir change request from partition %s: %w", irReq.SystemIdentifier, err)
 	}
 	if err := x.net.Send(ctx, irMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to send ir change request from partition %s: %w", irReq.SystemIdentifier, err)

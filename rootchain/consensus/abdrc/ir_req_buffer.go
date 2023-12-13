@@ -103,7 +103,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32,
 		if inProgress(req.Req.SystemIdentifier) {
 			// if there is a pending block with the system id in progress then do not propose a change
 			// before last has been certified
-			x.log.Warn(fmt.Sprintf("partition %s request ignored, T2 timeout in progress", req.Req.SystemIdentifier))
+			x.log.Debug(fmt.Sprintf("partition %s request ignored, change in pipeline", req.Req.SystemIdentifier))
 			continue
 		}
 		payload.Requests = append(payload.Requests, req.Req)

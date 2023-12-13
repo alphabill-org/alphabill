@@ -433,8 +433,6 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		}
 		span.End()
 	}()
-	x.log.DebugContext(ctx, "IR change request from partition", logger.Round(x.pacemaker.GetCurrentRound()))
-
 	irReq := &drctypes.IRChangeReq{
 		SystemIdentifier: req.SystemIdentifier,
 		Requests:         req.Requests,
@@ -445,14 +443,15 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	case consensus.QuorumNotPossible:
 		irReq.CertReason = drctypes.QuorumNotPossible
 	default:
-		return fmt.Errorf("unexpected IR change request reason: %v", req.Reason)
+		return fmt.Errorf("invalid IR change request from %s: unknown reason %v", irReq.SystemIdentifier, req.Reason)
 	}
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
-		x.log.LogAttrs(ctx, slog.LevelDebug, "node is the next leader, add to buffer")
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
-			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
+			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irReq.SystemIdentifier, err)
 		}
+		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from partition %s buffered",
+			irReq.SystemIdentifier), logger.Round(x.pacemaker.GetCurrentRound()))
 		return nil
 	}
 	// forward to leader
@@ -461,31 +460,30 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		IrChangeReq: irReq,
 	}
 	if err := x.safety.Sign(irMsg); err != nil {
-		return fmt.Errorf("failed to sign ir change request message, %w", err)
+		return fmt.Errorf("failed to sign ir change request from %s: %w", irReq.SystemIdentifier, err)
 	}
-	x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("forward ir change request to %s", nextLeader.ShortString()))
 	if err := x.net.Send(ctx, irMsg, nextLeader); err != nil {
-		return fmt.Errorf("failed to send ir change request message, %w", err)
+		return fmt.Errorf("failed to send ir change request from partition %s: %w", irReq.SystemIdentifier, err)
 	}
+	x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("IR change request from partition %s forwarded to %s",
+		irReq.SystemIdentifier, nextLeader.ShortString()))
 	return nil
 }
 
 // onIRChangeMsg handles IR change request messages from other root nodes
 func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc.IrChangeReqMsg) error {
-	x.log.DebugContext(ctx, "IR change request from root node", logger.Round(x.pacemaker.GetCurrentRound()))
 	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
-		return fmt.Errorf("invalid IR change request message from node %s: %w", irChangeMsg.Author, err)
+		return fmt.Errorf("invalid IR change request from node %s: %w", irChangeMsg.Author, err)
 	}
-	x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s",
-		irChangeMsg.Author), logger.Round(x.pacemaker.GetCurrentRound()))
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	// if the node will be the next leader then buffer the request to be included in the block proposal
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
-		x.log.LogAttrs(ctx, slog.LevelDebug, "node is the next leader, add to buffer")
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
-			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
+			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irChangeMsg.Author, err)
 		}
+		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s buffered",
+			irChangeMsg.Author), logger.Round(x.pacemaker.GetCurrentRound()))
 		return nil
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
@@ -493,7 +491,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// message again to next leader
 	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(irChangeMsg.IrChangeReq.SystemIdentifier), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
-		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
+		return fmt.Errorf("failed to forward IR change request from %s to the next leader: %w", irChangeMsg.Author, err)
 	}
 	return nil
 }

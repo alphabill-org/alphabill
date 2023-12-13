@@ -138,7 +138,7 @@ func Test_ConsensusManager_onIRChangeMsg_ErrInvalidSignature(t *testing.T) {
 	}
 	// verify that error is printed and author ID is also present
 	require.ErrorContains(t, cm.onIRChangeMsg(context.Background(), req),
-		fmt.Sprintf("invalid IR change request message from node %s: signature verification failed", cm.id.String()))
+		fmt.Sprintf("invalid IR change request from node %s: signature verification failed", cm.id.String()))
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {

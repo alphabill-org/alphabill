@@ -12,7 +12,6 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/btcsuite/btcd v0.23.2
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.12.2
 	github.com/fxamacker/cbor/v2 v2.5.0
@@ -26,16 +25,12 @@ require (
 	github.com/multiformats/go-multiaddr v0.12.0
 	github.com/neilotoole/slogt v1.1.0
 	github.com/prometheus/client_golang v1.17.0
-	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.4
-	github.com/tyler-smith/go-bip39 v1.1.0
 	go.etcd.io/bbolt v1.3.6
-	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.46.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.1
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.21.0
@@ -49,7 +44,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.21.0
 	golang.org/x/crypto v0.15.0
 	golang.org/x/sync v0.4.0
-	golang.org/x/term v0.14.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.31.0
@@ -64,7 +58,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.9.1 // indirect

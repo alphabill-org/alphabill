@@ -14,7 +14,7 @@ Run `make build` to build the application. Executable will be built to `build/al
 1. Run script `./setup-testab.sh -m 3 -t 0 -e 0` to generate configuration for a root chain and 3 money partition nodes.
     The script generates rootchain and partition node keys, genesis files.
     Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money -b money` to start rootchain and 3 money partition nodes and money backend
+2. Run script `./start.sh -r -p money` to start rootchain and 3 money partition nodes
 
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
    
@@ -27,7 +27,7 @@ Theoretically it is also possible run only the user token partition on its own, 
 1. Run script `./setup-testab.sh -m 3 -t 3 -e 0` to generate configuration for a root chain and 3 money and token partition nodes.
    The script generates rootchain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money -p tokens -b money -b tokens` to start rootchain and 3 partition nodes (money and token) and backends (money and token)
+2. Run script `./start.sh -r -p money -p tokens` to start rootchain and 3 partition nodes (money and token)
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
 # Evm Partition
@@ -37,13 +37,13 @@ Theoretically it is also possible run only the evm partition on its own, but it 
 1. Run script `./setup-testab.sh -m 3 -t 0 -e 3` to generate configuration for a root chain and 3 money and evm partition nodes.
    The script generates rootchain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money -p evm -b money` to start rootchain, partition nodes (evm, money) and money backend
+2. Run script `./start.sh -r -p money -p evm` to start rootchain, partition nodes (evm, money)
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
 
 # Start all partitions at once
 1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, tokens and evm nodes.
-2. Run `start.sh -r -p money -p tokens -p evm -b money -b tokens` to start everything
+2. Run `start.sh -r -p money -p tokens -p evm` to start everything
 3. Run `stop.sh -a` to stop everything
 
 # Configuration

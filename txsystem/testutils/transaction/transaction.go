@@ -1,4 +1,4 @@
-package testtransaction
+package transaction
 
 import (
 	"testing"

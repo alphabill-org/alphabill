@@ -10,12 +10,12 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/partition/event"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"

@@ -470,6 +470,10 @@ func (w *Wallet) SendFungibleByID(ctx context.Context, accountNumber uint64, tok
 	return newSingleResult(sub, accountNumber), err
 }
 
+func (w *Wallet) BurnTokens(ctx context.Context, acc *account.AccountKey, tokensToBurn []*backend.TokenUnit, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
+	return w.burnTokensForDC(ctx, acc, tokensToBurn, nil, invariantPredicateArgs)
+}
+
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	if accountNumber < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accountNumber)

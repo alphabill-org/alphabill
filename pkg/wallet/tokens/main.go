@@ -470,7 +470,14 @@ func (w *Wallet) SendFungibleByID(ctx context.Context, accountNumber uint64, tok
 	return newSingleResult(sub, accountNumber), err
 }
 
-func (w *Wallet) BurnTokens(ctx context.Context, acc *account.AccountKey, tokensToBurn []*backend.TokenUnit, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
+func (w *Wallet) BurnTokens(ctx context.Context, accountNumber uint64, tokensToBurn []*backend.TokenUnit, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
+	if accountNumber < 1 {
+		return 0, 0, nil, fmt.Errorf("invalid account number: %d", accountNumber)
+	}
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return 0, 0, nil, err
+	}
 	return w.burnTokensForDC(ctx, acc, tokensToBurn, nil, invariantPredicateArgs)
 }
 

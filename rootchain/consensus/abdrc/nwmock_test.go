@@ -120,7 +120,7 @@ func (mnw *mockNetwork) send(from, to peer.ID, msg any) error {
 
 	go func() {
 		if fw := mnw.firewall.Load().(fwFunc); fw != nil {
-			// if firewall fn returns true, the method is blocked
+			// if firewall fn returns true, the message is blocked
 			if fw(from, to, msg) {
 				return
 			}

@@ -8,8 +8,8 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -235,6 +235,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// wait for transaction to be added to block
 	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
+	require.EqualValues(t, transferInitialBillTx, txRecord.TransactionOrder)
 	feeCredit, err = txsState.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)

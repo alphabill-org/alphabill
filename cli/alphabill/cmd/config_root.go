@@ -131,7 +131,7 @@ initLogger creates Logger based on configuration flags in "cmd".
 func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerFactory) (*slog.Logger, error) {
 	cfg := &logger.LogConfiguration{}
 
-	loggerCfgFile := r.LoggerCfgFilename()
+	loggerCfgFile := filepath.Clean(r.LoggerCfgFilename())
 	if f, err := os.Open(loggerCfgFile); err != nil {
 		defaultLoggerCfg := filepath.Join(r.HomeDir, defaultLoggerConfigFile)
 		if !(errors.Is(err, os.ErrNotExist) && loggerCfgFile == defaultLoggerCfg) {

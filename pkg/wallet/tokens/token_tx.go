@@ -327,8 +327,8 @@ func createTx(systemID []byte, payloadType string, unitId []byte, timeout uint64
 	}
 }
 
-// GetSentFungibleAmount returns the amount of fungible tokens sent in the given transaction. Used by outside packages.
-func GetSentFungibleAmount(tx *sdk.TransactionOrder) (sdk.UnitID, uint64, error) {
+// GetTxFungibleAmount returns the amount of fungible tokens sent or burned in the given transaction. Used by outside packages.
+func GetTxFungibleAmount(tx *sdk.TransactionOrder) (sdk.UnitID, uint64, error) {
 	switch tx.Payload.Type {
 	case tokens.PayloadTypeTransferFungibleToken:
 		var attrs ttxs.TransferFungibleTokenAttributes
@@ -345,6 +345,13 @@ func GetSentFungibleAmount(tx *sdk.TransactionOrder) (sdk.UnitID, uint64, error)
 		}
 		unitID := tokens.NewFungibleTokenID(tx.UnitID(), tokens.HashForIDCalculation(tx.Cast(), crypto.SHA256))
 		return sdk.UnitID(unitID), attrs.TargetValue, nil
+	case tokens.PayloadTypeBurnFungibleToken:
+		var attrs ttxs.BurnFungibleTokenAttributes
+		err := cbor.Unmarshal(tx.Payload.Attributes, &attrs)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal '%s' attributes: %w", tx.Payload.Type, err)
+		}
+		return tx.UnitID(), attrs.Value, nil
 	default:
 		return nil, 0, fmt.Errorf("unsupported tx type: %s", tx.Payload.Type)
 	}

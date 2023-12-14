@@ -3,18 +3,21 @@ package tokens
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfirmUnitsTx_skip(t *testing.T) {
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 			return nil
 		},
 	}
@@ -29,16 +32,16 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 	getRoundNumberCalled := false
 	getTxProofCalled := false
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			getRoundNumberCalled = true
 			return 100, nil
 		},
-		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 			getTxProofCalled = true
-			return &wallet.Proof{}, nil
+			return &sdk.Proof{}, nil
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
@@ -54,7 +57,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	getTxProofCalled := 0
 	randomID1 := test.RandomBytes(32)
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -64,10 +67,10 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			}
 			return 102, nil
 		},
-		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 			getTxProofCalled++
 			if bytes.Equal(unitID, randomID1) {
-				return &wallet.Proof{}, nil
+				return &sdk.Proof{}, nil
 			}
 			return nil, nil
 		},
@@ -102,4 +105,62 @@ func TestCachingRoundNumberFetcher(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 100, num)
 	require.EqualValues(t, 1, getRoundNumberCalled)
+}
+func TestGetTxFungibleAmount_TransferFungibleToken(t *testing.T) {
+	attributes, _ := cbor.Marshal(ttxs.TransferFungibleTokenAttributes{
+		Value: 100,
+	})
+	tx := &sdk.TransactionOrder{
+		Payload: &types.Payload{
+			Type:       ttxs.PayloadTypeTransferFungibleToken,
+			Attributes: attributes,
+		},
+	}
+	unitID, value, err := GetTxFungibleAmount(tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.UnitID(), unitID)
+	require.Equal(t, uint64(100), value)
+}
+
+func TestGetTxFungibleAmount_SplitFungibleToken(t *testing.T) {
+	attributes, _ := cbor.Marshal(ttxs.SplitFungibleTokenAttributes{
+		TargetValue: 50,
+	})
+	tx := &sdk.TransactionOrder{
+		Payload: &types.Payload{
+			Type:       ttxs.PayloadTypeSplitFungibleToken,
+			Attributes: attributes,
+		},
+	}
+	unitID, value, err := GetTxFungibleAmount(tx)
+	require.NoError(t, err)
+	require.EqualValues(t, ttxs.NewFungibleTokenID(tx.UnitID(), ttxs.HashForIDCalculation(tx.Cast(), crypto.SHA256)), unitID)
+	require.Equal(t, uint64(50), value)
+}
+
+func TestGetTxFungibleAmount_BurnFungibleToken(t *testing.T) {
+	attributes, _ := cbor.Marshal(ttxs.BurnFungibleTokenAttributes{
+		Value: 100,
+	})
+	tx := &sdk.TransactionOrder{
+		Payload: &types.Payload{
+			Type:       ttxs.PayloadTypeBurnFungibleToken,
+			Attributes: attributes,
+		},
+	}
+	unitID, value, err := GetTxFungibleAmount(tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.UnitID(), unitID)
+	require.Equal(t, uint64(100), value)
+}
+
+func TestGetTxFungibleAmount_UnsupportedTxType(t *testing.T) {
+	tx := &sdk.TransactionOrder{
+		Payload: &types.Payload{
+			Type: "unsupported",
+		},
+	}
+	_, _, err := GetTxFungibleAmount(tx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported tx type")
 }

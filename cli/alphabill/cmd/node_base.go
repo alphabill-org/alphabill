@@ -21,9 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
@@ -235,22 +233,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		return nil, err
 	}
 	return node, nil
-}
-
-func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootValidatorEncryptionKey)
-	if err != nil {
-		return "", nil, err
-	}
-	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
-	if err != nil {
-		return "", nil, err
-	}
-	rootAddress, err := multiaddr.NewMultiaddr(addressStr)
-	if err != nil {
-		return "", nil, err
-	}
-	return rootID, rootAddress, nil
 }
 
 func initStore(dbFile string) (keyvaluedb.KeyValueDB, error) {

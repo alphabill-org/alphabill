@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -156,15 +157,17 @@ func (x *BlockStore) ProcessTc(tc *drctypes.TimeoutCert) (rErr error) {
 	return rErr
 }
 
-func (x *BlockStore) IsChangeInProgress(sysId types.SystemID32) bool {
+// IsChangeInProgress - return input record if sysID has a pending IR change in the pipeline or nil if no change is
+// currently in the pipeline.
+func (x *BlockStore) IsChangeInProgress(sysId types.SystemID32) *types.InputRecord {
 	blocks := x.blockTree.GetAllUncommittedNodes()
 	// go through the block we have and make sure that there is no change in progress for this system id
 	for _, b := range blocks {
-		if b.Changed.Contains(sysId) {
-			return true
+		if slices.Contains(b.Changed, sysId) {
+			return b.CurrentIR.Find(sysId).IR
 		}
 	}
-	return false
+	return nil
 }
 
 func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {

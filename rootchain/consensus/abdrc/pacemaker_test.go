@@ -231,6 +231,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		defer cancel()
 		srcDone := pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
 		firstTOevent := time.After(roundTO)
+		require.False(t, pacemaker.roundIsMature())
 
 		// there should be no event until minRoundLen has elapsed (we wait a bit less to lessen the timing inaccuracies)
 		select {
@@ -246,6 +247,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 			if e != pmsRoundMatured {
 				t.Errorf("expected event %v got %v", pmsRoundMatured, e)
 			}
+			require.True(t, pacemaker.roundIsMature())
 		}
 		// we should get first timeout now - the time it took for the round to mature (minRoundLen) is
 		// also part of the first TO so we should get it faster than full "roundTO"
@@ -254,6 +256,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 			if e != pmsRoundTimeout {
 				t.Errorf("expected event %v got %v", pmsRoundTimeout, e)
 			}
+			require.True(t, pacemaker.roundIsMature())
 		case <-time.After(roundTO):
 			t.Errorf("expected to get first TO event before %s elapses", roundTO)
 		}
@@ -263,6 +266,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 			if e != pmsRoundTimeout {
 				t.Errorf("expected event %v got %v", pmsRoundTimeout, e)
 			}
+			require.True(t, pacemaker.roundIsMature())
 		case <-time.After(roundTO + 50*time.Millisecond):
 			t.Errorf("expected to get second TO event after %s", roundTO)
 		}
@@ -271,6 +275,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		cancel()
 		select {
 		case <-srcDone:
+			require.False(t, pacemaker.roundIsMature(), "after stopping the clock round should not reported as mature")
 		case <-time.After(time.Second):
 			t.Error("the round clock func hasn't stopped")
 		}
@@ -299,6 +304,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		cancel()
 		select {
 		case <-srcDone:
+			require.False(t, pacemaker.roundIsMature())
 		case <-time.After(time.Second):
 			t.Error("the round clock func hasn't stopped")
 		}
@@ -366,6 +372,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		cancel()
 		select {
 		case <-srcDone:
+			require.False(t, pacemaker.roundIsMature())
 		case <-time.After(time.Second):
 			t.Error("the round clock func hasn't stopped")
 		}

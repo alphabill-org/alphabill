@@ -250,7 +250,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// round is advanced
 	require.Equal(t, uint64(4), cm.pacemaker.GetCurrentRound())
 	// only changes from round 3 are removed, rest will still be active
-	require.True(t, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(partitionID))
 	// await the next proposal as well, the proposal must contain TC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
@@ -309,7 +309,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, partitionID.ToSystemID(), result.UnicityTreeCertificate.SystemIdentifier)
-	require.False(t, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID))
 	// verify certificates have been updated when recovery query is sent
 	getCertsMsg := &abdrc.GetStateMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),

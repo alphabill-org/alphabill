@@ -54,7 +54,7 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	hQc := bStore.GetHighQc()
 	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
-	require.False(t, bStore.IsChangeInProgress(sysID1))
+	require.Nil(t, bStore.IsChangeInProgress(sysID1))
 	rh, err := bStore.GetBlockRootHash(1)
 	require.NoError(t, err)
 	require.Len(t, rh, 32)

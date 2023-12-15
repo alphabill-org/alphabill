@@ -27,7 +27,7 @@ type (
 		log            *slog.Logger
 	}
 
-	InProgressFn func(id32 types.SystemID32) bool
+	InProgressFn func(id32 types.SystemID32) *types.InputRecord
 )
 
 func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
@@ -89,7 +89,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32,
 	for _, id := range timeouts {
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
 		// if there is a change already in the pipeline for this system id
-		if x.IsChangeInBuffer(id) || inProgress(id) {
+		if x.IsChangeInBuffer(id) || inProgress(id) != nil {
 			x.log.Debug(fmt.Sprintf("T2 timout request ignored, partition %s has pending change in progress", id))
 			continue
 		}
@@ -100,7 +100,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32,
 		})
 	}
 	for _, req := range x.irChgReqBuffer {
-		if inProgress(req.Req.SystemIdentifier) {
+		if inProgress(req.Req.SystemIdentifier) != nil {
 			// if there is a pending block with the system id in progress then do not propose a change
 			// before last has been certified
 			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.SystemIdentifier))

@@ -480,6 +480,10 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
+			// if duplicate - the same is already in progress, then it is ok; this is just most likely a delayed request
+			if errors.Is(err, ErrDuplicateChangeReq) {
+				return nil
+			}
 			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irChangeMsg.Author, err)
 		}
 		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s buffered",

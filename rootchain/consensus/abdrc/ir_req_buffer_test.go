@@ -64,8 +64,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := make([]types.SystemID32, 0, 2)
-	isPending := func(id types.SystemID32) bool {
-		return false
+	isPending := func(id types.SystemID32) *types.InputRecord {
+		return nil
 	}
 	// no requests, generate payload
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
@@ -105,8 +105,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
 	timeouts := []types.SystemID32{sysID1, sysID2}
-	isPending := func(id types.SystemID32) bool {
-		return false
+	isPending := func(id types.SystemID32) *types.InputRecord {
+		return nil
 	}
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 2)
@@ -134,8 +134,8 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := []types.SystemID32{sysID1}
-	isPending := func(id types.SystemID32) bool {
-		return false
+	isPending := func(id types.SystemID32) *types.InputRecord {
+		return nil
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
@@ -159,8 +159,8 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := []types.SystemID32{sysID1}
-	isPending := func(id types.SystemID32) bool {
-		return true
+	isPending := func(id types.SystemID32) *types.InputRecord {
+		return &types.InputRecord{}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)

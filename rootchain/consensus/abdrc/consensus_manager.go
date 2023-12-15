@@ -290,7 +290,7 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to read last TC from block store: %w", err)
 		}
-		x.pacemaker.Reset(hQc.GetRound(), lastTC, vote)
+		x.pacemaker.Reset(ctx, hQc.GetRound(), lastTC, vote)
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
@@ -332,18 +332,16 @@ handleRootNetMsg routes messages from "root net" iow messages sent by other root
 validators to appropriate message handler.
 */
 func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) (rErr error) {
-	ctx, span := x.tracer.Start(ctx, "ConsensusManager.handleRootNetMsg", trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindServer))
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.handleRootNetMsg", trace.WithNewRoot(), trace.WithAttributes(observability.Round(x.pacemaker.GetCurrentRound())), trace.WithSpanKind(trace.SpanKindServer))
 	defer func(start time.Time) {
-		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
-		status := "ok"
 		if rErr != nil {
-			status = "err"
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
-		x.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
+		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+		x.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))))
 		x.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
-		span.SetAttributes(msgAttr, observability.Round(x.pacemaker.GetCurrentRound()))
+		span.SetAttributes(msgAttr)
 		span.End()
 	}(time.Now())
 
@@ -433,6 +431,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		}
 		span.End()
 	}()
+
 	irReq := &drctypes.IRChangeReq{
 		SystemIdentifier: req.SystemIdentifier,
 		Requests:         req.Requests,
@@ -445,6 +444,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	default:
 		return fmt.Errorf("invalid IR change request from partition %s: unknown reason %v", irReq.SystemIdentifier, req.Reason)
 	}
+
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
@@ -714,7 +714,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCer
 	}
 	x.ucSink <- certs
 
-	if !x.pacemaker.AdvanceRoundQC(qc) {
+	if !x.pacemaker.AdvanceRoundQC(ctx, qc) {
 		return
 	}
 
@@ -736,9 +736,9 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 	if err := x.blockStore.ProcessTc(tc); err != nil {
 		// method deletes the block that got TC - it will never be part of the chain.
 		// however, this node might not have even seen the block, in which case error is returned, but this is ok - just log
-		x.log.Debug("could not remove the timeout block, node has not received it", logger.Error(err))
+		x.log.DebugContext(ctx, "could not remove the timeout block, node has not received it", logger.Error(err))
 	}
-	x.pacemaker.AdvanceRoundTC(tc)
+	x.pacemaker.AdvanceRoundTC(ctx, tc)
 }
 
 /*
@@ -815,7 +815,9 @@ func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
 		// log the error(s) rather than return them as failing to process buffered
 		// votes is not critical from the callers POV but we want to have this info
 		// for debugging
-		x.log.WarnContext(ctx, fmt.Sprintf("out of %d buffered votes %d caused error on replay", voteCnt, len(errs)), logger.Round(x.pacemaker.GetCurrentRound()), logger.Error(errors.Join(errs...)))
+		err := errors.Join(errs...)
+		x.log.WarnContext(ctx, fmt.Sprintf("out of %d buffered votes %d caused error on replay", voteCnt, len(errs)), logger.Round(x.pacemaker.GetCurrentRound()), logger.Error(err))
+		span.RecordError(err)
 	}
 
 	clear(x.voteBuffer)
@@ -859,6 +861,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		return
 	}
 	// broadcast proposal message (also to self)
+	span.AddEvent(proposalMsg.Block.String())
 	x.log.LogAttrs(ctx, slog.LevelDebug, "broadcast proposal", logger.Data(proposalMsg.Block.String()), logger.Round(round))
 	if err = x.net.Send(ctx, proposalMsg, x.leaderSelector.GetNodes()...); err != nil {
 		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err), logger.Round(round))
@@ -910,6 +913,8 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMs
 }
 
 func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.StateMsg) error {
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onStateResponse")
+	defer span.End()
 	x.log.LogAttrs(ctx, logger.LevelTrace, "received state response", logger.Round(x.pacemaker.GetCurrentRound()), logger.Data(x.recovery))
 	if x.recovery == nil {
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
@@ -930,7 +935,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err != nil {
 		return fmt.Errorf("verifier construction failed: %w", err)
 	}
-	x.pacemaker.Reset(blockStore.GetHighQc().GetRound(), nil, nil)
+	x.pacemaker.Reset(ctx, blockStore.GetHighQc().GetRound(), nil, nil)
 
 	for i, n := range rsp.BlockNode {
 		// if received block has QC then process it first as with a block received normally
@@ -938,7 +943,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 			if _, err = blockStore.ProcessQc(n.Block.Qc); err != nil {
 				return fmt.Errorf("block %d for round %v add qc failed: %w", i, n.Block.GetRound(), err)
 			}
-			x.pacemaker.AdvanceRoundQC(n.Block.Qc)
+			x.pacemaker.AdvanceRoundQC(ctx, n.Block.Qc)
 		}
 		if _, err = blockStore.Add(n.Block, reqVerifier); err != nil {
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)

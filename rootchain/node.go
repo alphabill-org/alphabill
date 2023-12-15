@@ -181,15 +181,13 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return fmt.Errorf("request contains invalid system identifier %X: %w", req.SystemIdentifier, err)
 	}
 	defer func() {
-		status := "ok"
 		if rErr != nil {
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
-			status = "err"
 		}
 		partition := observability.Partition(sysID32)
 		span.SetAttributes(partition)
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), partition)))
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)

@@ -14,10 +14,10 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -198,7 +198,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	}
 	var rootPeers = make([]*network.Peer, rootNodes)
 	for i := 0; i < len(peerIDs); i++ {
-		port, err := net.GetFreePort()
+		port, err := net.SharedPortManager.GetFreePort()
 		if err != nil {
 			return fmt.Errorf("failed to get free port, %w", err)
 		}

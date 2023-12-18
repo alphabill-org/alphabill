@@ -66,7 +66,7 @@ func TestRunTokensNode(t *testing.T) {
 		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
-		listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		listenAddr := fmt.Sprintf("localhost:%d", net.SharedPortManager.GetRandomFreePort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)

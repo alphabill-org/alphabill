@@ -126,7 +126,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 	observe := observability.NewFactory(t)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
-		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.SharedPortManager.GetRandomFreePort(t))
 		appStoppedWg := sync.WaitGroup{}
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -255,7 +255,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
-		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.SharedPortManager.GetRandomFreePort(t))
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {

@@ -14,7 +14,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/util"
@@ -56,7 +56,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 	require.NoError(t, err)
 
-	listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+	listenAddr := fmt.Sprintf("localhost:%d", net.SharedPortManager.GetRandomFreePort(t))
 	// start the node in background
 	appStoppedWg.Add(1)
 	go func() {

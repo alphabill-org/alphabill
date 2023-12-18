@@ -13,7 +13,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -299,7 +299,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
-		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.SharedPortManager.GetRandomFreePort(t))
 		logF := testobserve.NewFactory(t)
 
 		appStoppedWg := sync.WaitGroup{}

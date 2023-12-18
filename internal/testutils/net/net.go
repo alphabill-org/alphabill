@@ -2,29 +2,48 @@ package net
 
 import (
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func GetFreeRandomPort(t *testing.T) int {
-	port, err := GetFreePort()
-	require.NoError(t, err)
-	return port
+// SharedPortManager Instance of PortManager to be shared between tests to keep track of used ports
+var SharedPortManager = &PortManager{
+	usedPorts: make(map[int]bool),
 }
 
-func GetFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
+type PortManager struct {
+	usedPorts map[int]bool
+	mutex     sync.Mutex
+}
 
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
+func (pm *PortManager) GetFreePort() (int, error) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	for {
+		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+		if err != nil {
+			return 0, err
+		}
+
+		l, err := net.ListenTCP("tcp", addr)
+		if err != nil {
+			return 0, err
+		}
+		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
+
+		if !pm.usedPorts[port] {
+			pm.usedPorts[port] = true
+			return port, nil
+		}
 	}
-	defer func() {
-		_ = l.Close()
-	}()
-	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func (pm *PortManager) GetRandomFreePort(t *testing.T) int {
+	port, err := pm.GetFreePort()
+	require.NoError(t, err)
+	return port
 }

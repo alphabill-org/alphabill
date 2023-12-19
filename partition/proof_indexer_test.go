@@ -165,7 +165,7 @@ func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 	return &state.Unit{}, nil
 }
 
-func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*types.UnitStateProof, error) {
+func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	return &types.UnitStateProof{}, nil
 }
 

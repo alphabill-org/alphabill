@@ -38,18 +38,20 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w2PubKey, _ := am2.GetPublicKey(0)
 	am2.Close()
 
-	initialBill := &money.InitialBill{
-		ID:    defaultInitialBillID,
-		Value: 1e18,
-		Owner: templates.NewP2pkh256BytesFromKey(w1AccKey.PubKey),
+	genesisConfig := &moneyGenesisConfig{
+		InitialBillID:      defaultInitialBillID,
+		InitialBillValue:   1e18,
+		InitialBillOwner:   templates.NewP2pkh256BytesFromKey(w1AccKey.PubKey),
+		DCMoneySupplyValue: 10000,
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 1)
+
+	moneyPartition := createMoneyPartition(t, genesisConfig, 1)
 	logF := testobserve.NewFactory(t)
 	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
 	// start wallet backend
-	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, initialBill)
+	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, genesisConfig)
 
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
@@ -57,7 +59,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
-	w1BalanceBilly := initialBill.Value - feeAmountAlpha*1e8
+	w1BalanceBilly := genesisConfig.InitialBillValue - feeAmountAlpha*1e8
 	waitForFeeCreditCLI(t, logF, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
 
 	// TS1:

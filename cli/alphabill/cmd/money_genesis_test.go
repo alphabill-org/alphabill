@@ -91,15 +91,17 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
+	nodeGenesisStateFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisStateFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
+	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
+	require.FileExists(t, nodeGenesisStateFile)
 }
 
 func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
@@ -114,7 +116,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -144,8 +146,6 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	err = cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
-	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
-	require.EqualValues(t, defaultDCMoneySupplyValue, params.DcMoneySupplyValue)
 	require.Len(t, params.SystemDescriptionRecords, 1)
 	require.Equal(t, defaultMoneySDR, params.SystemDescriptionRecords[0])
 }
@@ -178,9 +178,53 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	err = cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
-	require.EqualValues(t, 1, params.InitialBillValue)
-	require.EqualValues(t, 2, params.DcMoneySupplyValue)
 	require.Equal(t, sdr, params.SystemDescriptionRecords[0])
+}
+
+func TestMoneyGenesis_InvalidFeeCreditBill_SameAsInitialBill(t *testing.T) {
+	homeDir := setupTestHomeDir(t, alphabillDir)
+	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
+	require.NoError(t, err)
+
+	sdr := &genesis.SystemDescriptionRecord{
+		SystemIdentifier: money.DefaultSystemIdentifier,
+		T2Timeout:        10000,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         defaultInitialBillID,
+			OwnerPredicate: templates.AlwaysFalseBytes(),
+		},
+	}
+	sdrFile, err := createSDRFile(filepath.Join(homeDir, moneyGenesisDir), sdr)
+	require.NoError(t, err)
+
+	cmd := New(testobserve.NewFactory(t))
+	args := "money-genesis -g --home " + homeDir + " --system-description-record-files " + sdrFile
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.Execute(context.Background())
+	require.ErrorContains(t, err, "fee credit bill ID may not be equal to")
+}
+
+func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
+	homeDir := setupTestHomeDir(t, alphabillDir)
+	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
+	require.NoError(t, err)
+
+	sdr := &genesis.SystemDescriptionRecord{
+		SystemIdentifier: money.DefaultSystemIdentifier,
+		T2Timeout:        10000,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         money.DustCollectorMoneySupplyID,
+			OwnerPredicate: templates.AlwaysFalseBytes(),
+		},
+	}
+	sdrFile, err := createSDRFile(filepath.Join(homeDir, moneyGenesisDir), sdr)
+	require.NoError(t, err)
+
+	cmd := New(testobserve.NewFactory(t))
+	args := "money-genesis -g --home " + homeDir + " --system-description-record-files " + sdrFile
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.Execute(context.Background())
+	require.ErrorContains(t, err, "fee credit bill ID may not be equal to")
 }
 
 func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {

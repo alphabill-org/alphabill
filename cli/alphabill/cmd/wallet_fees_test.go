@@ -252,25 +252,27 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	defer am.Close()
 	accountKey, err := am.GetAccountKey(0)
 	require.NoError(t, err)
-	initialBill := &money.InitialBill{
-		ID:    defaultInitialBillID,
-		Value: 1e18,
-		Owner: templates.NewP2pkh256BytesFromKey(accountKey.PubKey),
+
+	genesisConfig := &moneyGenesisConfig{
+		InitialBillID:      defaultInitialBillID,
+		InitialBillValue:   1e18,
+		InitialBillOwner:   templates.NewP2pkh256BytesFromKey(accountKey.PubKey),
+		DCMoneySupplyValue: 10000,
 	}
 
 	// start money partition
-	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	moneyPartition := createMoneyPartition(t, genesisConfig, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)
 
 	startPartitionRPCServers(t, moneyPartition)
-	startMoneyBackend(t, moneyPartition, initialBill)
+	startMoneyBackend(t, moneyPartition, genesisConfig)
 
 	return homedir, abNet
 }
 
-func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, initialBill *money.InitialBill) (string, *moneyclient.MoneyBackendClient) {
+func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, genesisConfig *moneyGenesisConfig) (string, *moneyclient.MoneyBackendClient) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	observe := observability.Default(t)
@@ -283,9 +285,9 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        initialBill.ID,
-					Value:     initialBill.Value,
-					Predicate: initialBill.Owner,
+					Id:        genesisConfig.InitialBillID,
+					Value:     genesisConfig.InitialBillValue,
+					Predicate: genesisConfig.InitialBillOwner,
 				},
 				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 				Logger:                   observe.Logger(),

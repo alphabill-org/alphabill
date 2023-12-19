@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -69,10 +69,20 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
-	ib := &money.InitialBill{
-		ID:    defaultInitialBillID,
-		Value: params.InitialBillValue,
-		Owner: templates.AlwaysTrueBytes(),
+	stateFilePath := cfg.Node.StateFile
+	if stateFilePath == "" {
+		stateFilePath = filepath.Join(cfg.Base.HomeDir, moneyPartitionDir, moneyGenesisStateFileName)
+	}
+	state, err := loadStateFile(stateFilePath, money.NewUnitData)
+	if err != nil {
+		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
+	}
+
+	// Only genesis state can be uncommitted, try to commit
+	if !state.IsCommitted() {
+		if err := state.Commit(pg.Certificate); err != nil {
+			return fmt.Errorf("invalid genesis state: %w", err)
+		}
 	}
 
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
@@ -107,10 +117,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		log,
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
-		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
-		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
 		money.WithTrustBase(trustBase),
+		money.WithState(state),
 	)
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)

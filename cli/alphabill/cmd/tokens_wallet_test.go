@@ -470,6 +470,7 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := state.NewEmptyState()
 	network, err := testpartition.NewPartition(t, 1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+			tokensState = tokensState.Clone()
 			system, err := tokens.NewTxSystem(
 				logger.New(t),
 				tokens.WithState(tokensState),
@@ -477,7 +478,7 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultSystemIdentifier,
+		}, tokens.DefaultSystemIdentifier, tokensState,
 	)
 	require.NoError(t, err)
 

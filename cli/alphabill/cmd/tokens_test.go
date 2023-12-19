@@ -33,6 +33,7 @@ func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -44,7 +45,10 @@ func TestRunTokensNode(t *testing.T) {
 		logF := testobserve.NewFactory(t)
 		// generate node genesis
 		cmd := New(logF)
-		args := "tokens-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+		args := "tokens-genesis --home " + homeDir +
+			" -o " + nodeGenesisFileLocation +
+			" --output-state " + nodeGenesisStateFileLocation +
+			" -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
@@ -73,7 +77,12 @@ func TestRunTokensNode(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New(logF)
-			args = "tokens --home " + homeDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + listenAddr
+			args = "tokens --home " + homeDir +
+				" -g " + partitionGenesisFileLocation +
+				" -s " + nodeGenesisStateFileLocation +
+				" -k " + keysFileLocation +
+				" --bootnodes=" + bootNodeStr +
+				" --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)

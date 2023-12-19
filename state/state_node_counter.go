@@ -10,7 +10,7 @@ func NewStateNodeCounter() *stateNodeCounter {
 	return &stateNodeCounter{}
 }
 
-func (s *stateNodeCounter) Traverse(n *Node) {
+func (s *stateNodeCounter) Traverse(n *node) {
 	if n == nil {
 		return
 	}

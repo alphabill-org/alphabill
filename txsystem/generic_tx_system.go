@@ -3,6 +3,7 @@ package txsystem
 import (
 	"crypto"
 	"fmt"
+	"io"
 	"log/slog"
 	"reflect"
 
@@ -201,11 +202,22 @@ func (m *GenericTxSystem) Revert() {
 	m.state.Revert()
 }
 
-func (m *GenericTxSystem) Commit() error {
-	err := m.state.Commit()
+func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
+	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
 		m.logPruner.Remove(m.currentBlockNumber - 1)
 	}
 	return err
+}
+
+func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
+	return m.state.CommittedUC()
+}
+
+func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
+	header := &state.StateFileHeader{
+		SystemIdentifier:   m.systemIdentifier,
+	}
+	return m.state.Serialize(writer, header, committed)
 }

@@ -2,6 +2,7 @@ package testtxsystem
 
 import (
 	"encoding/binary"
+	"io"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -26,6 +27,7 @@ type CounterTxSystem struct {
 
 	blockNo     uint64
 	uncommitted bool
+	committedUC *types.UnicityCertificate
 
 	// fee charged for each tx
 	Fee uint64
@@ -63,10 +65,6 @@ func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) State() *state.State {
-	return state.NewEmptyState().Clone()
-}
-
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
 	m.blockNo = nr
 	m.BeginBlockCountDelta++
@@ -96,11 +94,20 @@ func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) Commit() error {
+func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
 	m.ExecuteCount += m.ExecuteCountDelta
 	m.EndBlockCount += m.EndBlockCountDelta
 	m.BeginBlockCount += m.BeginBlockCountDelta
 	m.uncommitted = false
+	m.committedUC = uc
+	return nil
+}
+
+func (m *CounterTxSystem) CommittedUC() *types.UnicityCertificate {
+	return m.committedUC
+}
+
+func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error {
 	return nil
 }
 

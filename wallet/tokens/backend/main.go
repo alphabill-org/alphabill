@@ -11,11 +11,9 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/client"
-	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -84,15 +82,6 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.NewTxSystem(
-		cfg.Logger(),
-		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
-		tokens.WithSystemIdentifier(cfg.SystemID()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create token tx system: %w", err)
-	}
-
 	g, ctx := errgroup.WithContext(ctx)
 	msgBroker := broker.NewBroker(ctx.Done())
 	abc, err := cfg.Client()
@@ -102,7 +91,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 
 	g.Go(func() error {
 		log := cfg.Logger()
-		bp := &blockProcessor{store: db, txs: txs, notify: msgBroker.Notify, log: log}
+		bp := &blockProcessor{store: db, notify: msgBroker.Notify, log: log}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {

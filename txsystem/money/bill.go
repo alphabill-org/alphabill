@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -47,10 +45,4 @@ func (b *BillData) Copy() state.UnitData {
 
 func (b *BillData) IsLocked() bool {
 	return b.Locked != 0
-}
-
-type InitialBill struct {
-	ID    types.UnitID
-	Value uint64
-	Owner predicates.PredicateBytes
 }

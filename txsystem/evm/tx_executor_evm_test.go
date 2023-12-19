@@ -103,9 +103,13 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 
 	require.NoError(t, stateDB.DBError())
 	require.NoError(t, stateDB.Finalize())
-	_, _, err := s.CalculateRoot()
+	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}))
 	return stateDB
 }
 

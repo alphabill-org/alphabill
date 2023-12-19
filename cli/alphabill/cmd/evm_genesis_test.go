@@ -85,15 +85,17 @@ func TestEvmGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
+	nodeGenesisStateFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisStateFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
+	args := "evm-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, evmDir, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
+	require.FileExists(t, nodeGenesisStateFile)
 }
 
 func TestEvmGenesis_WithSystemIdentifier(t *testing.T) {
@@ -108,7 +110,7 @@ func TestEvmGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -133,7 +135,7 @@ func TestEvmGenesis_WithParameters(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=1111111"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=1111111" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -161,7 +163,7 @@ func TestEvmGenesis_WithParameters_ErrorGasPriceTooBig(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=9223372036854775808"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=9223372036854775808" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.ErrorContains(t, err, "gas unit price too big")

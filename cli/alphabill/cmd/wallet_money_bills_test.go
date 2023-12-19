@@ -156,18 +156,19 @@ func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
 	am.Close()
 
 	// start money partition
-	initialBill := &money.InitialBill{
-		ID:    defaultInitialBillID,
-		Value: 2e8,
-		Owner: templates.NewP2pkh256BytesFromKey(pubkey),
+	genesisConfig := &moneyGenesisConfig{
+		InitialBillID:      defaultInitialBillID,
+		InitialBillValue:   2e8,
+		InitialBillOwner:   templates.NewP2pkh256BytesFromKey(pubkey),
+		DCMoneySupplyValue: 10000,
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	moneyPartition := createMoneyPartition(t, genesisConfig, 1)
 	logF := testobserve.NewFactory(t)
 	_ = startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
 	// start wallet backend
-	addr, _ := startMoneyBackend(t, moneyPartition, initialBill)
+	addr, _ := startMoneyBackend(t, moneyPartition, genesisConfig)
 
 	// create fee credit for txs
 	stdout, err := execCommand(logF, homedir, fmt.Sprintf("fees add --alphabill-api-uri %s", addr))
@@ -194,12 +195,13 @@ func TestWalletBillsLockUnlockCmd_Ok(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBillValue uint64, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
-	initialValue := initialBill.Value
+	initialBillID := defaultInitialBillID
+
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	unitID := initialBill.ID
+	unitID := initialBillID
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 
@@ -213,14 +215,14 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
-	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBill.ID, transferFC)
+	unitState, err := testpartition.WaitUnitProof(t, moneyPart, initialBillID, transferFC)
 	require.NoError(t, err)
 	ucValidator, err := abNet.GetValidator(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyUnitStateProof(unitState.Proof, crypto.SHA256, unitState.UnitData, ucValidator))
 	var bill money.BillData
 	require.NoError(t, unitState.UnmarshalUnitData(&bill))
-	require.EqualValues(t, initialValue-txFee-feeAmount, bill.V)
+	require.EqualValues(t, initialBillValue-txFee-feeAmount, bill.V)
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
@@ -231,7 +233,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err, "add fee credit tx failed")
 
 	// create transfer tx
-	remainingValue := initialBill.Value - feeAmount - txFee
+	remainingValue := initialBillValue - feeAmount - txFee
 	tx, err := createTransferTx(pk, unitID, remainingValue, fcrID, absoluteTimeout, transferFCRecord.TransactionOrder.Hash(crypto.SHA256))
 	require.NoError(t, err)
 

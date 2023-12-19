@@ -297,6 +297,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
 	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
@@ -307,7 +308,10 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		// generate node genesis
 		cmd := New(logF)
-		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+		args := "money-genesis --home " + homeDirMoney +
+			" -o " + nodeGenesisFileLocation +
+			" --output-state " + nodeGenesisStateFileLocation +
+			" -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
@@ -336,7 +340,12 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New(logF)
-			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + moneyNodeAddr
+			args = "money --home " + homeDirMoney +
+				" -g " + partitionGenesisFileLocation +
+				" -s " + nodeGenesisStateFileLocation +
+				" -k " + keysFileLocation +
+				" --bootnodes=" + bootNodeStr +
+				" --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)

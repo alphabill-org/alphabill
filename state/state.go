@@ -3,7 +3,6 @@ package state
 import (
 	"bytes"
 	"crypto"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -28,78 +27,44 @@ type (
 	State struct {
 		mutex                    sync.RWMutex
 		hashAlgorithm            crypto.Hash
-		committedTree            *avl.Tree[types.UnitID, *Unit]
+		committedTree            *tree
 		committedTreeUC          *types.UnicityCertificate
-		committedTreeBlockNumber uint64
-		savepoints               []*savepoint
+
+		// savepoint is a special marker that allows all actions that are executed after tree was established to
+		// be rolled back, restoring the state to what it was at the time of the tree.
+		savepoints               []*tree
 	}
 
-	// savepoint is a special marker that allows all actions that are executed after savepoint was established to
-	// be rolled back, restoring the state to what it was at the time of the savepoint.
-	savepoint = avl.Tree[types.UnitID, *Unit]
-
-	Node = avl.Node[types.UnitID, *Unit]
+	tree = avl.Tree[types.UnitID, *Unit]
+	node = avl.Node[types.UnitID, *Unit]
 
 	// UnitDataConstructor is a function that constructs an empty UnitData structure based on UnitID
 	UnitDataConstructor func(types.UnitID) (UnitData, error)
 )
 
-func NewEmptyState() *State {
-	return newEmptySate(loadOptions())
-}
-
-// New creates a new state with given options.
-func New(opts ...Option) (*State, error) {
+func NewEmptyState(opts ...Option) *State {
 	options := loadOptions(opts...)
 
-	var s *State
-	if options.reader != nil {
-		recoveredState, err := newRecoveredState(options)
-		if err != nil {
-			return nil, err
-		}
-		if _, _, err := recoveredState.CalculateRoot(); err != nil {
-			return nil, err
-		}
-		if err := recoveredState.Commit(); err != nil {
-			return nil, err
-		}
-		s = recoveredState
-	} else {
-		s = newEmptySate(options)
-	}
-
-	if len(options.actions) > 0 {
-		if err := s.Apply(options.actions...); err != nil {
-			return nil, err
-		}
-		if _, _, err := s.CalculateRoot(); err != nil {
-			return nil, err
-		}
-		if err := s.Commit(); err != nil {
-			return nil, err
-		}
-	}
-	return s, nil
-}
-
-func newEmptySate(options *Options) *State {
 	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
-	tree := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
+	t := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
+
 	return &State{
 		hashAlgorithm:            options.hashAlgorithm,
-		committedTree:            tree,
-		savepoints:               []*avl.Tree[types.UnitID, *Unit]{tree.Clone()},
-		committedTreeBlockNumber: 1, // genesis block number is 1. Actual first block is 2.
+		committedTree:            t,
+		savepoints:               []*tree{t.Clone()},
 	}
 }
 
-func newRecoveredState(options *Options) (*State, error) {
-	if options.unitDataConstructor == nil {
-		return nil, fmt.Errorf("missing unit data construct")
+func NewRecoveredState(reader io.Reader, udc UnitDataConstructor, opts ...Option) (*State, error) {
+	options := loadOptions(opts...)
+	if reader == nil {
+		return nil, fmt.Errorf("reader is nil")
+	}
+	if udc == nil {
+		return nil, fmt.Errorf("unit data constructor is nil")
 	}
 
-	crc32Reader := NewCRC32Reader(options.reader, CBORChecksumLength)
+	crc32Reader := NewCRC32Reader(reader, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
 	var header StateFileHeader
@@ -108,15 +73,51 @@ func newRecoveredState(options *Options) (*State, error) {
 		return nil, fmt.Errorf("unable to decode header: %w", err)
 	}
 
-	var nodeStack util.Stack[*Node]
-	for i := uint64(0); i < header.NodeRecordCount; i++ {
+	root, err := readNodeRecords(decoder, udc, header.NodeRecordCount)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode node records: %w", err)
+	}
+
+	var checksum []byte
+	if err = decoder.Decode(&checksum); err != nil {
+		return nil, fmt.Errorf("unable to decode checksum: %w", err)
+	}
+	if util.BytesToUint32(checksum) != crc32Reader.Sum() {
+		return nil, fmt.Errorf("checksum mismatch")
+	}
+
+	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
+	t := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
+	state := &State{
+		hashAlgorithm: options.hashAlgorithm,
+		savepoints:    []*tree{t},
+	}
+	if _, _, err := state.CalculateRoot(); err != nil {
+		return nil, err
+	}
+	if header.UnicityCertificate != nil {
+		if err := state.Commit(header.UnicityCertificate); err != nil {
+			return nil, err
+		}
+	}
+
+	return state, nil
+}
+
+func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstructor, count uint64) (*node, error) {
+	if count == 0 {
+		return nil, nil
+	}
+
+	var nodeStack util.Stack[*node]
+	for i := uint64(0); i < count; i++ {
 		var nodeRecord nodeRecord
 		err := decoder.Decode(&nodeRecord)
 		if err != nil {
 			return nil, fmt.Errorf("unable to decode node record: %w", err)
 		}
 
-		unitData, err := options.unitDataConstructor(nodeRecord.UnitID)
+		unitData, err := unitDataConstructor(nodeRecord.UnitID)
 		if err != nil {
 			return nil, fmt.Errorf("unable to construct unit data: %w", err)
 		}
@@ -133,7 +134,7 @@ func newRecoveredState(options *Options) (*State, error) {
 		}}
 		unit := &Unit{logs: unitLogs}
 
-		var right, left *Node
+		var right, left *node
 		if nodeRecord.HasRight {
 			right = nodeStack.Pop()
 		}
@@ -148,25 +149,7 @@ func newRecoveredState(options *Options) (*State, error) {
 	if !nodeStack.IsEmpty() {
 		return nil, fmt.Errorf("%d unexpected node record(s)", len(nodeStack))
 	}
-
-	var checksum []byte
-	if err = decoder.Decode(&checksum); err != nil {
-		return nil, fmt.Errorf("unable to decode checksum: %w", err)
-	}
-	if util.BytesToUint32(checksum) != crc32Reader.Sum() {
-		return nil, fmt.Errorf("checksum mismatch")
-	}
-
-	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
-	tree := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
-
-	return &State{
-		hashAlgorithm:   options.hashAlgorithm,
-		savepoints:      []*savepoint{tree},
-		committedTreeUC: header.UnicityCertificate,
-		// The following Commit() increases committedTreeBlockNumber by one
-		committedTreeBlockNumber: header.UnicityCertificate.GetRoundNumber() - 1,
-	}, nil
+	return root, nil
 }
 
 // Clone returns a clone of the state. The original state and the cloned state can be used by different goroutines but
@@ -178,8 +161,7 @@ func (s *State) Clone() *State {
 		hashAlgorithm:            s.hashAlgorithm,
 		committedTree:            s.committedTree.Clone(),
 		committedTreeUC:          s.committedTreeUC,
-		savepoints:               []*savepoint{s.committedTree.Clone()},
-		committedTreeBlockNumber: s.committedTreeBlockNumber,
+		savepoints:               []*tree{s.latestSavepoint().Clone()},
 	}
 }
 
@@ -239,37 +221,56 @@ func (s *State) Apply(actions ...Action) error {
 	return nil
 }
 
-// Commit commits the state.
-func (s *State) Commit() error {
+// Commit commits the changes in the latest savepoint.
+func (s *State) Commit(uc *types.UnicityCertificate) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	sp := s.latestSavepoint()
 	if !sp.IsClean() {
-		return errors.New("call CalculateRoot method before committing a state")
+		return fmt.Errorf("call CalculateRoot method before committing a state")
 	}
+
+	// Verify that the uc certifies the state being committed
+	var summaryValue uint64
+	var summaryHash []byte
+	if sp.Root() != nil {
+		summaryValue = sp.Root().Value().subTreeSummaryValue
+		summaryHash = sp.Root().Value().subTreeSummaryHash
+	} else {
+		summaryHash = make([]byte, s.hashAlgorithm.Size())
+	}
+
+	if !bytes.Equal(uc.InputRecord.Hash, summaryHash) {
+		return fmt.Errorf("state summary hash is not equal to the summary hash in UC")
+	}
+
+	if !bytes.Equal(uc.InputRecord.SummaryValue, util.Uint64ToBytes(summaryValue)) {
+		return fmt.Errorf("state summary value is not equal to the summary value in UC")
+	}
+
 	s.committedTree = sp.Clone()
-	s.savepoints = []*savepoint{sp}
-	s.committedTreeBlockNumber++
+	s.committedTreeUC = uc
+	s.savepoints = []*tree{sp}
 	return nil
 }
 
-// CommittedTreeBlockNumber returns the block number of the committed state tree.
-func (s *State) CommittedTreeBlockNumber() uint64 {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return s.committedTreeBlockNumber
+// CommittedUC returns the Unicity Certificate of the committed state.
+func (s *State) CommittedUC() *types.UnicityCertificate {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.committedTreeUC
 }
 
 // Revert rolls back all changes made to the state.
 func (s *State) Revert() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.savepoints = []*savepoint{s.committedTree.Clone()}
+	s.savepoints = []*tree{s.committedTree.Clone()}
 }
 
-// Savepoint creates a new savepoint and returns an id of the savepoint. Use RollbackSavepoint to roll back all
-// changes made after calling Savepoint method. Use ReleaseSavepoint to save all changes made to the state.
+// Savepoint creates a new savepoint and returns an id of the savepoint. Use RollbackToSavepoint to roll back all
+// changes made after calling Savepoint method. Use ReleaseToSavepoint to save all changes made to the state.
 func (s *State) Savepoint() int {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -337,15 +338,23 @@ func (s *State) PruneLog(id types.UnitID) error {
 	return s.latestSavepoint().Update(id, unit)
 }
 
-// WriteStateFile writes the current committed state to the given writer.
+// Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) WriteStateFile(writer io.Writer, header *StateFileHeader) error {
+func (s *State) Serialize(writer io.Writer, header *StateFileHeader, committed bool) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder := cbor.NewEncoder(crc32Writer)
 
+	var tree *tree
+	if committed {
+		tree = s.committedTree
+		header.UnicityCertificate = s.committedTreeUC
+	} else {
+		tree = s.latestSavepoint()
+	}
+
 	// Add node record count to header
 	snc := NewStateNodeCounter()
-	s.committedTree.Traverse(snc)
+	tree.Traverse(snc)
 	header.NodeRecordCount = snc.NodeCount()
 
 	// Write header
@@ -355,7 +364,7 @@ func (s *State) WriteStateFile(writer io.Writer, header *StateFileHeader) error 
 
 	// Write node records
 	ss := NewStateSerializer(encoder)
-	if s.committedTree.Traverse(ss); ss.err != nil {
+	if tree.Traverse(ss); ss.err != nil {
 		return fmt.Errorf("unable to write node records: %w", ss.err)
 	}
 
@@ -367,7 +376,7 @@ func (s *State) WriteStateFile(writer io.Writer, header *StateFileHeader) error 
 	return nil
 }
 
-func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*types.UnitStateProof, error) {
+func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	unit, err := s.committedTree.Get(id)
@@ -407,8 +416,12 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.Un
 		UnitTreeCert:       unitTreeCert,
 		DataSummary:        summaryValueInput,
 		StateTreeCert:      stateTreeCert,
-		UnicityCertificate: uc,
+		UnicityCertificate: s.committedTreeUC,
 	}, nil
+}
+
+func (s *State) HashAlgorithm() crypto.Hash {
+	return s.hashAlgorithm
 }
 
 func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCert, error) {
@@ -502,10 +515,13 @@ func (s *State) releaseToSavepoint(id int) {
 }
 
 func (s *State) isCommitted() bool {
-	return len(s.savepoints) == 1 && s.savepoints[0].IsClean() && isRootClean(s.savepoints[0])
+	return len(s.savepoints) == 1 &&
+		s.savepoints[0].IsClean() &&
+		isRootClean(s.savepoints[0]) &&
+		s.committedTreeUC != nil
 }
 
-func isRootClean(s *savepoint) bool {
+func isRootClean(s *tree) bool {
 	root := s.Root()
 	if root == nil {
 		return true
@@ -514,35 +530,35 @@ func isRootClean(s *savepoint) bool {
 }
 
 // latestSavepoint returns the latest savepoint.
-func (s *State) latestSavepoint() *savepoint {
+func (s *State) latestSavepoint() *tree {
 	l := len(s.savepoints)
 	return s.savepoints[l-1]
 }
 
-func getSubTreeLogRootHash(n *Node) []byte {
-	if n == nil || n.Value() == nil {
-		return nil
+func getSummaryValueInput(n *node) uint64 {
+	if n == nil || n.Value() == nil || n.Value().data == nil {
+		return 0
 	}
-	return n.Value().logRoot
+	return n.Value().data.SummaryValueInput()
 }
 
-func getSubTreeSummaryValue(n *Node) uint64 {
+func getSubTreeSummaryValue(n *node) uint64 {
 	if n == nil || n.Value() == nil {
 		return 0
 	}
 	return n.Value().subTreeSummaryValue
 }
 
-func getSummaryValueInput(node *Node) uint64 {
-	if node == nil || node.Value() == nil || node.Value().data == nil {
-		return 0
-	}
-	return node.Value().data.SummaryValueInput()
-}
-
-func getSubTreeSummaryHash(node *Node) []byte {
-	if node == nil || node.Value() == nil {
+func getSubTreeLogRootHash(n *node) []byte {
+	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return node.Value().subTreeSummaryHash
+	return n.Value().logRoot
+}
+
+func getSubTreeSummaryHash(n *node) []byte {
+	if n == nil || n.Value() == nil {
+		return nil
+	}
+	return n.Value().subTreeSummaryHash
 }

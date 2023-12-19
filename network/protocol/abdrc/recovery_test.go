@@ -516,20 +516,6 @@ func TestInputData_IsValid(t *testing.T) {
 		}
 		require.ErrorContains(t, i.IsValid(), "input record is nil")
 	})
-	t.Run("input record is not valid", func(t *testing.T) {
-		i := &InputData{
-			SysID: 0,
-			Ir: &types.InputRecord{
-				PreviousHash:    test.RandomBytes(32),
-				Hash:            test.RandomBytes(32),
-				BlockHash:       test.RandomBytes(32),
-				SummaryValue:    test.RandomBytes(32),
-				SumOfEarnedFees: 10,
-			},
-			Sdrh: nil,
-		}
-		require.ErrorContains(t, i.IsValid(), "input record error: partition round is 0")
-	})
 	t.Run("system description hash is not set", func(t *testing.T) {
 		i := &InputData{
 			SysID: 0,

@@ -25,7 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	moneytestutils "github.com/alphabill-org/alphabill/txsystem/money/testutils"
+	testmoney "github.com/alphabill-org/alphabill/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -57,7 +57,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server
-	initialBill := &money.InitialBill{
+	initialBill := &testmoney.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
@@ -162,7 +162,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server
-	initialBill := &money.InitialBill{
+	initialBill := &testmoney.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
@@ -221,7 +221,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	initialBillValue := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testmoney.CreateInitialBillTransferTx(accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
 	batch.Add(&txsubmitter.TxSubmission{
@@ -287,7 +287,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server
-	initialBill := &money.InitialBill{
+	initialBill := &testmoney.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.NewP2pkh256BytesFromKey(accKey.PubKey),
@@ -346,7 +346,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testmoney.CreateInitialBillTransferTx(accKey, initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(accKey.PubKey, w.backend, observe.Logger())
 	batch.Add(&txsubmitter.TxSubmission{
@@ -421,19 +421,19 @@ func sendTo(t *testing.T, w *Wallet, receivers []ReceiverData, fromAccount uint6
 	require.NotNil(t, proof)
 }
 
-func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.AlphabillNetwork {
+func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *testmoney.InitialBill) *testpartition.AlphabillNetwork {
+	genesisState := testmoney.MoneyGenesisState(t, initialBill, 10000*1e8, createSDRs())
 	mPart, err := testpartition.NewPartition(t, 1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			logger.New(t),
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
-			money.WithInitialBill(initialBill),
 			money.WithSystemDescriptionRecords(createSDRs()),
-			money.WithDCMoneyAmount(10000*1e8),
 			money.WithTrustBase(tb),
+			money.WithState(genesisState),
 		)
 		require.NoError(t, err)
 		return system
-	}, money.DefaultSystemIdentifier)
+	}, money.DefaultSystemIdentifier, genesisState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{mPart})
 	require.NoError(t, err)

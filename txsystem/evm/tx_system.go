@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -184,11 +185,22 @@ func (m *TxSystem) Revert() {
 	m.state.Revert()
 }
 
-func (m *TxSystem) Commit() error {
-	m.logPruner.Remove(m.currentBlockNumber - 1)
-	err := m.state.Commit()
+func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
+	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
+		m.logPruner.Remove(m.currentBlockNumber - 1)
 	}
 	return err
+}
+
+func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
+	return m.state.CommittedUC()
+}
+
+func (m *TxSystem) SerializeState(writer io.Writer, committed bool) error {
+	header := &state.StateFileHeader{
+		SystemIdentifier:   m.systemIdentifier,
+	}
+	return m.state.Serialize(writer, header, committed)
 }

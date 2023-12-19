@@ -193,13 +193,16 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount uint8) *testpartition.NodePartition {
+func createMoneyPartition(t *testing.T, genesisConfig *moneyGenesisConfig, nodeCount uint8) *testpartition.NodePartition {
+	genesisState, err := newGenesisState(genesisConfig)
+	require.NoError(t, err)
+
 	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+		genesisState = genesisState.Clone()
 		system, err := money.NewTxSystem(
 			logger.New(t),
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
 			money.WithHashAlgorithm(crypto.SHA256),
-			money.WithInitialBill(initialBill),
 			money.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
 					SystemIdentifier: money.DefaultSystemIdentifier,
@@ -210,12 +213,12 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 					},
 				},
 			}),
-			money.WithDCMoneyAmount(10000),
 			money.WithTrustBase(tb),
+			money.WithState(genesisState),
 		)
 		require.NoError(t, err)
 		return system
-	}, money.DefaultSystemIdentifier)
+	}, money.DefaultSystemIdentifier, genesisState)
 	require.NoError(t, err)
 	return moneyPart
 }

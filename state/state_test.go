@@ -61,33 +61,17 @@ func TestNewEmptyState(t *testing.T) {
 	require.Nil(t, s.latestSavepoint().Root())
 	require.Len(t, s.savepoints, 1)
 	require.Equal(t, crypto.SHA256, s.hashAlgorithm)
-	require.True(t, s.IsCommitted())
+	require.False(t, s.IsCommitted())
 }
 
 func TestNewStateWithSHA512(t *testing.T) {
-	s, err := New(WithHashAlgorithm(crypto.SHA512))
-	require.NoError(t, err)
+	s := NewEmptyState(WithHashAlgorithm(crypto.SHA512))
 	require.Equal(t, crypto.SHA512, s.hashAlgorithm)
-}
-
-func TestNewStateWithInitActions(t *testing.T) {
-	unitData := &TestData{Value: 10}
-	s := NewState(t, WithInitActions(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-
-	committedRoot := s.committedTree.Root()
-	uncommittedRoot := s.latestSavepoint().Root()
-	require.NotNil(t, committedRoot)
-	require.NotNil(t, uncommittedRoot)
-	require.Len(t, s.savepoints, 1)
-	require.Equal(t, unitData, uncommittedRoot.Value().data)
-	require.Equal(t, unitData, committedRoot.Value().data)
-	require.Equal(t, committedRoot, uncommittedRoot)
-	require.True(t, s.IsCommitted())
 }
 
 func TestState_Savepoint_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
 	s.ReleaseToSavepoint(spID)
@@ -102,7 +86,7 @@ func TestState_Savepoint_OK(t *testing.T) {
 
 func TestState_RollbackSavepoint(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
 	s.RollbackToSavepoint(spID)
@@ -116,13 +100,19 @@ func TestState_RollbackSavepoint(t *testing.T) {
 
 func TestState_Commit_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	_, _, err := s.CalculateRoot()
+
+	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
-	require.NoError(t, s.Commit())
-	require.EqualValues(t, 2, s.CommittedTreeBlockNumber())
+	require.False(t, s.isCommitted())
+	require.Nil(t, s.CommittedUC())
+
+	require.NoError(t, s.Commit(createUC(s, summaryValue, summaryHash)))
+	require.True(t, s.isCommitted())
+	require.NotNil(t, s.CommittedUC())
+	require.EqualValues(t, 1, s.CommittedUC().GetRoundNumber())
+
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
 	require.NotNil(t, committedRoot)
@@ -135,17 +125,17 @@ func TestState_Commit_OK(t *testing.T) {
 
 func TestState_Commit_RootNotCalculated(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
-	require.ErrorContains(t, s.Commit(), "call CalculateRoot method before committing a state")
-	// If commit fails committed block number remains the same
-	require.EqualValues(t, 1, s.CommittedTreeBlockNumber())
+
+	require.ErrorContains(t, s.Commit(createUC(s, 0, nil)), "call CalculateRoot method before committing a state")
+	require.False(t, s.isCommitted())
+	require.Nil(t, s.CommittedUC())
 }
 
 func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	require.ErrorContains(t, s.Apply(
 		AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData),
 		UpdateUnitData([]byte{0, 0, 0, 2}, func(data UnitData) (UnitData, error) {
@@ -159,7 +149,7 @@ func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 
 func TestState_Revert(t *testing.T) {
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
 	s.Revert()
 
@@ -171,7 +161,7 @@ func TestState_Revert(t *testing.T) {
 }
 
 func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
-	s := NewState(t)
+	s := NewEmptyState()
 	id := s.Savepoint()
 	require.NoError(t,
 		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
@@ -191,7 +181,7 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 	summary, rootHash, err := s.CalculateRoot()
 
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, summary, rootHash)))
 	//	 		┌───┤ key=00000004, depth=1, summaryCalculated=true, nodeSummary=1, subtreeSummary=1, clean=true
 	//		┌───┤ key=00000003, depth=2, summaryCalculated=true, nodeSummary=1, subtreeSummary=3, clean=true
 	//		│	└───┤ key=00000002, depth=1, summaryCalculated=true, nodeSummary=1, subtreeSummary=1, clean=true
@@ -263,7 +253,7 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 
 	summary, rootHash2, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, summary, rootHash2)))
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
@@ -276,7 +266,7 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 }
 
 func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
-	s := NewState(t)
+	s := NewEmptyState()
 	id := s.Savepoint()
 	require.NoError(t,
 		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
@@ -286,9 +276,9 @@ func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
 		s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 1})),
 	)
 	s.ReleaseToSavepoint(id)
-	_, _, err := s.CalculateRoot()
+	value, hash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, value, hash)))
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
@@ -326,9 +316,9 @@ func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
 	)
 	s.ReleaseToSavepoint(id2)
 	s.ReleaseToSavepoint(id)
-	summary, _, err := s.CalculateRoot()
+	summary, hash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, summary, hash)))
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
@@ -337,7 +327,7 @@ func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
 }
 
 func TestState_RevertAVLTreeRotations(t *testing.T) {
-	s := NewState(t)
+	s := NewEmptyState()
 	// initial state:
 	// 		┌───┤ key=0000001E, depth=1, nodeSummary=30, subtreeSummary=30,
 	//	────┤ key=00000014, depth=3, nodeSummary=20, subtreeSummary=76,
@@ -353,9 +343,9 @@ func TestState_RevertAVLTreeRotations(t *testing.T) {
 	)
 
 	// commit initial state
-	_, root, err := s.CalculateRoot()
+	value, root, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, value, root)))
 
 	require.NoError(t,
 		// change the unit that will be rotated
@@ -380,7 +370,7 @@ func TestState_RevertAVLTreeRotations(t *testing.T) {
 func TestState_GetUnit(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
 	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
@@ -394,9 +384,9 @@ func TestState_GetUnit(t *testing.T) {
 	require.ErrorContains(t, err, "item 00000001 does not exist")
 	require.Nil(t, u)
 
-	_, _, err = s.CalculateRoot()
+	value, hash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, value, hash)))
 
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
@@ -416,7 +406,7 @@ func TestState_GetUnit(t *testing.T) {
 func TestState_AddUnitLog_OK(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
 	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
@@ -432,7 +422,7 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 }
 
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
-	s := NewState(t)
+	s := NewEmptyState()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 10})))
 	_, err := s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32))
 	require.NoError(t, err)
@@ -457,7 +447,7 @@ func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 
 func TestState_AddUnitLog_UnitDoesNotExist(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
-	s := NewState(t)
+	s := NewEmptyState()
 	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
 	require.ErrorContains(t, err, "unable to add unit log for unit 00000001")
 }
@@ -465,7 +455,7 @@ func TestState_AddUnitLog_UnitDoesNotExist(t *testing.T) {
 func TestState_PruneLog(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	unitData := &TestData{Value: 10}
-	s := NewState(t)
+	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
 	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
@@ -489,14 +479,14 @@ func TestState_PruneLog(t *testing.T) {
 
 func TestState_PruneLog_UnitNotFound(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
-	s := NewState(t)
+	s := NewEmptyState()
 	require.ErrorContains(t, s.PruneLog(unitID), "item 00000001 does not exist")
 }
 
 func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
 	s, stateRootHash, summaryValue := prepareState(t)
 	for _, id := range unitIdentifiers {
-		stateProof, err := s.CreateUnitStateProof(id, 0, nil)
+		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
 		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
@@ -511,14 +501,14 @@ func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
 	require.Equal(t, uint64(5510), summaryValue)
 
 	for _, id := range unitIdentifiers {
-		stateProof, err := s.CreateUnitStateProof(id, 0, nil)
+		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
 		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 
-		stateProof, err = s.CreateUnitStateProof(id, 1, nil)
+		stateProof, err = s.CreateUnitStateProof(id, 1)
 		require.NoError(t, err)
 
 		proofOutputHash, sum = stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
@@ -534,21 +524,21 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 	for _, id := range unitIdentifiers {
 		require.NoError(t, s.PruneLog(id))
 	}
-	_, _, err := s.CalculateRoot()
+	value, hash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, value, hash)))
 	stateRootHash, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(55100), summaryValue)
 
 	for _, id := range unitIdentifiers {
-		stateProof, err := s.CreateUnitStateProof(id, 0, nil)
+		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
 		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 
-		stateProof, err = s.CreateUnitStateProof(id, 1, nil)
+		stateProof, err = s.CreateUnitStateProof(id, 1)
 		require.NoError(t, err)
 
 		proofOutputHash, sum = stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
@@ -565,11 +555,8 @@ func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
 
 func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		s, root, summary := prepareState(t)
-		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
-			Hash:         root,
-			SummaryValue: util.Uint64ToBytes(summary),
-		}})
+		s, _, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0)
 		require.NoError(t, err)
 		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
 		unitData, err := MarshalUnitData(unit.Data())
@@ -580,29 +567,9 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		}
 		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
 	})
-	t.Run("invalid summary value", func(t *testing.T) {
-		s, root, _ := prepareState(t)
-		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
-			Hash:         root,
-			SummaryValue: util.Uint64ToBytes(1),
-		}})
-		require.NoError(t, err)
-		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
-		require.NoError(t, err)
-		unitData, err := MarshalUnitData(unit.Data())
-		require.NoError(t, err)
-		data := &types.StateUnitData{
-			Data:   unitData,
-			Bearer: unit.Bearer(),
-		}
-		require.ErrorContains(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "invalid summary value: expected 0000000000000001, got 0000000000000227")
-	})
 	t.Run("unit not found", func(t *testing.T) {
-		s, root, _ := prepareState(t)
-		proof, err := s.CreateUnitStateProof([]byte{1, 0, 0, 5}, 0, &types.UnicityCertificate{InputRecord: &types.InputRecord{
-			Hash:         root,
-			SummaryValue: util.Uint64ToBytes(1),
-		}})
+		s, _, _ := prepareState(t)
+		proof, err := s.CreateUnitStateProof([]byte{1, 0, 0, 5}, 0)
 		require.ErrorContains(t, err, "unable to get unit 01000005: item 01000005 does not exist: not found")
 		require.Nil(t, proof)
 	})
@@ -612,53 +579,45 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testi
 }
 
 func TestWriteStateFile(t *testing.T) {
-	state, _, _ := prepareState(t)
-	addLog(t, state, []byte{0, 0, 0, 0}, []byte{1})
-	addLog(t, state, []byte{0, 0, 0, 0}, []byte{2})
+	s, _, _ := prepareState(t)
 
-	summaryValue, summaryHash, err := state.CalculateRoot()
+	// TODO: Restoring unpruned state currently does not work, because UC verification fails. AB-1291 will fix.
+	// addLog(t, s, []byte{0, 0, 0, 0}, []byte{1})
+	// addLog(t, s, []byte{0, 0, 0, 0}, []byte{2})
+
+	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, state.Commit())
+	uc := createUC(s, summaryValue, summaryHash)
+	require.NoError(t, s.Commit(uc))
 
 	header := &StateFileHeader{
 		SystemIdentifier: []byte{1, 2, 3, 4},
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
-				Hash:         summaryHash,
-				SummaryValue: util.Uint64ToBytes(summaryValue),
-			},
-		},
 	}
 	buf := &bytes.Buffer{}
 	// Writes the pruned state
-	require.NoError(t, state.WriteStateFile(buf, header))
+	require.NoError(t, s.Serialize(buf, header, true))
 
-	recoveredState, err := New(
-		WithHashAlgorithm(crypto.SHA256),
-		WithReader(buf),
-		WithUnitDataConstructor(func(_ types.UnitID) (UnitData, error) {
-			return &pruneUnitData{}, nil
-		}),
-	)
+	udc := func(_ types.UnitID) (UnitData, error) {
+		return &pruneUnitData{}, nil
+	}
+	recoveredState, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 
 	recoveredSummaryValue, recoveredSummaryHash, err := recoveredState.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, recoveredState.Commit())
+	require.NoError(t, recoveredState.Commit(uc))
 	require.Equal(t, summaryValue, recoveredSummaryValue)
-	// summaryHash does not reflect the pruned state
-	require.NotEqual(t, summaryHash, recoveredSummaryHash)
+	require.Equal(t, summaryHash, recoveredSummaryHash)
 
-	require.NoError(t, state.PruneLog([]byte{0, 0, 0, 0}))
-	prunedSummaryValue, prunedSummaryHash, err := state.CalculateRoot()
+	require.NoError(t, s.PruneLog([]byte{0, 0, 0, 0}))
+	prunedSummaryValue, prunedSummaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, state.Commit())
 	require.Equal(t, prunedSummaryValue, recoveredSummaryValue)
 	require.Equal(t, prunedSummaryHash, recoveredSummaryHash)
 }
 
 func prepareState(t *testing.T) (*State, []byte, uint64) {
-	s := newEmptyState(t)
+	s := NewEmptyState()
 	//			┌───┤ key=00000100
 	//			│	└───┤ key=00000009
 	//		┌───┤ key=00000008
@@ -693,7 +652,7 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(551), sum)
 	require.NotNil(t, rootHash)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, sum, rootHash)))
 	return s, rootHash, sum
 }
 
@@ -718,7 +677,8 @@ func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 	summaryValue, stateRootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NotNil(t, stateRootHash)
-	require.NoError(t, s.Commit())
+
+	require.NoError(t, s.Commit(createUC(s, summaryValue, stateRootHash)))
 	return stateRootHash, summaryValue
 }
 
@@ -741,8 +701,14 @@ func getUnit(t *testing.T, s *State, id []byte) *Unit {
 	return unit
 }
 
-func NewState(t *testing.T, opts ...Option) *State {
-	s, err := New(opts...)
-	require.NoError(t, err)
-	return s
+func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
+	roundNumber := uint64(1)
+	if s.IsCommitted() {
+		roundNumber = s.CommittedUC().GetRoundNumber() + 1
+	}
+	return &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  roundNumber,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}
 }

@@ -20,14 +20,14 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 		unitID := tx.UnitID()
 
 		// 1. SetOwner(ι, DC)
-		setOwnerFn := state.SetOwner(unitID, dustCollectorPredicate)
+		setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
 
 		// 2. UpdateData(ι0, f′), where f′ : D.v → D.v + N[ι].D.v – increase DC money supply by N[ι].D.v
-		updateDCMoneySupplyFn := state.UpdateUnitData(dustCollectorMoneySupplyID,
+		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
+					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
 				bd.V += attr.Value
 				return bd, nil

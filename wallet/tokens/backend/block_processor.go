@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
@@ -18,7 +17,6 @@ import (
 
 type blockProcessor struct {
 	store  Storage
-	txs    txsystem.TransactionSystem
 	notify func(bearerPredicate []byte, msg broker.Message)
 	log    *slog.Logger
 }

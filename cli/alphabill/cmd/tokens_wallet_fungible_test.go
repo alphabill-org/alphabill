@@ -364,18 +364,20 @@ type AlphabillNetwork struct {
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	observe := testobserve.NewFactory(t)
 	log := observe.DefaultLogger()
-	initialBill := &money.InitialBill{
-		ID:    defaultInitialBillID,
-		Value: 1e18,
-		Owner: templates.AlwaysTrueBytes(),
+
+	genesisConfig := &moneyGenesisConfig{
+		InitialBillID:      defaultInitialBillID,
+		InitialBillValue:   1e18,
+		InitialBillOwner:   templates.AlwaysTrueBytes(),
+		DCMoneySupplyValue: 10000,
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	moneyPartition := createMoneyPartition(t, genesisConfig, 1)
 	tokensPartition := createTokensPartition(t)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition, tokensPartition})
 	startPartitionRPCServers(t, moneyPartition)
 	startPartitionRPCServers(t, tokensPartition)
 
-	moneyBackendURL, moneyBackendClient := startMoneyBackend(t, moneyPartition, initialBill)
+	moneyBackendURL, moneyBackendClient := startMoneyBackend(t, moneyPartition, genesisConfig)
 
 	tokenBackendURL, tokenBackendClient, ctx := startTokensBackend(t, tokensPartition.Nodes[0].AddrGRPC)
 
@@ -413,7 +415,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 	require.NoError(t, err)
 
-	expectedBalance := spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
+	expectedBalance := spendInitialBillWithFeeCredits(t, abNet, genesisConfig.InitialBillValue, w1key.PubKey)
 	require.Eventually(t, func() bool {
 		balance, err := moneyWallet.GetBalance(ctx, moneywallet.GetBalanceCmd{})
 		require.NoError(t, err)

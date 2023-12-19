@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -26,9 +27,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 	stateDB.CreateAccount(address)
 	balance := big.NewInt(101)
 	stateDB.AddBalance(address, balance)
-	_, _, err := tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	a := &API{
 		state:            tree,
@@ -64,9 +63,7 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 	stateDB.SetAlphaBillData(address, &statedb.AlphaBillLink{
 		TxHash: backlink,
 	})
-	_, _, err := tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	a := &API{
 		state:            tree,

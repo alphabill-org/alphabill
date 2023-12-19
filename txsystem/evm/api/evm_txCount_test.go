@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -26,9 +27,7 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 
 	stateDB.CreateAccount(address)
 	stateDB.SetNonce(address, 333)
-	_, _, err := tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	a := &API{
 		state:            tree,

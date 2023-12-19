@@ -84,18 +84,11 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.NewTxSystem(
-			logger,
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
-		require.NoError(t, err)
-
 		createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 		createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 		expErr := fmt.Errorf("can't store tx")
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			store: &mockStorage{
 				getFeeCreditBill: getFeeCreditBillFunc,
 				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
@@ -107,7 +100,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: createNTFTypeTx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 		})
@@ -131,14 +124,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 
 func Test_blockProcessor_processTx(t *testing.T) {
 	t.Parallel()
-
 	logger := logger.NOP()
-	txs, err := tokens.NewTxSystem(
-		logger,
-		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-	)
-	require.NoError(t, err)
-	require.NotNil(t, txs)
 
 	t.Run("token type transactions", func(t *testing.T) {
 		icon := &tokens.Icon{Type: "image/svg+xml; encoding=gzip", Data: []byte{1, 2, 3}}
@@ -155,14 +141,12 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				tx := randomTx(t, tc.txAttr)
 				bp := &blockProcessor{
 					log: logger,
-					txs: txs,
 					store: &mockStorage{
 						getFeeCreditBill: getFeeCreditBillFunc,
 						setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 						getBlockNumber:   func() (uint64, error) { return 3, nil },
 						setBlockNumber:   func(blockNumber uint64) error { return nil },
 						saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
-							require.NoError(t, err)
 							require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 							require.EqualValues(t, tx.UnitID(), data.ID, "token IDs do not match")
 							require.Equal(t, tc.kind, data.Kind, "expected kind %s got %s", tc.kind, data.Kind)
@@ -170,7 +154,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 						},
 					},
 				}
-				err = bp.ProcessBlock(context.Background(), &types.Block{
+				err := bp.ProcessBlock(context.Background(), &types.Block{
 					UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 					Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 				})
@@ -188,7 +172,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
 			},
@@ -212,7 +195,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -227,7 +210,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
 			},
@@ -250,7 +232,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -266,7 +248,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
 			},
@@ -289,7 +270,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -304,7 +285,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
 			},
@@ -326,7 +306,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -346,7 +326,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx.Payload.Type = tokens.PayloadTypeSplitFungibleToken
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				if notifyCalls++; notifyCalls == 1 {
 					require.EqualValues(t, owner, bearerPredicate)
@@ -380,7 +359,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -399,7 +378,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx.Payload.Type = tokens.PayloadTypeUpdateNFT
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			notify: func(bearerPredicate []byte, msg broker.Message) {
 				notifyCalls++
 				require.EqualValues(t, bearer, bearerPredicate)
@@ -421,7 +399,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -434,7 +412,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
@@ -451,7 +428,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -463,7 +440,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
-			txs: txs,
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
@@ -480,7 +456,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &types.Block{
+		err := bp.ProcessBlock(context.Background(), &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 		})
@@ -573,12 +549,8 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 func createBlockProcessor(t *testing.T) *blockProcessor {
 	db, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
-
 	log := logger.New(t)
-	txSystem, err := tokens.NewTxSystem(log, tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
-	require.NoError(t, err)
-
-	return &blockProcessor{log: log, txs: txSystem, store: db}
+	return &blockProcessor{log: log, store: db}
 }
 
 func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {

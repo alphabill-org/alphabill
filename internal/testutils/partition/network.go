@@ -30,6 +30,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -56,6 +57,7 @@ type RootPartition struct {
 type NodePartition struct {
 	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
+	genesisState     *state.State
 	txSystemFunc     func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
 	tb               map[string]abcrypto.Verifier
@@ -254,13 +256,14 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte, state *state.State) (abPartition *NodePartition, err error) {
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	abPartition = &NodePartition{
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
+		genesisState: state,
 		Nodes:        make([]*partitionNode, nodeCount),
 		obs:          testobserve.NewFactory(t),
 	}
@@ -280,7 +283,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		signer := signers[i]
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
-			txSystemProvider(map[string]abcrypto.Verifier{"genesis": nil}),
+			state,
 			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
 			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
@@ -310,6 +313,12 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		return fmt.Errorf("failed to extract root trust base from genesis file, %w", err)
 	}
 	n.tb = trustBase
+
+	if !n.genesisState.IsCommitted() {
+		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
+			return fmt.Errorf("invalid genesis state: %w", err)
+		}
+	}
 
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
@@ -511,11 +520,10 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 
 func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
 	for _, n := range n.Nodes {
-		bl, err := n.GetLatestBlock()
+		number, err := n.GetLatestBlock()
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		number := bl.UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < number; i++ {
 			b, err := n.GetBlock(context.Background(), number-i)
 			if err != nil || b == nil {
@@ -593,11 +601,10 @@ func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func(
 func BlockchainContains(part *NodePartition, criteria func(tx *types.TransactionOrder) bool) func() bool {
 	return func() bool {
 		for _, n := range part.Nodes {
-			bl, err := n.GetLatestBlock()
+			number, err := n.GetLatestBlock()
 			if err != nil {
 				panic(err)
 			}
-			number := bl.UnicityCertificate.InputRecord.RoundNumber
 			for i := uint64(0); i <= number; i++ {
 				b, err := n.GetBlock(context.Background(), number-i)
 				if err != nil || b == nil {

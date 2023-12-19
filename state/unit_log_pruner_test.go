@@ -93,10 +93,10 @@ func TestStatePruning_RevertPrune(t *testing.T) {
 
 	s.Revert()
 
-	_, rootHash2, err := s.CalculateRoot()
+	value2, rootHash2, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, rootHash, rootHash2)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, value2, rootHash2)))
 	_, rootHash3, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, rootHash, rootHash3)
@@ -170,6 +170,6 @@ func createStateWithUnits(t *testing.T) (*State, []byte) {
 	summary, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, uint64(55), summary)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(createUC(s, summary, rootHash)))
 	return s, rootHash
 }

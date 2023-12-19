@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
@@ -106,10 +107,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
-
-	_, _, err = tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
@@ -200,8 +198,6 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	details := &evm.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)
-	_, _, err = tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 	return address, details.ContractAddr
 }

@@ -31,6 +31,7 @@ func TestRunEvmNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, evmDir)
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
@@ -39,7 +40,10 @@ func TestRunEvmNode(t *testing.T) {
 
 		// generate node genesis
 		cmd := New(logF)
-		args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+		args := "evm-genesis --home " + homeDir +
+			" -o " + nodeGenesisFileLocation +
+			" --output-state " + nodeGenesisStateFileLocation +
+			" -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
@@ -70,7 +74,13 @@ func TestRunEvmNode(t *testing.T) {
 		go func() {
 			dbLocation := homeDir + "/tx.db"
 			cmd = New(logF)
-			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
+			args = "evm --home " + evmDir +
+				" --tx-db " + dbLocation +
+				" -g " + partitionGenesisFileLocation +
+				" -s " + nodeGenesisStateFileLocation +
+				" -k " + keysFileLocation +
+				" --bootnodes=" + bootNodeStr +
+				" --rest-server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
@@ -107,6 +117,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	homeDir := setupTestHomeDir(t, evmDir)
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	logF := testobserve.NewFactory(t)
 	appStoppedWg := sync.WaitGroup{}
@@ -114,7 +125,10 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 
 	// generate node genesis
 	cmd := New(logF)
-	args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+	args := "evm-genesis --home " + homeDir +
+			" -o " + nodeGenesisFileLocation +
+			" --output-state " + nodeGenesisStateFileLocation +
+			" -g -k " + keysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -145,7 +159,13 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	go func() {
 		dbLocation := homeDir + "/tx.db"
 		cmd = New(logF)
-		args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --rest-server-address " + listenAddr
+		args = "evm --home " + evmDir +
+			" --tx-db " + dbLocation +
+			" -g " + partitionGenesisFileLocation +
+			" -s " + nodeGenesisStateFileLocation +
+			" -k " + keysFileLocation +
+			" --bootnodes=" + bootNodeStr +
+			" --rest-server-address " + listenAddr
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		err = cmd.Execute(ctx)

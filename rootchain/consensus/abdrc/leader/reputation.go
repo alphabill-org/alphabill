@@ -139,6 +139,9 @@ func (rb *ReputationBased) slotIndex(round uint64) int {
 
 func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader BlockLoader) (peer.ID, error) {
 	qcRound := qc.GetRound()
+	extra := qc.LedgerCommitInfo.PreviousHash
+	leaderSeed := qcRound + (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
+
 	authors := make(map[string]struct{}) // block authors of the recent rounds
 	active := make(map[string]struct{})  // validators that signed the committed blocks
 	round := qc.GetParentRound()
@@ -168,7 +171,7 @@ func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader Block
 		return UnknownLeader, fmt.Errorf("no active validators left after eliminating %d recent authors", len(authors))
 	}
 
-	leader := pickLeader(toSortedSlice(active), qcRound)
+	leader := pickLeader(toSortedSlice(active), leaderSeed)
 	id, err := peer.Decode(leader)
 	if err != nil {
 		return UnknownLeader, fmt.Errorf("invalid peer id %q: %w", leader, err)

@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 /*
@@ -45,6 +47,7 @@ type Pacemaker struct {
 	ticker         *time.Ticker
 	stopRoundClock context.CancelFunc
 
+	tracer   trace.Tracer
 	roundDur metric.Float64Histogram
 	roundCnt metric.Int64Counter
 }
@@ -65,6 +68,7 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability)
 		statusChan:     make(chan paceMakerStatus, 1),
 		ticker:         time.NewTicker(maxRoundLen),
 		stopRoundClock: func() { /* init as NOP */ },
+		tracer:         observe.Tracer("pacemaker"),
 	}
 	pm.ticker.Stop()
 
@@ -101,7 +105,10 @@ This method should only used to start the pacemaker and reset it's status
 on system recovery, during normal operation current round is advanced by
 calling AdvanceRoundQC or AdvanceRoundTC.
 */
-func (x *Pacemaker) Reset(highQCRound uint64, lastTc *types.TimeoutCert, lastVote any) {
+func (x *Pacemaker) Reset(ctx context.Context, highQCRound uint64, lastTc *types.TimeoutCert, lastVote any) {
+	ctx, span := x.tracer.Start(ctx, "Pacemaker.Reset")
+	defer span.End()
+
 	x.lastRoundTC = nil
 	x.lastQcToCommitRound = highQCRound
 	lastRound := highQCRound
@@ -110,7 +117,7 @@ func (x *Pacemaker) Reset(highQCRound uint64, lastTc *types.TimeoutCert, lastVot
 		lastRound = lastTc.GetRound()
 		x.lastRoundTC = lastTc
 	}
-	x.startNewRound(lastRound + 1)
+	x.startNewRound(ctx, lastRound+1)
 	// restore last sent vote for pace maker
 	switch vote := lastVote.(type) {
 	case *abdrc.VoteMsg:
@@ -200,40 +207,48 @@ func (x *Pacemaker) RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInf
 }
 
 // AdvanceRoundQC - trigger next round/view on quorum certificate
-func (x *Pacemaker) AdvanceRoundQC(qc *types.QuorumCert) bool {
-	if qc == nil {
-		return false
-	}
+func (x *Pacemaker) AdvanceRoundQC(ctx context.Context, qc *types.QuorumCert) bool {
+	ctx, span := x.tracer.Start(ctx, "Pacemaker.AdvanceRoundQC")
+	defer span.End()
+
 	// Same QC can only advance the round number once
-	if qc.VoteInfo.RoundNumber < x.currentRound.Load() {
+	if qc == nil || qc.VoteInfo.RoundNumber < x.currentRound.Load() {
 		return false
 	}
+
 	x.lastRoundTC = nil
 	// only increment high committed round if QC commits a state
 	if qc.LedgerCommitInfo.Hash != nil {
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
-	x.startNewRound(qc.VoteInfo.RoundNumber + 1)
-	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
+	x.startNewRound(ctx, qc.VoteInfo.RoundNumber+1)
+	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
 	return true
 }
 
 // AdvanceRoundTC - trigger next round/view on timeout certificate
-func (x *Pacemaker) AdvanceRoundTC(tc *types.TimeoutCert) {
+func (x *Pacemaker) AdvanceRoundTC(ctx context.Context, tc *types.TimeoutCert) {
+	ctx, span := x.tracer.Start(ctx, "Pacemaker.AdvanceRoundTC")
+	defer span.End()
+
 	// no timeout cert or is from old view/round - ignore
 	if tc == nil || tc.Timeout.Round < x.currentRound.Load() {
 		return
 	}
+
 	x.lastRoundTC = tc
-	x.startNewRound(tc.Timeout.Round + 1)
-	x.roundCnt.Add(context.Background(), 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
+	x.startNewRound(ctx, tc.Timeout.Round+1)
+	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
 }
 
 /*
 startNewRound - sets new current round number, resets all stores and
 starts round clock which produces events into StatusEvents channel.
 */
-func (x *Pacemaker) startNewRound(round uint64) {
+func (x *Pacemaker) startNewRound(ctx context.Context, round uint64) {
+	_, span := x.tracer.Start(ctx, "Pacemaker.startNewRound", trace.WithAttributes(observability.Round(round)))
+	defer span.End()
+
 	x.stopRoundClock()
 	start := time.Now()
 	x.currentQC = nil
@@ -253,13 +268,13 @@ func (x *Pacemaker) startNewRound(round uint64) {
 
 /*
 startRoundClock manages round state and generates appropriate events into chan returned by StatusEvents.
-Round state normally changes pmsRoundInProgress -> pmsRoundMatured -> pmsRoundTimeout and then stays in
-timeout state until next round is started. For how long each state lasts is determined by "minRoundLen"
-and "maxRoundLen" parameters.
+Round state normally changes pmsRoundInProgress -> pmsRoundMatured -> pmsRoundTimeout. For how long each
+state lasts is determined by "minRoundLen" and "maxRoundLen" parameters.
+Between stopRoundClock and startRoundClock calls the round status is pmsRoundNone.
 
 It returns chan which is closed when round clock has been stopped (the ctx has been cancelled). When
-the clock has been stopped there should be no event in the status event chan but the "status" field
-still stores the last state of the round.
+the clock has been stopped there should be no event in the status event chan and the "status" field
+is set to pmsRoundNone.
 */
 func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLen time.Duration) <-chan struct{} {
 	x.status.Store(uint32(pmsRoundInProgress))
@@ -279,6 +294,7 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 				case <-x.statusChan:
 				default:
 				}
+				x.status.Store(uint32(pmsRoundNone))
 				return
 			case <-x.ticker.C:
 				switch paceMakerStatus(x.status.Load()) {
@@ -324,13 +340,18 @@ func (x *Pacemaker) StatusEvents() <-chan paceMakerStatus { return x.statusChan 
 roundIsMature returns true when round is "mature enough" (ie has lasted longer than minRoundLen)
 to advance system into next round. Note that timed out round is "ready" too!
 */
-func (x *Pacemaker) roundIsMature() bool { return x.status.Load() != uint32(pmsRoundInProgress) }
+func (x *Pacemaker) roundIsMature() bool {
+	status := paceMakerStatus(x.status.Load())
+	return status == pmsRoundMatured || status == pmsRoundTimeout
+}
 
 // pacemaker round statuses
 type paceMakerStatus uint32
 
 func (pms paceMakerStatus) String() string {
 	switch pms {
+	case pmsRoundNone:
+		return "pmsRoundNone"
 	case pmsRoundInProgress:
 		return "pmsRoundInProgress"
 	case pmsRoundMatured:
@@ -342,6 +363,8 @@ func (pms paceMakerStatus) String() string {
 }
 
 const (
+	// no round in progress, ie time between one round ending and starting the next one
+	pmsRoundNone paceMakerStatus = 0
 	// round clock has been started, need to wait for the minimum round duration to pass
 	pmsRoundInProgress paceMakerStatus = 1
 	// minimum round duration has elapsed, it's ok to finish the round as soon as quorum is achieved

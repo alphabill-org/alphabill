@@ -131,7 +131,7 @@ initLogger creates Logger based on configuration flags in "cmd".
 func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerFactory) (*slog.Logger, error) {
 	cfg := &logger.LogConfiguration{}
 
-	loggerCfgFile := r.LoggerCfgFilename()
+	loggerCfgFile := filepath.Clean(r.LoggerCfgFilename())
 	if f, err := os.Open(loggerCfgFile); err != nil {
 		defaultLoggerCfg := filepath.Join(r.HomeDir, defaultLoggerConfigFile)
 		if !(errors.Is(err, os.ErrNotExist) && loggerCfgFile == defaultLoggerCfg) {
@@ -165,35 +165,11 @@ func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerF
 		return nil, err
 	}
 
-	// if it is a wallet cmd and logging on console then use "wallet formatting"
-	// unless user has requested specific format by flag
-	if forceWalletLogFormat(cmd, cfg.OutputPath) {
-		cfg.Format = "wallet"
-	}
-
 	logger, err := loggerBuilder(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("building logger: %w", err)
 	}
 	return logger, nil
-}
-
-func forceWalletLogFormat(cmd *cobra.Command, outFilename string) bool {
-	// if user has specified format flag respect that
-	if cmd.Flags().Changed(flagNameLogFormat) {
-		return false
-	}
-
-	switch outFilename {
-	case "", "stdout", "stderr":
-		for ; cmd != nil; cmd = cmd.Parent() {
-			if cmd.Name() == "wallet" {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 func envKey(key string) string {

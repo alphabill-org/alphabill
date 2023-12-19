@@ -9,14 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/time"
+	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -300,4 +303,20 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
+	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootValidatorEncryptionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	rootAddress, err := multiaddr.NewMultiaddr(addressStr)
+	if err != nil {
+		return "", nil, err
+	}
+	return rootID, rootAddress, nil
 }

@@ -2,7 +2,6 @@ package types
 
 import (
 	gocrypto "crypto"
-	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
@@ -32,88 +31,55 @@ var inputRecord2 = &types.InputRecord{
 }
 
 func TestIRChangeReqMsg_IsValid(t *testing.T) {
-
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		wantErr    bool
-		serialized []byte
-	}{
-		{
-			name: "IR change req. invalid cert reason",
-			fields: fields{
-				SystemIdentifier: types.SystemID32(1),
-				CertReason:       20,
-				Requests: []*certification.BlockCertificationRequest{
-					{
-						SystemIdentifier: []byte{0, 0, 0, 2},
-						NodeIdentifier:   "1",
-						InputRecord: &types.InputRecord{
-							PreviousHash: []byte{0, 1},
-							Hash:         []byte{2, 3},
-							BlockHash:    []byte{4, 5},
-							SummaryValue: []byte{6, 7},
-							RoundNumber:  1,
-						},
-						Signature: []byte{0, 1},
-					},
-				},
+	t.Run("IR change req. invalid cert reason", func(t *testing.T) {
+		requests := []*certification.BlockCertificationRequest{
+			{
+				SystemIdentifier: []byte{0, 0, 0, 2},
+				NodeIdentifier:   "1",
+				InputRecord:      inputRecord1,
+				Signature:        []byte{0, 1},
 			},
-			wantErr: true,
-		},
-		{
-			name: "IR change req. invalid cert reason",
-			fields: fields{
-				SystemIdentifier: types.SystemID32(1),
-				CertReason:       10,
-				Requests: []*certification.BlockCertificationRequest{
-					{
-						SystemIdentifier: []byte{0, 0, 0, 2},
-						NodeIdentifier:   "1",
-						InputRecord: &types.InputRecord{
-							PreviousHash: []byte{0, 1},
-							Hash:         []byte{2, 3},
-							BlockHash:    []byte{4, 5},
-							SummaryValue: []byte{6, 7},
-							RoundNumber:  1,
-						},
-						Signature: []byte{0, 1},
-					},
-				},
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			if err := x.IsValid(); (err != nil) != tt.wantErr {
-				t.Errorf("Verify() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+		}
+		x := &IRChangeReq{
+			SystemIdentifier: types.SystemID32(1),
+			CertReason:       20,
+			Requests:         requests,
+		}
+		require.EqualError(t, x.IsValid(), "unknown reason (20)")
+	})
+	t.Run("ok", func(t *testing.T) {
+		x := &IRChangeReq{
+			SystemIdentifier: types.SystemID32(1),
+			CertReason:       T2Timeout,
+			Requests:         nil,
+		}
+		require.NoError(t, x.IsValid())
+	})
 }
 
 func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
+	x := &IRChangeReq{
+		SystemIdentifier: sysId1,
+		CertReason:       QuorumNotPossible,
+		Requests: []*certification.BlockCertificationRequest{
+			{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				NodeIdentifier:   "1",
+				InputRecord: &types.InputRecord{
+					PreviousHash: []byte{0, 1},
+					Hash:         []byte{2, 3},
+					BlockHash:    []byte{4, 5},
+					SummaryValue: []byte{6, 7},
+					RoundNumber:  3,
+				},
+				RootRoundNumber: 2,
+				Signature:       []byte{0, 1},
+			},
+		},
 	}
-	type args struct {
-		hasher hash.Hash
-	}
+	irHasher := gocrypto.SHA256.New()
+	x.AddToHasher(irHasher)
 	expectedHash := gocrypto.SHA256.New()
-
 	expectedHash.Write([]byte{
 		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg
 		0, 0, 0, 1, // cert reason quorum not possible
@@ -124,536 +90,468 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 		0, 0, 0, 0, 0, 0, 0, 2, //root round number
 		// Is serialized without signature
 	})
-
-	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		wantHash []byte
-	}{
-		{
-			name: "Bytes result",
-			fields: fields{
-				SystemIdentifier: types.SystemID32(1),
-				CertReason:       QuorumNotPossible,
-				Requests: []*certification.BlockCertificationRequest{
-					{
-						SystemIdentifier: []byte{0, 0, 0, 1},
-						NodeIdentifier:   "1",
-						InputRecord: &types.InputRecord{
-							PreviousHash: []byte{0, 1},
-							Hash:         []byte{2, 3},
-							BlockHash:    []byte{4, 5},
-							SummaryValue: []byte{6, 7},
-							RoundNumber:  3,
-						},
-						RootRoundNumber: 2,
-						Signature:       []byte{0, 1},
-					},
-				},
-			},
-			args:     args{hasher: gocrypto.SHA256.New()},
-			wantHash: expectedHash.Sum(nil),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			x.AddToHasher(tt.args.hasher)
-			require.Equal(t, tt.args.hasher.Sum(nil), tt.wantHash[:])
-		})
-	}
+	require.Equal(t, expectedHash.Sum(nil), irHasher.Sum(nil))
 }
 
 func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
-	}
-	type args struct {
-		tb  partitions.PartitionTrustBase
-		luc *types.UnicityCertificate
-	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
-
-	trustBase := &partitions.TrustBase{
-		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2}}
-	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+	tb := &partitions.TrustBase{
+		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
 	}
-	require.NoError(t, reqS1.Sign(s1))
-	reqS2 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "2",
-		InputRecord:      inputRecord1,
-	}
-	require.NoError(t, reqS2.Sign(s2))
-
-	invalidReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
-		Signature:        []byte{0, 19, 12},
-	}
-
-	reqS1InvalidSysId := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId2.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
-	}
-	require.NoError(t, reqS1InvalidSysId.Sign(s1))
-
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "System id in request and proof do not match",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1InvalidSysId, reqS2},
-			},
-			args: args{
-				tb: trustBase,
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "invalid partition 00000001 proof, node 1 request system id 00000002 does not match request",
-		},
-		{
-			name: "IR change request, signature verification error",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{invalidReq},
-			},
-			args: args{
-				tb: trustBase,
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "signature verification failed",
-		},
-		{
-			name: "Proof contains more request, than there are partition nodes",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "proof contains more requests than registered partition nodes",
-		},
-		{
-			name: "Proof contains more request from unknown node",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "3": v2},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "request proof from system id 00000001 node 2 is not valid: verification failed, unknown node id 2",
-		},
-		{
-			name: "Proof contains duplicate node",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS1},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "invalid proof, partition 00000001 proof contains duplicate request from node 1",
-		},
-		{
-			name: "IR does not extend last certified state",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "input record does not extend last certified",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
-			if tt.wantErrStr == "" {
-				require.NoError(t, err)
-				require.Equal(t, tt.fields.Requests[0].InputRecord, ir)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, ir)
-		})
-	}
+	t.Run("trust base is nil", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{},
+		}
+		ir, err := x.Verify(nil, luc, 0, 0)
+		require.EqualError(t, err, "trust base is nil")
+		require.Nil(t, ir)
+	})
+	t.Run("unknown reason", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       16,
+			Requests:         []*certification.BlockCertificationRequest{},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "ir change request validation failed: unknown reason (16)")
+		require.Nil(t, ir)
+	})
+	t.Run("system id in request and proof do not match", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		reqS1InvalidSysId := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId2.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1InvalidSysId.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1InvalidSysId, reqS2},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 proof: node 1 request system id 00000002 does not match request")
+		require.Nil(t, ir)
+	})
+	t.Run("IR change request, signature verification error", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		invalidReq := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			Signature:        []byte{0, 19, 12},
+		}
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{invalidReq},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "request proof from system id 00000001 node 1 is not valid: signature verification failed")
+		require.Nil(t, ir)
+	})
+	t.Run("Proof contains more request, than there are partition nodes", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		trustBase := &partitions.TrustBase{
+			PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "proof contains more requests than registered partition nodes")
+		require.Nil(t, ir)
+	})
+	t.Run("Proof contains more request from unknown node", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		trustBase := &partitions.TrustBase{
+			PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "3": v2},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "request proof from system id 00000001 node 2 is not valid: verification failed, unknown node id 2")
+		require.Nil(t, ir)
+	})
+	t.Run("Proof contains duplicate node", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS1},
+		}
+		trustBase := &partitions.TrustBase{
+			PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 proof: contains duplicate request from node 1")
+		require.Nil(t, ir)
+	})
+	t.Run("IR does not extend last certified state", func(t *testing.T) {
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
+		}
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS1},
+		}
+		trustBase := &partitions.TrustBase{
+			PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "invalid certification request: request extends unknown state: expected hash: [0 0 1], got: [0 0 0]")
+		require.Nil(t, ir)
+	})
 }
 
 func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
-	}
-	type args struct {
-		tb         partitions.PartitionTrustBase
-		luc        *types.UnicityCertificate
-		t2InRounds uint64
-		round      uint64
-	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+	trustBase := &partitions.TrustBase{
+		PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
 	}
-	require.NoError(t, reqS1.Sign(s1))
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "IR change request in timeout proof contains requests, not valid",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       T2Timeout,
-				Requests:         []*certification.BlockCertificationRequest{reqS1},
+	t.Run("IR change request in timeout proof contains requests, not valid", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       T2Timeout,
+			Requests:         []*certification.BlockCertificationRequest{reqS1},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{
+				RootChainRoundNumber: 1,
 			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-					UnicitySeal: &types.UnicitySeal{
-						RootChainRoundNumber: 1,
-					},
-				},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 timeout proof: proof contains requests")
+		require.Nil(t, ir)
+	})
+	t.Run("invalid, not yet timeout", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       T2Timeout,
+			Requests:         nil,
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{
+				RootChainRoundNumber: 1,
 			},
-			wantErrStr: "invalid partition 00000001 timeout proof, proof contains requests",
-		},
-		{
-			name: "Invalid, not yet timeout",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       T2Timeout,
-				Requests:         nil,
+		}
+		ir, err := x.Verify(trustBase, luc, 5, 5)
+		require.EqualError(t, err, "invalid partition 00000001 timeout proof: time from latest UC 4, timeout in rounds 5")
+		require.Nil(t, ir)
+	})
+	t.Run("ok", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       T2Timeout,
+			Requests:         nil,
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{
+				RootChainRoundNumber: 1,
 			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash},
-					UnicitySeal: &types.UnicitySeal{
-						RootChainRoundNumber: 1,
-					},
-				},
-				t2InRounds: 5,
-				round:      5,
-			},
-			wantErrStr: "invalid partition 00000001 timeout proof, time from latest UC 4, timeout in rounds 5",
-		},
-		{
-			name: "OK",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       T2Timeout,
-				Requests:         nil,
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash},
-					UnicitySeal: &types.UnicitySeal{
-						RootChainRoundNumber: 1,
-					},
-				},
-				t2InRounds: 5,
-				round:      6,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			ir, err := x.Verify(tt.args.tb, tt.args.luc, tt.args.round, tt.args.t2InRounds)
-			if tt.wantErrStr == "" {
-				require.NoError(t, err)
-				repeatIR := tt.args.luc.InputRecord.NewRepeatIR()
-				require.Equal(t, repeatIR, ir)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, ir)
-		})
-	}
+		}
+		ir, err := x.Verify(trustBase, luc, 6, 5)
+		require.NoError(t, err)
+		require.NotNil(t, ir)
+		repeatIR := luc.InputRecord.NewRepeatIR()
+		require.Equal(t, repeatIR, ir)
+	})
 }
 
 func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
-	}
-	type args struct {
-		tb  partitions.PartitionTrustBase
-		luc *types.UnicityCertificate
-	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
-
-	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+	tb := &partitions.TrustBase{
+		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
 	}
-	require.NoError(t, reqS1.Sign(s1))
-	reqS2 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "2",
-		InputRecord:      inputRecord1,
-	}
-	require.NoError(t, reqS2.Sign(s2))
-	reqS3NotMatchingIR := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "3",
-		InputRecord:      inputRecord2,
-	}
-	require.NoError(t, reqS3NotMatchingIR.Sign(s3))
-
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "Not enough requests for quorum",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "not enough requests to prove quorum",
-		},
-		{
-			name: "IR does not extend last certified state",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "input record does not extend last certified",
-		},
-		{
-			name: "Contains not matching proofs",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2, reqS3NotMatchingIR},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "invalid partition 00000001 quorum proof, contains proofs for different state hashes",
-		},
-		{
-			name: "OK",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       Quorum,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
-			if tt.wantErrStr == "" {
-				require.NoError(t, err)
-				require.Equal(t, tt.fields.Requests[0].InputRecord, ir)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, ir)
-		})
-	}
+	t.Run("Not enough requests for quorum", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 quorum proof: not enough requests to prove quorum")
+		require.Nil(t, ir)
+	})
+	t.Run("IR does not extend last certified state", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "invalid certification request: request extends unknown state: expected hash: [0 0 1], got: [0 0 0]")
+		require.Nil(t, ir)
+	})
+	t.Run("IR does not extend last certified round", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 2},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "invalid certification request: request root round number 1 does not match luc root round 2")
+		require.Nil(t, ir)
+	})
+	t.Run("Contains not matching proofs", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		reqS3NotMatchingIR := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "3",
+			InputRecord:      inputRecord2,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS3NotMatchingIR.Sign(s3))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2, reqS3NotMatchingIR},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 quorum proof: contains proofs for different state hashes")
+		require.Nil(t, ir)
+	})
+	t.Run("OK", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord1,
+			RootRoundNumber:  1,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       Quorum,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+		}
+		ir, err := x.Verify(tb, luc, 0, 0)
+		require.NoError(t, err)
+		require.NotNil(t, ir)
+		require.Equal(t, reqS1.InputRecord, ir)
+	})
 }
 
 func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
-	type fields struct {
-		SystemIdentifier types.SystemID32
-		CertReason       IRChangeReason
-		Requests         []*certification.BlockCertificationRequest
-	}
-	type args struct {
-		tb  partitions.PartitionTrustBase
-		luc *types.UnicityCertificate
-	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
+	trustBase := &partitions.TrustBase{
+		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+	}
+	t.Run("No proof quorum not possible", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       QuorumNotPossible,
+			Requests:         []*certification.BlockCertificationRequest{reqS1},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.EqualError(t, err, "invalid partition 00000001 no quorum proof: not enough requests to prove only no quorum is possible")
+		require.Nil(t, ir)
+	})
+	t.Run("ok", func(t *testing.T) {
+		reqS1 := &certification.BlockCertificationRequest{
+			SystemIdentifier: sysId1.ToSystemID(),
+			NodeIdentifier:   "1",
+			InputRecord:      inputRecord1,
+		}
+		require.NoError(t, reqS1.Sign(s1))
+		reqS2 := &certification.BlockCertificationRequest{
+			SystemIdentifier: []byte{0, 0, 0, 1},
+			NodeIdentifier:   "2",
+			InputRecord:      inputRecord2,
+		}
+		require.NoError(t, reqS2.Sign(s2))
+		x := &IRChangeReq{
+			SystemIdentifier: sysId1,
+			CertReason:       QuorumNotPossible,
+			Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+		}
+		luc := &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
+		}
+		ir, err := x.Verify(trustBase, luc, 0, 0)
+		require.NoError(t, err)
+		require.NotNil(t, ir)
 
-	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1.ToSystemID(),
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
-	}
-	require.NoError(t, reqS1.Sign(s1))
-	reqS2 := &certification.BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 1},
-		NodeIdentifier:   "2",
-		InputRecord:      inputRecord2,
-	}
-	require.NoError(t, reqS2.Sign(s2))
-
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "No proof quorum not possible",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       QuorumNotPossible,
-				Requests:         []*certification.BlockCertificationRequest{reqS1},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-			wantErrStr: "invalid partition 00000001 no quorum proof, not enough requests to prove only no quorum is possible",
-		},
-		{
-			name: "OK",
-			fields: fields{
-				SystemIdentifier: sysId1,
-				CertReason:       QuorumNotPossible,
-				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
-			},
-			args: args{
-				tb: &partitions.TrustBase{
-					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
-				},
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash, RoundNumber: 1},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IRChangeReq{
-				SystemIdentifier: tt.fields.SystemIdentifier,
-				CertReason:       tt.fields.CertReason,
-				Requests:         tt.fields.Requests,
-			}
-			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
-			if tt.wantErrStr == "" {
-				require.NoError(t, err)
-				repeatIR := tt.args.luc.InputRecord.NewRepeatIR()
-				require.Equal(t, repeatIR, ir)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, ir)
-		})
-	}
+		repeatIR := luc.InputRecord.NewRepeatIR()
+		require.Equal(t, repeatIR, ir)
+	})
 }
 
 func TestIRChangeReason_String(t *testing.T) {

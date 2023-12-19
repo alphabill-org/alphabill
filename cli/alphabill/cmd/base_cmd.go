@@ -48,14 +48,11 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 func (a *alphabillApp) addSubcommands(obsF Factory, opts []interface{}) {
 	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig, obsF))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd())
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newTokensBackendCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
 }

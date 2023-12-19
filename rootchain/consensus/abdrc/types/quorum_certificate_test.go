@@ -69,7 +69,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 
 		// change stored hash
 		qc.VoteInfo.Timestamp -= 1 // restore original value
-		qc.LedgerCommitInfo.PreviousHash[0] = 0
+		qc.LedgerCommitInfo.PreviousHash[0] += 1
 		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
 	})
 

@@ -7,7 +7,7 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
@@ -559,6 +559,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0)
 		require.NoError(t, err)
 		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		require.NoError(t, err)
 		unitData, err := MarshalUnitData(unit.Data())
 		require.NoError(t, err)
 		data := &types.StateUnitData{

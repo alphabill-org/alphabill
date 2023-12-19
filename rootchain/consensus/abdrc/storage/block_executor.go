@@ -56,15 +56,6 @@ func (data InputRecords) Find(sysID types.SystemID32) *InputData {
 	return nil
 }
 
-func (data SysIDList) Contains(sysID types.SystemID32) bool {
-	for _, d := range data {
-		if d == sysID {
-			return true
-		}
-	}
-	return false
-}
-
 func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *drctypes.QuorumCert {
 	for _, p := range partitionRecords {
 		return &drctypes.QuorumCert{

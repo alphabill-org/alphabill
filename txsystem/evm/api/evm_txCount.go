@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
 )
@@ -16,10 +16,10 @@ func (a *API) TransactionCount(w http.ResponseWriter, r *http.Request) {
 	address := common.HexToAddress(adr)
 	db := statedb.NewStateDB(a.state.Clone(), a.log)
 	if !db.Exist(address) {
-		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound, a.log)
+		rpc.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound, a.log)
 		return
 	}
-	util.WriteCBORResponse(w, &struct {
+	rpc.WriteCBORResponse(w, &struct {
 		_     struct{} `cbor:",toarray"`
 		Nonce uint64
 	}{

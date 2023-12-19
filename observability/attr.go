@@ -33,3 +33,15 @@ func PeerID(key attribute.Key, id peer.ID) attribute.KeyValue {
 func Partition(id types.SystemID32) attribute.KeyValue {
 	return attribute.Int("partition", int(id))
 }
+
+/*
+ErrStatus returns attribute named "status" with value "ok" if the param
+err is nil and "err" when it is not.
+*/
+func ErrStatus(err error) attribute.KeyValue {
+	status := "ok"
+	if err != nil {
+		status = "err"
+	}
+	return attribute.String("status", status)
+}

@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -311,7 +310,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Author:    "test",
 			Round:     genesis.RootRound + 1,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp(),
+			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
@@ -340,7 +339,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
 		RoundNumber:       2,
-		Timestamp:         util.MakeTimestamp(),
+		Timestamp:         types.NewTimestamp(),
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
@@ -357,7 +356,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Author:    "test",
 			Round:     genesis.RootRound + 1,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp(),
+			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
@@ -373,7 +372,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Author:    "test",
 			Round:     genesis.RootRound + 2,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp() + 1000,
+			Timestamp: types.NewTimestamp() + 1000,
 			Payload:   &drctypes.Payload{},
 			Qc:        qcBlock2,
 		},
@@ -401,7 +400,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
 		RoundNumber:       2,
-		Timestamp:         util.MakeTimestamp(),
+		Timestamp:         types.NewTimestamp(),
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
@@ -418,7 +417,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Author:    "test",
 			Round:     genesis.RootRound + 1,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp(),
+			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
@@ -434,7 +433,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Author:    "test",
 			Round:     genesis.RootRound + 2,
 			Epoch:     0,
-			Timestamp: util.MakeTimestamp() + 1000,
+			Timestamp: types.NewTimestamp() + 1000,
 			Payload:   &drctypes.Payload{},
 			Qc:        qcBlock2,
 		},

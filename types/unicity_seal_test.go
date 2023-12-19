@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +36,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			name: "Hash is nil",
 			seal: &UnicitySeal{
 				RootChainRoundNumber: 1,
-				Timestamp:            util.MakeTimestamp(),
+				Timestamp:            NewTimestamp(),
 				PreviousHash:         zeroHash,
 				Hash:                 nil,
 				Signatures:           map[string][]byte{"": zeroHash},
@@ -49,7 +48,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			name: "Signature is nil",
 			seal: &UnicitySeal{
 				RootChainRoundNumber: 1,
-				Timestamp:            util.MakeTimestamp(),
+				Timestamp:            NewTimestamp(),
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
 				Signatures:           nil,
@@ -61,7 +60,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			name: "block number is invalid is nil",
 			seal: &UnicitySeal{
 				RootChainRoundNumber: 0,
-				Timestamp:            util.MakeTimestamp(),
+				Timestamp:            NewTimestamp(),
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
 				Signatures:           nil,
@@ -92,7 +91,7 @@ func TestIsValid_InvalidSignature(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 		Signatures:           map[string][]byte{"test": zeroHash},
@@ -107,7 +106,7 @@ func TestSignAndVerify_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -121,7 +120,7 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -134,7 +133,7 @@ func TestVerify_SignatureUnknownSigner(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 		Signatures:           map[string][]byte{"test": zeroHash},
@@ -147,7 +146,7 @@ func TestVerify_SignatureUnknownSigner(t *testing.T) {
 func TestSign_SignerIsNil(t *testing.T) {
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -158,11 +157,15 @@ func TestSign_SignerIsNil(t *testing.T) {
 func TestVerify_VerifierIsNil(t *testing.T) {
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
-		Timestamp:            util.MakeTimestamp(),
+		Timestamp:            NewTimestamp(),
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 		Signatures:           map[string][]byte{"": zeroHash},
 	}
 	err := seal.Verify(nil)
 	require.ErrorIs(t, err, ErrRootValidatorInfoMissing)
+}
+
+func Test_NewTimestamp(t *testing.T) {
+	require.NotZero(t, NewTimestamp())
 }

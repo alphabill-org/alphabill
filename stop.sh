@@ -35,37 +35,13 @@ function stop() {
   echo "program not running"
 }
 
-function stop_backend() {
-  local program=""
-    case $1 in
-      money)
-        program="build/alphabill money-backend"
-        ;;
-      tokens)
-        program="build/alphabill tokens-backend"
-        ;;
-      *)
-        echo "error: unknown argument $1" >&2
-        return 1
-       ;;
-     esac
-   #stop the process
-   PID=$(ps -eaf | grep "$program"  | grep -v grep | awk '{print $2}')
-   if [ -n "$PID" ]; then
-     echo "killing $PID"
-     kill $PID
-     return 0
-   fi
-   echo "program not running"
-}
-
-usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, tokens, evm] [-b stop backend: money, tokens]"; exit 0; }
+usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, tokens, evm]"; exit 0; }
 
 # stop requires an argument either -a for stop all or -p to stop a specific partition
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "harb:p:" o; do
+while getopts "harp:" o; do
   case "${o}" in
   a) #kill all
     stop "all"
@@ -75,9 +51,6 @@ while getopts "harb:p:" o; do
     ;;
   p)
     stop "${OPTARG}"
-    ;;
-  b)
-    stop_backend "${OPTARG}"
     ;;
   h | *) # help.
     usage && exit 0

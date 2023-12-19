@@ -118,13 +118,13 @@ func (mnw *mockNetwork) send(from, to peer.ID, msg any) error {
 		return fmt.Errorf("unknown receiver %s for message %#v sent by %s", to, msg, from)
 	}
 
-	if fw := mnw.firewall.Load().(fwFunc); fw != nil {
-		if fw(from, to, msg) {
-			return nil
-		}
-	}
-
 	go func() {
+		if fw := mnw.firewall.Load().(fwFunc); fw != nil {
+			// if firewall fn returns true, the message is blocked
+			if fw(from, to, msg) {
+				return
+			}
+		}
 		select {
 		case <-time.After(mnw.sendTO):
 			mnw.logError(fmt.Errorf("send operation timed out %s -> %s : %#v", from, to, msg))

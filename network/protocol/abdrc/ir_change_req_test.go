@@ -63,7 +63,7 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 					CertReason:       10,
 				},
 			},
-			wantErr: "request validation failed: unknown reason 10",
+			wantErr: "request validation failed: unknown reason (10)",
 		},
 		{
 			name: "invalid reason - timeout",

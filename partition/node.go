@@ -513,14 +513,12 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
 	ctx, span := n.tracer.Start(ctx, "node.handleMessage", trace.WithNewRoot(), trace.WithAttributes(msgAttr, n.attrRound()), trace.WithSpanKind(trace.SpanKindServer))
 	defer func(start time.Time) {
-		status := "ok"
 		if rErr != nil {
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 			n.sendEvent(event.Error, rErr)
-			status = "err"
 		}
-		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, attribute.String("status", status))))
+		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))))
 		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
 		span.End()
 	}(time.Now())

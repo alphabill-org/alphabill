@@ -146,9 +146,6 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, uc *types.Unicit
 	if err != nil {
 		return fmt.Errorf("invalid receiver id: %w", err)
 	}
-
-	v.log.DebugContext(ctx, fmt.Sprintf("sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
-		uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash))
 	return v.net.Send(ctx, uc, peerID)
 }
 
@@ -184,15 +181,13 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return fmt.Errorf("request contains invalid system identifier %X: %w", req.SystemIdentifier, err)
 	}
 	defer func() {
-		status := "ok"
 		if rErr != nil {
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
-			status = "err"
 		}
 		partition := observability.Partition(sysID32)
 		span.SetAttributes(partition)
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), partition)))
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
@@ -278,6 +273,8 @@ func (v *Node) onCertificationResult(ctx context.Context, certificate *types.Uni
 		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%s'", sysID))
 	}()
 	subscribed := v.subscription.Get(sysID)
+	v.log.DebugContext(ctx, fmt.Sprintf("sending unicity certificate to partition %X, IR Hash: %X, Block Hash: %X",
+		certificate.UnicityTreeCertificate.SystemIdentifier, certificate.InputRecord.Hash, certificate.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, certificate); err != nil {

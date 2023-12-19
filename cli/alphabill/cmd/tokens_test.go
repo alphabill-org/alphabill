@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/time"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
@@ -50,8 +50,7 @@ func TestRunTokensNode(t *testing.T) {
 			" --output-state " + nodeGenesisStateFileLocation +
 			" -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.Execute(context.Background())
-		require.NoError(t, err)
+		require.NoError(t, cmd.Execute(ctx))
 
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
 		require.NoError(t, err)
@@ -107,7 +106,8 @@ func TestRunTokensNode(t *testing.T) {
 			InvariantPredicate:       templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
-		attrBytes, _ := cbor.Marshal(attr)
+		attrBytes, err := cbor.Marshal(attr)
+		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       tokens.DefaultSystemIdentifier,
@@ -124,7 +124,8 @@ func TestRunTokensNode(t *testing.T) {
 
 		// failing case
 		tx.Payload.SystemID = []byte{1, 0, 0, 0} // incorrect system id
-		txBytes, _ = cbor.Marshal(tx)
+		txBytes, err = cbor.Marshal(tx)
+		require.NoError(t, err)
 		protoTx = &alphabill.Transaction{Order: txBytes}
 		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "invalid transaction system identifier")

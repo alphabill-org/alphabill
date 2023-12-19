@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/txbuffer"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/attribute"
@@ -60,23 +59,23 @@ func submitTransaction(node partitionNode, mtr metric.Meter, log *slog.Logger) h
 		buf := new(bytes.Buffer)
 		if _, err := buf.ReadFrom(r.Body); err != nil {
 			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.read")))
-			util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
+			WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
 			return
 		}
 
 		tx := &types.TransactionOrder{}
 		if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
 			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.cbor")))
-			util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
+			WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 			return
 		}
 		txOrderHash, err := node.SubmitTx(r.Context(), tx)
 		txCnt.Add(r.Context(), 1, metric.WithAttributes(attribute.Key("tx").String(tx.PayloadType()), txStatusKey.String(statusCodeOfTxError(err))))
 		if err != nil {
-			util.WriteCBORError(w, err, http.StatusBadRequest, log)
+			WriteCBORError(w, err, http.StatusBadRequest, log)
 			return
 		}
-		util.WriteCBORResponse(w, txOrderHash, http.StatusAccepted, log)
+		WriteCBORResponse(w, txOrderHash, http.StatusAccepted, log)
 	}
 }
 
@@ -103,19 +102,19 @@ func getTransactionRecord(node partitionNode, log *slog.Logger) http.HandlerFunc
 		txOrder := vars["txOrderHash"]
 		txOrderHash, err := hex.DecodeString(txOrder)
 		if err != nil {
-			util.WriteCBORError(w, fmt.Errorf("invalid tx order hash: %s", txOrder), http.StatusBadRequest, log)
+			WriteCBORError(w, fmt.Errorf("invalid tx order hash: %s", txOrder), http.StatusBadRequest, log)
 			return
 		}
 		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
 			if errors.Is(err, partition.ErrIndexNotFound) {
-				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+				WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			}
-			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+			WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return
 		}
 
-		util.WriteCBORResponse(w, struct {
+		WriteCBORResponse(w, struct {
 			_        struct{} `cbor:",toarray"`
 			TxRecord *types.TransactionRecord
 			TxProof  *types.TxProof
@@ -130,10 +129,10 @@ func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc
 	return func(w http.ResponseWriter, request *http.Request) {
 		nr, err := node.GetLatestRoundNumber(request.Context())
 		if err != nil {
-			util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+			WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return
 		}
-		util.WriteCBORResponse(w, nr, http.StatusOK, log)
+		WriteCBORResponse(w, nr, http.StatusOK, log)
 	}
 }
 

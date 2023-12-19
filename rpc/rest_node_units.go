@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/gorilla/mux"
 )
 
@@ -20,7 +19,7 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		unitIDString := mux.Vars(r)["unitID"]
 		unitID, err := hex.DecodeString(unitIDString)
 		if err != nil {
-			util.WriteCBORError(w, fmt.Errorf("invalid unit ID: %w", err), http.StatusBadRequest, log)
+			WriteCBORError(w, fmt.Errorf("invalid unit ID: %w", err), http.StatusBadRequest, log)
 			return
 		}
 
@@ -39,7 +38,7 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 				} else if field == "state_proof" {
 					returnProof = true
 				} else {
-					util.WriteCBORError(w, fmt.Errorf("invalid fields query parameter: %v", field), http.StatusBadRequest, log)
+					WriteCBORError(w, fmt.Errorf("invalid fields query parameter: %v", field), http.StatusBadRequest, log)
 					return
 				}
 
@@ -50,7 +49,7 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		if txOrderHashString != "" {
 			h, err := hex.DecodeString(txOrderHashString)
 			if err != nil {
-				util.WriteCBORError(w, fmt.Errorf("invalid tx order hash format: %w", err), http.StatusBadRequest, log)
+				WriteCBORError(w, fmt.Errorf("invalid tx order hash format: %w", err), http.StatusBadRequest, log)
 				return
 			}
 			txOrderHash = h
@@ -59,21 +58,21 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 			dataAndProof, err := node.GetUnitState(unitID, returnProof, returnUnitData)
 			if err != nil {
 				if errors.Is(err, avl.ErrNotFound) {
-					util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+					WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 				} else {
-					util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+					WriteCBORError(w, err, http.StatusInternalServerError, log)
 				}
 				return
 			}
-			util.WriteCBORResponse(w, dataAndProof, http.StatusOK, log)
+			WriteCBORResponse(w, dataAndProof, http.StatusOK, log)
 			return
 		}
 		response, err := partition.ReadUnitProofIndex(index, unitID, txOrderHash)
 		if err != nil {
 			if errors.Is(err, partition.ErrIndexNotFound) {
-				util.WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
+				WriteCBORError(w, errors.New("not found"), http.StatusNotFound, log)
 			} else {
-				util.WriteCBORError(w, err, http.StatusInternalServerError, log)
+				WriteCBORError(w, err, http.StatusInternalServerError, log)
 			}
 			return
 		}
@@ -83,6 +82,6 @@ func getUnit(node partitionNode, index keyvaluedb.KeyValueDB, log *slog.Logger) 
 		if !returnProof {
 			response.Proof = nil
 		}
-		util.WriteCBORResponse(w, response, http.StatusOK, log)
+		WriteCBORResponse(w, response, http.StatusOK, log)
 	}
 }

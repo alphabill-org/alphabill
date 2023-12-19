@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/client/testserver"
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )

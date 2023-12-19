@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-
-	"github.com/alphabill-org/alphabill/util"
 )
 
 var ErrInvalidKeyLength = errors.New("invalid key length")
@@ -66,7 +64,7 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, Data, error) {
 			continue
 		}
 		var pathItem []byte
-		if util.IsBitSet(key, i) {
+		if IsBitSet(key, i) {
 			if node.left == nil {
 				pathItem = s.zeroHash
 			} else {
@@ -104,7 +102,7 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 	pathLength := len(path)
 	for i := 0; i < pathLength; i++ {
 		pathItem := path[i]
-		if util.IsBitSet(key, pathLength-1-i) {
+		if IsBitSet(key, pathLength-1-i) {
 			hasher.Write(pathItem)
 			hasher.Write(h)
 		} else {
@@ -179,7 +177,7 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 		if len(key) != keySize {
 			return nil, ErrInvalidKeyLength
 		}
-		if !util.IsBitSet(key, position) {
+		if !IsBitSet(key, position) {
 			leftData = append(leftData, id)
 		} else {
 			rightData = append(rightData, id)

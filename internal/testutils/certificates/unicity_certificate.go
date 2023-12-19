@@ -58,4 +58,3 @@ func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHas
 		Hash:                 rootHash,
 	}
 }
-

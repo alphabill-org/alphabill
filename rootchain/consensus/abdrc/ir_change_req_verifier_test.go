@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
@@ -369,6 +369,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.Empty(t, tmos)
 	// last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 	tmos, err = tmoGen.GetT2Timeouts(12)
+	require.NoError(t, err)
 	require.EqualValues(t, []types.SystemID32{sysID1}, tmos)
 	// mock sysID1 has pending change in pipeline - no timeout will be generated
 	state.inProgress = append(state.inProgress, sysID1)

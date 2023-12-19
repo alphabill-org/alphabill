@@ -502,8 +502,9 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 
 // onVoteMsg handle votes messages from other root validators
 func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) error {
-	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onVoteMsg")
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onVoteMsg", trace.WithAttributes(observability.Round(vote.VoteInfo.RoundNumber)))
 	defer span.End()
+
 	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
 		return fmt.Errorf("stale vote for round %d from %s", vote.VoteInfo.RoundNumber, vote.Author)
 	}
@@ -600,7 +601,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
 	x.processTC(ctx, vote.Timeout.LastTC)
 
-	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
+	tc, err := x.pacemaker.RegisterTimeoutVote(ctx, vote, x.trustBase)
 	if err != nil {
 		return fmt.Errorf("failed to register timeout vote: %w", err)
 	}
@@ -871,7 +872,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err), logger.Round(round))
 	}
 	for _, cr := range proposalMsg.Block.Payload.Requests {
-		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("partition", int(cr.SystemIdentifier)), attribute.String("reason", cr.CertReason.String()))))
+		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(cr.SystemIdentifier), attribute.String("reason", cr.CertReason.String()))))
 	}
 }
 

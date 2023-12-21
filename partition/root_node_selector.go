@@ -14,12 +14,12 @@ const defaultHandshakeNodes = 3
 const defaultNofRootNodes = 2
 
 func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {
-	rootNodes := len(nodes)
-	if rootNodes < 1 {
+	nodeCnt := len(nodes)
+	if nodeCnt < 1 {
 		return nil, fmt.Errorf("root node list is empty")
 	}
 	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
-	if upToNodes >= rootNodes {
+	if upToNodes >= nodeCnt {
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
@@ -32,7 +32,7 @@ func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error)
 		chosen = append(chosen, nodes[idx])
 		idx++
 		// wrap around and choose from node 0
-		if idx >= rootNodes {
+		if idx >= nodeCnt {
 			idx = 0
 		}
 		// break loop if either again at start index or enough validators have been found
@@ -47,24 +47,24 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 	if luc == nil {
 		return nil, fmt.Errorf("UC is nil")
 	}
-	rootNodes := len(nodes)
-	if rootNodes < 1 {
+	nodeCnt := len(nodes)
+	if nodeCnt < 1 {
 		return nil, fmt.Errorf("root node list is empty")
 	}
 	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
-	if upToNodes >= rootNodes {
+	if upToNodes >= nodeCnt {
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
 	hash := sha256.Sum256(luc.Bytes())
-	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hash[:]), big.NewInt(int64(rootNodes))).Int64())
+	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hash[:]), big.NewInt(int64(nodeCnt))).Int64())
 	// choose upToNodes from index
 	idx := index
 	for {
 		chosen = append(chosen, nodes[idx])
 		idx++
 		// wrap around and choose from node 0
-		if idx >= rootNodes {
+		if idx >= nodeCnt {
 			idx = 0
 		}
 		// break loop if either again at start index or enough validators have been found

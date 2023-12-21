@@ -208,7 +208,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 
 	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
-			io.Observe(int64(n.getCurrentRoundNumber()))
+			io.Observe(int64(n.currentRoundNumber()))
 			return nil
 		}))
 	if err != nil {
@@ -369,7 +369,7 @@ func (n *Node) committedUC() *types.UnicityCertificate {
 	return n.transactionSystem.CommittedUC()
 }
 
-func (n *Node) getCurrentRoundNumber() uint64 {
+func (n *Node) currentRoundNumber() uint64 {
 	return n.luc.Load().GetRoundNumber() + 1
 }
 
@@ -661,7 +661,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	if err := n.transactionSystem.BeginBlock(n.getCurrentRoundNumber()); err != nil {
+	if err := n.transactionSystem.BeginBlock(n.currentRoundNumber()); err != nil {
 		return fmt.Errorf("tx system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
@@ -1235,7 +1235,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	summary := state.Summary()
 	pendingProposal := &pendingBlockProposal{
 		ProposerNodeId:  blockAuthor,
-		RoundNumber:     n.getCurrentRoundNumber(),
+		RoundNumber:     n.currentRoundNumber(),
 		PrevHash:        prevStateHash,
 		StateHash:       stateHash,
 		StateSummary:    summary,
@@ -1289,7 +1289,7 @@ func (n *Node) resetProposal() {
 }
 
 func (n *Node) SubmitTx(ctx context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {
-	if err = n.txValidator.Validate(tx, n.getCurrentRoundNumber()); err != nil {
+	if err = n.txValidator.Validate(tx, n.currentRoundNumber()); err != nil {
 		return nil, err
 	}
 
@@ -1407,7 +1407,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 
 	leader := n.leaderSelector.GetLeader()
 	if leader == UnknownLeader {
-		n.log.Warn("unknown round leader", logger.Round(n.getCurrentRoundNumber()))
+		n.log.Warn("unknown round leader", logger.Round(n.currentRoundNumber()))
 		return
 	}
 
@@ -1462,7 +1462,7 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 }
 
 func (n *Node) attrRound() attribute.KeyValue {
-	return observability.Round(n.getCurrentRoundNumber())
+	return observability.Round(n.currentRoundNumber())
 }
 
 func (p *pendingBlockProposal) pretty() string {

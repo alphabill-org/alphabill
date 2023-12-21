@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/debug"

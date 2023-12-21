@@ -370,7 +370,7 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	opts := network.DefaultValidatorNetworkOptions
 	opts.TxBufferHashAlgorithm = n.configuration.hashAlgorithm
 
-	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, opts, observe, n.log)
+	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, opts, observe)
 	if err != nil {
 		return err
 	}

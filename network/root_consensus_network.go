@@ -1,7 +1,6 @@
 package network
 
 import (
-	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -16,8 +15,8 @@ const (
 	ProtocolRootStateResp   = "/ab/root-state-resp/0.0.1"
 )
 
-func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration, log *slog.Logger) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity, log)
+func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration, obs Observability) (*LibP2PNetwork, error) {
+	n, err := newLibP2PNetwork(self, capacity, obs)
 	if err != nil {
 		return nil, err
 	}

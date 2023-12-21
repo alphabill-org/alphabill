@@ -472,6 +472,9 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 
 // onIRChangeMsg handles IR change request messages from other root nodes
 func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc.IrChangeReqMsg) error {
+	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onIRChangeMsg")
+	defer span.End()
+
 	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
 		return fmt.Errorf("invalid IR change request from node %s: %w", irChangeMsg.Author, err)
 	}

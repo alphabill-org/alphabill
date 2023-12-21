@@ -89,7 +89,7 @@ type (
 		transactionSystem           txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
 		fuc                         *types.UnicityCertificate
-		// Latest UC this node has seen. Can be ahead of the commited UC during recovery.
+		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		proposedTransactions        []*types.TransactionRecord
 		sumOfEarnedFees             uint64

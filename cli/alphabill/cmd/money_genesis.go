@@ -272,7 +272,7 @@ func addInitialFeeCreditBills(s *state.State, config *MoneyGenesisConfig) error 
 }
 
 func writeStateFile(path string, s *state.State, systemID types.SystemID) error {
-	stateFile, err := os.Create(path)
+	stateFile, err := os.Create(filepath.Clean(path))
 	if err != nil {
 		return err
 	}

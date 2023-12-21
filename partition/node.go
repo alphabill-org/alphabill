@@ -1313,10 +1313,10 @@ func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error)
 }
 
 /*
-GetLatestBlock returns current latest block.
+LatestBlockNumber returns the latest committed round number.
 It's part of the public API exposed by node.
 */
-func (n *Node) GetLatestBlock() (uint64, error) {
+func (n *Node) LatestBlockNumber() (uint64, error) {
 	if status := n.status.Load(); status != normal {
 		return 0, fmt.Errorf("node not ready: %s", status)
 	}

@@ -31,7 +31,7 @@ type (
 	partitionNode interface {
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
-		GetLatestBlock() (uint64, error)
+		LatestBlockNumber() (uint64, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() []byte
@@ -105,7 +105,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 	if err := verifyRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid get blocks request: %w", err)
 	}
-	latestBlock, err := r.node.GetLatestBlock()
+	latestBlock, err := r.node.LatestBlockNumber()
 	if err != nil {
 		return nil, err
 	}

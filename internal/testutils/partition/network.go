@@ -520,7 +520,7 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 
 func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
 	for _, n := range n.Nodes {
-		number, err := n.GetLatestBlock()
+		number, err := n.LatestBlockNumber()
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -601,7 +601,7 @@ func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func(
 func BlockchainContains(part *NodePartition, criteria func(tx *types.TransactionOrder) bool) func() bool {
 	return func() bool {
 		for _, n := range part.Nodes {
-			number, err := n.GetLatestBlock()
+			number, err := n.LatestBlockNumber()
 			if err != nil {
 				panic(err)
 			}

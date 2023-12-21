@@ -326,12 +326,8 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
 	subscribed := rootValidator.subscription.Get(partitionID)
-	require.Len(t, subscribed, 1)
-	require.Equal(t, partitionNodes[1].PeerConf.ID.String(), subscribed[0])
-	// set network in error state
-	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
-	// simulate root response, which will fail to send due to network error
-	// create certification request
+	require.Len(t, subscribed, 0)
+	// Issue a block certification request -> subscribes
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -339,6 +335,13 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
+	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	subscribed = rootValidator.subscription.Get(partitionID)
+	require.Len(t, subscribed, 1)
+
+	// set network in error state
+	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
 	uc := &types.UnicityCertificate{
 		InputRecord: newIR,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
@@ -347,12 +350,10 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		UnicitySeal: &types.UnicitySeal{},
 	}
 	rootValidator.onCertificationResult(ctx, uc)
-	rootValidator.onCertificationResult(ctx, uc)
-	// two send errors, but node is still subscribed
 	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 1)
 	rootValidator.onCertificationResult(ctx, uc)
-	// on third error subscription is cleared
+	// two send errors, but node is still subscribed
 	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 0)
 }

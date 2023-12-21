@@ -12,7 +12,7 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 	require.NotNil(t, subscriptions)
 	// no panic
 	var sysID1 types.SystemID32 = 1
-	subscriptions.SubscriberError(sysID1, "1")
+	subscriptions.ResponseSent(sysID1, "1")
 	require.Len(t, subscriptions.subs, 0)
 	subscribed := subscriptions.Get(sysID1)
 	require.Len(t, subscribed, 0)
@@ -42,8 +42,8 @@ func TestExpiredSubscriptions(t *testing.T) {
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is removed on errorCount number of send errors
-	for i := 0; i < defaultSubscriptionErrorCount; i++ {
-		subscriptions.SubscriberError(sysID1, "1")
+	for i := 0; i < defaultSubscriptionCount; i++ {
+		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
 	require.Len(t, subscribed, 1)
@@ -55,12 +55,12 @@ func TestSubscriptionRefresh(t *testing.T) {
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is removed on errorCount number of send errors
-	for i := 1; i < defaultSubscriptionErrorCount; i++ {
-		subscriptions.SubscriberError(sysID1, "1")
+	for i := 1; i < defaultSubscriptionCount; i++ {
+		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
 	require.Len(t, subscribed, 2)
 	// simulate new request from partition
 	subscriptions.Subscribe(sysID1, "1")
-	require.Equal(t, defaultSubscriptionErrorCount, subscriptions.subs[sysID1]["1"])
+	require.Equal(t, defaultSubscriptionCount, subscriptions.subs[sysID1]["1"])
 }

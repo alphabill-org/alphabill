@@ -6,7 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
-const defaultSubscriptionErrorCount = 3
+const defaultSubscriptionCount = 2
 
 type Subscriptions struct {
 	mu   sync.RWMutex
@@ -26,10 +26,10 @@ func (s *Subscriptions) Subscribe(id types.SystemID32, nodeId string) {
 	if !found {
 		s.subs[id] = make(map[string]int)
 	}
-	s.subs[id][nodeId] = defaultSubscriptionErrorCount
+	s.subs[id][nodeId] = defaultSubscriptionCount
 }
 
-func (s *Subscriptions) SubscriberError(id types.SystemID32, nodeId string) {
+func (s *Subscriptions) ResponseSent(id types.SystemID32, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subs, found := s.subs[id]

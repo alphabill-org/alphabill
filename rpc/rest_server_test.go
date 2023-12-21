@@ -6,8 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/notfound", bytes.NewReader(test.RandomBytes(10)))
 	recorder := httptest.NewRecorder()
 
-	NewRESTServer("", MaxBodySize, observability.NOPMetrics(), logger.NOP()).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", MaxBodySize, observability.NOPObservability()).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "404 page not found")
 }

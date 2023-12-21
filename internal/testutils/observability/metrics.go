@@ -30,13 +30,14 @@ import (
 )
 
 /*
-NOP creates observability implementation where everithing is no-op.
-Use it for tests for which it absolutely doesn't make sense to create any traces or metrics.
+NOP creates observability implementation where everything is no-op.
+Use it for tests for which it absolutely doesn't make sense to create any logs, traces or metrics.
 */
-func NOPMetrics() *Observability {
+func NOPObservability() *Observability {
 	return &Observability{
-		mp: noop.NewMeterProvider(),
-		tp: tnop.NewTracerProvider(),
+		mp:   noop.NewMeterProvider(),
+		tp:   tnop.NewTracerProvider(),
+		logF: func(lc *logger.LogConfiguration) (*slog.Logger, error) { return testlogr.NOP(), nil },
 	}
 }
 
@@ -90,6 +91,13 @@ func (o *Observability) Logger() *slog.Logger {
 		panic(fmt.Errorf("unexpectedly log builder returned error: %w", err))
 	}
 	return log
+}
+
+func (o *Observability) Factory() Factory {
+	return Factory{
+		logF: o.logF,
+		obsF: func(metrics, traces string) (*Observability, error) { return o, nil },
+	}
 }
 
 func (o *Observability) Meter(name string, options ...metric.MeterOption) metric.Meter {

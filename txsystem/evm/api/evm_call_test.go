@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
@@ -89,7 +89,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -103,7 +103,8 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 }
 
 func TestAPI_CallEVM_OK(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
+	log := observe.Logger()
 	tree := abstate.NewEmptyState()
 	address, contractAddr := initState(t, tree)
 
@@ -128,7 +129,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), log, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -152,7 +153,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), log, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -182,7 +183,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	// this is an ok call, no an error, but You have to pay for your nonsense
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
@@ -206,7 +207,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`

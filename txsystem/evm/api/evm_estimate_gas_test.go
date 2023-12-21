@@ -40,7 +40,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -74,7 +74,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -91,7 +91,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.NoError(t, err)
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &EstimateGasResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -124,7 +124,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -160,7 +160,7 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -197,7 +197,7 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -233,7 +233,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -265,7 +265,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -290,7 +290,7 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observe, observe.Logger(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`

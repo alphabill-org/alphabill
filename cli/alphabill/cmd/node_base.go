@@ -96,14 +96,14 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, proofStore, obs, log),
+			rpc.NodeEndpoints(node, proofStore, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
-		restServer := initRESTServer(restServerConf, obs, log, routers...)
+		restServer := initRESTServer(restServerConf, obs, routers...)
 
 		errch := make(chan error, 1)
 		go func() {
@@ -129,8 +129,8 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	return g.Wait()
 }
 
-func initRESTServer(conf *restServerConfiguration, obs partition.Observability, log *slog.Logger, routes ...rpc.Registrar) *http.Server {
-	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, obs, log, routes...)
+func initRESTServer(conf *restServerConfiguration, obs partition.Observability, routes ...rpc.Registrar) *http.Server {
+	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, obs, routes...)
 	rs.ReadTimeout = conf.ReadTimeout
 	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
 	rs.WriteTimeout = conf.WriteTimeout

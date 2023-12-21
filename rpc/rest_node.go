@@ -27,8 +27,9 @@ const (
 	pathUnits                = "/units/{unitID}"
 )
 
-func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability, log *slog.Logger) RegistrarFunc {
+func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability) RegistrarFunc {
 	return func(r *mux.Router) {
+		log := obs.Logger()
 		// submit transaction
 		r.HandleFunc(pathTransactions, submitTransaction(node, obs.Meter(metricsScopeRESTAPI), log)).Methods(http.MethodPost, http.MethodOptions)
 

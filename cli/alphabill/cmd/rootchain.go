@@ -158,7 +158,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	}
 	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
 	obs := observability.WithLogger(config.Base.observe, log)
-	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
+	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
@@ -191,7 +191,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 			consensus.WithStorage(store))
 	} else {
 		var rootNet *network.LibP2PNetwork
-		rootNet, err = network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, log)
+		rootNet, err = network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed initiate root network, %w", err)
 		}

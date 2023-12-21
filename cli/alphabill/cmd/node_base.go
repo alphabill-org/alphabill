@@ -258,7 +258,7 @@ func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConst
 		return nil, fmt.Errorf("state file '%s' not found", stateFilePath)
 	}
 
-	stateFile, err := os.Open(stateFilePath)
+	stateFile, err := os.Open(filepath.Clean(stateFilePath))
 	if err != nil {
 		return nil, err
 	}

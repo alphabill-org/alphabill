@@ -60,7 +60,7 @@ func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Bloc
 	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() (uint64, error) {
+func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 	return mn.maxBlockNumber, nil
 }
 

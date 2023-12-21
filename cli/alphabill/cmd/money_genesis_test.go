@@ -57,7 +57,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
+	require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
 	require.NoFileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
 }
 

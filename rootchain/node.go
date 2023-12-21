@@ -163,7 +163,6 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", sysID, err)
 	}
-	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -281,9 +280,9 @@ func (v *Node) onCertificationResult(ctx context.Context, certificate *types.Uni
 		certificate.UnicityTreeCertificate.SystemIdentifier, certificate.InputRecord.Hash, certificate.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
-		if err := v.sendResponse(ctx, node, certificate); err != nil {
+		if err = v.sendResponse(ctx, node, certificate); err != nil {
 			v.log.WarnContext(ctx, "sending certification result", logger.Error(err))
-			v.subscription.SubscriberError(sysID, node)
 		}
+		v.subscription.ResponseSent(sysID, node)
 	}
 }

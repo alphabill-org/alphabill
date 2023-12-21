@@ -229,8 +229,8 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 }
 
 func TestExecute_SwapOk(t *testing.T) {
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
-	_, initBillData := getBill(t, rmaTree, initialBill.ID)
+	state, txSystem, signer := createStateAndTxSystem(t)
+	_, initBillData := getBill(t, state, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
 	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, initBillData.Backlink)
@@ -254,25 +254,55 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 
 	// verify bill got locked
-	_, billData := getBill(t, rmaTree, targetID)
+	_, billData := getBill(t, state, targetID)
 	require.EqualValues(t, 1, billData.Locked)
 
 	targetBacklink = lockTx.Hash(crypto.SHA256)
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, state, signer)
 	for _, dcTransfer := range dcTransfers {
 		sm, err = txSystem.Execute(dcTransfer.TransactionOrder)
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	}
+
+	// Calculate dust bill value + dc money supply before commit
+	_, dustBillData := getBill(t, state, splitBillID)
+	_, dcBillData := getBill(t, state, DustCollectorMoneySupplyID)
+	beforeCommitValue := dustBillData.V + dcBillData.V
+
+	// Let's end the round to see that DC money supply is correctly preserved
+	stateSummary, err := txSystem.EndBlock()
+	require.NoError(t, err)
+	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
+
+	// Calculate dust bill value + dc money supply after commit
+	_, dustBillData = getBill(t, state, splitBillID)
+	_, dcBillData = getBill(t, state, DustCollectorMoneySupplyID)
+	afterCommitValue := dustBillData.V + dcBillData.V
+	require.Equal(t, beforeCommitValue, afterCommitValue)
+
+	err = txSystem.BeginBlock(roundNumber + 1)
 	sm, err = txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	_, billData = getBill(t, rmaTree, swapTx.UnitID())
+	_, billData = getBill(t, state, swapTx.UnitID())
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
 	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
-	_, dustCollectorBill := getBill(t, rmaTree, DustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
-	require.EqualValues(t, 0, billData.Locked)                             // verify bill got unlocked
+	_, dcBillData = getBill(t, state, DustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.V) // dust collector money supply is the same after swap
+	require.EqualValues(t, 0, billData.Locked)                      // verify bill got unlocked
+
+	// Let's end the round to see that DC money supply is correctly preserved
+	beforeCommitValue = dcBillData.V
+	stateSummary, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
+
+	err = txSystem.BeginBlock(roundNumber + 2)
+	dcBill, dcBillData := getBill(t, state, DustCollectorMoneySupplyID)
+	require.Equal(t, beforeCommitValue, dcBillData.V)
+	// Make sure the DC bill logs are pruned
+	require.Equal(t, 1, len(dcBill.Logs()))
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {

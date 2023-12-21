@@ -56,7 +56,11 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 
 		// record dust bills for later deletion TODO AB-1133
 		// dustCollector.AddDustBill(unitID, currentBlockNumber)
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{
+			ActualFee: fee,
+			TargetUnits: []types.UnitID{unitID, DustCollectorMoneySupplyID},
+			SuccessIndicator: types.TxStatusSuccessful,
+		}, nil
 	}
 }
 

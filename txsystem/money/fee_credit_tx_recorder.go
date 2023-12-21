@@ -151,7 +151,6 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 		}
 
 		// TODO: is zeroHash ok here? add to logpruner also
-		// TODO: need log rows for DCMoneySupply also?
 		_, err = f.state.AddUnitLog(moneyFCUnitID, make([]byte, f.state.HashAlgorithm().Size()))
 		if err != nil {
 			return fmt.Errorf("failed to update money fee credit bill state log: %w", err)

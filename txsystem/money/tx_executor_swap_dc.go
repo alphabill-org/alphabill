@@ -79,7 +79,11 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 		if err := s.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{
+			ActualFee: fee,
+			TargetUnits: []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
+			SuccessIndicator: types.TxStatusSuccessful,
+		}, nil
 	}
 }
 

@@ -24,6 +24,7 @@ func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error)
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
 	// choose the requested number of nodes starting from random index
+	// #nosec G404
 	index := rand.Intn(len(nodes))
 	// choose upToNodes from index
 	idx := index

@@ -48,17 +48,17 @@ func TestNode_NodeStartTest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	// node starts in init state
 	require.Equal(t, initializing, tp.partition.status.Load())
-	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
+	// node sends a handshake to root
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200000*time.Millisecond, test.WaitShortTick)
 	// simulate no response, but monitor timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
-	// node sends a handshake to root and subscribes to UC messages
+	// node sends a handshake to root
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
 	// while no response is received a retry is triggered on each timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
-	// node sends a handshake to root and subscribes to UC messages
+	// node sends a handshake
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis

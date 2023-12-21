@@ -384,9 +384,14 @@ func (n *Node) getCurrentRound() uint64 {
 
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "Sending handshake to root chain")
-	rootIDs, err := rootNodesSelector(n.luc.Load(), n.rootNodes, defaultNofRootNodes)
-	if err != nil {
-		n.log.WarnContext(ctx, "root node selection error: %w", err)
+	// select two random root nodes
+	nodes := min(len(n.rootNodes), defaultNofRootNodes)
+	rootIDs := make(peer.IDSlice, nodes)
+	idxs := randomIndex(len(rootIDs), len(n.rootNodes))
+	i := 0
+	for idx := range idxs {
+		rootIDs[i] = n.rootNodes[idx]
+		i++
 	}
 	if err := n.network.Send(ctx,
 		handshake.Handshake{

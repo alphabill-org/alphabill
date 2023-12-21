@@ -55,3 +55,21 @@ func Test_rootNodesSelector(t *testing.T) {
 		require.Len(t, rootNodes, 3)
 	})
 }
+
+func Test_randomIndex(t *testing.T) {
+	indexes := randomIndex(2, 10)
+	require.Len(t, indexes, 2)
+	for i := range indexes {
+		require.Less(t, i, 10)
+	}
+	indexes = randomIndex(3, 10)
+	require.Len(t, indexes, 3)
+	for i := range indexes {
+		require.Less(t, i, 10)
+	}
+	indexes = randomIndex(1, 1)
+	require.Len(t, indexes, 1)
+	for i := range indexes {
+		require.Equal(t, i, 0)
+	}
+}

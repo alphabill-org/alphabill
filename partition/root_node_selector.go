@@ -4,12 +4,25 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"math/rand"
 
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const defaultNofRootNodes = 2
+
+func randomIndex(size int, maxValue int) map[int]struct{} {
+	result := make(map[int]struct{})
+	for len(result) < size {
+		idx := rand.Intn(maxValue)
+		_, exists := result[idx]
+		if !exists {
+			result[idx] = struct{}{}
+		}
+	}
+	return result
+}
 
 func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {
 	if luc == nil {

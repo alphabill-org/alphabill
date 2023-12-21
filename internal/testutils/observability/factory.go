@@ -15,7 +15,7 @@ NOP factory can be shared between tests.
 */
 var nopFactory = Factory{
 	logF: func(lc *logger.LogConfiguration) (*slog.Logger, error) { return testlogr.NOP(), nil },
-	obsF: func(metrics, traces string) (*Observability, error) { return NOPMetrics(), nil },
+	obsF: func(metrics, traces string) (*Observability, error) { return NOPObservability(), nil },
 }
 
 /*

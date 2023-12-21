@@ -39,7 +39,7 @@ type PeerMessage struct {
 }
 
 func NewMockNetwork(t *testing.T) *MockNet {
-	obs := observability.NOPMetrics()
+	obs := observability.Default(t)
 	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs, testlogger.New(t))
 	require.NoError(t, err)
 

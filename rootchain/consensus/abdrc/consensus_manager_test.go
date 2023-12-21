@@ -604,7 +604,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 	t.Parallel()
 
-	observe := testobservability.NOPMetrics()
+	observe := testobservability.Default(t)
 	pm, err := NewPacemaker(time.Minute, 2*time.Minute, observe)
 	if err != nil {
 		t.Fatalf("creating Pacemaker: %v", err)

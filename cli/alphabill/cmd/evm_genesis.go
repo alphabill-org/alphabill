@@ -89,7 +89,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 
 	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(homePath)
 	if util.FileExists(nodeGenesisStateFile) {
-		return fmt.Errorf("node genesis state %s exists", nodeGenesisStateFile)
+		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)

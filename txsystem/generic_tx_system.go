@@ -30,7 +30,6 @@ type GenericTxSystem struct {
 	systemIdentifier    []byte
 	hashAlgorithm       crypto.Hash
 	state               *state.State
-	logPruner           *state.LogPruner
 	currentBlockNumber  uint64
 	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
@@ -49,14 +48,13 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 		systemIdentifier:    options.systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
-		logPruner:           state.NewLogPruner(options.state),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		executors:           make(map[string]TxExecutor),
 		genericTxValidators: []GenericTransactionValidator{},
 		log:                 log,
 	}
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
+	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 	for _, module := range modules {
 		validator := module.GenericTransactionValidator()
 		if validator != nil {
@@ -113,10 +111,8 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	return nil
 }
 
-func (m *GenericTxSystem) pruneLogs(blockNr uint64) error {
-	if err := m.logPruner.Prune(blockNr - 1); err != nil {
-		return fmt.Errorf("unable to prune state: %w", err)
-	}
+func (m *GenericTxSystem) pruneState(blockNr uint64) error {
+	m.state.Prune()
 	return nil
 }
 
@@ -158,13 +154,10 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		}
 		for _, targetID := range sm.TargetUnits {
 			// add log for each target unit
-			unitLogSize, err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
+			err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
 				m.state.RollbackToSavepoint(savepointID)
 				return
-			}
-			if unitLogSize > 1 {
-				m.logPruner.Add(m.currentBlockNumber, targetID)
 			}
 		}
 
@@ -198,7 +191,6 @@ func (m *GenericTxSystem) Revert() {
 	if m.roundCommitted {
 		return
 	}
-	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
 
@@ -206,7 +198,6 @@ func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
 	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
-		m.logPruner.Remove(m.currentBlockNumber - 1)
 	}
 	return err
 }

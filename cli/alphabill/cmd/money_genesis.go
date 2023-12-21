@@ -220,7 +220,7 @@ func addInitialBill(s *state.State, config *MoneyGenesisConfig) error {
 		Backlink: nil,
 	}))
 	if err == nil {
-		_, err = s.AddUnitLog(config.InitialBillID, zeroHash)
+		err = s.AddUnitLog(config.InitialBillID, zeroHash)
 	}
 	return err
 }
@@ -232,7 +232,7 @@ func addInitialDustCollectorMoneySupply(s *state.State, config *MoneyGenesisConf
 		Backlink: nil,
 	}))
 	if err == nil {
-		_, err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
+		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
 	}
 	return err
 }
@@ -264,7 +264,7 @@ func addInitialFeeCreditBills(s *state.State, config *MoneyGenesisConfig) error 
 		if err != nil {
 			return err
 		}
-		if _, err := s.AddUnitLog(feeCreditBill.UnitId, zeroHash); err != nil {
+		if err := s.AddUnitLog(feeCreditBill.UnitId, zeroHash); err != nil {
 			return err
 		}
 	}

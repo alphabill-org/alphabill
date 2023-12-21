@@ -936,23 +936,20 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*genesis.System
 
 	// initial bill
 	require.NoError(t, s.Apply(state.AddUnit(initialBill.ID, initialBill.Owner, &BillData{V: initialBill.Value})))
-	_, err := s.AddUnitLog(initialBill.ID, zeroHash)
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(initialBill.ID, zeroHash))
 
 	// dust collector money supply
 	require.NoError(t, s.Apply(state.AddUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &BillData{V: initialDustCollectorMoneyAmount})))
-	_, err = s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash)
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash))
 
 	// fee credit bills
 	for _, sdr := range sdrs {
 		fcb := sdr.FeeCreditBill
 		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitId, fcb.OwnerPredicate, &BillData{})))
-		_, err = s.AddUnitLog(fcb.UnitId, zeroHash)
-		require.NoError(t, err)
+		require.NoError(t, s.AddUnitLog(fcb.UnitId, zeroHash))
 	}
 
-	_, _, err = s.CalculateRoot()
+	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 
 	return s

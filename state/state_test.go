@@ -373,8 +373,7 @@ func TestState_GetUnit(t *testing.T) {
 	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
@@ -409,11 +408,9 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 	txrHash := test.RandomBytes(32)
-	_, err = s.AddUnitLog(unitID, txrHash)
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(unitID, txrHash))
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
@@ -424,20 +421,16 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 	s := NewEmptyState()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 10})))
-	_, err := s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32)))
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 20})))
-	_, err = s.AddUnitLog([]byte{0, 0, 0, 2}, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 2}, test.RandomBytes(32)))
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 30})))
-	_, err = s.AddUnitLog([]byte{0, 0, 0, 3}, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 3}, test.RandomBytes(32)))
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 42})))
-	_, err = s.AddUnitLog([]byte{0, 0, 0, 4}, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 4}, test.RandomBytes(32)))
 
 	summary, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -448,39 +441,30 @@ func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 func TestState_AddUnitLog_UnitDoesNotExist(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	s := NewEmptyState()
-	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
-	require.ErrorContains(t, err, "unable to add unit log for unit 00000001")
+	require.ErrorContains(t, s.AddUnitLog(unitID, test.RandomBytes(32)), "unable to add unit log for unit 00000001")
 }
 
-func TestState_PruneLog(t *testing.T) {
+func TestState_PruneState(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 
 	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data UnitData) (UnitData, error) {
 		data.(*TestData).Value = 100
 		return data, nil
 	})))
-	_, err = s.AddUnitLog(unitID, test.RandomBytes(32))
-	require.NoError(t, err)
+	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 2)
-	require.NoError(t, s.PruneLog(unitID))
+	require.NoError(t, s.Prune())
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 1)
 	require.Nil(t, u.logs[0].TxRecordHash)
-}
-
-func TestState_PruneLog_UnitNotFound(t *testing.T) {
-	unitID := []byte{0, 0, 0, 1}
-	s := NewEmptyState()
-	require.ErrorContains(t, s.PruneLog(unitID), "item 00000001 does not exist")
 }
 
 func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
@@ -521,9 +505,7 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 	s, _, _ := prepareState(t)
 	_, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(5510), summaryValue)
-	for _, id := range unitIdentifiers {
-		require.NoError(t, s.PruneLog(id))
-	}
+	require.NoError(t, s.Prune())
 	value, hash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit(createUC(s, value, hash)))
@@ -610,7 +592,7 @@ func TestWriteStateFile(t *testing.T) {
 	require.Equal(t, summaryValue, recoveredSummaryValue)
 	require.Equal(t, summaryHash, recoveredSummaryHash)
 
-	require.NoError(t, s.PruneLog([]byte{0, 0, 0, 0}))
+	require.NoError(t, s.Prune())
 	prunedSummaryValue, prunedSummaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, prunedSummaryValue, recoveredSummaryValue)
@@ -646,7 +628,7 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	txrHash := test.RandomBytes(32)
 
 	for _, id := range unitIdentifiers {
-		addLog(t, s, id, txrHash)
+		require.NoError(t, s.AddUnitLog(id, txrHash))
 	}
 
 	sum, rootHash, err := s.CalculateRoot()
@@ -673,7 +655,7 @@ func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 	))
 	txrHash := test.RandomBytes(32)
 	for _, id := range unitIdentifiers {
-		addLog(t, s, id, txrHash)
+		require.NoError(t, s.AddUnitLog(id, txrHash))
 	}
 	summaryValue, stateRootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -689,11 +671,6 @@ func multiply(t uint64) func(data UnitData) (UnitData, error) {
 		d.I = d.I * t
 		return d, nil
 	}
-}
-
-func addLog(t *testing.T, s *State, id []byte, txrHash []byte) {
-	_, err := s.AddUnitLog(id, txrHash)
-	require.NoError(t, err)
 }
 
 func getUnit(t *testing.T, s *State, id []byte) *Unit {
@@ -712,4 +689,36 @@ func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityC
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}
+}
+
+type pruneUnitData struct {
+	_ struct{} `cbor:",toarray"`
+	I uint64
+}
+
+func (p *pruneUnitData) Hash(hashAlgo crypto.Hash) []byte {
+	hasher := hashAlgo.New()
+	_ = p.Write(hasher)
+	return hasher.Sum(nil)
+}
+
+func (p *pruneUnitData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("unit data encode error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
+}
+
+func (p *pruneUnitData) SummaryValueInput() uint64 {
+	return p.I
+}
+
+func (p *pruneUnitData) Copy() UnitData {
+	return &pruneUnitData{I: p.I}
 }

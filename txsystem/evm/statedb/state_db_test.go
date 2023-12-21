@@ -477,7 +477,7 @@ func initState(t *testing.T) *state.State {
 	db := NewStateDB(s, logger.New(t))
 	db.CreateAccount(initialAccountAddress)
 	db.AddBalance(initialAccountAddress, big.NewInt(200))
-	require.NoError(t, s.PruneLog(initialAccountAddress.Bytes()))
+	require.NoError(t, s.Prune())
 	teststate.CommitWithUC(t, s)
 	require.NoError(t, db.Finalize())
 	return s

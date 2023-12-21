@@ -45,7 +45,7 @@ type (
 func NewEmptyState(opts ...Option) *State {
 	options := loadOptions(opts...)
 
-	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
+	hasher := newStateHasher(options.hashAlgorithm)
 	t := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
 
 	return &State{
@@ -86,7 +86,7 @@ func NewRecoveredState(reader io.Reader, udc UnitDataConstructor, opts ...Option
 		return nil, fmt.Errorf("checksum mismatch")
 	}
 
-	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
+	hasher := newStateHasher(options.hashAlgorithm)
 	t := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
 	state := &State{
 		hashAlgorithm: options.hashAlgorithm,
@@ -178,13 +178,13 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 	return u.Clone(), nil
 }
 
-func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, error) {
+func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	u, err := s.latestSavepoint().Get(id)
 	if err != nil {
-		return 0, fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
+		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
 	unit := u.Clone()
 	logsCount := len(unit.logs)
@@ -201,7 +201,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
 	}
 	unit.logs = append(unit.logs, l)
-	return len(unit.logs), s.latestSavepoint().Update(id, unit)
+	return s.latestSavepoint().Update(id, unit)
 }
 
 // Apply applies given actions to the state. All Action functions are executed together as a single atomic operation. If
@@ -315,27 +315,12 @@ func (s *State) IsCommitted() bool {
 	return s.isCommitted()
 }
 
-func (s *State) PruneLog(id types.UnitID) error {
+func (s *State) Prune() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	u, err := s.latestSavepoint().Get(id)
-	if err != nil {
-		return err
-	}
-	logSize := len(u.logs)
-	if logSize <= 1 {
-		return nil
-	}
-	latestLog := u.logs[logSize-1]
-	unit := u.Clone()
-	unit.logs = []*Log{{
-		TxRecordHash:       nil,
-		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),
-		NewBearer:          bytes.Clone(unit.Bearer()),
-		NewUnitData:        copyData(unit.Data()),
-	}}
-	return s.latestSavepoint().Update(id, unit)
+	sp := s.latestSavepoint()
+	sp.Traverse(newStatePruner(sp))
+	return nil
 }
 
 // Serialize writes the current committed state to the given writer.
@@ -363,7 +348,7 @@ func (s *State) Serialize(writer io.Writer, header *StateFileHeader, committed b
 	}
 
 	// Write node records
-	ss := NewStateSerializer(encoder)
+	ss := newStateSerializer(encoder)
 	if tree.Traverse(ss); ss.err != nil {
 		return fmt.Errorf("unable to write node records: %w", ss.err)
 	}

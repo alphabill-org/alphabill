@@ -18,6 +18,9 @@ func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error)
 	if nodeCnt < 1 {
 		return nil, fmt.Errorf("root node list is empty")
 	}
+	if upToNodes == 0 {
+		return nil, fmt.Errorf("invalid parameter, number of nodes to select is 0")
+	}
 	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
 	if upToNodes >= nodeCnt {
 		return nodes, nil
@@ -50,6 +53,9 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 	nodeCnt := len(nodes)
 	if nodeCnt < 1 {
 		return nil, fmt.Errorf("root node list is empty")
+	}
+	if upToNodes == 0 {
+		return nil, fmt.Errorf("invalid parameter, number of nodes to select is 0")
 	}
 	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
 	if upToNodes >= nodeCnt {

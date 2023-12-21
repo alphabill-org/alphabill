@@ -34,7 +34,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 	// only required fields)
 
 	// NOP tracer can be shared between tests (most fail within method so no point tracing?)
-	observe := testobservability.NOPMetrics()
+	observe := testobservability.NOPObservability()
 	tracer := observe.Tracer("")
 
 	t.Run("invalid input msg type", func(t *testing.T) {

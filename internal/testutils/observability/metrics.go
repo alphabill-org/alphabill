@@ -33,7 +33,7 @@ import (
 NOP creates observability implementation where everything is no-op.
 Use it for tests for which it absolutely doesn't make sense to create any logs, traces or metrics.
 */
-func NOPMetrics() *Observability {
+func NOPObservability() *Observability {
 	return &Observability{
 		mp:   noop.NewMeterProvider(),
 		tp:   tnop.NewTracerProvider(),

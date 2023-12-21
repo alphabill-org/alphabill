@@ -7,8 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
@@ -19,9 +18,9 @@ import (
 )
 
 func TestAPI_TransactionCount_OK(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
 	tree := abstate.NewEmptyState()
-	stateDB := statedb.NewStateDB(tree, log)
+	stateDB := statedb.NewStateDB(tree, observe.Logger())
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
@@ -35,13 +34,13 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(10),
 		blockGasLimit:    10000,
-		log:              log,
+		log:              observe.Logger(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", address.Bytes()), nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), log, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
 		_     struct{} `cbor:",toarray"`
@@ -62,6 +61,6 @@ func TestAPI_TransactionCount_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", test.RandomBytes(20)), nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 }

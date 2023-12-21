@@ -33,7 +33,7 @@ func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
 
 func Test_newLibP2PNetwork(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		net, err := newLibP2PNetwork(createPeer(t), 10, observability.NOPMetrics())
+		net, err := newLibP2PNetwork(createPeer(t), 10, observability.NOPObservability())
 		require.NoError(t, err)
 		require.NotNil(t, net.self)
 		require.Equal(t, cap(net.ReceivedChannel()), 10)
@@ -41,7 +41,7 @@ func Test_newLibP2PNetwork(t *testing.T) {
 	})
 
 	t.Run("peer is nil", func(t *testing.T) {
-		net, err := newLibP2PNetwork(nil, 10, observability.NOPMetrics())
+		net, err := newLibP2PNetwork(nil, 10, observability.NOPObservability())
 		require.EqualError(t, err, `peer is nil`)
 		require.Nil(t, net)
 	})
@@ -315,7 +315,7 @@ func Test_LibP2PNetwork_registerSendProtocols(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
-	obs := observability.NOPMetrics()
+	obs := observability.NOPObservability()
 
 	t.Run("valid", func(t *testing.T) {
 		nw, err := newLibP2PNetwork(peer, 1, obs)
@@ -359,7 +359,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
-	obs := observability.NOPMetrics()
+	obs := observability.NOPObservability()
 
 	t.Run("valid", func(t *testing.T) {
 		nw, err := newLibP2PNetwork(peer, 1, obs)
@@ -446,7 +446,7 @@ func Test_LibP2PNetwork_registerReceiveProtocols(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
-	obs := observability.NOPMetrics()
+	obs := observability.NOPObservability()
 
 	t.Run("valid", func(t *testing.T) {
 		nw, err := newLibP2PNetwork(peer, 1, obs)
@@ -486,7 +486,7 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 			typeFn:     func() any { return &testMsg{} },
 		}
 	}
-	obs := observability.NOPMetrics()
+	obs := observability.NOPObservability()
 
 	t.Run("attempt to register same type multiple times", func(t *testing.T) {
 		nw, err := newLibP2PNetwork(createPeer(t), 1, obs)

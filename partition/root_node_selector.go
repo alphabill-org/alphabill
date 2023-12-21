@@ -25,23 +25,17 @@ func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error)
 	if upToNodes >= nodeCnt {
 		return nodes, nil
 	}
+	rNodes := make(peer.IDSlice, len(nodes))
+	// make a copy of available nodes
+	copy(rNodes, nodes)
+	// randomize
+	rand.Shuffle(len(rNodes), func(i, j int) {
+		rNodes[i], rNodes[j] = rNodes[j], rNodes[i]
+	})
+	// select first n nodes requested
 	chosen := make(peer.IDSlice, 0, upToNodes)
-	// choose the requested number of nodes starting from random index
-	// #nosec G404
-	index := rand.Intn(len(nodes))
-	// choose upToNodes from index
-	idx := index
-	for {
-		chosen = append(chosen, nodes[idx])
-		idx++
-		// wrap around and choose from node 0
-		if idx >= nodeCnt {
-			idx = 0
-		}
-		// break loop if either again at start index or enough validators have been found
-		if idx == index || len(chosen) == upToNodes {
-			break
-		}
+	for i := 0; i < upToNodes; i++ {
+		chosen = append(chosen, rNodes[i])
 	}
 	return chosen, nil
 }

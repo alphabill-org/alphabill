@@ -1471,11 +1471,3 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	require.NoError(t, err)
 	return txs
 }
-
-func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{InputRecord: &types.InputRecord{
-		RoundNumber:  roundNumber,
-		Hash:         s.Root(),
-		SummaryValue: s.Summary(),
-	}}
-}

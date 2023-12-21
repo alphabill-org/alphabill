@@ -385,15 +385,13 @@ func (n *Node) getCurrentRound() uint64 {
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "Sending handshake to root chain")
 	// select two random root nodes
-	nodes := min(len(n.rootNodes), defaultNofRootNodes)
-	rootIDs := make(peer.IDSlice, nodes)
-	idxs := randomIndex(len(rootIDs), len(n.rootNodes))
-	i := 0
-	for idx := range idxs {
-		rootIDs[i] = n.rootNodes[idx]
-		i++
+	rootIDs, err := randomNodeSelector(n.rootNodes, defaultHandshakeNodes)
+	// error should only happen in case the root nodes are not initialized
+	if err != nil {
+		n.log.WarnContext(ctx, "Send handshake error: %w", err)
+		return
 	}
-	if err := n.network.Send(ctx,
+	if err = n.network.Send(ctx,
 		handshake.Handshake{
 			SystemIdentifier: n.configuration.GetSystemIdentifier(),
 			NodeIdentifier:   n.peer.ID().String(),

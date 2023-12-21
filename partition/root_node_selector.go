@@ -10,18 +10,36 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+const defaultHandshakeNodes = 3
 const defaultNofRootNodes = 2
 
-func randomIndex(size int, maxValue int) map[int]struct{} {
-	result := make(map[int]struct{})
-	for len(result) < size {
-		idx := rand.Intn(maxValue)
-		_, exists := result[idx]
-		if !exists {
-			result[idx] = struct{}{}
+func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {
+	rootNodes := len(nodes)
+	if rootNodes < 1 {
+		return nil, fmt.Errorf("root node list is empty")
+	}
+	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
+	if upToNodes >= rootNodes {
+		return nodes, nil
+	}
+	chosen := make(peer.IDSlice, 0, upToNodes)
+	// choose the requested number of nodes starting from random index
+	index := rand.Intn(len(nodes))
+	// choose upToNodes from index
+	idx := index
+	for {
+		chosen = append(chosen, nodes[idx])
+		idx++
+		// wrap around and choose from node 0
+		if idx >= rootNodes {
+			idx = 0
+		}
+		// break loop if either again at start index or enough validators have been found
+		if idx == index || len(chosen) == upToNodes {
+			break
 		}
 	}
-	return result
+	return chosen, nil
 }
 
 func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {

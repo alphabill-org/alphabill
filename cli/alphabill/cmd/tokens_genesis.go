@@ -58,13 +58,13 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(utHomePath)
 	if util.FileExists(nodeGenesisFile) {
-		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis file %q already exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
 	}
 	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(utHomePath)
 	if util.FileExists(nodeGenesisStateFile) {
-		return fmt.Errorf("node genesis state %s exists", nodeGenesisStateFile)
+		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)

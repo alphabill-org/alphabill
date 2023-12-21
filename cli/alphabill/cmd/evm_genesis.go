@@ -82,7 +82,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(homePath)
 	if util.FileExists(nodeGenesisFile) {
-		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis file %q already exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
 	}

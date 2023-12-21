@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
-	obs := observability.NOPMetrics()
-	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, obs, logger.New(t))
+	obs := observability.Default(t)
+	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, obs)
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
@@ -25,7 +24,7 @@ func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 }
 
 func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
-	net, err := NewLibP2PRootChainNetwork(createPeer(t), 1000, time.Second, logger.New(t))
+	net, err := NewLibP2PRootChainNetwork(createPeer(t), 1000, time.Second, observability.Default(t))
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
@@ -34,7 +33,7 @@ func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
 
 func Test_newLibP2PNetwork(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		net, err := newLibP2PNetwork(createPeer(t), 10, logger.NOP())
+		net, err := newLibP2PNetwork(createPeer(t), 10, observability.NOPMetrics())
 		require.NoError(t, err)
 		require.NotNil(t, net.self)
 		require.Equal(t, cap(net.ReceivedChannel()), 10)
@@ -42,7 +41,7 @@ func Test_newLibP2PNetwork(t *testing.T) {
 	})
 
 	t.Run("peer is nil", func(t *testing.T) {
-		net, err := newLibP2PNetwork(nil, 10, logger.NOP())
+		net, err := newLibP2PNetwork(nil, 10, observability.NOPMetrics())
 		require.EqualError(t, err, `peer is nil`)
 		require.Nil(t, net)
 	})
@@ -57,14 +56,15 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 
 	t.Run("no receiver provided", func(t *testing.T) {
 		t.Skip("seems that codebase currently depends on not-error behavior!")
-		net, err := newLibP2PNetwork(createPeer(t), 1, logger.New(t))
+		net, err := newLibP2PNetwork(createPeer(t), 1, observability.Default(t))
 		require.NoError(t, err)
 
 		err = net.Send(context.Background(), testMsg{})
 		require.EqualError(t, err, `at least one receiver ID must be provided`)
 	})
+
 	t.Run("no receiver provided is not error", func(t *testing.T) {
-		net, err := newLibP2PNetwork(createPeer(t), 1, logger.New(t))
+		net, err := newLibP2PNetwork(createPeer(t), 1, observability.Default(t))
 		require.NoError(t, err)
 		// seems wrong but current codebase depends on this behavior?
 		require.NoError(t, net.Send(context.Background(), testMsg{}))
@@ -72,7 +72,7 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 
 	t.Run("unknown message type", func(t *testing.T) {
 		peer := createPeer(t)
-		net, err := newLibP2PNetwork(peer, 1, logger.New(t))
+		net, err := newLibP2PNetwork(peer, 1, observability.Default(t))
 		require.NoError(t, err)
 
 		var msg = struct{ foo int }{}
@@ -85,7 +85,7 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 
 	t.Run("failure to serialize message", func(t *testing.T) {
 		peer := createPeer(t)
-		net, err := newLibP2PNetwork(peer, 1, logger.New(t))
+		net, err := newLibP2PNetwork(peer, 1, observability.Default(t))
 		require.NoError(t, err)
 		require.NoError(t, net.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: noCBOR{}, timeout: 100 * time.Millisecond}))
 
@@ -96,7 +96,7 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 
 	t.Run("success, message to self", func(t *testing.T) {
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, logger.New(t))
+		nw1, err := newLibP2PNetwork(peer1, 1, observability.Default(t))
 		require.NoError(t, err)
 
 		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testMsg{}, timeout: 100 * time.Millisecond}))
@@ -115,13 +115,13 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 	})
 
 	t.Run("success, message to other peer", func(t *testing.T) {
-		log := logger.New(t)
+		obs := observability.Default(t)
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, log)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		nw2, err := newLibP2PNetwork(peer2, 1, log)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 		// need to init peerstore manually, otherwise peers can't dial each other
 		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
@@ -141,18 +141,18 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 	})
 
 	t.Run("success, message to two peers", func(t *testing.T) {
-		log := logger.New(t)
+		obs := observability.Default(t)
 		// create peer for sender and two receivers
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, log)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		nw2, err := newLibP2PNetwork(peer2, 1, log)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 
 		peer3 := createPeer(t)
-		nw3, err := newLibP2PNetwork(peer3, 1, log)
+		nw3, err := newLibP2PNetwork(peer3, 1, obs)
 		require.NoError(t, err)
 
 		// need to init peerstores manually, otherwise peers can't dial each other
@@ -186,7 +186,7 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 	t.Run("unknown protocol", func(t *testing.T) {
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, logger.New(t))
+		nw1, err := newLibP2PNetwork(peer1, 1, observability.Default(t))
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
@@ -209,7 +209,7 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 
 	t.Run("unknown peer", func(t *testing.T) {
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, logger.New(t))
+		nw1, err := newLibP2PNetwork(peer1, 1, observability.Default(t))
 		require.NoError(t, err)
 		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testMsg{}, timeout: 100 * time.Millisecond}))
 
@@ -227,7 +227,7 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 
 	t.Run("connection refused", func(t *testing.T) {
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, logger.New(t))
+		nw1, err := newLibP2PNetwork(peer1, 1, observability.Default(t))
 		require.NoError(t, err)
 		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testMsg{}, timeout: 100 * time.Millisecond}))
 
@@ -246,14 +246,14 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		log := logger.New(t)
+		obs := observability.Default(t)
 
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, log)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		nw2, err := newLibP2PNetwork(peer2, 1, log)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 		// need to init peerstores manually, otherwise peers can't dial each other
 		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
@@ -269,14 +269,14 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		log := logger.New(t)
+		obs := observability.Default(t)
 
 		peer1 := createPeer(t)
-		nw1, err := newLibP2PNetwork(peer1, 1, log)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		nw2, err := newLibP2PNetwork(peer2, 1, log)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 		// need to init peerstores manually, otherwise peers can't dial each other
 		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
@@ -315,15 +315,16 @@ func Test_LibP2PNetwork_registerSendProtocols(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
+	obs := observability.NOPMetrics()
 
 	t.Run("valid", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 		require.NoError(t, nw.registerSendProtocols([]sendProtocolDescription{validSendProtocolDescription()}), `expected validSendProtocolDescription to return valid data`)
 	})
 
 	t.Run("empty input", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		require.EqualError(t, nw.registerSendProtocols(nil), `at least one protocol description must be given`)
@@ -331,7 +332,7 @@ func Test_LibP2PNetwork_registerSendProtocols(t *testing.T) {
 	})
 
 	t.Run("invalid input", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -358,15 +359,16 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
+	obs := observability.NOPMetrics()
 
 	t.Run("valid", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 		require.NoError(t, nw.registerSendProtocol(validSendProtocolDescription()), `expected validSendProtocolDescription to return valid data`)
 	})
 
 	t.Run("protocol ID unassigned", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -376,7 +378,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 	})
 
 	t.Run("message data type unassigned", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -386,7 +388,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 	})
 
 	t.Run("message data type is not struct", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -396,7 +398,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 	})
 
 	t.Run("message data type is pointer to struct", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -406,7 +408,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 	})
 
 	t.Run("attempt to register same data type twice", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -417,7 +419,7 @@ func Test_LibP2PNetwork_registerSendProtocol(t *testing.T) {
 	})
 
 	t.Run("negative timeout", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validSendProtocolDescription()
@@ -444,15 +446,16 @@ func Test_LibP2PNetwork_registerReceiveProtocols(t *testing.T) {
 
 	// we can reuse the peer for every subtest
 	peer := createPeer(t)
+	obs := observability.NOPMetrics()
 
 	t.Run("valid", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 		require.NoError(t, nw.registerReceiveProtocols([]receiveProtocolDescription{validReceiveProtocolDescription()}), `expected validReceiveProtocolDescription to return valid data`)
 	})
 
 	t.Run("empty input", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		require.EqualError(t, nw.registerReceiveProtocols(nil), `at least one protocol description must be given`)
@@ -460,7 +463,7 @@ func Test_LibP2PNetwork_registerReceiveProtocols(t *testing.T) {
 	})
 
 	t.Run("invalid input", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(peer, 1, nil)
+		nw, err := newLibP2PNetwork(peer, 1, obs)
 		require.NoError(t, err)
 
 		data := validReceiveProtocolDescription()
@@ -483,9 +486,10 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 			typeFn:     func() any { return &testMsg{} },
 		}
 	}
+	obs := observability.NOPMetrics()
 
 	t.Run("attempt to register same type multiple times", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(createPeer(t), 1, nil)
+		nw, err := newLibP2PNetwork(createPeer(t), 1, obs)
 		require.NoError(t, err)
 
 		data := validReceiveProtocolDescription()
@@ -496,7 +500,7 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 	})
 
 	t.Run("protocol ID unassigned", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(createPeer(t), 1, nil)
+		nw, err := newLibP2PNetwork(createPeer(t), 1, obs)
 		require.NoError(t, err)
 
 		data := validReceiveProtocolDescription()
@@ -506,7 +510,7 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 	})
 
 	t.Run("constructor func unassigned", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(createPeer(t), 1, nil)
+		nw, err := newLibP2PNetwork(createPeer(t), 1, obs)
 		require.NoError(t, err)
 
 		data := validReceiveProtocolDescription()
@@ -516,7 +520,7 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 	})
 
 	t.Run("constructor returns invalid type", func(t *testing.T) {
-		nw, err := newLibP2PNetwork(createPeer(t), 1, nil)
+		nw, err := newLibP2PNetwork(createPeer(t), 1, obs)
 		require.NoError(t, err)
 		data := validReceiveProtocolDescription()
 

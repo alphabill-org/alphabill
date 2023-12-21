@@ -13,6 +13,8 @@ import (
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -40,6 +42,7 @@ type (
 	Observability interface {
 		Tracer(name string, options ...trace.TracerOption) trace.Tracer
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Logger() *slog.Logger
 	}
 )
 
@@ -52,6 +55,7 @@ type LibP2PNetwork struct {
 	self          *Peer
 	sendProtocols map[reflect.Type]*sendProtocolData
 	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
+	tracer        trace.Tracer
 	log           *slog.Logger
 }
 
@@ -63,7 +67,7 @@ In case of slow consumer up to "capacity" messages are buffered, after that mess
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func newLibP2PNetwork(self *Peer, capacity uint, log *slog.Logger) (*LibP2PNetwork, error) {
+func newLibP2PNetwork(self *Peer, capacity uint, obs Observability) (*LibP2PNetwork, error) {
 	if self == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -72,7 +76,8 @@ func newLibP2PNetwork(self *Peer, capacity uint, log *slog.Logger) (*LibP2PNetwo
 		self:          self,
 		sendProtocols: make(map[reflect.Type]*sendProtocolData),
 		receivedMsgs:  make(chan any, capacity),
-		log:           log,
+		tracer:        obs.Tracer("LibP2PNetwork"),
+		log:           obs.Logger(),
 	}
 	return n, nil
 }
@@ -100,6 +105,9 @@ func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID)
 }
 
 func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, msg any, receivers []peer.ID) error {
+	ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send")
+	defer span.End()
+
 	data, err := serializeMsg(msg)
 	if err != nil {
 		return fmt.Errorf("serializing message: %w", err)
@@ -109,6 +117,8 @@ func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, ms
 	// sending each message in a separate goroutine (or if there is single receiver then do
 	// it in "sync mode"?)
 	go func() {
+		ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send.func", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(ctx)), trace.WithAttributes(attribute.String("protocol", protocol.protocolID)))
+		defer span.End()
 		for _, receiver := range receivers {
 			// loop-back for self messages as libp2p would otherwise error:
 			// open stream error: failed to dial: dial to self attempted
@@ -126,11 +136,20 @@ func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, ms
 	return nil
 }
 
-func (p *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID string, timeout time.Duration, receiverID peer.ID) (rErr error) {
+func (n *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID string, timeout time.Duration, receiverID peer.ID) (rErr error) {
+	ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.sendMsg", trace.WithAttributes(attribute.Stringer("receiver", receiverID)))
+	defer func() {
+		if rErr != nil {
+			span.RecordError(rErr)
+			span.SetStatus(codes.Error, rErr.Error())
+		}
+		span.End()
+	}()
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	s, err := p.self.CreateStream(ctx, receiverID, protocolID)
+	s, err := n.self.CreateStream(ctx, receiverID, protocolID)
 	if err != nil {
 		return fmt.Errorf("open p2p stream: %w", err)
 	}

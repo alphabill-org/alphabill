@@ -326,7 +326,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
 	subscribed := rootValidator.subscription.Get(partitionID)
-	require.Len(t, subscribed, 0)
+	require.Empty(t, subscribed)
 	// Issue a block certification request -> subscribes
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -338,7 +338,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	subscribed = rootValidator.subscription.Get(partitionID)
-	require.Len(t, subscribed, 1)
+	require.Contains(t, subscribed, partitionNodes[0].PeerConf.ID.String())
 
 	// set network in error state
 	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
@@ -351,11 +351,10 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	}
 	rootValidator.onCertificationResult(ctx, uc)
 	subscribed = rootValidator.subscription.Get(partitionID)
-	require.Len(t, subscribed, 1)
+	require.Contains(t, subscribed, partitionNodes[0].PeerConf.ID.String())
 	rootValidator.onCertificationResult(ctx, uc)
-	// two send errors, but node is still subscribed
-	subscribed = rootValidator.subscription.Get(partitionID)
-	require.Len(t, subscribed, 0)
+	// subscription is cleared, node got two responses and is required to issue a block certification request
+	require.Empty(t, rootValidator.subscription.Get(partitionID))
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *testing.T) {

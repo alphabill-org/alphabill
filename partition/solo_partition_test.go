@@ -97,7 +97,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 
-	txSystem.Commit(partitionGenesis[0].Certificate)
+	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
 
 	// root state
 	var certs = make(map[types.SystemID32]*types.UnicityCertificate)

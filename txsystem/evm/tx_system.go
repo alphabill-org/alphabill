@@ -110,8 +110,7 @@ func (m *TxSystem) BeginBlock(blockNr uint64) error {
 }
 
 func (m *TxSystem) pruneState(blockNr uint64) error {
-	m.state.Prune()
-	return nil
+	return m.state.Prune()
 }
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {

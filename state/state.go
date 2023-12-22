@@ -319,8 +319,9 @@ func (s *State) Prune() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
-	sp.Traverse(newStatePruner(sp))
-	return nil
+	pruner := newStatePruner(sp)
+	sp.Traverse(pruner)
+	return pruner.Err()
 }
 
 // Serialize writes the current committed state to the given writer.

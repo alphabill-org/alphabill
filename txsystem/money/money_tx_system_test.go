@@ -597,7 +597,7 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 	require.NotEqualValues(t, dustCollectorPredicate, unit.Bearer())
 }
 
-// Test Transfer->Add->Lock->Close->Reclaim sequence OK
+// Test Transfer->Add->UpdateLock->Close->Reclaim sequence OK
 func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	txFee := fc.FixedFee(1)()

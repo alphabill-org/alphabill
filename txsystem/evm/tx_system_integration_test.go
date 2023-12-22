@@ -10,8 +10,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/evm/unit"
+	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -46,15 +51,31 @@ const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t
 
 var systemIdentifier = []byte{0, 0, 4, 2}
 
+func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {
+	s := state.NewEmptyState()
+	require.NoError(t, s.Apply(
+		fcunit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), unit.NewEvmFcr(oneAlpha, make([]byte, 32), 1000)),
+	))
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	return s
+}
+
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
-	from := test.RandomBytes(20)
+	from := common.BytesToAddress(test.RandomBytes(20))
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+		system, err := NewEVMTxSystem(
+			systemIdentifier,
+			logger.New(t),
+			WithTrustBase(trustBase),
+			WithState(newStateWithFeeCredit(t, unit.NewFeeCreditRecordID(nil, from.Bytes()))),
+			WithBlockDB(memorydb.New()),
+		) // 1 ETH
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
-
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
 	require.NoError(t, network.Start(t))
@@ -79,7 +100,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
 	// call contract
-	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
+	contractAddr := evmcrypto.CreateAddress(from, 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 
@@ -112,10 +133,17 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 }
 
 func TestEVMPartition_Revert_test(t *testing.T) {
-	from := test.RandomBytes(20)
+	from := common.BytesToAddress(test.RandomBytes(20))
+	_, v := testsig.CreateSignerAndVerifier(t)
+	rootTrust := map[string]crypto.Verifier{"1": v}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+	system, err := NewEVMTxSystem(
+		systemIdentifier,
+		logger.New(t),
+		WithTrustBase(rootTrust),
+		WithState(newStateWithFeeCredit(t, unit.NewEvmAccountIDFromAddress(from))),
+		WithBlockDB(memorydb.New())) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -135,7 +163,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	var details ProcessingDetails
 	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
-	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
+	contractAddr := evmcrypto.CreateAddress(from, 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 	// call contract - increment
@@ -189,9 +217,9 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
 }
 
-func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {
+func createTransferTx(t *testing.T, from common.Address, to []byte) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
-		From:  from,
+		From:  from.Bytes(),
 		To:    to,
 		Value: big.NewInt(1000),
 		Gas:   params.TxGas,
@@ -201,19 +229,23 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
-			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
-			ClientMetadata: &types.ClientMetadata{Timeout: 100},
-			Attributes:     attrBytes,
+			Type:     PayloadTypeEVMCall,
+			SystemID: systemIdentifier,
+			UnitID:   hash.Sum256(test.RandomBytes(32)),
+			ClientMetadata: &types.ClientMetadata{
+				FeeCreditRecordID: unit.NewEvmAccountIDFromAddress(from),
+				Timeout:           100,
+				MaxTransactionFee: 2,
+			},
+			Attributes: attrBytes,
 		},
 		OwnerProof: nil,
 	}
 }
 
-func createCallContractTx(from []byte, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
+func createCallContractTx(from, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
-		From:  from,
+		From:  from.Bytes(),
 		To:    addr.Bytes(),
 		Data:  methodID,
 		Value: big.NewInt(0),
@@ -224,19 +256,23 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
-			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
-			ClientMetadata: &types.ClientMetadata{Timeout: 100},
-			Attributes:     attrBytes,
+			Type:     PayloadTypeEVMCall,
+			SystemID: systemIdentifier,
+			UnitID:   hash.Sum256(test.RandomBytes(32)),
+			ClientMetadata: &types.ClientMetadata{
+				FeeCreditRecordID: unit.NewEvmAccountIDFromAddress(from),
+				Timeout:           100,
+				MaxTransactionFee: 2,
+			},
+			Attributes: attrBytes,
 		},
 		OwnerProof: nil,
 	}
 }
 
-func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
+func createDeployContractTx(t *testing.T, from common.Address) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
-		From:  from,
+		From:  from.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
 		Gas:   1000000,
@@ -246,11 +282,15 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
-			SystemID:       systemIdentifier,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
-			ClientMetadata: &types.ClientMetadata{Timeout: 100},
-			Attributes:     attrBytes,
+			Type:     PayloadTypeEVMCall,
+			SystemID: systemIdentifier,
+			UnitID:   hash.Sum256(test.RandomBytes(32)),
+			ClientMetadata: &types.ClientMetadata{
+				FeeCreditRecordID: unit.NewEvmAccountIDFromAddress(from),
+				Timeout:           100,
+				MaxTransactionFee: 2,
+			},
+			Attributes: attrBytes,
 		},
 		OwnerProof: nil,
 	}

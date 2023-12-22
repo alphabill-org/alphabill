@@ -5,9 +5,21 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 )
 
 type Option func(f *FeeCredit)
+
+type NewFeeCreditRecordFn func(v uint64, backlink []byte, timeout uint64) unit.GenericFeeCreditRecord
+
+func DefaultNewFeeCreditRecord(v uint64, backlink []byte, timeout uint64) unit.GenericFeeCreditRecord {
+	return &unit.FeeCreditRecord{
+		Balance:  v,
+		Backlink: backlink,
+		Timeout:  timeout,
+		Locked:   0,
+	}
+}
 
 func WithSystemIdentifier(systemID []byte) Option {
 	return func(f *FeeCredit) {
@@ -48,5 +60,11 @@ func WithFeeCalculator(feeCalculator FeeCalculator) Option {
 func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
 	return func(f *FeeCredit) {
 		f.feeCreditRecordUnitType = feeCreditRecordUnitType
+	}
+}
+
+func WithFeeCreditRecordFn(newFCRFun NewFeeCreditRecordFn) Option {
+	return func(f *FeeCredit) {
+		f.newFeeCreditRecordFn = newFCRFun
 	}
 }

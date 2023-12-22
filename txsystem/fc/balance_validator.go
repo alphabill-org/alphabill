@@ -26,7 +26,7 @@ func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem
 			if unit == nil {
 				return errors.New("fee credit record unit is nil")
 			}
-			fcr, ok := unit.Data().(*fcunit.FeeCreditRecord)
+			fcr, ok := unit.Data().(fcunit.GenericFeeCreditRecord)
 			if !ok {
 				return errors.New("invalid fee credit record type")
 			}
@@ -47,8 +47,8 @@ func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem
 			}
 
 			// 8. the maximum permitted transaction cost does not exceed the fee credit balance
-			if fcr.Balance < ctx.Tx.Payload.ClientMetadata.MaxTransactionFee {
-				return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, ctx.Tx.Payload.ClientMetadata.MaxTransactionFee)
+			if fcr.GetBalance() < ctx.Tx.Payload.ClientMetadata.MaxTransactionFee {
+				return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.GetBalance(), ctx.Tx.Payload.ClientMetadata.MaxTransactionFee)
 			}
 		}
 

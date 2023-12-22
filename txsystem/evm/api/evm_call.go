@@ -11,6 +11,8 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/txsystem/evm/unit"
+	fc "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -83,13 +85,17 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 	if call.Value == nil {
 		call.Value = new(big.Int)
 	}
+
 	// Set infinite balance to the fake caller account.
-	u, _ := clonedState.GetUnit(call.From, false)
+	u, _ := clonedState.GetUnit(unit.NewEvmAccountIDFromAddress(call.FromAddr()), false)
 	var err error
 	if u == nil {
-		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), math.MaxBig256, 0, nil))
+		unitID := unit.NewEvmAccountIDFromAddress(call.FromAddr())
+		obj := unit.NewEvmFcr(math.MaxUint64, nil, 0)
+		err = clonedState.Apply(fc.AddCredit(unitID, templates.AlwaysFalseBytes(), obj))
 	} else {
-		err = clonedState.Apply(statedb.SetBalance(call.From, math.MaxBig256))
+		unitID := unit.NewEvmAccountIDFromAddress(call.FromAddr())
+		err = clonedState.Apply(fc.IncrCredit(unitID, math.MaxUint64, 0, nil))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to set fake balance %w", err)

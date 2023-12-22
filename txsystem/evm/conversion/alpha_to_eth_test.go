@@ -1,4 +1,4 @@
-package evm
+package conversion
 
 import (
 	"math/big"
@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+const defaultGasPrice = 210000000
 
 var pubKey = [33]byte{0x03,
 	0x4F, 0x93, 0xA5, 0x2E, 0xE2, 0x16, 0x4C, 0xFC, 0x48, 0xC2, 0x87, 0x62, 0x57, 0xCC, 0xF0, 0x43,
@@ -101,14 +103,14 @@ func Test_getAddressFromPredicateArg(t *testing.T) {
 
 func Test_alphaToWeiAndBack(t *testing.T) {
 	alpha := uint64(1)
-	wei := alphaToWei(alpha)
+	wei := AlphaToWei(alpha)
 	require.EqualValues(t, "10000000000", wei.String())
-	mia := weiToAlpha(wei)
+	mia := WeiToAlpha(wei)
 	require.EqualValues(t, alpha, mia)
 
 	alpha = uint64(99)
-	wei = alphaToWei(alpha)
-	mia = weiToAlpha(wei)
+	wei = AlphaToWei(alpha)
+	mia = WeiToAlpha(wei)
 	require.EqualValues(t, alpha, mia)
 }
 
@@ -139,8 +141,8 @@ func Test_alphaToWei(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := alphaToWei(tt.args.alpha); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("alphaToWei() = %v, want %v", got, tt.want)
+			if got := AlphaToWei(tt.args.alpha); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("AlphaToWei() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -202,14 +204,14 @@ func Test_weiToAlpha(t *testing.T) {
 		},
 		{
 			name: "default gas price",
-			args: args{wei: new(big.Int).Mul(big.NewInt(DefaultGasPrice), big.NewInt(1000))},
+			args: args{wei: new(big.Int).Mul(big.NewInt(defaultGasPrice), big.NewInt(1000))},
 			want: 21,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := weiToAlpha(tt.args.wei); got != tt.want {
-				t.Errorf("weiToAlpha() = %v, want %v", got, tt.want)
+			if got := WeiToAlpha(tt.args.wei); got != tt.want {
+				t.Errorf("WeiToAlpha() = %v, want %v", got, tt.want)
 			}
 		})
 	}

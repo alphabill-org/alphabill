@@ -26,13 +26,11 @@ func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transaction
 		txHash := tx.Hash(f.hashAlgorithm)
 		updateFunc := state.UpdateUnitData(unitID,
 			func(data state.UnitData) (state.UnitData, error) {
-				fcr, ok := data.(*fcunit.FeeCreditRecord)
+				fcr, ok := data.(fcunit.GenericFeeCreditRecord)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fee credit record", unitID)
 				}
-				fcr.Balance -= fee
-				fcr.Backlink = txHash
-				fcr.Locked = attr.LockStatus
+				fcr.UpdateLock(attr.LockStatus, fee, txHash)
 				return fcr, nil
 			})
 		if err := f.state.Apply(updateFunc); err != nil {

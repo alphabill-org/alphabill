@@ -1,4 +1,4 @@
-package statedb
+package unit
 
 import (
 	"crypto"
@@ -19,17 +19,15 @@ func TestStateObject_Write(t *testing.T) {
 	value2 := common.BigToHash(big.NewInt(4))
 
 	so := &StateObject{
-		Address: common.BytesToAddress(test.RandomBytes(20)),
 		Account: &Account{
 			Balance:  big.NewInt(200),
-			CodeHash: emptyCodeHash,
+			CodeHash: EmptyCodeHash,
 			Nonce:    2,
+			Backlink: test.RandomBytes(32),
+			Timeout:  10,
+			Locked:   1,
 		},
-		Storage: state.Storage{key2: value2, key1: value1},
-		AlphaBill: &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
-			Timeout: 10,
-		},
+		Storage:  state.Storage{key2: value2, key1: value1},
 		Suicided: false,
 	}
 	hasher := crypto.SHA256.New()
@@ -47,18 +45,4 @@ func TestStateObject_Write(t *testing.T) {
 	var soFormSerialized StateObject
 	require.NoError(t, cbor.Unmarshal(res, &soFormSerialized))
 	require.Equal(t, so, &soFormSerialized)
-}
-
-func TestAlphaBillLink_GetTimeout(t *testing.T) {
-	t.Run("nil case", func(t *testing.T) {
-		var abLink *AlphaBillLink = nil
-		require.EqualValues(t, 0, abLink.GetTimeout())
-	})
-	t.Run("timeout set", func(t *testing.T) {
-		abLink := &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
-			Timeout: 10,
-		}
-		require.EqualValues(t, 10, abLink.GetTimeout())
-	})
 }

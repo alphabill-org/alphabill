@@ -32,6 +32,7 @@ type (
 		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
 		feeCreditRecordUnitType []byte
+		newFeeCreditRecordFn    NewFeeCreditRecordFn
 	}
 
 	FeeCalculator func() uint64
@@ -45,8 +46,9 @@ func FixedFee(fee uint64) FeeCalculator {
 
 func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	m := &FeeCredit{
-		hashAlgorithm: crypto.SHA256,
-		feeCalculator: FixedFee(1),
+		hashAlgorithm:        crypto.SHA256,
+		feeCalculator:        FixedFee(1),
+		newFeeCreditRecordFn: DefaultNewFeeCreditRecord,
 	}
 	for _, o := range opts {
 		o(m)

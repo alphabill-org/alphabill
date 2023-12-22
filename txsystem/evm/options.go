@@ -7,6 +7,8 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/fc"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 )
 
 const DefaultBlockGasLimit = 15000000
@@ -20,11 +22,10 @@ type (
 		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
-		initialAccountAddress   []byte
-		initialAccountBalance   *big.Int
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
+		feeCalculator           fc.FeeCalculator
 	}
 
 	Option func(*Options)
@@ -32,12 +33,13 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
+		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
 		state:                   state.NewEmptyState(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		blockGasLimit:           DefaultBlockGasLimit,
 		gasUnitPrice:            big.NewInt(DefaultGasPrice),
+		feeCalculator:           fc.FixedFee(1),
 	}
 }
 
@@ -62,13 +64,6 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 func WithTrustBase(tb map[string]crypto.Verifier) Option {
 	return func(c *Options) {
 		c.trustBase = tb
-	}
-}
-
-func WithInitialAddressAndBalance(address []byte, balance *big.Int) Option {
-	return func(o *Options) {
-		o.initialAccountAddress = address
-		o.initialAccountBalance = balance
 	}
 }
 

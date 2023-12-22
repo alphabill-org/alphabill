@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	abstate "github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/evm/conversion"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
@@ -26,6 +27,7 @@ import (
 )
 
 const oneEth = 1000000000000000000
+const oneAlpha = 100000000
 
 func BenchmarkCallContract(b *testing.B) {
 	log := logger.NOP()
@@ -524,7 +526,7 @@ func Test_ReplayContractCreation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
-	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
+	require.EqualValues(t, initialBalance, new(big.Int).Add(conversion.AlphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
 	// Try to replay
 	_, err = Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
 	require.ErrorContains(t, err, "nonce too low")
@@ -553,7 +555,7 @@ func Test_ReplayCall(t *testing.T) {
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
 	initialBalance := big.NewInt(2 * (53000 * DefaultGasPrice)) // this is the value set as balance in initStateDBWithAccountAndSC
-	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
+	require.EqualValues(t, initialBalance, new(big.Int).Add(conversion.AlphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
 
 	// try to replay
 	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false, log)

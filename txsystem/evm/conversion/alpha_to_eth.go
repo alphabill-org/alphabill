@@ -1,4 +1,4 @@
-package evm
+package conversion
 
 import (
 	"crypto/ecdsa"
@@ -42,14 +42,20 @@ func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
 // 1 ETH = 1 ALPHA, from that ETH/ALPHA = 1 and also 10^18 wei / 10^8 tema
 // That means tema = 10^10 wei and 1 wei = 10^-10 tema
 
-// alphaToWei - converts from alpha to wei, assuming 1:1 exchange
+// AlphaToWei - converts from alpha to wei, assuming 1:1 exchange
 // 1 wei = 1 tema / 10^10
-func alphaToWei(alpha uint64) *big.Int {
+func AlphaToWei(alpha uint64) *big.Int {
 	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
 }
 
-// weiToAlpha - converts from wei to alpha, rounding half up.
+// WeiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
-func weiToAlpha(wei *big.Int) uint64 {
+func WeiToAlpha(wei *big.Int) uint64 {
 	return new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
+}
+
+// WeiToAlphaRoundDown - converts from wei to alpha, rounding down.
+// 1 wei = wei * 10^10 / 10^18
+func WeiToAlphaRoundDown(wei *big.Int) uint64 {
+	return new(big.Int).Div(wei, alpha2Wei).Uint64()
 }

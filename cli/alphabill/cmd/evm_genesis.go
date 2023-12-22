@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
@@ -88,7 +89,10 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return fmt.Errorf("load keys %v failed: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
-	txSystem, err := evm.NewEVMTxSystem(config.SystemIdentifier, config.Base.observe.Logger())
+	txSystem, err := evm.NewEVMTxSystem(
+		config.SystemIdentifier,
+		config.Base.observe.Logger(),
+		evm.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}))
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,8 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/evm/unit"
+	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -42,7 +44,16 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemIdentifier, options, log)
+	feeCreditModule, err := fc.NewFeeCreditModule(
+		fc.WithState(options.state),
+		fc.WithHashAlgorithm(options.hashAlgorithm),
+		fc.WithTrustBase(options.trustBase),
+		fc.WithSystemIdentifier(systemIdentifier),
+		fc.WithMoneySystemIdentifier(systemIdentifier),
+		fc.WithFeeCalculator(options.feeCalculator),
+		fc.WithFeeCreditRecordUnitType(unit.EvmAccountType),
+		fc.WithFeeCreditRecordFn(unit.NewEvmFcr),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
@@ -54,7 +65,7 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
 		executors:           make(map[string]txsystem.TxExecutor),
-		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
+		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), feeCreditModule.GenericTransactionValidator()},
 		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
@@ -62,7 +73,7 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 	for k, executor := range executors {
 		txs.executors[k] = executor
 	}
-	executors = fees.TxExecutors()
+	executors = feeCreditModule.TxExecutors()
 	for k, executor := range executors {
 		txs.executors[k] = executor
 	}

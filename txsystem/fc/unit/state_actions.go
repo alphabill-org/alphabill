@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/predicates"
@@ -10,7 +9,7 @@ import (
 )
 
 // AddCredit adds a new credit record
-func AddCredit(id types.UnitID, owner predicates.PredicateBytes, data *FeeCreditRecord) state.Action {
+func AddCredit(id types.UnitID, owner predicates.PredicateBytes, data GenericFeeCreditRecord) state.Action {
 	return state.AddUnit(id, owner, data)
 }
 
@@ -22,16 +21,12 @@ func DelCredit(id types.UnitID) state.Action {
 // IncrCredit increments the balance of given FeeCreditRecord
 func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecordHash []byte) state.Action {
 	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
-		fcr, ok := data.(*FeeCreditRecord)
+		fcr, ok := data.(GenericFeeCreditRecord)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
-		return &FeeCreditRecord{
-			Balance:  fcr.Balance + value,
-			Backlink: bytes.Clone(transactionRecordHash),
-			Timeout:  max(fcr.Timeout, timeout),
-			Locked:   0,
-		}, nil
+		fcr.AddCredit(value, transactionRecordHash, max(fcr.GetTimeout(), timeout))
+		return fcr, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)
 }
@@ -39,17 +34,13 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecord
 // DecrCredit decrements the balance of given FeeCreditRecord
 func DecrCredit(id types.UnitID, value uint64) state.Action {
 	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
-		fcr, ok := data.(*FeeCreditRecord)
+		fcr, ok := data.(GenericFeeCreditRecord)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
 		// note that only balance field changes in this operation
-		return &FeeCreditRecord{
-			Balance:  fcr.Balance - value,
-			Backlink: fcr.Backlink,
-			Timeout:  fcr.Timeout,
-			Locked:   fcr.Locked,
-		}, nil
+		fcr.DecCredit(value, nil)
+		return fcr, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)
 }

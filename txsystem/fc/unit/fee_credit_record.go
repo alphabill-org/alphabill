@@ -9,6 +9,24 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+const UNLOCKED uint64 = 0
+
+type FeeCreditType interface {
+	// AddCredit - adds v to balance, sets Backlink equal to copy of b, Tiemout to t and lock to 0 (unlocks)
+	AddCredit(v uint64, b []byte, t uint64)
+	DecCredit(v uint64, b []byte)
+	GetBalance() uint64
+	GetTimeout() uint64
+	GetBacklink() []byte
+	UpdateLock(lockStatus uint64, fee uint64, backlink []byte)
+	IsLocked() bool
+}
+
+type GenericFeeCreditRecord interface {
+	FeeCreditType
+	state.UnitData
+}
+
 // FeeCreditRecord state tree unit data of fee credit records.
 // Holds fee credit balance for individual users,
 // not to be confused with fee credit bills which contain aggregate fees for a given partition.
@@ -46,6 +64,28 @@ func (b *FeeCreditRecord) Copy() state.UnitData {
 	}
 }
 
+func (b *FeeCreditRecord) AddCredit(v uint64, backlink []byte, timeout uint64) {
+	b.Balance += v
+	b.Backlink = bytes.Clone(backlink)
+	b.Timeout = timeout
+	b.Locked = UNLOCKED
+}
+
+func (b *FeeCreditRecord) DecCredit(v uint64, backlink []byte) {
+	b.Balance -= v
+	if backlink != nil {
+		b.Backlink = bytes.Clone(backlink)
+	}
+}
+
+func (b *FeeCreditRecord) GetBalance() uint64 {
+	return b.Balance
+}
+
+func (b *FeeCreditRecord) GetTimeout() uint64 {
+	return b.Timeout
+}
+
 func (b *FeeCreditRecord) GetBacklink() []byte {
 	if b == nil {
 		return nil
@@ -53,6 +93,12 @@ func (b *FeeCreditRecord) GetBacklink() []byte {
 	return b.Backlink
 }
 
+func (b *FeeCreditRecord) UpdateLock(lock uint64, fee uint64, backlink []byte) {
+	b.Locked = lock
+	b.Balance -= fee
+	b.Backlink = bytes.Clone(backlink)
+}
+
 func (b *FeeCreditRecord) IsLocked() bool {
-	return b.Locked != 0
+	return b.Locked != UNLOCKED
 }

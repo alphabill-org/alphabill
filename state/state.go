@@ -55,16 +55,16 @@ func NewEmptyState(opts ...Option) *State {
 	}
 }
 
-func NewRecoveredState(reader io.Reader, udc UnitDataConstructor, opts ...Option) (*State, error) {
+func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, error) {
 	options := loadOptions(opts...)
-	if reader == nil {
+	if stateData == nil {
 		return nil, fmt.Errorf("reader is nil")
 	}
 	if udc == nil {
 		return nil, fmt.Errorf("unit data constructor is nil")
 	}
 
-	crc32Reader := NewCRC32Reader(reader, CBORChecksumLength)
+	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
 	var header StateFileHeader

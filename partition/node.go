@@ -326,7 +326,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		luc = bl.UnicityCertificate
 	}
 
-	n.log.Info(fmt.Sprintf("State initialized from persistent store up to round %d", luc.GetRoundNumber()))
+	n.log.InfoContext(ctx, fmt.Sprintf("State initialized from persistent store up to round %d", luc.GetRoundNumber()))
 	n.luc.Store(luc)
 	n.restoreBlockProposal(ctx)
 

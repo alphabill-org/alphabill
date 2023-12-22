@@ -281,7 +281,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	afterCommitValue := dustBillData.V + dcBillData.V
 	require.Equal(t, beforeCommitValue, afterCommitValue)
 
-	err = txSystem.BeginBlock(roundNumber + 1)
+	require.NoError(t, txSystem.BeginBlock(roundNumber + 1))
 	sm, err = txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -298,7 +298,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 
-	err = txSystem.BeginBlock(roundNumber + 2)
+	require.NoError(t, txSystem.BeginBlock(roundNumber + 2))
 	dcBill, dcBillData := getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.V)
 	// Make sure the DC bill logs are pruned

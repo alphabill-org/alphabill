@@ -32,12 +32,7 @@ func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error)
 	rand.Shuffle(len(rNodes), func(i, j int) {
 		rNodes[i], rNodes[j] = rNodes[j], rNodes[i]
 	})
-	// select first n nodes requested
-	chosen := make(peer.IDSlice, 0, upToNodes)
-	for i := 0; i < upToNodes; i++ {
-		chosen = append(chosen, rNodes[i])
-	}
-	return chosen, nil
+	return rNodes[:upToNodes], nil
 }
 
 func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {

@@ -253,7 +253,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 }
 
 func (n *Node) Run(ctx context.Context) error {
-	// subscribe to unicity certificates
+	// query latest UC from root
 	n.sendHandshake(ctx)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -658,8 +658,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() > lucRoundNumber {
 		// either the other node received it faster from root or there must be some issue with root communication?
 		n.log.DebugContext(ctx, fmt.Sprintf("Received newer UC round nr %d via block proposal, LUC round %d", uc.GetRoundNumber(), lucRoundNumber))
-		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
-		n.sendHandshake(ctx)
 		if err = n.handleUnicityCertificate(ctx, uc); err != nil {
 			return fmt.Errorf("block proposal unicity certificate handling failed: %w", err)
 		}
@@ -969,9 +967,10 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived time.Time) {
 	ctx, span := n.tracer.Start(ctx, "node.handleMonitoring", trace.WithNewRoot(), trace.WithAttributes(n.attrRound(), attribute.String("last UC", lastUCReceived.String())))
 	defer span.End()
 
-	// check if we have not heard from root validator for a long time
-	if time.Since(lastUCReceived) > 2*n.configuration.GetT2Timeout() {
-		// subscribe again
+	// check if we have not heard from root validator for T2 timeout + 1 sec
+	// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
+	if time.Since(lastUCReceived) > n.configuration.GetT2Timeout()+time.Second {
+		// query latest UC from root
 		n.sendHandshake(ctx)
 	}
 	// handle ledger replication timeout - no response from node is received

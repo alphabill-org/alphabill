@@ -75,6 +75,7 @@ type (
 		SetBlockExplorer(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
+		SetTxExplorerToBucket(txExplorer *TxExplorer) error
 		GetBill(unitID []byte) (*Bill, error)
 		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		SetBill(bill *Bill, proof *sdk.Proof) error
@@ -178,7 +179,6 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
 }
 
-
 // GetBlockByBlockNumber returns block with given block number.
 func (ex *ExplorerBackend) GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error) {
 	return ex.store.Do().GetBlockByBlockNumber(blockNumber)
@@ -193,6 +193,7 @@ func (ex *ExplorerBackend) GetBlocks(dbStartBlockNumber uint64, count int) (res 
 func (ex *ExplorerBackend) GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error) {
 	return ex.store.Do().GetBlockExplorerByBlockNumber(blockNumber)
 }
+
 // GetBlocks return amount of blocks provided with count
 func (ex *ExplorerBackend) GetBlocksExplorer(dbStartBlockNumber uint64, count int) (res []*BlockExplorer, prevBlockNUmber uint64, err error) {
 	return ex.store.Do().GetBlocksExplorer(dbStartBlockNumber, count)

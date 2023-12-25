@@ -48,8 +48,14 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", roundNumber, lastBlockNumber)
 		}
 		for i, tx := range b.Transactions {
+
 			if err := p.processTx(tx, b, i, dbTx); err != nil {
 				return fmt.Errorf("failed to process transaction: %w", err)
+			}
+
+			err = saveTxExplorerToStorage( dbTx , roundNumber , tx) ;
+			if err != nil {
+				return fmt.Errorf("failed to save txExplorer in ProcessBlock: %w", err)
 			}
 		}
 		err = saveBlockToStorage(dbTx, b)
@@ -345,14 +351,30 @@ func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder,
 	return nil
 }
 
+func saveTxExplorerToStorage(dbTx BillStoreTx, blockNo uint64, tx *types.TransactionRecord) error {
+	if tx == nil {
+		return fmt.Errorf("transaction record is nil")
+	}
+	txExplorer, err := CreateTxExplorer(blockNo, tx)
+
+	if err != nil {
+		return err
+	}
+	err = dbTx.SetTxExplorerToBucket(txExplorer)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func saveBlockToStorage(dbTx BillStoreTx, b *types.Block) error {
 	if b != nil {
 		err := dbTx.SetBlock(b)
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		err2 := dbTx.SetBlockExplorer(b)
-		if err2 != nil{
+		if err2 != nil {
 			return err2
 		}
 	}

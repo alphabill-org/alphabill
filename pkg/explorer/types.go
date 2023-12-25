@@ -22,13 +22,15 @@ type (
 		ProposerID        string // validator
 	}
 	TxExplorer struct {
-		_                	struct{} `cbor:",toarray"`
-		Hash             	[]byte
-		BlockNumber      	uint64
-		Status           	*types.TxStatus
-		TargetUnits      	[]*types.UnitID
-		TransactionOrder 	*types.TransactionOrder
-		Fee              	uint64
+		_                struct{} `cbor:",toarray"`
+		Hash             []byte
+		BlockNumber      uint64
+		Timeout          uint64
+		PayloadType      string	
+		Status           *types.TxStatus
+		TargetUnits      []types.UnitID
+		TransactionOrder *types.TransactionOrder
+		Fee              uint64
 	}
 
 	// TransactionOrder struct {

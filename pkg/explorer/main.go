@@ -26,6 +26,7 @@ type (
 		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error)
 		GetBlocksExplorer(dbStartBlock uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error)
+		GetTxExplorerByTxHash(txHash string) (*TxExplorer, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
@@ -75,7 +76,7 @@ type (
 		SetBlockExplorer(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
-		GetTxExplorerByTxHash(txHash []byte) (*TxExplorer, error)
+		GetTxExplorerByTxHash(txHash string) (*TxExplorer, error)
 		SetTxExplorerToBucket(txExplorer *TxExplorer) error
 		GetBill(unitID []byte) (*Bill, error)
 		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
@@ -195,9 +196,14 @@ func (ex *ExplorerBackend) GetBlockExplorerByBlockNumber(blockNumber uint64) (*B
 	return ex.store.Do().GetBlockExplorerByBlockNumber(blockNumber)
 }
 
-// GetBlocks return amount of blocks provided with count
+// GetBlocksExplorer return amount of blocks provided with count
 func (ex *ExplorerBackend) GetBlocksExplorer(dbStartBlockNumber uint64, count int) (res []*BlockExplorer, prevBlockNUmber uint64, err error) {
 	return ex.store.Do().GetBlocksExplorer(dbStartBlockNumber, count)
+}
+
+// GetBlocks return amount of blocks provided with count
+func (ex *ExplorerBackend) GetTxExplorerByTxHash(txHash string) (res *TxExplorer, err error) {
+	return ex.store.Do().GetTxExplorerByTxHash(txHash)
 }
 
 // GetBill returns most recently seen bill with given unit id.

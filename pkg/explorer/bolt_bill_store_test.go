@@ -2,6 +2,7 @@ package explorer
 
 import (
 	"crypto"
+	"encoding/hex"
 	"path/filepath"
 	"testing"
 
@@ -103,10 +104,11 @@ func TestBillStore_SetTxExplorerToBucket_GetTxExplorerByTxHash(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get TxExplorer By TxHash
-	txExplorerResult, err := bs.Do().GetTxExplorerByTxHash(tx.Hash(crypto.SHA256));
+	hashHex := hex.EncodeToString(tx.Hash(crypto.SHA256))
+	txExplorerResult, err := bs.Do().GetTxExplorerByTxHash(hashHex);
 	require.NoError(t, err)
 	require.EqualValues(t, txExplorerResult.BlockNumber, blockNumber)
-	require.EqualValues(t, txExplorerResult.Hash , tx.Hash(crypto.SHA256))
+	require.EqualValues(t, txExplorerResult.Hash , hashHex)
 	require.EqualValues(t, txExplorerResult.Fee , tx.ServerMetadata.ActualFee)
 }
 func TestBillStore_SetBlockExplorer_GetBlocksExplorerByBlockNumber(t *testing.T) {

@@ -23,7 +23,7 @@ type (
 	}
 	TxExplorer struct {
 		_                struct{} `cbor:",toarray"`
-		Hash             []byte
+		Hash             string
 		BlockNumber      uint64
 		Timeout          uint64
 		PayloadType      string	

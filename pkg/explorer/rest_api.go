@@ -70,6 +70,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/blocks", api.getBlocks).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/blocksExplorer/{blockNumber}", api.getBlockExplorerByBlockNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/blocksExplorer", api.getBlocksExplorer).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/txExplorer/{txHash}", api.getTxExplorerByTxHash).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history", api.getTxHistory).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history/{pubkey}", api.getTxHistoryByKey).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
@@ -192,6 +193,27 @@ func (api *moneyRestAPI) getBlocksExplorer(w http.ResponseWriter, r *http.Reques
 	sdk.SetLinkHeader(r.URL, w, prevBlockNumberStr)
 	api.rw.WriteCborResponse(w, recs)
 }
+
+func (api *moneyRestAPI) getTxExplorerByTxHash(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	txHash, ok := vars["txHash"]
+	if !ok {
+		http.Error(w, "Missing 'txHash' variable in the URL", http.StatusBadRequest)
+		return
+	}
+	txExplorer, err := api.Service.GetTxExplorerByTxHash(txHash)
+	if err != nil {
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load tx with txHash %s : %w", txHash, err))
+		return
+	}
+
+	if txExplorer == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("tx with txHash %x not found", txHash))
+		return
+	}
+	api.rw.WriteResponse(w, txExplorer)
+}
+
 func (api *moneyRestAPI) getTxHistory(w http.ResponseWriter, r *http.Request) {
 
 	qp := r.URL.Query()

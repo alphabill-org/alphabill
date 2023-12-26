@@ -3,6 +3,7 @@ package explorer
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -59,6 +60,35 @@ func Test_getBlockByBlockNumber(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, blockNumber, res.UnicityCertificate.InputRecord.RoundNumber)
+}
+func Test_getTxExplorerByTxHash(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	bs := createTestBillStore(t)
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+
+	service := &ExplorerBackend{store: bs, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	port, _ := startServer(t, service)
+
+	// Set TxExplorer To Bucket
+	txExplorer ,err := CreateTxExplorer(blockNumber , tx);
+	require.NoError(t, err);
+	err = bs.Do().SetTxExplorerToBucket(txExplorer)
+	require.NoError(t, err)
+
+	// Get
+	res := &TxExplorer{}
+	hashHex := hex.EncodeToString(tx.Hash(crypto.SHA256))
+
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/txExplorer/%s", port, hashHex), res)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.EqualValues(t, res.BlockNumber, blockNumber)
+	require.EqualValues(t, res.Hash , hashHex)
+	require.EqualValues(t, res.Fee , tx.ServerMetadata.ActualFee)
 }
 
 func Test_txHistory(t *testing.T) {
@@ -387,6 +417,10 @@ func (m *explorerBackendServiceMock) GetBlockExplorerByBlockNumber(dbStartBlockN
 func (m *explorerBackendServiceMock) GetBlocksExplorer(dbStartBlockNumber uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error) {
 	//TODO
 	return nil, 0, errors.New("not implemented")
+}
+func (m *explorerBackendServiceMock) GetTxExplorerByTxHash(txHash string) (res *TxExplorer, err error) {
+	//TODO
+	return nil, errors.New("not implemented")
 }
 
 func (m *explorerBackendServiceMock) GetRoundNumber(ctx context.Context) (uint64, error) {

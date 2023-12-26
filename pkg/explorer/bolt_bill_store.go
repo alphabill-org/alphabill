@@ -88,7 +88,28 @@ func (s *boltBillStore) WithTransaction(fn func(txc BillStoreTx) error) error {
 func (s *boltBillStore) Do() BillStoreTx {
 	return &boltBillStoreTx{db: s, tx: nil}
 }
+func (s *boltBillStoreTx) GetLastBlockNumber() (uint64, error) {
+	lastBlockNo := uint64 (0);
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		b := tx.Bucket(blockExplorerBucket)
 
+		if b == nil {
+            return fmt.Errorf("bucket %s not found", blockExplorerBucket)
+        }
+
+        c := b.Cursor()
+        key, _ := c.Last()
+        if key == nil {
+            return fmt.Errorf("no entries in the bucket  %s" , blockExplorerBucket)
+        }
+		lastBlockNo = util.BytesToUint64(key);
+        return nil
+	},false)
+	if err != nil {
+		return 0, err
+	}
+	return lastBlockNo, nil
+}
 func (s *boltBillStoreTx) GetBill(unitID []byte) (*Bill, error) {
 	var unit *Bill
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {

@@ -87,6 +87,46 @@ func Test_getBlockExplorerByBlockNumber(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, blockNumber, res.RoundNumber)
 }
+func Test_getBlocksExplorer(t *testing.T) {
+	bs := createTestBillStore(t)
+	blockNumber1 := test.RandomUint64()
+	blockNumber2 := blockNumber1 + 1
+	blockNumber3 := blockNumber2 + 1
+
+	tx1 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx2 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 50, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx3 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1111, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	b1 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx1} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber1} , UnicitySeal: &types.UnicitySeal{}}}
+	b2 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx2} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber2} , UnicitySeal: &types.UnicitySeal{}}}
+	b3 := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx3} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber3} , UnicitySeal: &types.UnicitySeal{}}}
+
+	// set blocks
+	err := bs.Do().SetBlockExplorer(b1)
+	require.NoError(t, err)
+	err = bs.Do().SetBlockExplorer(b2)
+	require.NoError(t, err)
+	err = bs.Do().SetBlockExplorer(b3)
+	require.NoError(t, err)
+
+	service := &ExplorerBackend{store: bs, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	port, _ := startServer(t, service)
+	//set
+	res := &[]BlockExplorer{}
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExplorer/", port), res)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	///require.Equal(t, res. , blockNumber3)
+}
 func Test_getTxExplorerByTxHash(t *testing.T) {
 	blockNumber := test.RandomUint64()
 	bs := createTestBillStore(t)
@@ -425,6 +465,10 @@ type explorerBackendServiceMock struct {
 	getTxProof               func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	getTxHistoryRecords      func(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	getTxHistoryRecordsByKey func(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
+}
+func (m *explorerBackendServiceMock) GetLastBlockNumber() (uint64, error) {
+	//TODO
+	return 0, errors.New("not implemented")
 }
 
 func (m *explorerBackendServiceMock) GetBlockByBlockNumber(blocknumber uint64) (*types.Block, error) {

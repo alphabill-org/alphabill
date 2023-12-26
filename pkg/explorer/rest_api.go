@@ -171,16 +171,28 @@ func (api *moneyRestAPI) getBlocksExplorer(w http.ResponseWriter, r *http.Reques
 	startBlockStr := qp.Get("startBlock")
 	limitStr := qp.Get("limit")
 
-	startBlock, err := strconv.ParseUint(startBlockStr, 10, 64)
+	startBlock, err := api.Service.GetLastBlockNumber();
 	if err != nil {
-		http.Error(w, "Invalid 'startBlock' format", http.StatusBadRequest)
+		http.Error(w, "unable to get last block number", http.StatusBadRequest)
 		return
 	}
 
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		http.Error(w, "Invalid 'limit' format", http.StatusBadRequest)
-		return
+	if startBlockStr != "" {
+		startBlock, err = strconv.ParseUint(startBlockStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid 'startBlock' format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	limit := 10
+
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			http.Error(w, "Invalid 'limit' format", http.StatusBadRequest)
+			return
+		}
 	}
 
 	recs, prevBlockNumber, err := api.Service.GetBlocksExplorer(startBlock, limit)

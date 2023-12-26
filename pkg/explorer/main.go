@@ -22,6 +22,7 @@ import (
 
 type (
 	ExplorerBackendService interface {
+		GetLastBlockNumber() (uint64, error)
 		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
 		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error)
@@ -68,6 +69,7 @@ type (
 
 	// BillStoreTx type for managing units by their ID and owner condition
 	BillStoreTx interface {
+		GetLastBlockNumber() (uint64, error)
 		GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error)
 		GetBlocks(dbStartBlock uint64, count int) (res []*types.Block, prevBlockNumber uint64, err error)
 		SetBlock(b *types.Block) error
@@ -180,7 +182,10 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 	// starts from 1 by adding 1 to it we start with the first block
 	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
 }
-
+// GetBlockByBlockNumber returns block with given block number.
+func (ex *ExplorerBackend) GetLastBlockNumber() (uint64, error) {
+	return ex.store.Do().GetLastBlockNumber();
+}
 // GetBlockByBlockNumber returns block with given block number.
 func (ex *ExplorerBackend) GetBlockByBlockNumber(blockNumber uint64) (*types.Block, error) {
 	return ex.store.Do().GetBlockByBlockNumber(blockNumber)

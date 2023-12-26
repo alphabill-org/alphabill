@@ -125,7 +125,7 @@ func Test_getBlocksExplorer(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	///require.Equal(t, res. , blockNumber3)
+	//require.Equal(t, res.BlockN, blockNumber3)
 }
 func Test_getTxExplorerByTxHash(t *testing.T) {
 	blockNumber := test.RandomUint64()

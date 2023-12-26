@@ -135,7 +135,7 @@ func (api *moneyRestAPI) getBlocks(w http.ResponseWriter, r *http.Request) {
 	}
 	prevBlockNumberStr := strconv.FormatUint(prevBlockNumber, 10)
 	sdk.SetLinkHeader(r.URL, w, prevBlockNumberStr)
-	api.rw.WriteCborResponse(w, recs)
+	api.rw.WriteResponse(w, recs)
 }
 func (api *moneyRestAPI) getBlockExplorerByBlockNumber(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -203,7 +203,7 @@ func (api *moneyRestAPI) getBlocksExplorer(w http.ResponseWriter, r *http.Reques
 	}
 	prevBlockNumberStr := strconv.FormatUint(prevBlockNumber, 10)
 	sdk.SetLinkHeader(r.URL, w, prevBlockNumberStr)
-	api.rw.WriteCborResponse(w, recs)
+	api.rw.WriteResponse(w, recs)
 }
 
 func (api *moneyRestAPI) getTxExplorerByTxHash(w http.ResponseWriter, r *http.Request) {

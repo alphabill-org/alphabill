@@ -44,8 +44,11 @@ var (
 func Test_getBlockByBlockNumber(t *testing.T) {
 	blockNumber := test.RandomUint64()
 	storage := createTestBillStore(t)
-
-	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	b := &types.Block{Header: &types.Header{}, Transactions: []*types.TransactionRecord{tx}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}, UnicitySeal: &types.UnicitySeal{}}}
 
 	// set block
 	err := storage.Do().SetBlock(b)
@@ -61,6 +64,29 @@ func Test_getBlockByBlockNumber(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, blockNumber, res.UnicityCertificate.InputRecord.RoundNumber)
 }
+func Test_getBlockExplorerByBlockNumber(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	storage := createTestBillStore(t)
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	b := &types.Block{Header: &types.Header{}, Transactions: []*types.TransactionRecord{tx}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}, UnicitySeal: &types.UnicitySeal{}}}
+
+	// set block explorer
+	err := storage.Do().SetBlockExplorer(b)
+	require.NoError(t, err)
+
+	service := &ExplorerBackend{store: storage, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	port, _ := startServer(t, service)
+	//set
+	res := &BlockExplorer{}
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExplorer/%d", port, blockNumber), res)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, blockNumber, res.RoundNumber)
+}
 func Test_getTxExplorerByTxHash(t *testing.T) {
 	blockNumber := test.RandomUint64()
 	bs := createTestBillStore(t)
@@ -73,8 +99,8 @@ func Test_getTxExplorerByTxHash(t *testing.T) {
 	port, _ := startServer(t, service)
 
 	// Set TxExplorer To Bucket
-	txExplorer ,err := CreateTxExplorer(blockNumber , tx);
-	require.NoError(t, err);
+	txExplorer, err := CreateTxExplorer(blockNumber, tx)
+	require.NoError(t, err)
 	err = bs.Do().SetTxExplorerToBucket(txExplorer)
 	require.NoError(t, err)
 
@@ -87,8 +113,8 @@ func Test_getTxExplorerByTxHash(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, res.BlockNumber, blockNumber)
-	require.EqualValues(t, res.Hash , hashHex)
-	require.EqualValues(t, res.Fee , tx.ServerMetadata.ActualFee)
+	require.EqualValues(t, res.Hash, hashHex)
+	require.EqualValues(t, res.Fee, tx.ServerMetadata.ActualFee)
 }
 
 func Test_txHistory(t *testing.T) {

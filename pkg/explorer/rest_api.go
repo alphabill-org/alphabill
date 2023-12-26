@@ -158,7 +158,7 @@ func (api *moneyRestAPI) getBlockExplorerByBlockNumber(w http.ResponseWriter, r 
 	}
 
 	if block == nil {
-		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("block with block number %x not found", blockNumber))
+		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("block with block number %d not found", blockNumber))
 		return
 	}
 

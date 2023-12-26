@@ -267,6 +267,18 @@ func (s *boltBillStoreTx) SetBlockExplorer(b *types.Block) error {
 	}, true)
 }
 
+func (s *boltBillStoreTx) GetTxExplorerByTxHash(txHash []byte) (*TxExplorer, error) {
+	var txEx *TxExplorer
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txExplorerBytes := tx.Bucket(txExplorerBucket).Get(txHash)
+		return json.Unmarshal(txExplorerBytes, &txEx)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return txEx, nil
+}
+
 func (s *boltBillStoreTx) SetTxExplorerToBucket(txExplorer *TxExplorer) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
 		txExplorerBytes, err := json.Marshal(txExplorer)

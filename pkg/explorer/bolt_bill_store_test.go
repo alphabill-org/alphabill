@@ -88,6 +88,27 @@ func TestBillStore_SetBlockExplorer_GetBlockExplorerByBlockNumber(t *testing.T) 
 	require.EqualValues(t, block.RoundNumber, blockNumber)
 	require.EqualValues(t, block.TxHashes[0] , tx.Hash(crypto.SHA256))
 }
+func TestBillStore_SetTxExplorerToBucket_GetTxExplorerByTxHash(t *testing.T) {
+	blockNumber := test.RandomUint64()
+	bs := createTestBillStore(t)
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+
+	// Set TxExplorer To Bucket
+	txExplorer ,err := CreateTxExplorer(blockNumber , tx);
+	require.NoError(t, err);
+	err = bs.Do().SetTxExplorerToBucket(txExplorer)
+	require.NoError(t, err)
+
+	// Get TxExplorer By TxHash
+	txExplorerResult, err := bs.Do().GetTxExplorerByTxHash(tx.Hash(crypto.SHA256));
+	require.NoError(t, err)
+	require.EqualValues(t, txExplorerResult.BlockNumber, blockNumber)
+	require.EqualValues(t, txExplorerResult.Hash , tx.Hash(crypto.SHA256))
+	require.EqualValues(t, txExplorerResult.Fee , tx.ServerMetadata.ActualFee)
+}
 func TestBillStore_SetBlockExplorer_GetBlocksExplorerByBlockNumber(t *testing.T) {
 	blockNumber1 := test.RandomUint64()
 	blockNumber2 := blockNumber1 + 1

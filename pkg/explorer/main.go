@@ -75,6 +75,7 @@ type (
 		SetBlockExplorer(b *types.Block) error
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
+		GetTxExplorerByTxHash(txHash []byte) (*TxExplorer, error)
 		SetTxExplorerToBucket(txExplorer *TxExplorer) error
 		GetBill(unitID []byte) (*Bill, error)
 		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)

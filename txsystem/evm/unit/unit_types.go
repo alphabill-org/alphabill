@@ -10,7 +10,7 @@ import (
 
 const (
 	UnitIDLength   = UnitPartLength + TypePartLength
-	UnitPartLength = 32
+	UnitPartLength = 20
 	TypePartLength = 1
 )
 
@@ -28,7 +28,7 @@ func NewFeeCreditRecordID(_ []byte, unitPart []byte) types.UnitID {
 // NewEvmAccountID - creates new EVM account unit. All EVM native types are of EvmAccountType
 // For EVM account acts both as an account and also as fee credit record (FCR)
 func NewEvmAccountID(unitPart []byte) (types.UnitID, error) {
-	if len(unitPart) != 20 {
+	if len(unitPart) != UnitPartLength {
 		return nil, fmt.Errorf("invalid account address length, must be 20 bytes")
 	}
 	// NB! currently evm cannot be sharded

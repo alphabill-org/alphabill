@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -17,7 +18,6 @@ type TxSystem struct {
 	systemIdentifier    []byte
 	hashAlgorithm       crypto.Hash
 	state               *state.State
-	logPruner           *state.LogPruner
 	currentBlockNumber  uint64
 	executors           txsystem.TxExecutors
 	genericTxValidators []txsystem.GenericTransactionValidator
@@ -50,14 +50,13 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 		systemIdentifier:    systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
-		logPruner:           state.NewLogPruner(options.state),
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
 		executors:           make(map[string]txsystem.TxExecutor),
 		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
 		log:                 log,
 	}
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
+	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 	executors := evm.TxExecutors()
 	for k, executor := range executors {
 		txs.executors[k] = executor
@@ -110,11 +109,8 @@ func (m *TxSystem) BeginBlock(blockNr uint64) error {
 	return nil
 }
 
-func (m *TxSystem) pruneLogs(blockNr uint64) error {
-	if err := m.logPruner.Prune(blockNr - 1); err != nil {
-		return fmt.Errorf("unable to prune state: %w", err)
-	}
-	return nil
+func (m *TxSystem) pruneState(blockNr uint64) error {
+	return m.state.Prune()
 }
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
@@ -144,13 +140,10 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		}
 		for _, targetID := range sm.TargetUnits {
 			// add log for each target unit
-			unitLogSize, err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
+			err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
 				m.state.RollbackToSavepoint(savepointID)
 				return
-			}
-			if unitLogSize > 1 {
-				m.logPruner.Add(m.currentBlockNumber, targetID)
 			}
 		}
 
@@ -180,15 +173,24 @@ func (m *TxSystem) Revert() {
 	if m.roundCommitted {
 		return
 	}
-	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
 
-func (m *TxSystem) Commit() error {
-	m.logPruner.Remove(m.currentBlockNumber - 1)
-	err := m.state.Commit()
+func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
+	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
 	}
 	return err
+}
+
+func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
+	return m.state.CommittedUC()
+}
+
+func (m *TxSystem) SerializeState(writer io.Writer, committed bool) error {
+	header := &state.StateFileHeader{
+		SystemIdentifier:   m.systemIdentifier,
+	}
+	return m.state.Serialize(writer, header, committed)
 }

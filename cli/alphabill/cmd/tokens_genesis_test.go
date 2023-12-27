@@ -17,7 +17,6 @@ import (
 const (
 	utDirectory     = "tokens"
 	utGenesisDir    = "ut-genesis"
-	genesisFileName = "node-genesis.json"
 )
 
 func TestTokensGenesis_KeyFileNotFound(t *testing.T) {
@@ -37,7 +36,7 @@ func TestTokensGenesis_ForceKeyGeneration(t *testing.T) {
 	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
-	require.FileExists(t, filepath.Join(homeDir, utDirectory, genesisFileName))
+	require.FileExists(t, filepath.Join(homeDir, utDirectory, utGenesisFileName))
 }
 
 func TestTokensGenesis_DefaultNodeGenesisExists(t *testing.T) {
@@ -45,7 +44,7 @@ func TestTokensGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, genesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
@@ -53,7 +52,7 @@ func TestTokensGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	args := "tokens-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
+	require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
 	require.NoFileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
 }
 
@@ -62,7 +61,7 @@ func TestTokensGenesis_LoadExistingKeys(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
 	require.NoError(t, err)
 	kf := filepath.Join(homeDir, utDirectory, defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, genesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
 	nodeKeys, err := GenerateKeys()
 	require.NoError(t, err)
 	err = nodeKeys.WriteTo(kf)
@@ -86,16 +85,18 @@ func TestTokensGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(homeDir, utDirectory, "n1"), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", genesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
+	nodeGenesisStateFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisStateFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
+	args := "tokens-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
+	require.FileExists(t, nodeGenesisStateFile)
 }
 
 func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
@@ -107,10 +108,10 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 	require.NoError(t, err)
 
 	kf := filepath.Join(homeDir, utDirectory, "n1", defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", genesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)

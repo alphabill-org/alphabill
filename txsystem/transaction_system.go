@@ -2,6 +2,7 @@ package txsystem
 
 import (
 	"errors"
+	"io"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
@@ -19,9 +20,6 @@ type (
 		// StateSummary returns the summary of the current state of the transaction system or an ErrStateContainsUncommittedChanges if
 		// current state contains uncommitted changes.
 		StateSummary() (StateSummary, error)
-
-		// State returns the current state of the transaction system.
-		State() *state.State
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64) error
@@ -41,10 +39,16 @@ type (
 		// Commit signals the successful consensus round. Called after the block was approved by the root chain. When called
 		// the transaction system must commit all the changes made during the BeginBlock,
 		// EndBlock, and Execute method calls.
-		Commit() error
+		Commit(uc *types.UnicityCertificate) error
+
+		// CommittedUC returns the unicity certificate of the latest commit.
+		CommittedUC() *types.UnicityCertificate
 
 		// StateStorage returns clone of transaction system state
 		StateStorage() UnitAndProof
+
+		// SerializeState writes the serialized state of the transaction system to the given writer.
+		SerializeState(writer io.Writer, committed bool) error
 	}
 
 	// StateSummary represents the root hash and summary value of the transaction system.
@@ -60,7 +64,7 @@ type (
 		// GetUnit - access tx system unit state
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		// CreateUnitStateProof - create unit proofs
-		CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*types.UnitStateProof, error)
+		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
 	}
 
 	// stateSummary is the default implementation of StateSummary interface.

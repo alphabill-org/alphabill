@@ -2,17 +2,13 @@ package evm
 
 import (
 	"crypto"
-	"fmt"
 	"log/slog"
-	"math/big"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var _ txsystem.Module = (*FeeAccount)(nil)
@@ -38,27 +34,8 @@ func FixedFee(fee uint64) FeeCalculator {
 }
 
 func newFeeModule(systemIdentifier []byte, options *Options, log *slog.Logger) (*FeeAccount, error) {
-	s := options.state
-	if len(options.initialAccountAddress) > 0 && options.initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
-		address := common.BytesToAddress(options.initialAccountAddress)
-		log.Info(fmt.Sprintf("Adding an initial account %v with balance %v", address, options.initialAccountBalance))
-		id := s.Savepoint()
-		stateDB := statedb.NewStateDB(s, log)
-		stateDB.CreateAccount(address)
-		stateDB.AddBalance(address, options.initialAccountBalance)
-		s.ReleaseToSavepoint(id)
-		_, _, err := s.CalculateRoot()
-		if err != nil {
-			return nil, err
-		}
-		err = s.Commit()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &FeeAccount{
-		state:            s,
+		state:            options.state,
 		systemIdentifier: systemIdentifier,
 		trustBase:        options.trustBase,
 		hashAlgorithm:    options.hashAlgorithm,

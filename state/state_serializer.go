@@ -34,7 +34,7 @@ type (
 	}
 )
 
-func NewStateSerializer(encoder *cbor.Encoder) *stateSerializer {
+func newStateSerializer(encoder *cbor.Encoder) *stateSerializer {
 	return &stateSerializer{encoder: encoder}
 }
 

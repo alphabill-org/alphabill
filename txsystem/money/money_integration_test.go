@@ -44,25 +44,25 @@ func TestPartition_Ok(t *testing.T) {
 		Value: moneyInvariant,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	var s *state.State
+	sdrs := createSDRs(newBillID(2))
+	s := genesisState(t, initialBill, sdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		s = state.NewEmptyState()
+		s = s.Clone()
 		system, err := NewTxSystem(
 			logger.New(t),
 			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
-			WithInitialBill(initialBill),
-			WithSystemDescriptionRecords(createSDRs(newBillID(2))),
-			WithDCMoneyAmount(0),
+			WithSystemDescriptionRecords(sdrs),
 			WithTrustBase(tb),
 			WithFeeCalculator(fc.FixedFee(1)),
 		)
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier)
+	}, systemIdentifier, s)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
@@ -167,24 +167,24 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		}
 	)
 	total := moneyInvariant
+	sdrs := createSDRs(newBillID(99))
+	txsState = genesisState(t, initialBill, sdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		var err error
-		txsState = state.NewEmptyState()
 		// trustBase = tb
+		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			logger.New(t),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
-			WithInitialBill(initialBill),
-			WithSystemDescriptionRecords(createSDRs(newBillID(99))),
-			WithDCMoneyAmount(100),
+			WithSystemDescriptionRecords(sdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
 			WithFeeCalculator(fc.FixedFee(1)),
 		)
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier)
+	}, systemIdentifier, txsState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)

@@ -31,12 +31,12 @@ type (
 	partitionNode interface {
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
-		GetLatestBlock() (*types.Block, error)
+		LatestBlockNumber() (uint64, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() []byte
 		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
-		WriteStateFile(writer io.Writer) error
+		SerializeState(writer io.Writer) error
 	}
 )
 
@@ -105,7 +105,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 	if err := verifyRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid get blocks request: %w", err)
 	}
-	latestBlock, err := r.node.GetLatestBlock()
+	latestBlock, err := r.node.LatestBlockNumber()
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 		}
 		res = append(res, bytes)
 	}
-	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn, BatchMaxBlockNumber: batchMaxBlockNumber}, nil
+	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock, MaxRoundNumber: latestRn, BatchMaxBlockNumber: batchMaxBlockNumber}, nil
 }
 
 func verifyRequest(req *alphabill.GetBlocksRequest) error {

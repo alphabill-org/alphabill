@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 )
 
 const validNFTURI = "https://alphabill.org/nft"
@@ -1454,9 +1455,14 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 		Backlink: make([]byte, 32),
 		Timeout:  1000,
 	})))
-	_, _, err := s.CalculateRoot()
+	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}))
+
 	txs, err := NewTxSystem(
 		logger.New(t),
 		WithTrustBase(map[string]abcrypto.Verifier{"test": verifier}),

@@ -51,11 +51,11 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 		h := tx.Hash(hashAlgorithm)
 
 		// reduce dc-money supply by target value and update timeout and backlink
-		updateDCMoneySupplyFn := state.UpdateUnitData(dustCollectorMoneySupplyID,
+		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
+					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
 				bd.V -= attr.TargetValue
 				bd.T = currentBlockNumber
@@ -79,7 +79,11 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 		if err := s.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{
+			ActualFee: fee,
+			TargetUnits: []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
+			SuccessIndicator: types.TxStatusSuccessful,
+		}, nil
 	}
 }
 
@@ -88,12 +92,12 @@ func (c *swapValidationContext) validateSwapTx() error {
 		return fmt.Errorf("swap validation context invalid: %w", err)
 	}
 	// 2. there is sufficient DC-money supply
-	dcMoneySupply, err := c.state.GetUnit(dustCollectorMoneySupplyID, false)
+	dcMoneySupply, err := c.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {
 		return err
 	}
 	if dcMoneySupply == nil {
-		return fmt.Errorf("DC-money supply unit not found: id=%X", dustCollectorMoneySupplyID)
+		return fmt.Errorf("DC-money supply unit not found: id=%X", DustCollectorMoneySupplyID)
 	}
 	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*BillData)
 	if !ok {

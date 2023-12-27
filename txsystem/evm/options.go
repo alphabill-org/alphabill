@@ -20,8 +20,6 @@ type (
 		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
-		initialAccountAddress   []byte
-		initialAccountBalance   *big.Int
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
@@ -33,7 +31,6 @@ type (
 func DefaultOptions() *Options {
 	return &Options{
 		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
-		state:                   state.NewEmptyState(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		blockGasLimit:           DefaultBlockGasLimit,
@@ -62,13 +59,6 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 func WithTrustBase(tb map[string]crypto.Verifier) Option {
 	return func(c *Options) {
 		c.trustBase = tb
-	}
-}
-
-func WithInitialAddressAndBalance(address []byte, balance *big.Int) Option {
-	return func(o *Options) {
-		o.initialAccountAddress = address
-		o.initialAccountBalance = balance
 	}
 }
 

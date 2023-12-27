@@ -16,6 +16,10 @@ type stateHasher struct {
 	hashAlgorithm crypto.Hash
 }
 
+func newStateHasher(hashAlgorithm crypto.Hash) *stateHasher {
+	return &stateHasher{hashAlgorithm: hashAlgorithm}
+}
+
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
 func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {

@@ -302,7 +302,7 @@ func TestSwap(t *testing.T) {
 		{
 			name: "DC money supply < tx target value",
 			ctx: newSwapValidationContext(t, verifier, newSwapDC(t, signer),
-				withSwapStateUnit(string(dustCollectorMoneySupplyID), state.NewUnit(nil, &BillData{
+				withSwapStateUnit(string(DustCollectorMoneySupplyID), state.NewUnit(nil, &BillData{
 					V: 99,
 				}))),
 			err: "insufficient DC-money supply",
@@ -1026,7 +1026,7 @@ func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *
 	})
 	s := &stateMock{units: map[string]*state.Unit{
 		string(tx.UnitID()):                unit,
-		string(dustCollectorMoneySupplyID): dcMoneySupplyUnit,
+		string(DustCollectorMoneySupplyID): dcMoneySupplyUnit,
 	}}
 	return &swapValidationContext{
 		tx:            tx,

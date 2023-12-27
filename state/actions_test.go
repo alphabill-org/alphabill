@@ -31,7 +31,7 @@ func TestAdd(t *testing.T) {
 			args: args{
 				id: nil,
 			},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "id is nil",
 		},
 		{
@@ -53,7 +53,7 @@ func TestAdd(t *testing.T) {
 				bearer: templates.AlwaysTrueBytes(),
 				data:   &TestData{Value: 123},
 			},
-			initialState: newEmptyState(t),
+			initialState: NewEmptyState(),
 			expectedUnit: &Unit{
 				logs:                nil,
 				logRoot:             nil,
@@ -107,7 +107,7 @@ func TestUpdate(t *testing.T) {
 					return data, nil
 				},
 			},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "failed to get unit: item 01 does not exist: not found",
 		},
 		{
@@ -115,7 +115,7 @@ func TestUpdate(t *testing.T) {
 			args: args{
 				id: test.RandomBytes(32),
 			},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "update function is nil",
 		},
 		{
@@ -162,13 +162,13 @@ func TestDelete(t *testing.T) {
 		{
 			name:            "unit ID is nil",
 			unitID:          nil,
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "id is nil",
 		},
 		{
 			name:            "unit ID not found",
 			unitID:          []byte{1},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "unable to delete unit",
 		},
 		{
@@ -208,7 +208,7 @@ func TestSetOwner(t *testing.T) {
 		{
 			name:            "unit ID is nil",
 			args:            args{},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "id is nil",
 		},
 		{
@@ -216,7 +216,7 @@ func TestSetOwner(t *testing.T) {
 			args: args{
 				id: []byte{1},
 			},
-			initialState:    newEmptyState(t),
+			initialState:    NewEmptyState(),
 			executionErrStr: "not found",
 		},
 		{
@@ -248,14 +248,8 @@ func TestSetOwner(t *testing.T) {
 	}
 }
 
-func newEmptyState(t *testing.T) *State {
-	emptyState, err := New()
-	require.NoError(t, err)
-	return emptyState
-}
-
 func newStateWithUnits(t *testing.T) *State {
-	s := newEmptyState(t)
+	s := NewEmptyState()
 	require.NoError(t,
 		s.Apply(
 			AddUnit(

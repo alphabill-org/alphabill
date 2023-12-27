@@ -27,11 +27,12 @@ var defaultClientMetadata = &types.ClientMetadata{
 }
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
+	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewTxSystem(logger.New(t), WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
+		system, err := NewTxSystem(logger.New(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
-	}, DefaultSystemIdentifier)
+	}, DefaultSystemIdentifier, genesisState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
@@ -75,14 +76,15 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 
 	// setup network
+	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
-		s := newStateWithFeeCredit(t, feeCreditID)
-		system, err := NewTxSystem(logger.New(t), WithState(s), WithTrustBase(tb))
+		genesisState = genesisState.Clone()
+		system, err := NewTxSystem(logger.New(t), WithState(genesisState), WithTrustBase(tb))
 		require.NoError(t, err)
-		states = append(states, s)
+		states = append(states, genesisState)
 		return system
-	}, DefaultSystemIdentifier)
+	}, DefaultSystemIdentifier, genesisState)
 	require.NoError(t, err)
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
@@ -445,6 +447,5 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 	))
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
 	return s
 }

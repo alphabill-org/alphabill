@@ -29,7 +29,6 @@ func defaultOptions() *Options {
 		systemIdentifier:        DefaultSystemIdentifier,
 		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
 		hashAlgorithm:           gocrypto.SHA256,
-		state:                   state.NewEmptyState(),
 		feeCalculator:           fc.FixedFee(1),
 		trustBase:               map[string]crypto.Verifier{},
 	}

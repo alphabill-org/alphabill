@@ -17,8 +17,6 @@ type (
 		state                    *state.State
 		hashAlgorithm            gocrypto.Hash
 		trustBase                map[string]crypto.Verifier
-		initialBill              *InitialBill
-		dcMoneyAmount            uint64
 		systemDescriptionRecords []*genesis.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 	}
@@ -30,9 +28,7 @@ func DefaultOptions() *Options {
 	return &Options{
 		systemIdentifier: DefaultSystemIdentifier,
 		hashAlgorithm:    gocrypto.SHA256,
-		state:            state.NewEmptyState(),
 		trustBase:        make(map[string]crypto.Verifier),
-		dcMoneyAmount:    0,
 		feeCalculator:    fc.FixedFee(1),
 	}
 }
@@ -58,18 +54,6 @@ func WithTrustBase(trust map[string]crypto.Verifier) Option {
 func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	return func(g *Options) {
 		g.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithInitialBill(bill *InitialBill) Option {
-	return func(g *Options) {
-		g.initialBill = bill
-	}
-}
-
-func WithDCMoneyAmount(a uint64) Option {
-	return func(g *Options) {
-		g.dcMoneyAmount = a
 	}
 }
 

@@ -1,6 +1,6 @@
 package genesis
 
 const (
-	PartitionRoundNumber = uint64(1)
-	RootRoundNumber      = uint64(1)
+	PartitionRoundNumber = uint64(0)
+	RootRoundNumber      = uint64(0)
 )

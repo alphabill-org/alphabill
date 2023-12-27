@@ -75,27 +75,26 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	observe.Logger().Info(fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", p.MultiAddresses(), debug.ReadBuildInfo()))
+
+	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", p.ID())))
 	node := &Node{
 		peer:             p,
 		partitions:       ps,
 		incomingRequests: NewCertificationRequestBuffer(),
-		subscription:     NewSubscriptions(),
+		subscription:     NewSubscriptions(meter),
 		net:              pNet,
 		consensusManager: cm,
 		log:              observe.Logger(),
 		tracer:           observe.Tracer("rootchain.node"),
 	}
-	if err := node.initMetrics(observe); err != nil {
+	if err := node.initMetrics(meter); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 	return node, nil
 }
 
-func (n *Node) initMetrics(observe Observability) (err error) {
-	m := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", n.peer.ID())))
-
-	n.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
+func (v *Node) initMetrics(m metric.Meter) (err error) {
+	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
 	if err != nil {
 		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
 	}
@@ -104,6 +103,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 }
 
 func (v *Node) Run(ctx context.Context) error {
+	v.log.InfoContext(ctx, fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", v.peer.MultiAddresses(), debug.ReadBuildInfo()))
 	g, gctx := errgroup.WithContext(ctx)
 	// Run root consensus algorithm
 	g.Go(func() error { return v.consensusManager.Run(gctx) })

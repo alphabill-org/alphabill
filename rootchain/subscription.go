@@ -1,32 +1,56 @@
 package rootchain
 
 import (
+	"context"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/types"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
-const defaultSubscriptionCount = 2
+const responsesPerSubscription = 2
 
 type Subscriptions struct {
 	mu   sync.RWMutex
 	subs map[types.SystemID32]map[string]int
 }
 
-func NewSubscriptions() *Subscriptions {
-	return &Subscriptions{
+func NewSubscriptions(m metric.Meter) *Subscriptions {
+	r := &Subscriptions{
 		subs: map[types.SystemID32]map[string]int{},
 	}
+
+	_, _ = m.Int64ObservableUpDownCounter("subscriptions",
+		metric.WithDescription("number of responses to send to subscribed validators"),
+		metric.WithInt64Callback(
+			func(ctx context.Context, io metric.Int64Observer) error {
+				r.mu.Lock()
+				defer r.mu.Unlock()
+
+				for sysID, nodes := range r.subs {
+					partition := observability.Partition(sysID)
+					for nodeID, cnt := range nodes {
+						io.Observe(int64(cnt), metric.WithAttributes(partition, attribute.String("node.id", nodeID)))
+					}
+				}
+
+				return nil
+			},
+		))
+
+	return r
 }
 
 func (s *Subscriptions) Subscribe(id types.SystemID32, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, found := s.subs[id]
-	if !found {
+
+	if _, found := s.subs[id]; !found {
 		s.subs[id] = make(map[string]int)
 	}
-	s.subs[id][nodeId] = defaultSubscriptionCount
+	s.subs[id][nodeId] = responsesPerSubscription
 }
 
 func (s *Subscriptions) ResponseSent(id types.SystemID32, nodeId string) {

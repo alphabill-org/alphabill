@@ -45,7 +45,7 @@ var (
 	zeroHash = make([]byte, crypto.SHA256.Size())
 )
 
-type MoneyGenesisConfig struct {
+type moneyGenesisConfig struct {
 	Base               *baseConfiguration
 	SystemIdentifier   []byte
 	Keys               *keysConfig
@@ -61,7 +61,7 @@ type MoneyGenesisConfig struct {
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &MoneyGenesisConfig{
+	config := &moneyGenesisConfig{
 		Base:             baseConfig,
 		Keys:             NewKeysConf(baseConfig, moneyPartitionDir),
 		InitialBillID:    defaultInitialBillID,
@@ -86,7 +86,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
-func abMoneyGenesisRunFun(_ context.Context, config *MoneyGenesisConfig) error {
+func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	moneyPartitionHomePath := filepath.Join(config.Base.HomeDir, moneyPartitionDir)
 	if !util.FileExists(moneyPartitionHomePath) {
 		err := os.MkdirAll(moneyPartitionHomePath, 0700) // -rwx------
@@ -121,7 +121,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *MoneyGenesisConfig) error {
 	}
 
 	// An uncommitted state, no UC yet
-	genesisState, err := NewGenesisState(config)
+	genesisState, err := newGenesisState(config)
 	if err != nil {
 		return err
 	}
@@ -150,21 +150,21 @@ func abMoneyGenesisRunFun(_ context.Context, config *MoneyGenesisConfig) error {
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)
 }
 
-func (c *MoneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
+func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	if c.Output != "" {
 		return c.Output
 	}
 	return filepath.Join(home, moneyGenesisFileName)
 }
 
-func (c *MoneyGenesisConfig) getNodeGenesisStateFileLocation(home string) string {
+func (c *moneyGenesisConfig) getNodeGenesisStateFileLocation(home string) string {
 	if c.OutputState != "" {
 		return c.OutputState
 	}
 	return filepath.Join(home, moneyGenesisStateFileName)
 }
 
-func (c *MoneyGenesisConfig) getPartitionParams() ([]byte, error) {
+func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	sdrFiles, err := c.getSDRFiles()
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (c *MoneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	return res, nil
 }
 
-func (c *MoneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
+func (c *moneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
 	var sdrs []*genesis.SystemDescriptionRecord
 	if len(c.SDRFiles) == 0 {
 		sdrs = append(sdrs, defaultMoneySDR)
@@ -195,7 +195,7 @@ func (c *MoneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, 
 	return sdrs, nil
 }
 
-func NewGenesisState(config *MoneyGenesisConfig) (*state.State, error) {
+func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 	s := state.NewEmptyState()
 
 	if err := addInitialBill(s, config); err != nil {
@@ -213,7 +213,7 @@ func NewGenesisState(config *MoneyGenesisConfig) (*state.State, error) {
 	return s, nil
 }
 
-func addInitialBill(s *state.State, config *MoneyGenesisConfig) error {
+func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &money.BillData{
 		V:        config.InitialBillValue,
 		T:        0,
@@ -225,7 +225,7 @@ func addInitialBill(s *state.State, config *MoneyGenesisConfig) error {
 	return err
 }
 
-func addInitialDustCollectorMoneySupply(s *state.State, config *MoneyGenesisConfig) error {
+func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &money.BillData{
 		V:        config.DCMoneySupplyValue,
 		T:        0,
@@ -237,7 +237,7 @@ func addInitialDustCollectorMoneySupply(s *state.State, config *MoneyGenesisConf
 	return err
 }
 
-func addInitialFeeCreditBills(s *state.State, config *MoneyGenesisConfig) error {
+func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error {
 	sdrs, err := config.getSDRFiles()
 	if err != nil {
 		return err

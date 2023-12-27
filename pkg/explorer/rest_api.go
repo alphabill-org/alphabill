@@ -68,9 +68,10 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/blocks/{blockNumber}", api.getBlockByBlockNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/blocks", api.getBlocks).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/blocksExplorer/{blockNumber}", api.getBlockExplorerByBlockNumber).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/blocksExplorer", api.getBlocksExplorer).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/txExplorer/{txHash}", api.getTxExplorerByTxHash).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/blocksExp/{blockNumber}", api.getBlockExplorerByBlockNumber).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/blocksExp", api.getBlocksExplorer).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/blocksExp/{blockNumber}/txsExp/", api.getBlockExplorerTxsByBlockNumber).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/txsExp/{txHash}", api.getTxExplorerByTxHash).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history", api.getTxHistory).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/tx-history/{pubkey}", api.getTxHistoryByKey).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
@@ -171,7 +172,7 @@ func (api *moneyRestAPI) getBlocksExplorer(w http.ResponseWriter, r *http.Reques
 	startBlockStr := qp.Get("startBlock")
 	limitStr := qp.Get("limit")
 
-	startBlock, err := api.Service.GetLastBlockNumber();
+	startBlock, err := api.Service.GetLastBlockNumber()
 	if err != nil {
 		http.Error(w, "unable to get last block number", http.StatusBadRequest)
 		return
@@ -224,6 +225,33 @@ func (api *moneyRestAPI) getTxExplorerByTxHash(w http.ResponseWriter, r *http.Re
 		return
 	}
 	api.rw.WriteResponse(w, txExplorer)
+}
+
+func (api *moneyRestAPI) getBlockExplorerTxsByBlockNumber(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	blockNumberStr, ok := vars["blockNumber"]
+	if !ok {
+		http.Error(w, "Missing 'blockNumber' variable in the URL", http.StatusBadRequest)
+		return
+	}
+
+	blockNumber, err := strconv.ParseUint(blockNumberStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid 'blockNumber' format", http.StatusBadRequest)
+		return
+	}
+
+	txsExplorer, err := api.Service.GetBlockExplorerTxsByBlockNumber(blockNumber)
+	if err != nil {
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load txs with blockNumber %d : %w", blockNumber, err))
+		return
+	}
+
+	if txsExplorer == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("tx with txHash %d not found", blockNumber))
+		return
+	}
+	api.rw.WriteResponse(w, txsExplorer)
 }
 
 func (api *moneyRestAPI) getTxHistory(w http.ResponseWriter, r *http.Request) {

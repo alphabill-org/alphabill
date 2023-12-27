@@ -81,7 +81,7 @@ func Test_getBlockExplorerByBlockNumber(t *testing.T) {
 	port, _ := startServer(t, service)
 	//set
 	res := &BlockExplorer{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExplorer/%d", port, blockNumber), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExp/%d", port, blockNumber), res)
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -120,8 +120,8 @@ func Test_getBlocksExplorer(t *testing.T) {
 	service := &ExplorerBackend{store: bs, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 	port, _ := startServer(t, service)
 	//set
-	res := &[]BlockExplorer{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExplorer/", port), res)
+	var res []*BlockExplorer
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/blocksExp/", port), &res)
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -148,13 +148,66 @@ func Test_getTxExplorerByTxHash(t *testing.T) {
 	res := &TxExplorer{}
 	hashHex := hex.EncodeToString(tx.Hash(crypto.SHA256))
 
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/txExplorer/%s", port, hashHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/txsExp/%s", port, hashHex), res)
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, res.BlockNumber, blockNumber)
 	require.EqualValues(t, res.Hash, hashHex)
 	require.EqualValues(t, res.Fee, tx.ServerMetadata.ActualFee)
+}
+
+func Test_getBlockExplorerTxsByBlockNumber(t *testing.T) {
+	bs := createTestBillStore(t)
+	service := &ExplorerBackend{store: bs, sdk: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	port, _ := startServer(t, service)
+
+	blockNumber := test.RandomUint64()
+	tx1 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx2 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 50, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx3 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1111, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+
+	b := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx1 , tx2 , tx3} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber} , UnicitySeal: &types.UnicitySeal{}}}
+
+	tx1Hash:= hex.EncodeToString(tx1.Hash(crypto.SHA256));
+
+	// set
+	txEx1, err := CreateTxExplorer(blockNumber, tx1)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx1)
+	require.NoError(t, err)
+	txEx2, err := CreateTxExplorer(blockNumber, tx2)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx2)
+	require.NoError(t, err)
+	txEx3, err := CreateTxExplorer(blockNumber, tx3)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx3)
+	require.NoError(t, err)
+
+	err = bs.Do().SetBlockExplorer(b)
+	require.NoError(t, err)
+
+	// Get
+	var txs []*TxExplorer
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1//blocksExp/%d/txsExp/", port, blockNumber), &txs)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.NotNil(t, txs)
+
+	require.EqualValues(t, len(txs) , 3)
+	require.EqualValues(t, txs[0].BlockNumber , blockNumber)
+	require.EqualValues(t, txs[0].Hash , tx1Hash)
+	require.EqualValues(t, txs[0].Fee , tx1.ServerMetadata.ActualFee)
 }
 
 func Test_txHistory(t *testing.T) {
@@ -489,6 +542,10 @@ func (m *explorerBackendServiceMock) GetBlocksExplorer(dbStartBlockNumber uint64
 	return nil, 0, errors.New("not implemented")
 }
 func (m *explorerBackendServiceMock) GetTxExplorerByTxHash(txHash string) (res *TxExplorer, err error) {
+	//TODO
+	return nil, errors.New("not implemented")
+}
+func (m *explorerBackendServiceMock) GetBlockExplorerTxsByBlockNumber(blockNumber uint64) (res []*TxExplorer, err error) {
 	//TODO
 	return nil, errors.New("not implemented")
 }

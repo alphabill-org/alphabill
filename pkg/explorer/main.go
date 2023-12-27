@@ -28,6 +28,7 @@ type (
 		GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error)
 		GetBlocksExplorer(dbStartBlock uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error)
 		GetTxExplorerByTxHash(txHash string) (*TxExplorer, error)
+		GetBlockExplorerTxsByBlockNumber(blockNumber uint64) (res []*TxExplorer,err error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetTxHistoryRecords(dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
@@ -220,7 +221,9 @@ func (ex *ExplorerBackend) GetBill(unitID []byte) (*Bill, error) {
 func (ex *ExplorerBackend) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	return ex.store.Do().GetTxProof(unitID, txHash)
 }
-
+func (ex *ExplorerBackend) GetBlockExplorerTxsByBlockNumber(blockNumber uint64) (res []*TxExplorer,err error) {
+	return ex.store.Do().GetBlockExplorerTxsByBlockNumber(blockNumber)
+}
 // GetRoundNumber returns latest round number.
 func (ex *ExplorerBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return ex.sdk.GetRoundNumber(ctx)

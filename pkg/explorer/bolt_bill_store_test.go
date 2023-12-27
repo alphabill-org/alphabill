@@ -182,8 +182,7 @@ func TestBillStore_SetBlockExplorer_GetBlockExplorerTxsByBlockNumber(t *testing.
 	b := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx1 , tx2 , tx3} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber} , UnicitySeal: &types.UnicitySeal{}}}
 
 	tx1Hash:= hex.EncodeToString(tx1.Hash(crypto.SHA256));
-	//tx2Hash:= hex.EncodeToString(tx2.Hash(crypto.SHA256));
-	//tx3Hash:= hex.EncodeToString(tx3.Hash(crypto.SHA256));
+
 	// set
 	txEx1, err := CreateTxExplorer(blockNumber, tx1)
 	require.NoError(t, err)
@@ -211,14 +210,6 @@ func TestBillStore_SetBlockExplorer_GetBlockExplorerTxsByBlockNumber(t *testing.
 	require.EqualValues(t, txs[0].Hash , tx1Hash)
 	require.EqualValues(t, txs[0].Fee , tx1.ServerMetadata.ActualFee)
 
-
-	// length2 := 4
-	// blocks2, prevBlockNumber2, err2 := bs.Do().GetBlocksExplorer(blockNumber3, length2)
-	// require.NoError(t, err2)
-	// require.EqualValues(t, blocks2[0].RoundNumber, blockNumber3)
-	// require.EqualValues(t, prevBlockNumber2, 0)
-	// require.EqualValues(t, len(blocks2), 3)
-	// require.EqualValues(t, blocks2[2].TxHashes[0] , tx1Hash)
 }
 
 func TestBillStore_GetSetBlockNumber(t *testing.T) {

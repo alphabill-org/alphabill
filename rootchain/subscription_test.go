@@ -5,10 +5,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func TestNewSubscriptionsEmpty(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	// no panic
 	var sysID1 types.SystemID32 = 1
@@ -19,7 +20,7 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 }
 
 func TestNewSubscriptions(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
@@ -37,12 +38,12 @@ func TestNewSubscriptions(t *testing.T) {
 }
 
 func TestExpiredSubscriptions(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is decremented on each send attempt
-	for i := 0; i < defaultSubscriptionCount; i++ {
+	for i := 0; i < responsesPerSubscription; i++ {
 		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
@@ -53,17 +54,17 @@ func TestExpiredSubscriptions(t *testing.T) {
 }
 
 func TestSubscriptionRefresh(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is decremented on each send attempt
-	for i := 1; i < defaultSubscriptionCount; i++ {
+	for i := 1; i < responsesPerSubscription; i++ {
 		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
 	require.Len(t, subscribed, 2)
 	// simulate new request from partition
 	subscriptions.Subscribe(sysID1, "1")
-	require.Equal(t, defaultSubscriptionCount, subscriptions.subs[sysID1]["1"])
+	require.Equal(t, responsesPerSubscription, subscriptions.subs[sysID1]["1"])
 }

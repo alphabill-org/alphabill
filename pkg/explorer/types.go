@@ -10,7 +10,7 @@ type (
 		SystemID        *types.SystemID
 		RoundNumber     uint64
 		Header          *HeaderExplorer
-		TxHashes        [][]byte
+		TxHashes        []string
 		SummaryValue    []byte // summary value to certified
 		SumOfEarnedFees uint64 // sum of the actual fees over all transaction records in the block
 	}

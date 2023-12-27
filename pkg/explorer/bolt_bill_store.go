@@ -2,7 +2,6 @@ package explorer
 
 import (
 	"bytes"
-	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,22 +88,22 @@ func (s *boltBillStore) Do() BillStoreTx {
 	return &boltBillStoreTx{db: s, tx: nil}
 }
 func (s *boltBillStoreTx) GetLastBlockNumber() (uint64, error) {
-	lastBlockNo := uint64 (0);
+	lastBlockNo := uint64(0)
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		b := tx.Bucket(blockExplorerBucket)
 
 		if b == nil {
-            return fmt.Errorf("bucket %s not found", blockExplorerBucket)
-        }
+			return fmt.Errorf("bucket %s not found", blockExplorerBucket)
+		}
 
-        c := b.Cursor()
-        key, _ := c.Last()
-        if key == nil {
-            return fmt.Errorf("no entries in the bucket  %s" , blockExplorerBucket)
-        }
-		lastBlockNo = util.BytesToUint64(key);
-        return nil
-	},false)
+		c := b.Cursor()
+		key, _ := c.Last()
+		if key == nil {
+			return fmt.Errorf("no entries in the bucket  %s", blockExplorerBucket)
+		}
+		lastBlockNo = util.BytesToUint64(key)
+		return nil
+	}, false)
 	if err != nil {
 		return 0, err
 	}
@@ -254,32 +253,17 @@ func (s *boltBillStoreTx) SetBlockExplorer(b *types.Block) error {
 		blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
 		blockNumberBytes := util.Uint64ToBytes(blockNumber)
 
-		var txHashes [][]byte
-
-		for _, tx := range b.Transactions {
-			hash := tx.Hash(crypto.SHA256) // crypto.SHA256?
-			txHashes = append(txHashes, hash)
+		blockExplorer, err := CreateBlockExplorer(b)
+		if err != nil {
+			return err
 		}
 
-		header := &HeaderExplorer{
-			Timestamp:         b.UnicityCertificate.UnicitySeal.Timestamp,
-			BlockHash:         b.UnicityCertificate.InputRecord.BlockHash,
-			PreviousBlockHash: b.Header.PreviousBlockHash,
-			ProposerID:        b.GetProposerID(),
-		}
-		blockExplorer := &BlockExplorer{
-			SystemID:        &b.Header.SystemID,
-			RoundNumber:     b.GetRoundNumber(),
-			Header:          header,
-			TxHashes:        txHashes,
-			SummaryValue:    b.UnicityCertificate.InputRecord.SummaryValue,
-			SumOfEarnedFees: b.UnicityCertificate.InputRecord.SumOfEarnedFees,
-		}
 		blockExplorerBytes, err := json.Marshal(blockExplorer)
 
 		if err != nil {
 			return err
 		}
+
 		err = blockExplorerBucket.Put(blockNumberBytes, blockExplorerBytes)
 		if err != nil {
 			return err
@@ -290,7 +274,7 @@ func (s *boltBillStoreTx) SetBlockExplorer(b *types.Block) error {
 
 func (s *boltBillStoreTx) GetTxExplorerByTxHash(txHash string) (*TxExplorer, error) {
 	var txEx *TxExplorer
-	hashBytes := []byte(txHash);
+	hashBytes := []byte(txHash)
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		txExplorerBytes := tx.Bucket(txExplorerBucket).Get(hashBytes)
 		return json.Unmarshal(txExplorerBytes, &txEx)
@@ -308,7 +292,7 @@ func (s *boltBillStoreTx) SetTxExplorerToBucket(txExplorer *TxExplorer) error {
 			return err
 		}
 		txExplorerBucket := tx.Bucket(txExplorerBucket)
-		hashBytes := []byte(txExplorer.Hash);
+		hashBytes := []byte(txExplorer.Hash)
 		err = txExplorerBucket.Put(hashBytes, txExplorerBytes)
 		if err != nil {
 			return err

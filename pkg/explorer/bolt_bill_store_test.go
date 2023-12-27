@@ -163,6 +163,63 @@ func TestBillStore_SetBlockExplorer_GetBlocksExplorer(t *testing.T) {
 	require.EqualValues(t, len(blocks2), 3)
 	require.EqualValues(t, blocks2[2].TxHashes[0] , tx1Hash)
 }
+func TestBillStore_SetBlockExplorer_GetBlockExplorerTxsByBlockNumber(t *testing.T) {
+	blockNumber := test.RandomUint64()
+
+	tx1 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 10, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx2 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 50, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	tx3 := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1111, TargetUnits: []types.UnitID{}, SuccessIndicator: 0, ProcessingDetails: []byte{}},
+	}
+	bs := createTestBillStore(t)
+	b := &types.Block{Header: &types.Header{ } , Transactions:  []*types.TransactionRecord{tx1 , tx2 , tx3} , UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber} , UnicitySeal: &types.UnicitySeal{}}}
+
+	tx1Hash:= hex.EncodeToString(tx1.Hash(crypto.SHA256));
+	//tx2Hash:= hex.EncodeToString(tx2.Hash(crypto.SHA256));
+	//tx3Hash:= hex.EncodeToString(tx3.Hash(crypto.SHA256));
+	// set
+	txEx1, err := CreateTxExplorer(blockNumber, tx1)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx1)
+	require.NoError(t, err)
+	txEx2, err := CreateTxExplorer(blockNumber, tx2)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx2)
+	require.NoError(t, err)
+	txEx3, err := CreateTxExplorer(blockNumber, tx3)
+	require.NoError(t, err)
+	err = bs.Do().SetTxExplorerToBucket(txEx3)
+	require.NoError(t, err)
+
+	err = bs.Do().SetBlockExplorer(b)
+	require.NoError(t, err)
+
+
+	// get
+	txs, err := bs.Do().GetBlockExplorerTxsByBlockNumber(blockNumber)
+	require.NoError(t, err)
+	require.NotNil(t, txs)
+	require.EqualValues(t, len(txs) , 3)
+	require.EqualValues(t, txs[0].BlockNumber , blockNumber)
+	require.EqualValues(t, txs[0].Hash , tx1Hash)
+	require.EqualValues(t, txs[0].Fee , tx1.ServerMetadata.ActualFee)
+
+
+	// length2 := 4
+	// blocks2, prevBlockNumber2, err2 := bs.Do().GetBlocksExplorer(blockNumber3, length2)
+	// require.NoError(t, err2)
+	// require.EqualValues(t, blocks2[0].RoundNumber, blockNumber3)
+	// require.EqualValues(t, prevBlockNumber2, 0)
+	// require.EqualValues(t, len(blocks2), 3)
+	// require.EqualValues(t, blocks2[2].TxHashes[0] , tx1Hash)
+}
 
 func TestBillStore_GetSetBlockNumber(t *testing.T) {
 	bs := createTestBillStore(t)

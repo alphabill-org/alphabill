@@ -76,6 +76,7 @@ type (
 		GetBlockExplorerByBlockNumber(blockNumber uint64) (*BlockExplorer, error)
 		GetBlocksExplorer(dbStartBlock uint64, count int) (res []*BlockExplorer, prevBlockNumber uint64, err error)
 		SetBlockExplorer(b *types.Block) error
+		GetBlockExplorerTxsByBlockNumber(blockNumber uint64) (res []*TxExplorer,err error)
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetTxExplorerByTxHash(txHash string) (*TxExplorer, error)

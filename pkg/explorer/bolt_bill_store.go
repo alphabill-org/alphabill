@@ -284,7 +284,44 @@ func (s *boltBillStoreTx) GetTxExplorerByTxHash(txHash string) (*TxExplorer, err
 	}
 	return txEx, nil
 }
+func (s *boltBillStoreTx) GetBlockExplorerTxsByBlockNumber(blockNumber uint64) (res []*TxExplorer,err error) {
+	return res, s.withTx(s.tx, func(tx *bolt.Tx) error {
+		var err error
+		res, err = s.getBlockExplorerTxsByBlockNumber(tx, blockNumber)
+		return err
+	}, false)
+}
+func (s *boltBillStoreTx) getBlockExplorerTxsByBlockNumber(tx *bolt.Tx, blockNumber uint64) ([]*TxExplorer, error) {
+	var txsEx []*TxExplorer
+	blockNumberBytes := util.Uint64ToBytes(blockNumber)
 
+	blockExplorerBytes := tx.Bucket(blockExplorerBucket).Get(blockNumberBytes)
+	if blockExplorerBytes == nil {
+		return nil, fmt.Errorf("no block data found for block number %d", blockNumber)
+	}
+
+	var b BlockExplorer
+	if err := json.Unmarshal(blockExplorerBytes, &b); err != nil {
+		return nil, err
+	}
+
+	txExBucket := tx.Bucket(txExplorerBucket)
+	for _, hash := range b.TxHashes {
+		hashBytes := []byte(hash)
+		txExBytes := txExBucket.Get(hashBytes)
+		if txExBytes == nil {
+			continue
+		}
+
+		t := &TxExplorer{}
+		if err := json.Unmarshal(txExBytes, t); err != nil {
+			return nil, err
+		}
+		txsEx = append(txsEx, t)
+	}
+
+	return txsEx, nil
+}
 func (s *boltBillStoreTx) SetTxExplorerToBucket(txExplorer *TxExplorer) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
 		txExplorerBytes, err := json.Marshal(txExplorer)

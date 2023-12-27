@@ -80,7 +80,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 		return nil, err
 	}
 
-	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs, obs.Logger())
+	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs)
 	if err != nil {
 		return nil, fmt.Errorf("tx buffer init error, %w", err)
 	}

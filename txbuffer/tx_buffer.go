@@ -39,6 +39,7 @@ type (
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Tracer(name string, options ...trace.TracerOption) trace.Tracer
+		Logger() *slog.Logger
 	}
 )
 
@@ -46,7 +47,7 @@ type (
 New creates a new instance of the TxBuffer.
 MaxSize specifies the total number of transactions the TxBuffer may contain.
 */
-func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability, log *slog.Logger) (*TxBuffer, error) {
+func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability) (*TxBuffer, error) {
 	if maxSize < 1 {
 		return nil, fmt.Errorf("buffer max size must be greater than zero, got %d", maxSize)
 	}
@@ -58,7 +59,7 @@ func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability, log *slog.L
 		hashAlgorithm:  hashAlgorithm,
 		transactions:   make(map[string]time.Time),
 		transactionsCh: make(chan *types.TransactionOrder, maxSize),
-		log:            log,
+		log:            obs.Logger(),
 		tracer:         obs.Tracer("txBuffer"),
 	}
 	if err := buf.initMetrics(obs); err != nil {

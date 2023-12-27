@@ -22,13 +22,13 @@ func Test_TxBuffer_New(t *testing.T) {
 	obs := observability.NOPObservability()
 
 	t.Run("invalid buffer size", func(t *testing.T) {
-		buffer, err := New(0, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(0, crypto.SHA256, obs)
 		require.EqualError(t, err, `buffer max size must be greater than zero, got 0`)
 		require.Nil(t, buffer)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 		require.NotNil(t, buffer)
 		require.Equal(t, crypto.SHA256, buffer.hashAlgorithm)
@@ -43,7 +43,7 @@ func Test_TxBuffer_New(t *testing.T) {
 func Test_TxBuffer_Add(t *testing.T) {
 	t.Run("nil tx is rejected", func(t *testing.T) {
 		obs := observability.Default(t)
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 		txh, err := buffer.Add(context.Background(), nil)
 		require.ErrorIs(t, err, ErrTxIsNil)
@@ -54,7 +54,7 @@ func Test_TxBuffer_Add(t *testing.T) {
 
 	t.Run("tx already in buffer", func(t *testing.T) {
 		obs := observability.Default(t)
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 
 		tx := testtransaction.NewTransactionOrder(t)
@@ -74,7 +74,7 @@ func Test_TxBuffer_Add(t *testing.T) {
 
 	t.Run("buffer is full", func(t *testing.T) {
 		obs := observability.Default(t)
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 
 		for i := 0; i < int(testBufferSize); i++ {
@@ -92,7 +92,7 @@ func Test_TxBuffer_Add(t *testing.T) {
 func Test_TxBuffer_removeFromIndex(t *testing.T) {
 	t.Run("tx id not in the index", func(t *testing.T) {
 		obs := observability.Default(t)
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(t)
 		txh, err := buffer.Add(context.Background(), tx)
@@ -106,7 +106,7 @@ func Test_TxBuffer_removeFromIndex(t *testing.T) {
 
 	t.Run("tx id is in the index", func(t *testing.T) {
 		obs := observability.Default(t)
-		buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+		buffer, err := New(testBufferSize, crypto.SHA256, obs)
 		require.NoError(t, err)
 
 		tx := testtransaction.NewTransactionOrder(t)
@@ -123,7 +123,7 @@ func Test_TxBuffer_removeFromIndex(t *testing.T) {
 
 func Test_TxBuffer_Remove(t *testing.T) {
 	obs := observability.Default(t)
-	buffer, err := New(testBufferSize, crypto.SHA256, obs, obs.Logger())
+	buffer, err := New(testBufferSize, crypto.SHA256, obs)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,7 +168,7 @@ func Test_TxBuffer_concurrency(t *testing.T) {
 	const totalTxCnt = 20 // how many transactions to process
 
 	obs := observability.Default(t)
-	buffer, err := New(10, crypto.SHA256, obs, obs.Logger())
+	buffer, err := New(10, crypto.SHA256, obs)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

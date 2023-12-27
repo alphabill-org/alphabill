@@ -9,7 +9,6 @@ import (
 	"sync"
 	"testing"
 
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -40,7 +39,7 @@ type PeerMessage struct {
 
 func NewMockNetwork(t *testing.T) *MockNet {
 	obs := observability.Default(t)
-	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs, testlogger.New(t))
+	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs)
 	require.NoError(t, err)
 
 	mn := &MockNet{

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -47,13 +48,11 @@ func TestAPI_Balance_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
-		_        struct{} `cbor:",toarray"`
-		Balance  string
-		Backlink []byte
+		_       struct{} `cbor:",toarray"`
+		Balance string
 	}{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 	require.Equal(t, balance.String(), resp.Balance)
-	require.Len(t, resp.Backlink, 0)
 }
 
 func TestAPI_BalanceWithBacklink_OK(t *testing.T) {
@@ -82,13 +81,11 @@ func TestAPI_BalanceWithBacklink_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
-		_        struct{} `cbor:",toarray"`
-		Balance  string
-		Backlink []byte
+		_       struct{} `cbor:",toarray"`
+		Balance string
 	}{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 	require.Equal(t, conversion.AlphaToWei(balance).String(), resp.Balance)
-	require.Equal(t, backlink, resp.Backlink)
 }
 
 func TestAPI_Balance_NotFound(t *testing.T) {
@@ -104,4 +101,52 @@ func TestAPI_Balance_NotFound(t *testing.T) {
 
 	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
+}
+
+func TestAPI_FeeCreditInfo(t *testing.T) {
+	api := &API{
+		state:            abstate.NewEmptyState(),
+		systemIdentifier: []byte{0, 0, 0, 1},
+		gasUnitPrice:     big.NewInt(10),
+		blockGasLimit:    10000,
+	}
+	t.Run("get fee credit info - ok", func(t *testing.T) {
+		address := test.RandomBytes(20)
+		unitID := unit.NewFeeCreditRecordID(nil, address)
+		var balance uint64 = 101
+		backlink := test.RandomBytes(32)
+		err := api.state.Apply(fc.AddCredit(unitID, templates.AlwaysTrueBytes(), unit.NewEvmFcr(balance, backlink, 10)))
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/%s", hex.EncodeToString(unitID)), nil)
+		recorder := httptest.NewRecorder()
+		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		resp := &struct {
+			_        struct{} `cbor:",toarray"`
+			Balance  uint64
+			Backlink []byte
+			Timeout  uint64
+			Locked   uint64
+		}{}
+		require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+		require.Equal(t, balance, resp.Balance)
+		require.Equal(t, backlink, resp.Backlink)
+		require.EqualValues(t, 10, resp.Timeout)
+		require.EqualValues(t, 0, resp.Locked)
+	})
+	t.Run("get fee credit info - not found", func(t *testing.T) {
+		address := test.RandomBytes(20)
+		unitID := unit.NewFeeCreditRecordID(nil, address)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/%s", hex.EncodeToString(unitID)), nil)
+		recorder := httptest.NewRecorder()
+		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		require.Equal(t, http.StatusNotFound, recorder.Code)
+	})
+	t.Run("get fee credit info - invalid unit id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/test"), nil)
+		recorder := httptest.NewRecorder()
+		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		require.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
 }

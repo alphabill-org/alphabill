@@ -137,7 +137,6 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 		unit := &Unit{
 			logs:              []*Log{latestLog},
 			logRoot:           logRoot,
-			logRootCalculated: true,
 		}
 
 		var right, left *node

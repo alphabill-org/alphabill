@@ -34,8 +34,8 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 	unit := n.Value()
 
 	// h_s - calculate state log root hash
-	// If state is recovered from a file, then logRoot is already calculated.
-	if !unit.logRootCalculated {
+	// Skip this step if state has been recovered from file and logRoot is already present.
+	if unit.logRoot == nil {
 		merkleTree := mt.New(p.hashAlgorithm, unit.logs)
 		unit.logRoot = merkleTree.GetRootHash()
 	}

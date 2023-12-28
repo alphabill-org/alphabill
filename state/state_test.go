@@ -394,9 +394,8 @@ func TestState_GetUnit(t *testing.T) {
 	u2, err := s.GetUnit(unitID, true)
 	require.NoError(t, err)
 	require.NotNil(t, u2)
-	// subtree hash and summaryCalculated do not get cloned - rest must match
+	// logRoot, subTreeSummaryHash and summaryCalculated do not get cloned - rest must match
 	require.Equal(t, u.logs, u2.logs)
-	require.Equal(t, u.logRoot, u2.logRoot)
 	require.Equal(t, u.bearer, u2.bearer)
 	require.Equal(t, u.data, u2.data)
 	require.Equal(t, u.subTreeSummaryValue, u2.subTreeSummaryValue)

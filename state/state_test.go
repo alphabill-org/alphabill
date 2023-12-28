@@ -563,10 +563,11 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testi
 
 func TestWriteStateFile(t *testing.T) {
 	s, _, _ := prepareState(t)
-
-	// TODO: Restoring unpruned state currently does not work, because UC verification fails. AB-1291 will fix.
-	// addLog(t, s, []byte{0, 0, 0, 0}, []byte{1})
-	// addLog(t, s, []byte{0, 0, 0, 0}, []byte{2})
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{1}))
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{2}))
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{3}))
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{4}))
+	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{5}))
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -588,15 +589,10 @@ func TestWriteStateFile(t *testing.T) {
 
 	recoveredSummaryValue, recoveredSummaryHash, err := recoveredState.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, recoveredState.Commit(uc))
+	require.True(t, recoveredState.IsCommitted())
 	require.Equal(t, summaryValue, recoveredSummaryValue)
 	require.Equal(t, summaryHash, recoveredSummaryHash)
-
-	require.NoError(t, s.Prune())
-	prunedSummaryValue, prunedSummaryHash, err := s.CalculateRoot()
-	require.NoError(t, err)
-	require.Equal(t, prunedSummaryValue, recoveredSummaryValue)
-	require.Equal(t, prunedSummaryHash, recoveredSummaryHash)
+	require.Equal(t, uc, recoveredState.CommittedUC())
 }
 
 func prepareState(t *testing.T) (*State, []byte, uint64) {

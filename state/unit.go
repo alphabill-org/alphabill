@@ -16,6 +16,7 @@ type (
 	Unit struct {
 		logs                logs                      // state changes of the unit.
 		logRoot             []byte                    // root value of the hash tree built on the state log.
+		logRootCalculated   bool
 		bearer              predicates.PredicateBytes // current bearer condition
 		data                UnitData                  // current data of the unit
 		subTreeSummaryValue uint64                    // current summary value of the sub-tree rooted at this node

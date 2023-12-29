@@ -13,7 +13,7 @@ import (
 const CBORChecksumLength = 5
 
 type (
-	StateFileHeader struct {
+	Header struct {
 		_                  struct{} `cbor:",toarray"`
 		SystemIdentifier   types.SystemID
 		UnicityCertificate *types.UnicityCertificate

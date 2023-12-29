@@ -133,6 +133,19 @@ func TestState_Commit_RootNotCalculated(t *testing.T) {
 	require.Nil(t, s.CommittedUC())
 }
 
+func TestState_Commit_InvalidUC(t *testing.T) {
+	unitData := &TestData{Value: 10}
+	s := NewEmptyState()
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	summaryValue, summaryHash, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.ErrorContains(t, s.Commit(createUC(s, summaryValue, nil)), "state summary hash is not equal to the summary hash in UC")
+	require.False(t, s.isCommitted())
+	require.ErrorContains(t, s.Commit(createUC(s, 0, summaryHash)), "state summary value is not equal to the summary value in UC")
+	require.False(t, s.isCommitted())
+	require.Nil(t, s.CommittedUC())
+}
+
 func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
@@ -560,7 +573,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 func TestCreateAndVerifyStateProofs_CreateUnitProof_InvalidSummaryValue(t *testing.T) {
 }
 
-func TestWriteStateFile(t *testing.T) {
+func TestSerialize_OK(t *testing.T) {
 	s, _, _ := prepareState(t)
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{1}))
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 0}, []byte{2}))
@@ -573,17 +586,14 @@ func TestWriteStateFile(t *testing.T) {
 	uc := createUC(s, summaryValue, summaryHash)
 	require.NoError(t, s.Commit(uc))
 
-	header := &StateFileHeader{
+	header := &Header{
 		SystemIdentifier: []byte{1, 2, 3, 4},
 	}
 	buf := &bytes.Buffer{}
 	// Writes the pruned state
 	require.NoError(t, s.Serialize(buf, header, true))
 
-	udc := func(_ types.UnitID) (UnitData, error) {
-		return &pruneUnitData{}, nil
-	}
-	recoveredState, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	recoveredState, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 
 	recoveredSummaryValue, recoveredSummaryHash, err := recoveredState.CalculateRoot()
@@ -592,6 +602,155 @@ func TestWriteStateFile(t *testing.T) {
 	require.Equal(t, summaryValue, recoveredSummaryValue)
 	require.Equal(t, summaryHash, recoveredSummaryHash)
 	require.Equal(t, uc, recoveredState.CommittedUC())
+}
+
+func TestSerialize_InvalidHeader(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+	}
+	buf := &bytes.Buffer{}
+	// Writes the pruned state
+	require.NoError(t, s.Serialize(buf, header, true))
+
+	_, err := buf.ReadByte()
+	require.NoError(t, err)
+
+	_, err = NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unable to decode header")
+}
+
+func TestSerialize_InvalidNodeRecords(t *testing.T) {
+	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 1,
+		UnicityCertificate: nil,
+	}
+	buf := createSerializedState(t, s, header, 0)
+
+	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unable to decode node record")
+}
+
+func TestSerialize_TooManyNodeRecords(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 10,
+		UnicityCertificate: nil,
+	}
+	buf := createSerializedState(t, s, header, 0)
+
+	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unexpected node record")
+}
+
+func TestSerialize_UnitDataConstructorError(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 11,
+		UnicityCertificate: nil,
+	}
+	buf := createSerializedState(t, s, header, 0)
+
+	udc := func(_ types.UnitID) (UnitData, error) {
+		return nil, fmt.Errorf("something happened")
+	}
+	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unable to construct unit data: something happened")
+}
+
+func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 11,
+		UnicityCertificate: nil,
+	}
+	buf := createSerializedState(t, s, header, 0)
+
+	udc := func(_ types.UnitID) (UnitData, error) {
+		return struct {*pruneUnitData}{}, nil
+	}
+	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unable to decode unit data")
+}
+
+func TestSerialize_InvalidChecksum(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 11,
+		UnicityCertificate: nil,
+	}
+	buf := createSerializedState(t, s, header, 1)
+
+	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "checksum mismatch")
+}
+
+func TestSerialize_InvalidUC(t *testing.T) {
+	s, _, _ := prepareState(t)
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+		NodeRecordCount: 11,
+		UnicityCertificate: createUC(s, 0, nil),
+	}
+	buf := createSerializedState(t, s, header, 0)
+
+	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	require.ErrorContains(t, err, "unable to commit recovered state")
+}
+
+func TestSerialize_EmptyStateUncommitted(t *testing.T) {
+	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+	}
+	buf := &bytes.Buffer{}
+	require.NoError(t, s.Serialize(buf, header, true))
+
+	udc := func(_ types.UnitID) (UnitData, error) {
+		return &pruneUnitData{}, nil
+	}
+
+	state, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	require.NoError(t, err)
+	require.False(t, state.IsCommitted())
+}
+
+func TestSerialize_EmptyStateCommitted(t *testing.T) {
+	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
+	summaryValue, summaryHash, err := s.CalculateRoot()
+	if summaryHash == nil {
+		summaryHash = make([]byte, crypto.SHA256.Size())
+	}
+	require.NoError(t, err)
+	require.NoError(t, s.Commit(createUC(s, summaryValue, summaryHash)))
+
+	header := &Header{
+		SystemIdentifier: []byte{1, 2, 3, 4},
+	}
+	buf := &bytes.Buffer{}
+	require.NoError(t, s.Serialize(buf, header, true))
+
+	udc := func(_ types.UnitID) (UnitData, error) {
+		return &pruneUnitData{}, nil
+	}
+
+	state, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	require.NoError(t, err)
+	require.True(t, state.IsCommitted())
 }
 
 func prepareState(t *testing.T) (*State, []byte, uint64) {
@@ -716,4 +875,26 @@ func (p *pruneUnitData) SummaryValueInput() uint64 {
 
 func (p *pruneUnitData) Copy() UnitData {
 	return &pruneUnitData{I: p.I}
+}
+
+func unitDataConstructor(_ types.UnitID) (UnitData, error) {
+	return &pruneUnitData{}, nil
+}
+
+func createSerializedState(t *testing.T, s *State, header *Header, checksum uint32) *bytes.Buffer {
+	buf := &bytes.Buffer{}
+	crc32Writer := NewCRC32Writer(buf)
+	encoder := cbor.NewEncoder(crc32Writer)
+
+	require.NoError(t, encoder.Encode(header))
+
+	ss := newStateSerializer(encoder, s.hashAlgorithm)
+	s.committedTree.Traverse(ss)
+	require.NoError(t, ss.err)
+
+	if checksum == 0 {
+		checksum = crc32Writer.Sum()
+	}
+	require.NoError(t, encoder.Encode(util.Uint32ToBytes(checksum)))
+	return buf
 }

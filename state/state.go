@@ -67,7 +67,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
-	var header StateFileHeader
+	var header Header
 	err := decoder.Decode(&header)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode header: %w", err)
@@ -97,7 +97,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	}
 	if header.UnicityCertificate != nil {
 		if err := state.Commit(header.UnicityCertificate); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to commit recovered state: %w", err)
 		}
 	}
 
@@ -331,7 +331,7 @@ func (s *State) Prune() error {
 
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) Serialize(writer io.Writer, header *StateFileHeader, committed bool) error {
+func (s *State) Serialize(writer io.Writer, header *Header, committed bool) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder := cbor.NewEncoder(crc32Writer)
 

@@ -189,8 +189,8 @@ func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 }
 
 func (m *TxSystem) SerializeState(writer io.Writer, committed bool) error {
-	header := &state.StateFileHeader{
-		SystemIdentifier:   m.systemIdentifier,
+	header := &state.Header{
+		SystemIdentifier: m.systemIdentifier,
 	}
 	return m.state.Serialize(writer, header, committed)
 }

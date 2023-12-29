@@ -34,8 +34,11 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 	unit := n.Value()
 
 	// h_s - calculate state log root hash
-	merkleTree := mt.New(p.hashAlgorithm, unit.logs)
-	unit.logRoot = merkleTree.GetRootHash()
+	// Skip this step if state has been recovered from file and logRoot is already present.
+	if unit.logRoot == nil {
+		merkleTree := mt.New(p.hashAlgorithm, unit.logs)
+		unit.logRoot = merkleTree.GetRootHash()
+	}
 
 	// bearer update
 	unit.bearer = unit.latestUnitBearer()
@@ -60,6 +63,6 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 	hasher.Write(util.Uint64ToBytes(rightSummary))
 
 	unit.subTreeSummaryHash = hasher.Sum(nil)
+	unit.summaryCalculated = true
 	p.SetClean(n)
-	n.Value().summaryCalculated = true
 }

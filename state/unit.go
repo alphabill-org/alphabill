@@ -55,7 +55,6 @@ func (u *Unit) Clone() *Unit {
 	}
 	return &Unit{
 		logs:                copyLogs(u.logs),
-		logRoot:             bytes.Clone(u.logRoot),
 		bearer:              bytes.Clone(u.bearer),
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,

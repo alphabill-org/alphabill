@@ -67,13 +67,13 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
-	var header StateFileHeader
+	var header Header
 	err := decoder.Decode(&header)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode header: %w", err)
 	}
 
-	root, err := readNodeRecords(decoder, udc, header.NodeRecordCount)
+	root, err := readNodeRecords(decoder, udc, header.NodeRecordCount, options.hashAlgorithm)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode node records: %w", err)
 	}
@@ -97,14 +97,14 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	}
 	if header.UnicityCertificate != nil {
 		if err := state.Commit(header.UnicityCertificate); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to commit recovered state: %w", err)
 		}
 	}
 
 	return state, nil
 }
 
-func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstructor, count uint64) (*node, error) {
+func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstructor, count uint64, hashAlgorithm crypto.Hash) (*node, error) {
 	if count == 0 {
 		return nil, nil
 	}
@@ -127,12 +127,17 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			return nil, fmt.Errorf("unable to decode unit data: %w", err)
 		}
 
-		unitLogs := []*Log{{
+		latestLog := &Log{
 			UnitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
 			NewBearer:          nodeRecord.OwnerCondition,
 			NewUnitData:        unitData,
-		}}
-		unit := &Unit{logs: unitLogs}
+		}
+		logRoot := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
+
+		unit := &Unit{
+			logs:              []*Log{latestLog},
+			logRoot:           logRoot,
+		}
 
 		var right, left *node
 		if nodeRecord.HasRight {
@@ -326,7 +331,7 @@ func (s *State) Prune() error {
 
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) Serialize(writer io.Writer, header *StateFileHeader, committed bool) error {
+func (s *State) Serialize(writer io.Writer, header *Header, committed bool) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder := cbor.NewEncoder(crc32Writer)
 
@@ -349,7 +354,7 @@ func (s *State) Serialize(writer io.Writer, header *StateFileHeader, committed b
 	}
 
 	// Write node records
-	ss := newStateSerializer(encoder)
+	ss := newStateSerializer(encoder, s.hashAlgorithm)
 	if tree.Traverse(ss); ss.err != nil {
 		return fmt.Errorf("unable to write node records: %w", ss.err)
 	}

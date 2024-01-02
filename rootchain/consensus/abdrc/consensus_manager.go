@@ -104,6 +104,7 @@ type (
 		fwdIRCRCnt metric.Int64Counter
 		qcSize     metric.Int64Counter
 		qcVoters   metric.Int64Counter
+		susVotes   metric.Int64Counter
 	}
 )
 
@@ -197,6 +198,10 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	x.voteCnt, err = m.Int64Counter("count.vote", metric.WithDescription("Number of times node has voted (might be more than once per round for a different reason, ie proposal and timeout)"))
 	if err != nil {
 		return fmt.Errorf("creating vote counter: %w", err)
+	}
+	x.susVotes, err = m.Int64Counter("sus.vote", metric.WithDescription(`Number of "suspicious" votes node has seen (ie stale votes, votes before proposal, etc)`))
+	if err != nil {
+		return fmt.Errorf("creating suspicious vote counter: %w", err)
 	}
 
 	x.proposedCR, err = m.Int64Counter("count.proposed.cr", metric.WithDescription("Number of Change Requests included into proposal by the round leader"))
@@ -417,7 +422,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if err := x.net.Send(ctx, timeoutVoteMsg, x.leaderSelector.GetNodes()...); err != nil {
 		x.log.WarnContext(ctx, "error on broadcasting timeout vote", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 	}
-	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "timeout"))))
+	x.voteCnt.Add(ctx, 1, attrSetVoteForTC)
 }
 
 // onPartitionIRChangeReq handle partition change requests. Received from go routine handling
@@ -509,6 +514,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	defer span.End()
 
 	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
+		x.susVotes.Add(ctx, 1, attrSetQCVoteStale)
 		return fmt.Errorf("stale vote for round %d from %s", vote.VoteInfo.RoundNumber, vote.Author)
 	}
 	// verify signature on vote
@@ -525,6 +531,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		// the round but we haven't seen QC or TC for previous round?)
 		// Votes are buffered for one round only so if we overwrite author's vote it is either stale
 		// or we have received the vote more than once.
+		x.susVotes.Add(ctx, 1, attrSetQCVoteEarly)
 		x.log.DebugContext(ctx, "received vote before proposal, buffering vote", logger.Round(x.pacemaker.GetCurrentRound()))
 		x.voteBuffer[vote.Author] = vote
 		// if we have received quorum votes, but no proposal yet, then try and recover the proposal.
@@ -691,7 +698,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending vote to next leader %s", nextLeader.String()), logger.Round(proposal.Block.Round))
-	x.voteCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "proposal"))))
+	x.voteCnt.Add(ctx, 1, attrSetVoteForQC)
 	if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}
@@ -1111,3 +1118,12 @@ func (ri *recoveryInfo) String() string {
 	}
 	return fmt.Sprintf("toRound: %d trigger %T @ %s", ri.toRound, ri.triggerMsg, ri.sent)
 }
+
+// "constant" (ie without variable part) attribute sets for observability
+var (
+	attrSetQCVoteStale = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "stale")))
+	attrSetQCVoteEarly = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "early")))
+
+	attrSetVoteForQC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "proposal")))
+	attrSetVoteForTC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "timeout")))
+)

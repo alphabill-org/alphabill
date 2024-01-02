@@ -8,9 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
@@ -31,9 +32,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 	stateDB.CreateAccount(address)
 	balance := big.NewInt(101)
 	stateDB.AddBalance(address, balance)
-	_, _, err := tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	a := &API{
 		state:            tree,
@@ -45,7 +44,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", address.Bytes()), nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
 		_       struct{} `cbor:",toarray"`
@@ -66,8 +65,7 @@ func TestAPI_BalanceWithBacklink_OK(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
-
+	teststate.CommitWithUC(t, s)
 	a := &API{
 		state:            s,
 		systemIdentifier: []byte{0, 0, 0, 1},
@@ -78,7 +76,7 @@ func TestAPI_BalanceWithBacklink_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", address.Bytes()), nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
 		_       struct{} `cbor:",toarray"`
@@ -99,7 +97,7 @@ func TestAPI_Balance_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", test.RandomBytes(20)), nil)
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 }
 
@@ -120,7 +118,7 @@ func TestAPI_FeeCreditInfo(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/%s", hex.EncodeToString(unitID)), nil)
 		recorder := httptest.NewRecorder()
-		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		rpc.NewRESTServer("", 2000, observability.NOPObservability(), api).Handler.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusOK, recorder.Code)
 		resp := &struct {
 			_        struct{} `cbor:",toarray"`
@@ -140,13 +138,13 @@ func TestAPI_FeeCreditInfo(t *testing.T) {
 		unitID := unit.NewFeeCreditRecordID(nil, address)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/%s", hex.EncodeToString(unitID)), nil)
 		recorder := httptest.NewRecorder()
-		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		rpc.NewRESTServer("", 2000, observability.NOPObservability(), api).Handler.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusNotFound, recorder.Code)
 	})
 	t.Run("get fee credit info - invalid unit id", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/fee-credit-bills/test"), nil)
 		recorder := httptest.NewRecorder()
-		rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), api).Handler.ServeHTTP(recorder, req)
+		rpc.NewRESTServer("", 2000, observability.NOPObservability(), api).Handler.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusBadRequest, recorder.Code)
 	})
 }

@@ -115,7 +115,7 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	}
 
 	// we need to init pacemaker into correct round, otherwise IR validation fails
-	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
+	cm.pacemaker.Reset(context.Background(), cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
@@ -138,7 +138,7 @@ func Test_ConsensusManager_onIRChangeMsg_ErrInvalidSignature(t *testing.T) {
 	}
 	// verify that error is printed and author ID is also present
 	require.ErrorContains(t, cm.onIRChangeMsg(context.Background(), req),
-		fmt.Sprintf("invalid IR change request message from node %s: signature verification failed", cm.id.String()))
+		fmt.Sprintf("invalid IR change request from node %s: signature verification failed", cm.id.String()))
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {
@@ -250,7 +250,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// round is advanced
 	require.Equal(t, uint64(4), cm.pacemaker.GetCurrentRound())
 	// only changes from round 3 are removed, rest will still be active
-	require.True(t, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(partitionID))
 	// await the next proposal as well, the proposal must contain TC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
@@ -309,7 +309,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, partitionID.ToSystemID(), result.UnicityTreeCertificate.SystemIdentifier)
-	require.False(t, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID))
 	// verify certificates have been updated when recovery query is sent
 	getCertsMsg := &abdrc.GetStateMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),
@@ -517,7 +517,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 	t.Run("stale vote", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(8, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), 8, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, 7)
@@ -531,7 +531,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// vote verification failures should be tested by vote.Verify unit tests...
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
@@ -546,7 +546,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -560,7 +560,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
@@ -576,7 +576,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Run("quorum of votes for next round should trigger recovery", func(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		// as we have single CM vote means quorum and recovery should be triggered as CM hasn't
@@ -591,7 +591,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cms[0].leaderSelector = constLeader{leader: cms[1].id, nodes: cms[1].leaderSelector.GetNodes()} // make sure this CM won't be the leader
-		cms[0].pacemaker.Reset(votedRound-1, nil, nil)
+		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
@@ -604,7 +604,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 	t.Parallel()
 
-	observe := testobservability.NOPMetrics()
+	observe := testobservability.Default(t)
 	pm, err := NewPacemaker(time.Minute, 2*time.Minute, observe)
 	if err != nil {
 		t.Fatalf("creating Pacemaker: %v", err)

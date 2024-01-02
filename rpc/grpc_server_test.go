@@ -60,8 +60,8 @@ func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Bloc
 	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() (*types.Block, error) {
-	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
+func (mn *MockNode) LatestBlockNumber() (uint64, error) {
+	return mn.maxBlockNumber, nil
 }
 
 func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
@@ -95,7 +95,7 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 	return unitAndProof, nil
 }
 
-func (mn *MockNode) WriteStateFile(writer io.Writer) error {
+func (mn *MockNode) SerializeState(writer io.Writer) error {
 	return nil
 }
 

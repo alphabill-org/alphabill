@@ -7,9 +7,8 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,8 +24,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type args struct {
-		txSystem txsystem.TransactionSystem
-		opts     []GenesisOption
+		state *state.State
+		opts  []GenesisOption
 	}
 
 	tests := []struct {
@@ -35,22 +34,22 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "tx system is nil",
-			args:    args{txSystem: nil},
-			wantErr: ErrTxSystemIsNil,
+			name:    "state is nil",
+			args:    args{state: nil},
+			wantErr: ErrStateIsNil,
 		},
 		{
 			name: "client signer is nil",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
-				opts:     []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+				state: state.NewEmptyState(),
+				opts: []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
 		},
 		{
 			name: "encryption public key is nil",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
@@ -62,7 +61,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "invalid system identifier",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
 					WithSystemIdentifier(nil),
 					WithPeerID("1"),
@@ -76,7 +75,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "peer ID is empty",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
@@ -88,7 +87,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewNodeGenesis(tt.args.txSystem, tt.args.opts...)
+			got, err := NewNodeGenesis(tt.args.state, tt.args.opts...)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
@@ -116,11 +115,10 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 
 func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
-	txSystem := &testtxsystem.CounterTxSystem{}
 	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()
 	require.NoError(t, err)
 	pn, err := NewNodeGenesis(
-		txSystem,
+		state.NewEmptyState(),
 		WithPeerID(nodeIdentifier),
 		WithSystemIdentifier(systemIdentifier),
 		WithSigningKey(nodeSigningKey),

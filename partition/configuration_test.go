@@ -1,7 +1,6 @@
 package partition
 
 import (
-	gocrypto "crypto"
 	"testing"
 	"time"
 
@@ -132,75 +131,6 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	return pg[0]
 }
 
-func Test_isGenesisValid_NotOk(t *testing.T) {
-	p := test.CreatePeerConfiguration(t)
-	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
-	type fields struct {
-		genesis   *genesis.PartitionGenesis
-		trustBase map[string]crypto.Verifier
-	}
-	type args struct {
-		txs txsystem.TransactionSystem
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr string
-	}{
-		{
-			name: "invalid genesis",
-			fields: fields{
-				genesis:   nil,
-				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
-			},
-			args: args{
-				txs: &testtxsystem.CounterTxSystem{},
-			},
-			wantErr: genesis.ErrPartitionGenesisIsNil.Error(),
-		},
-		{
-			name: "invalid genesis input record hash",
-			fields: fields{
-				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
-			},
-			args: args{
-				txs: &testtxsystem.CounterTxSystem{
-					InitCount: 100,
-				},
-			},
-			wantErr: "tx system root hash does not equal to genesis file hash",
-		},
-		{
-			name: "invalid genesis summary value",
-			fields: fields{
-				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
-			},
-			args: args{
-				txs: &testtxsystem.CounterTxSystem{
-					SummaryValue: 100,
-				},
-			},
-			wantErr: "tx system summary value does not equal to genesis file summary value",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &configuration{
-				hashAlgorithm: gocrypto.SHA256,
-				genesis:       tt.fields.genesis,
-				rootTrustBase: tt.fields.trustBase,
-			}
-			err := c.isGenesisValid(tt.args.txs)
-			require.Error(t, err)
-			require.ErrorContains(t, err, tt.wantErr)
-		})
-	}
-}
-
 func TestGetPublicKey_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -224,16 +154,6 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 	require.ErrorContains(t, err, "public key for id 1 not found")
 }
 
-func TestGetGenesisBlock(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
-	require.NoError(t, err)
-	require.NotNil(t, conf.genesisBlock())
-}
-
 func TestGetRootNodes(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -241,7 +161,6 @@ func TestGetRootNodes(t *testing.T) {
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
 	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
 	require.NoError(t, err)
-	require.NotNil(t, conf.genesisBlock())
 	nodes, err := conf.getRootNodes()
 	require.NoError(t, err)
 	require.Len(t, nodes, 1)

@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	evmGenesisFileName = "node-genesis.json"
-	evmDir             = "evm"
+	evmGenesisFileName      = "node-genesis.json"
+	evmGenesisStateFileName = "node-genesis-state.cbor"
+	evmDir                  = "evm"
 )
 
 type evmGenesisConfig struct {
@@ -27,6 +28,7 @@ type evmGenesisConfig struct {
 	Keys             *keysConfig
 	SystemIdentifier []byte
 	Output           string
+	OutputState      string
 	T2Timeout        uint32
 	BlockGasLimit    uint64
 	GasUnitPrice     uint64
@@ -45,6 +47,7 @@ func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
+	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/evm/node-genesis-state.cbor)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().Uint64Var(&config.BlockGasLimit, "gas-limit", evm.DefaultBlockGasLimit, "max units of gas processed in each block")
 	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm.DefaultGasPrice, "gas unit price in wei")
@@ -79,24 +82,21 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(homePath)
 	if util.FileExists(nodeGenesisFile) {
-		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis file %q already exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
+	}
+
+	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(homePath)
+	if util.FileExists(nodeGenesisStateFile) {
+		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
 		return fmt.Errorf("load keys %v failed: %w", config.Keys.GetKeyFileLocation(), err)
 	}
-
-	txSystem, err := evm.NewEVMTxSystem(
-		config.SystemIdentifier,
-		config.Base.observe.Logger(),
-		evm.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}))
-	if err != nil {
-		return err
-	}
-
+	genesisState := state.NewEmptyState()
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 	}
 
 	nodeGenesis, err := partition.NewNodeGenesis(
-		txSystem,
+		genesisState,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
@@ -122,6 +122,11 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 	if err != nil {
 		return err
 	}
+
+	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+		return fmt.Errorf("failed to write genesis state file: %w", err)
+	}
+
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)
 }
 
@@ -130,4 +135,11 @@ func (c *evmGenesisConfig) getNodeGenesisFileLocation(homePath string) string {
 		return c.Output
 	}
 	return filepath.Join(homePath, evmGenesisFileName)
+}
+
+func (c *evmGenesisConfig) getNodeGenesisStateFileLocation(homePath string) string {
+	if c.OutputState != "" {
+		return c.OutputState
+	}
+	return filepath.Join(homePath, evmGenesisStateFileName)
 }

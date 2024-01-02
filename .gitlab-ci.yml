@@ -1,34 +1,41 @@
 stages:
-  - init
   - test
   - build
   - analyze
 
 image: $CI_REGISTRY/alphabill/gitlab-ci-image:main
 
-# Debugging info and initialization goes here
-init:
-  stage: init
-  script:
-    - go env
+.go-cache:
+  variables:
+    GOPATH: "$CI_PROJECT_DIR/.go:/root/go"
+  before_script:
+    - mkdir -p .go
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/pkg/mod/
 
 vet:
   stage: test
+  extends: .go-cache
+  needs: []
   script:
     - go vet ./...
 
 test:
   stage: test
+  extends: .go-cache
   needs:
     # tests are expensive compared to vet so do not start tests unless vet job succeeded
     - vet
   script:
-    - gotestsum --junitfile report.xml --format standard-quiet -- ./... -race -count=1 -coverpkg=./... -coverprofile test-coverage.out
+    - gotestsum --junitfile report.xml --format standard-quiet -- ./... -race -count=1 -coverprofile test-coverage.out
     - go tool cover -func test-coverage.out
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
   coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
   artifacts:
-    expire_in: 1 month
     reports:
       coverage_report:
         coverage_format: cobertura
@@ -38,23 +45,34 @@ test:
       - test-coverage.out
     when: always
 
+build-docker:
+  stage: build
+  image: docker:latest
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  script:
+    - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
+    - docker build --push --tag ${IMAGE_TAG} --file cli/alphabill/Dockerfile .
+  needs: []
+
 build:
   stage: build
+  extends: .go-cache
   script:
     - make build build_scripts
   artifacts:
-    expire_in: 1 month
     paths:
       - build
+  needs: []
 
 gosec:
-  stage: test
+  stage: analyze
   script:
     - make gosec
   artifacts:
-    expire_in: 1 month
     paths:
       - gosec_report.json
+  needs: []
 
 sonarqube-check:
   stage: analyze
@@ -79,9 +97,10 @@ sonarqube-check:
       # Takes part between last ! and ' character. Job rules makes sure that $CI_OPEN_MERGE_REQUESTS is not empty.
       MERGE_REQUEST_ID=`echo ${QUOTED_CI_OPEN_MERGE_REQUESTS} | rev | cut -d'!' -f1 | cut -d"'" -f2 | rev`
 
-      sonar-scanner -Dsonar.pullrequest.key=${MERGE_REQUEST_ID} -Dsonar.pullrequest.branch=${CI_COMMIT_BRANCH} -Dsonar.pullrequest.base=master
+      sonar-scanner -Dsonar.pullrequest.key=${MERGE_REQUEST_ID} -Dsonar.pullrequest.branch=${CI_COMMIT_BRANCH} -Dsonar.pullrequest.base=${CI_DEFAULT_BRANCH}
     fi
   allow_failure: true
+  needs: ["gosec", "test"]
 
 trivy:
   stage: analyze
@@ -94,13 +113,15 @@ trivy:
     paths:
       - .trivycache/
   artifacts:
-    expire_in: 1 month
     paths:
       - trivy-report.html
     when: always
+  needs: []
 
 nancy:
   stage: analyze
+  extends: .go-cache
   when: manual
   script:
     - go list -json -m all | nancy sleuth
+  needs: []

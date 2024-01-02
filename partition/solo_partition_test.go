@@ -27,6 +27,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -74,7 +75,10 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
-		txSystem,
+		// Should actually create the genesis state before the
+		// txSystem and start the txSystem with it. Works like
+		// this if the txSystem has empty state as well.
+		state.NewEmptyState(),
 		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
@@ -92,6 +96,8 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
+
+	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
 
 	// root state
 	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
@@ -247,6 +253,12 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 	return u, u.Sign("test", sn.rootSigner)
 }
 
+func (sn *SingleNodePartition) GetCommittedUC(t *testing.T) *types.UnicityCertificate {
+	uc := sn.nodeDeps.txSystem.CommittedUC()
+	require.NotNil(t, uc)
+	return uc
+}
+
 func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
@@ -359,12 +371,12 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	return peerConf
 }
 
-func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {
+func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types.UnicityCertificate) func() bool {
 	t.Helper()
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
-		return tp.partition.luc.Load().InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
+		return tp.partition.luc.Load().GetRoundNumber() > committedUC.GetRoundNumber()
 	}
 }
 

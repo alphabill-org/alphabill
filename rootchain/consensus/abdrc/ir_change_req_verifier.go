@@ -16,7 +16,7 @@ type (
 	State interface {
 		GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
 		GetCertificates() map[types.SystemID32]*types.UnicityCertificate
-		IsChangeInProgress(id types.SystemID32) bool
+		IsChangeInProgress(id types.SystemID32) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -31,6 +31,8 @@ type (
 		partitions partitions.PartitionConfiguration
 	}
 )
+
+var ErrDuplicateChangeReq = errors.New("duplicate ir change request")
 
 func t2TimeoutToRootRounds(t2Timeout uint32, blockRate time.Duration) uint64 {
 	return uint64((time.Duration(t2Timeout)*time.Millisecond)/blockRate) + 1
@@ -58,21 +60,12 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 		return nil, fmt.Errorf("IR change request is nil")
 	}
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
-	// Remember all partitions that have changes in the current proposal and apply changes
 	sysID := irChReq.SystemIdentifier
-	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	if x.state.IsChangeInProgress(sysID) {
-		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
-	}
 	// verify certification Request
 	luc, err := x.state.GetCertificate(sysID)
 	if err != nil {
 		return nil, fmt.Errorf("reading partition certificate: %w", err)
 	}
-	if round < luc.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
-	}
-
 	// Find if the SystemIdentifier is known by partition store
 	sysDesRecord, tb, err := x.partitions.GetInfo(sysID)
 	if err != nil {
@@ -82,6 +75,18 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("certification request verifiaction failed: %w", err)
+	}
+	// verify that there are no pending changes in the pipeline for any of the updated partitions
+	if ir := x.state.IsChangeInProgress(sysID); ir != nil {
+		// If the same change is already in progress then report duplicate error
+		if inputRecord.Equal(ir) {
+			return nil, ErrDuplicateChangeReq
+		}
+		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
+	}
+	// check - should never happen, somehow the root node round must have been reset
+	if round < luc.UnicitySeal.RootChainRoundNumber {
+		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: sysDesRecord.Hash(x.params.HashAlgorithm)}, nil
 }
@@ -108,7 +113,8 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.
 	timeoutIds := make([]types.SystemID32, 0, len(ucs))
 	var err error
 	for id, cert := range ucs {
-		if x.state.IsChangeInProgress(id) {
+		// do not create T2 timeout requests if partition has a change already in pipeline
+		if ir := x.state.IsChangeInProgress(id); ir != nil {
 			continue
 		}
 		sysDesc, _, getErr := x.partitions.GetInfo(id)

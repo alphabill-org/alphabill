@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
+	"github.com/alphabill-org/alphabill/txsystem/evm/unit"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -63,6 +65,23 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err = cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
+
+	stateFilePath := cfg.Node.StateFile
+	if stateFilePath == "" {
+		stateFilePath = filepath.Join(cfg.Base.HomeDir, evmDir, evmGenesisStateFileName)
+	}
+	state, err := loadStateFile(stateFilePath, unit.NewUnitData)
+	if err != nil {
+		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
+	}
+
+	// Only genesis state can be uncommitted, try to commit
+	if !state.IsCommitted() {
+		if err := state.Commit(pg.Certificate); err != nil {
+			return fmt.Errorf("invalid genesis state: %w", err)
+		}
+	}
+
 	blockStore, err := initStore(cfg.Node.DbFile)
 	if err != nil {
 		return fmt.Errorf("unable to initialize block DB: %w", err)
@@ -99,6 +118,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(blockStore),
 		evm.WithTrustBase(trustBase),
+		evm.WithState(state),
 	)
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)

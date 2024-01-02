@@ -27,8 +27,9 @@ const (
 	pathUnits                = "/units/{unitID}"
 )
 
-func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability, log *slog.Logger) RegistrarFunc {
+func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability) RegistrarFunc {
 	return func(r *mux.Router) {
+		log := obs.Logger()
 		// submit transaction
 		r.HandleFunc(pathTransactions, submitTransaction(node, obs.Meter(metricsScopeRESTAPI), log)).Methods(http.MethodPost, http.MethodOptions)
 
@@ -141,7 +142,7 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/cbor")
 		w.WriteHeader(http.StatusOK)
 
-		if err := node.WriteStateFile(w); err != nil {
+		if err := node.SerializeState(w); err != nil {
 			log.Error("writing state file", logger.Error(err))
 		}
 	}

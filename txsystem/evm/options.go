@@ -34,7 +34,6 @@ type (
 func DefaultOptions() *Options {
 	return &Options{
 		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
-		state:                   state.NewEmptyState(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		blockGasLimit:           DefaultBlockGasLimit,

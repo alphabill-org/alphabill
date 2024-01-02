@@ -34,16 +34,17 @@ type (
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		PrometheusRegisterer() prometheus.Registerer
+		Logger() *slog.Logger
 	}
 )
 
-func NewRESTServer(addr string, maxBodySize int64, obs Observability, log *slog.Logger, registrars ...Registrar) *http.Server {
+func NewRESTServer(addr string, maxBodySize int64, obs Observability, registrars ...Registrar) *http.Server {
 	mtr := obs.Meter(metricsScopeRESTAPI)
 
 	r := mux.NewRouter()
 	r.NotFoundHandler = http.HandlerFunc(http.NotFound)
 	apiV1Router := r.PathPrefix("/api/v1").Subrouter()
-	apiV1Router.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(mtr, log))
+	apiV1Router.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(mtr, obs.Logger()))
 
 	for _, registrar := range registrars {
 		registrar.Register(apiV1Router)

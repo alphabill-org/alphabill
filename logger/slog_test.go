@@ -23,6 +23,7 @@ func Test_LogConfiguration_logLevel(t *testing.T) {
 		{"NONE", levelNone},
 		{"info-1", slog.LevelInfo - 1},
 		{"info+1", slog.LevelInfo + 1},
+		{"foobar", slog.LevelInfo}, // invalid value, expect default level
 	}
 
 	for _, tc := range cases {

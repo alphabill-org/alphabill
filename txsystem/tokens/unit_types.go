@@ -2,7 +2,10 @@ package tokens
 
 import (
 	"crypto/rand"
+	"fmt"
 
+	"github.com/alphabill-org/alphabill/state"
+	fc "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -63,4 +66,24 @@ func newRandomUnitID(shardPart []byte, typePart []byte) (types.UnitID, error) {
 		return nil, err
 	}
 	return types.NewUnitID(UnitIDLength, shardPart, unitPart, typePart), nil
+}
+
+func NewUnitData(unitID types.UnitID) (state.UnitData, error) {
+	if unitID.HasType(FungibleTokenTypeUnitType) {
+		return &FungibleTokenTypeData{}, nil
+	}
+	if unitID.HasType(FungibleTokenUnitType) {
+		return &FungibleTokenData{}, nil
+	}
+	if unitID.HasType(NonFungibleTokenTypeUnitType) {
+		return &NonFungibleTokenTypeData{}, nil
+	}
+	if unitID.HasType(NonFungibleTokenUnitType) {
+		return &NonFungibleTokenData{}, nil
+	}
+	if unitID.HasType(FeeCreditRecordUnitType) {
+		return &fc.FeeCreditRecord{}, nil
+	}
+
+	return nil, fmt.Errorf("unknown unit type in UnitID %s", unitID)
 }

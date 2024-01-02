@@ -202,7 +202,7 @@ func (cfg *LogConfiguration) logLevel() slog.Level {
 	}
 
 	var lvl slog.Level
-	lvl.UnmarshalText([]byte(cfg.Level))
+	_ = lvl.UnmarshalText([]byte(cfg.Level))
 	return lvl
 }
 
@@ -218,7 +218,7 @@ func filenameToWriter(name string) (io.Writer, error) {
 		if err := os.MkdirAll(filepath.Dir(name), 0700); err != nil {
 			return nil, fmt.Errorf("create dir %q for log output: %w", filepath.Dir(name), err)
 		}
-		file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
+		file, err := os.OpenFile(filepath.Clean(name), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
 			return nil, fmt.Errorf("open file %q for log output: %w", name, err)
 		}

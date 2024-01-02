@@ -27,8 +27,6 @@ type PartitionNode struct {
 
 type MoneyPartitionParams struct {
 	_                        struct{} `cbor:",toarray"`
-	InitialBillValue         uint64
-	DcMoneySupplyValue       uint64
 	SystemDescriptionRecords []*SystemDescriptionRecord
 }
 

@@ -51,31 +51,22 @@ const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t
 
 var systemIdentifier = []byte{0, 0, 4, 2}
 
-func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {
-	s := state.NewEmptyState()
-	require.NoError(t, s.Apply(
-		fcunit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), unit.NewEvmFcr(oneAlpha, make([]byte, 32), 1000)),
-	))
-	_, _, err := s.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, s.Commit())
-	return s
-}
-
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := common.BytesToAddress(test.RandomBytes(20))
 	fcrID := unit.NewFeeCreditRecordID(nil, from.Bytes())
+	genesisState := newGenesisStateWithFC(t, fcrID, oneAlpha)
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			systemIdentifier,
 			logger.New(t),
 			WithTrustBase(trustBase),
-			WithState(newStateWithFeeCredit(t, fcrID)),
 			WithBlockDB(memorydb.New()),
+			WithState(genesisState),
 		) // 1 ETH
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier)
+	}, systemIdentifier, genesisState)
 	require.NoError(t, err)
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
@@ -140,12 +131,8 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"1": v}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	system, err := NewEVMTxSystem(
-		systemIdentifier,
-		logger.New(t),
-		WithTrustBase(rootTrust),
-		WithState(newStateWithFeeCredit(t, unit.NewEvmAccountIDFromAddress(from))),
-		WithBlockDB(memorydb.New())) // 1 ETH
+	genesisState := newGenesisStateWithFC(t, fcrID, oneAlpha)
+	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithTrustBase(rootTrust), WithBlockDB(memorydb.New()), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -190,7 +177,11 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit())
+	require.NoError(t, system.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         round1EndState.Root(),
+		SummaryValue: round1EndState.Summary(),
+	}}))
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
 	callContractTx = createCallContractTx(scID, fcrID, cABI.Methods["increment"].ID, 3, t)
@@ -217,6 +208,16 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round2EndState, err = system.EndBlock()
 	require.NoError(t, err)
 	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
+}
+
+func newGenesisStateWithFC(t *testing.T, feeCreditID types.UnitID, amount uint64) *state.State {
+	s := state.NewEmptyState()
+	require.NoError(t, s.Apply(
+		fcunit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), unit.NewEvmFcr(amount, make([]byte, 32), 1000)),
+	))
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	return s
 }
 
 func createTransferTx(t *testing.T, from common.Address, to []byte) *types.TransactionOrder {

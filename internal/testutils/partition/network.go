@@ -14,10 +14,10 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -30,6 +30,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -56,6 +57,7 @@ type RootPartition struct {
 type NodePartition struct {
 	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
+	genesisState     *state.State
 	txSystemFunc     func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
 	tb               map[string]abcrypto.Verifier
@@ -220,7 +222,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		for _, p := range rootPeers {
 			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
 		}
-		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, log)
+		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
@@ -229,7 +231,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
-		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, log)
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
@@ -254,13 +256,14 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte, state *state.State) (abPartition *NodePartition, err error) {
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	abPartition = &NodePartition{
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
+		genesisState: state,
 		Nodes:        make([]*partitionNode, nodeCount),
 		obs:          testobserve.NewFactory(t),
 	}
@@ -280,7 +283,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		signer := signers[i]
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
-			txSystemProvider(map[string]abcrypto.Verifier{"genesis": nil}),
+			state,
 			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
 			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
@@ -310,6 +313,12 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		return fmt.Errorf("failed to extract root trust base from genesis file, %w", err)
 	}
 	n.tb = trustBase
+
+	if !n.genesisState.IsCommitted() {
+		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
+			return fmt.Errorf("invalid genesis state: %w", err)
+		}
+	}
 
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
@@ -511,11 +520,10 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 
 func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
 	for _, n := range n.Nodes {
-		bl, err := n.GetLatestBlock()
+		number, err := n.LatestBlockNumber()
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		number := bl.UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < number; i++ {
 			b, err := n.GetBlock(context.Background(), number-i)
 			if err != nil || b == nil {
@@ -593,11 +601,10 @@ func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func(
 func BlockchainContains(part *NodePartition, criteria func(tx *types.TransactionOrder) bool) func() bool {
 	return func() bool {
 		for _, n := range part.Nodes {
-			bl, err := n.GetLatestBlock()
+			number, err := n.LatestBlockNumber()
 			if err != nil {
 				panic(err)
 			}
-			number := bl.UnicityCertificate.InputRecord.RoundNumber
 			for i := uint64(0); i <= number; i++ {
 				b, err := n.GetBlock(context.Background(), number-i)
 				if err != nil || b == nil {

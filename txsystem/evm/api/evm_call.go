@@ -74,7 +74,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {
-	blockNumber := clonedState.CommittedTreeBlockNumber()
+	blockNumber := clonedState.CommittedUC().GetRoundNumber()
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	// Ensure message is initialized properly.

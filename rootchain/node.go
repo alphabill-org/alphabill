@@ -75,27 +75,26 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	observe.Logger().Info(fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", p.MultiAddresses(), debug.ReadBuildInfo()))
+
+	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", p.ID())))
 	node := &Node{
 		peer:             p,
 		partitions:       ps,
 		incomingRequests: NewCertificationRequestBuffer(),
-		subscription:     NewSubscriptions(),
+		subscription:     NewSubscriptions(meter),
 		net:              pNet,
 		consensusManager: cm,
 		log:              observe.Logger(),
 		tracer:           observe.Tracer("rootchain.node"),
 	}
-	if err := node.initMetrics(observe); err != nil {
+	if err := node.initMetrics(meter); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 	return node, nil
 }
 
-func (n *Node) initMetrics(observe Observability) (err error) {
-	m := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", n.peer.ID())))
-
-	n.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
+func (v *Node) initMetrics(m metric.Meter) (err error) {
+	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
 	if err != nil {
 		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
 	}
@@ -104,6 +103,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 }
 
 func (v *Node) Run(ctx context.Context) error {
+	v.log.InfoContext(ctx, fmt.Sprintf("Starting root node. Addresses=%v; BuildInfo=%s", v.peer.MultiAddresses(), debug.ReadBuildInfo()))
 	g, gctx := errgroup.WithContext(ctx)
 	// Run root consensus algorithm
 	g.Go(func() error { return v.consensusManager.Run(gctx) })
@@ -135,13 +135,16 @@ func (v *Node) loop(ctx context.Context) error {
 					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling handshake from %s", mt.NodeIdentifier), logger.Error(err))
 				}
 			default:
-				v.log.WarnContext(ctx, "message %T not supported.", msg)
+				v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("message %T not supported.", msg))
 			}
 		}
 	}
 }
 
 func (v *Node) sendResponse(ctx context.Context, nodeID string, uc *types.UnicityCertificate) error {
+	ctx, span := v.tracer.Start(ctx, "node.sendResponse")
+	defer span.End()
+
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
 		return fmt.Errorf("invalid receiver id: %w", err)
@@ -160,7 +163,6 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", sysID, err)
 	}
-	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -181,15 +183,13 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return fmt.Errorf("request contains invalid system identifier %X: %w", req.SystemIdentifier, err)
 	}
 	defer func() {
-		status := "ok"
 		if rErr != nil {
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
-			status = "err"
 		}
 		partition := observability.Partition(sysID32)
 		span.SetAttributes(partition)
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status), partition)))
+		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
 	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
@@ -265,7 +265,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 func (v *Node) onCertificationResult(ctx context.Context, certificate *types.UnicityCertificate) {
 	sysID, err := certificate.UnicityTreeCertificate.SystemIdentifier.Id32()
 	if err != nil {
-		v.log.WarnContext(ctx, "failed to send certification result", logger.Error(err))
+		v.log.WarnContext(ctx, "certificate has invalid partition id", logger.Error(err))
 		return
 	}
 	// remember to clear the incoming buffer to accept new nodeRequest
@@ -274,14 +274,15 @@ func (v *Node) onCertificationResult(ctx context.Context, certificate *types.Uni
 		v.incomingRequests.Clear(sysID)
 		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%s'", sysID))
 	}()
+
 	subscribed := v.subscription.Get(sysID)
 	v.log.DebugContext(ctx, fmt.Sprintf("sending unicity certificate to partition %X, IR Hash: %X, Block Hash: %X",
 		certificate.UnicityTreeCertificate.SystemIdentifier, certificate.InputRecord.Hash, certificate.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
-		if err := v.sendResponse(ctx, node, certificate); err != nil {
+		if err = v.sendResponse(ctx, node, certificate); err != nil {
 			v.log.WarnContext(ctx, "sending certification result", logger.Error(err))
-			v.subscription.SubscriberError(sysID, node)
 		}
+		v.subscription.ResponseSent(sysID, node)
 	}
 }

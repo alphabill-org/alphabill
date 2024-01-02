@@ -118,7 +118,12 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partiton's fee credit bill: %w", sdr.SystemIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", sdr.SystemIdentifier, err)
+		}
+
+		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
+		if err != nil {
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", sdr.SystemIdentifier, err)
 		}
 	}
 
@@ -142,6 +147,11 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 		err = f.state.Apply(updateData)
 		if err != nil {
 			return fmt.Errorf("failed to update money fee credit bill with spent fees: %w", err)
+		}
+
+		err = f.state.AddUnitLog(moneyFCUnitID, make([]byte, f.state.HashAlgorithm().Size()))
+		if err != nil {
+			return fmt.Errorf("failed to update money fee credit bill state log: %w", err)
 		}
 	}
 	return nil

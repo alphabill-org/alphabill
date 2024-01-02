@@ -61,9 +61,6 @@ func (x *InputRecord) IsValid() error {
 	if x.SummaryValue == nil {
 		return ErrSummaryValueIsNil
 	}
-	if x.RoundNumber == 0 {
-		return ErrInvalidPartitionRound
-	}
 	return nil
 }
 

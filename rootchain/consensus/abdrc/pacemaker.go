@@ -218,7 +218,7 @@ func (x *Pacemaker) AdvanceRoundQC(ctx context.Context, qc *types.QuorumCert) bo
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
 	x.startNewRound(ctx, qc.VoteInfo.RoundNumber+1)
-	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
+	x.roundCnt.Add(ctx, 1, attrSetNextRoundQC)
 	return true
 }
 
@@ -234,7 +234,7 @@ func (x *Pacemaker) AdvanceRoundTC(ctx context.Context, tc *types.TimeoutCert) {
 
 	x.lastRoundTC = tc
 	x.startNewRound(ctx, tc.Timeout.Round+1)
-	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
+	x.roundCnt.Add(ctx, 1, attrSetNextRoundTC)
 }
 
 /*
@@ -377,4 +377,9 @@ const (
 	pmsRoundMatured paceMakerStatus = 2
 	// round has lasted longer than max round duration
 	pmsRoundTimeout paceMakerStatus = 3
+)
+
+var (
+	attrSetNextRoundQC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc")))
+	attrSetNextRoundTC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc")))
 )

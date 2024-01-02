@@ -84,11 +84,11 @@ type (
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
 	// is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	Node struct {
-		status                      atomic.Value
-		configuration               *configuration
-		transactionSystem           txsystem.TransactionSystem
+		status            atomic.Value
+		configuration     *configuration
+		transactionSystem txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
-		fuc                         *types.UnicityCertificate
+		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		proposedTransactions        []*types.TransactionRecord
@@ -162,7 +162,7 @@ func NewNode(
 	}
 	rn, err := conf.getRootNodes()
 	if err != nil {
-		return nil, fmt.Errorf("genesis error, invalid rootnodes: %w", err)
+		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
 	}
 	n := &Node{
 		configuration:               conf,
@@ -417,7 +417,7 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
 		if err != nil {
-			n.log.Warn("processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
 			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.TransactionOrder.UnitID(), err)
 		}
 		sumOfEarnedFees += sm.ActualFee
@@ -436,39 +436,39 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 	pr := &pendingBlockProposal{}
 	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), pr)
 	if err != nil {
-		n.log.Error("Error fetching block proposal", logger.Error(err))
+		n.log.ErrorContext(ctx, "Error fetching block proposal", logger.Error(err))
 		return
 	}
 	if !found {
-		n.log.Debug("No pending block proposal stored")
+		n.log.DebugContext(ctx, "No pending block proposal stored")
 		return
 	}
 	// make sure proposal extends the committed state
 	if !bytes.Equal(n.committedUC().InputRecord.Hash, pr.PrevHash) {
-		n.log.Debug("Stored block proposal does not extend previous state, stale proposal")
+		n.log.DebugContext(ctx, "Stored block proposal does not extend previous state, stale proposal")
 		return
 	}
 	// apply stored proposal to current state
-	n.log.Debug("Stored block proposal extends the previous state")
+	n.log.DebugContext(ctx, "Stored block proposal extends the previous state")
 	roundNo := n.committedUC().GetRoundNumber() + 1
 	state, sumOfEarnedFees, err := n.applyBlockTransactions(ctx, roundNo, pr.Transactions)
 	if err != nil {
-		n.log.Warn("Block proposal recovery failed", logger.Error(err))
+		n.log.WarnContext(ctx, "Block proposal recovery failed", logger.Error(err))
 		n.revertState()
 		return
 	}
 	if !bytes.Equal(pr.StateHash, state.Root()) {
-		n.log.Warn(fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.StateHash, state.Root()))
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.StateHash, state.Root()))
 		n.revertState()
 		return
 	}
 	if !bytes.Equal(pr.StateSummary, state.Summary()) {
-		n.log.Warn(fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.StateSummary, state.Summary()))
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.StateSummary, state.Summary()))
 		n.revertState()
 		return
 	}
 	if pr.SumOfEarnedFees != sumOfEarnedFees {
-		n.log.Warn(fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.SumOfEarnedFees, sumOfEarnedFees))
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.SumOfEarnedFees, sumOfEarnedFees))
 		n.revertState()
 		return
 	}
@@ -575,7 +575,7 @@ func statusCodeOfTxError(err error) string {
 }
 
 func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
-	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber() + 1)
+	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
@@ -583,7 +583,7 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr er
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
-	n.log.Debug(fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID()))
+	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID()))
 	return nil
 }
 
@@ -1005,7 +1005,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	if startBlock <= n.fuc.GetRoundNumber() {
 		resp := &replication.LedgerReplicationResponse{
 			Status:  replication.BlocksNotFound,
-			Message: fmt.Sprintf("Node does not have block: %v, first block: %v", startBlock, n.fuc.GetRoundNumber() + 1),
+			Message: fmt.Sprintf("Node does not have block: %v, first block: %v", startBlock, n.fuc.GetRoundNumber()+1),
 		}
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
 	}
@@ -1301,7 +1301,7 @@ func (n *Node) SubmitTx(ctx context.Context, tx *types.TransactionOrder) (txOrde
 func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error) {
 	// find and return closest match from db
 	if blockNr <= n.fuc.GetRoundNumber() {
-		return nil, fmt.Errorf("node does not have block: %v, first block: %v", blockNr, n.fuc.GetRoundNumber() + 1)
+		return nil, fmt.Errorf("node does not have block: %v, first block: %v", blockNr, n.fuc.GetRoundNumber()+1)
 	}
 	var bl types.Block
 	found, err := n.blockStore.Read(util.Uint64ToBytes(blockNr), &bl)

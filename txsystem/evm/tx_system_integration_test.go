@@ -64,12 +64,13 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := common.BytesToAddress(test.RandomBytes(20))
+	fcrID := unit.NewFeeCreditRecordID(nil, from.Bytes())
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := NewEVMTxSystem(
 			systemIdentifier,
 			logger.New(t),
 			WithTrustBase(trustBase),
-			WithState(newStateWithFeeCredit(t, unit.NewFeeCreditRecordID(nil, from.Bytes()))),
+			WithState(newStateWithFeeCredit(t, fcrID)),
 			WithBlockDB(memorydb.New()),
 		) // 1 ETH
 		require.NoError(t, err)
@@ -89,7 +90,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err, "evm transfer tx failed")
 	require.EqualValues(t, transferTx, txRecord.TransactionOrder)
 	// deploy contract
-	deployContractTx := createDeployContractTx(t, from)
+	deployContractTx := createDeployContractTx(t, fcrID)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
 	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
 	require.NoError(t, err, "evm deploy tx failed")
@@ -100,15 +101,15 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
 	// call contract
-	contractAddr := evmcrypto.CreateAddress(from, 1)
-	require.Equal(t, details.ContractAddr, contractAddr)
+	scID := unit.NewEvmAccountIDFromAddress(evmcrypto.CreateAddress(from, 1))
+	require.Equal(t, details.ContractUnitID, scID)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
 	// call contract - increment
-	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
+	callContractTx := createCallContractTx(scID, fcrID, cABI.Methods["increment"].ID, 2, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
 	require.NoError(t, err, "evm call tx failed")
@@ -118,7 +119,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
-	require.Equal(t, details.ContractAddr, common.Address{})
+	require.Empty(t, details.ContractUnitID)
 	// expect count uint256 = 1
 	count := uint256.NewInt(1)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
@@ -128,12 +129,13 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.Len(t, entry.Topics, 2)
 	require.Equal(t, common.BytesToHash(evmcrypto.Keccak256([]byte(cABI.Events["Increment"].Sig))), entry.Topics[0])
 	require.Equal(t, common.BytesToHash(count.PaddedBytes(32)), entry.Topics[1])
-	require.Equal(t, contractAddr, entry.Address)
+	require.Equal(t, unit.AddressFromUnitID(scID), entry.Address)
 	require.Nil(t, entry.Data)
 }
 
 func TestEVMPartition_Revert_test(t *testing.T) {
 	from := common.BytesToAddress(test.RandomBytes(20))
+	fcrID := unit.NewFeeCreditRecordID(nil, from.Bytes())
 	_, v := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -155,7 +157,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	// deploy contract
-	deployContractTx := createDeployContractTx(t, from)
+	deployContractTx := createDeployContractTx(t, fcrID)
 	meta, err = system.Execute(deployContractTx)
 	require.NoError(t, err)
 	require.NotNil(t, meta)
@@ -163,18 +165,18 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	var details ProcessingDetails
 	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
-	contractAddr := evmcrypto.CreateAddress(from, 1)
-	require.Equal(t, details.ContractAddr, contractAddr)
+	scID := unit.NewEvmAccountIDFromAddress(evmcrypto.CreateAddress(from, 1))
+	require.Equal(t, details.ContractUnitID, scID)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 	// call contract - increment
-	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
+	callContractTx := createCallContractTx(scID, fcrID, cABI.Methods["increment"].ID, 2, t)
 	meta, err = system.Execute(callContractTx)
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
 	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
-	require.Equal(t, details.ContractAddr, common.Address{})
+	require.Empty(t, details.ContractUnitID)
 	// expect count uint256 = 1
 	count := uint256.NewInt(1)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
@@ -183,7 +185,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.Len(t, entry.Topics, 2)
 	require.Equal(t, common.BytesToHash(evmcrypto.Keccak256([]byte(cABI.Events["Increment"].Sig))), entry.Topics[0])
 	require.Equal(t, common.BytesToHash(count.PaddedBytes(32)), entry.Topics[1])
-	require.Equal(t, contractAddr, entry.Address)
+	require.Equal(t, unit.AddressFromUnitID(scID), entry.Address)
 	require.Nil(t, entry.Data)
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
@@ -191,14 +193,14 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NoError(t, system.Commit())
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
-	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
+	callContractTx = createCallContractTx(scID, fcrID, cABI.Methods["increment"].ID, 3, t)
 	meta, err = system.Execute(callContractTx)
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
 	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
-	require.Equal(t, details.ContractAddr, common.Address{})
+	require.Empty(t, details.ContractUnitID)
 	count = uint256.NewInt(2)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
 	round2EndState, err := system.EndBlock()
@@ -243,10 +245,10 @@ func createTransferTx(t *testing.T, from common.Address, to []byte) *types.Trans
 	}
 }
 
-func createCallContractTx(from, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
+func createCallContractTx(scID types.UnitID, fcrID types.UnitID, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
-		From:  from.Bytes(),
-		To:    addr.Bytes(),
+		From:  unit.AddressFromUnitID(fcrID).Bytes(),
+		To:    unit.AddressFromUnitID(scID).Bytes(),
 		Data:  methodID,
 		Value: big.NewInt(0),
 		Gas:   100000,
@@ -258,9 +260,9 @@ func createCallContractTx(from, addr common.Address, methodID []byte, nonce uint
 		Payload: &types.Payload{
 			Type:     PayloadTypeEVMCall,
 			SystemID: systemIdentifier,
-			UnitID:   hash.Sum256(test.RandomBytes(32)),
+			UnitID:   scID,
 			ClientMetadata: &types.ClientMetadata{
-				FeeCreditRecordID: unit.NewEvmAccountIDFromAddress(from),
+				FeeCreditRecordID: fcrID,
 				Timeout:           100,
 				MaxTransactionFee: 2,
 			},
@@ -270,9 +272,9 @@ func createCallContractTx(from, addr common.Address, methodID []byte, nonce uint
 	}
 }
 
-func createDeployContractTx(t *testing.T, from common.Address) *types.TransactionOrder {
+func createDeployContractTx(t *testing.T, fcrID types.UnitID) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
-		From:  from.Bytes(),
+		From:  unit.AddressFromUnitID(fcrID).Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
 		Gas:   1000000,
@@ -284,9 +286,9 @@ func createDeployContractTx(t *testing.T, from common.Address) *types.Transactio
 		Payload: &types.Payload{
 			Type:     PayloadTypeEVMCall,
 			SystemID: systemIdentifier,
-			UnitID:   hash.Sum256(test.RandomBytes(32)),
+			UnitID:   fcrID,
 			ClientMetadata: &types.ClientMetadata{
-				FeeCreditRecordID: unit.NewEvmAccountIDFromAddress(from),
+				FeeCreditRecordID: fcrID,
 				Timeout:           100,
 				MaxTransactionFee: 2,
 			},

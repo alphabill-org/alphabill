@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/conversion"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/txsystem/evm/unit"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,11 +22,11 @@ import (
 )
 
 type ProcessingDetails struct {
-	_            struct{} `cbor:",toarray"`
-	ErrorDetails string
-	ReturnData   []byte
-	ContractAddr common.Address
-	Logs         []*statedb.LogEntry
+	_              struct{} `cbor:",toarray"`
+	ErrorDetails   string
+	ReturnData     []byte
+	ContractUnitID types.UnitID
+	Logs           []*statedb.LogEntry
 }
 
 func errorToStr(err error) string {
@@ -89,15 +90,15 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		}
 	}
 	// The contract address can be derived from the transaction itself
-	var contractAddress common.Address
+	var contractUnitID types.UnitID
 	if attr.ToAddr() == nil {
 		// Deriving the signer is expensive, only do if it's actually needed
-		contractAddress = ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce)
+		contractUnitID = unit.NewEvmAccountIDFromAddress(ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce))
 	}
 	evmProcessingDetails := &ProcessingDetails{
-		ReturnData:   execResult.ReturnData,
-		ContractAddr: contractAddress,
-		ErrorDetails: errorToStr(errorDetail),
+		ReturnData:     execResult.ReturnData,
+		ContractUnitID: contractUnitID,
+		ErrorDetails:   errorToStr(errorDetail),
 	}
 	if errorDetail == nil {
 		evmProcessingDetails.Logs = stateDB.GetLogs()

@@ -57,7 +57,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
-	require.NotEqual(t, resp.ProcessingDetails.ContractAddr, common.Address{})
+	require.NotEmpty(t, resp.ProcessingDetails.ContractUnitID)
 	require.NotEmpty(t, resp.ProcessingDetails.ReturnData, common.Address{})
 	require.Empty(t, resp.ProcessingDetails.Logs)
 	// make sure state is reverted back
@@ -153,7 +153,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	resp := &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
-	require.NotEqual(t, resp.ProcessingDetails.ContractAddr, common.Address{})
+	require.NotEmpty(t, resp.ProcessingDetails.ContractUnitID)
 	require.Empty(t, resp.ProcessingDetails.ReturnData, common.Address{})
 	require.Empty(t, resp.ProcessingDetails.Logs)
 }
@@ -209,5 +209,5 @@ func initState(t *testing.T, s *abstate.State) (common.Address, common.Address) 
 	_, _, err = s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
-	return address, details.ContractAddr
+	return address, unit.AddressFromUnitID(details.ContractUnitID)
 }

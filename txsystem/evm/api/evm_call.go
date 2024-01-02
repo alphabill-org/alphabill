@@ -65,8 +65,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	}
 	// The contract address can be derived from the transaction itself
 	if attr.ToAddr() == nil {
-		// Deriving the signer is expensive, only do if it's actually needed
-		processingDetails.ContractAddr = ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce)
+		processingDetails.ContractUnitID = unit.NewEvmAccountIDFromAddress(ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce))
 	}
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	processingDetails.Logs = stateDB.GetLogs()

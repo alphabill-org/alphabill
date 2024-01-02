@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 
 var systemDescription = &SystemDescriptionRecord{
-	SystemIdentifier: []byte{0, 0, 0, 0},
+	SystemIdentifier: 1,
 	T2Timeout:        10,
 }
 
@@ -51,12 +51,12 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			name: "invalid validator system identifier",
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 1},
+					SystemIdentifier: 2,
 					T2Timeout:        10,
 				},
 				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
-			wantErrStr: "invalid system id: expected 00000001, got 00000000",
+			wantErrStr: "invalid system id: expected 00000002, got 00000001",
 		},
 		{
 			name: "validators not unique",

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
@@ -430,7 +430,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.Equal(t, []byte{1, 1, 1, 1}, tp.partition.SystemIdentifier())
+	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
@@ -498,7 +498,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 6)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.Equal(t, []byte{1, 1, 1, 1}, tp.partition.SystemIdentifier())
+	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
 }
 
 func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
@@ -950,14 +950,14 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 	illegalBlock := copyBlock(t, newBlock1)
-	illegalBlock.Header.SystemID = []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	illegalBlock.Header.SystemID = 0xFFFFFFFF
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status: replication.Ok,
 		Blocks: []*types.Block{illegalBlock},
 	})
 	illegalBlock = copyBlock(t, newBlock1)
-	illegalBlock.Header.SystemID = nil
+	illegalBlock.Header.SystemID = 0
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status: replication.Ok,
@@ -1091,7 +1091,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 2,
-		SystemIdentifier: []byte{0xFF, 0xFF, 0xFF, 0xFF},
+		SystemIdentifier: 0xFFFFFFFF,
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
@@ -1106,7 +1106,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	req := &replication.LedgerReplicationRequest{
 		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber: 2,
-		SystemIdentifier: nil,
+		SystemIdentifier: 0,
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid system identifier")
 	req = &replication.LedgerReplicationRequest{
@@ -1139,7 +1139,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	// create new block
 	newBlock := &types.Block{
 		Header: &types.Header{
-			SystemID: uc.UnicityTreeCertificate.SystemIdentifier,
+			SystemID:   uc.UnicityTreeCertificate.SystemIdentifier,
 			ProposerID: "test",
 		},
 		UnicityCertificate: copyUC(t, uc),

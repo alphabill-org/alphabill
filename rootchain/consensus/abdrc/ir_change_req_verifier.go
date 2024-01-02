@@ -14,9 +14,9 @@ import (
 
 type (
 	State interface {
-		GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
-		GetCertificates() map[types.SystemID32]*types.UnicityCertificate
-		IsChangeInProgress(id types.SystemID32) *types.InputRecord
+		GetCertificate(id types.SystemID) (*types.UnicityCertificate, error)
+		GetCertificates() map[types.SystemID]*types.UnicityCertificate
+		IsChangeInProgress(id types.SystemID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -108,9 +108,9 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID32, error) {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID, error) {
 	ucs := x.state.GetCertificates()
-	timeoutIds := make([]types.SystemID32, 0, len(ucs))
+	timeoutIds := make([]types.SystemID, 0, len(ucs))
 	var err error
 	for id, cert := range ucs {
 		// do not create T2 timeout requests if partition has a change already in pipeline

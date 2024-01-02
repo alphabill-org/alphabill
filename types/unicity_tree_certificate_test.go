@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var identifier = []byte{1, 1, 1, 1}
+const identifier SystemID = 0x01010101
+
 var uct = &UnicityTreeCertificate{
 	SystemIdentifier: identifier,
 	SiblingHashes: [][]byte{
@@ -20,7 +21,7 @@ var uct = &UnicityTreeCertificate{
 
 func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 	type args struct {
-		systemIdentifier      []byte
+		systemIdentifier      SystemID
 		systemDescriptionHash []byte
 	}
 	tests := []struct {
@@ -39,24 +40,24 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 		{
 			name: "invalid system identifier",
 			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      []byte{1, 1, 1, 1},
+				SystemIdentifier:      0x01010101,
 				SiblingHashes:         [][]byte{},
 				SystemDescriptionHash: zeroHash,
 			},
 			args: args{
-				systemIdentifier: []byte{1, 1, 1, 0},
+				systemIdentifier: 0x01010100,
 			},
 			errStr: "invalid system identifier",
 		},
 		{
 			name: "invalid system description hash",
 			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      []byte{1, 1, 1, 1},
+				SystemIdentifier:      0x01010101,
 				SiblingHashes:         [][]byte{},
 				SystemDescriptionHash: nil,
 			},
 			args: args{
-				systemIdentifier:      []byte{1, 1, 1, 1},
+				systemIdentifier:      0x01010101,
 				systemDescriptionHash: []byte{2, 1, 1, 1},
 			},
 			errStr: "invalid system description hash",
@@ -64,12 +65,12 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 		{
 			name: "invalid count of sibling hashes",
 			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      []byte{1, 1, 1, 1},
+				SystemIdentifier:      0x01010101,
 				SiblingHashes:         [][]byte{},
 				SystemDescriptionHash: []byte{2, 1, 1, 1},
 			},
 			args: args{
-				systemIdentifier:      []byte{1, 1, 1, 1},
+				systemIdentifier:      0x01010101,
 				systemDescriptionHash: []byte{2, 1, 1, 1},
 			},
 			errStr: "invalid count of sibling hashes",

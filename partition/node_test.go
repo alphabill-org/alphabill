@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
@@ -232,9 +232,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	systemId, err := types.SystemID(tp.nodeConf.GetSystemIdentifier()).Id32()
-	require.NoError(t, err)
-	luc, found := tp.certs[systemId]
+	luc, found := tp.certs[tp.nodeConf.GetSystemIdentifier()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3)
@@ -260,7 +258,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, txSystem)
 	uc1 := tp.GetCommittedUC(t) // genesis state
-	txSystem.Revert()             // revert the state of the tx system
+	txSystem.Revert()           // revert the state of the tx system
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, uc1), test.WaitDuration, test.WaitTick)
 

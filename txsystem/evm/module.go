@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/core"
 )
 
@@ -14,14 +15,14 @@ var _ txsystem.Module = (*Module)(nil)
 
 type (
 	Module struct {
-		systemIdentifier []byte
+		systemIdentifier types.SystemID
 		options          *Options
 		blockGasCounter  *core.GasPool
 		log              *slog.Logger
 	}
 )
 
-func NewEVMModule(systemIdentifier []byte, opts *Options, log *slog.Logger) (*Module, error) {
+func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logger) (*Module, error) {
 	if opts.gasUnitPrice == nil {
 		return nil, fmt.Errorf("evm init failed, gas price is nil")
 	}

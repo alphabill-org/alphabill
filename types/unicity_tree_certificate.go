@@ -21,18 +21,18 @@ type UnicityTreeCertificate struct {
 	SystemDescriptionHash []byte   `json:"system_description_hash,omitempty"`
 }
 
-func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash []byte) error {
+func (x *UnicityTreeCertificate) IsValid(systemIdentifier SystemID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrUnicityTreeCertificateIsNil
 	}
-	if !bytes.Equal(x.SystemIdentifier, systemIdentifier) {
-		return fmt.Errorf("invalid system identifier: expected %X, got %X", systemIdentifier, x.SystemIdentifier)
+	if x.SystemIdentifier != systemIdentifier {
+		return fmt.Errorf("invalid system identifier: expected %s, got %s", systemIdentifier, x.SystemIdentifier)
 	}
 	if !bytes.Equal(systemDescriptionHash, x.SystemDescriptionHash) {
 		return fmt.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
 	}
 
-	siblingHashesLength := len(systemIdentifier) * 8 // bits in system identifier
+	siblingHashesLength := SystemIdentifierLength * 8 // bits in system identifier
 	if c := len(x.SiblingHashes); c != siblingHashesLength {
 		return fmt.Errorf("invalid count of sibling hashes: expected %v, got %v", siblingHashesLength, c)
 	}
@@ -40,7 +40,7 @@ func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash
 }
 
 func (x *UnicityTreeCertificate) GetAuthPath(leafHash []byte, hashAlgorithm gocrypto.Hash) ([]byte, error) {
-	return smt.CalculatePathRoot(x.SiblingHashes, leafHash, x.SystemIdentifier, hashAlgorithm)
+	return smt.CalculatePathRoot(x.SiblingHashes, leafHash, x.SystemIdentifier.Bytes(), hashAlgorithm)
 }
 
 func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
@@ -49,7 +49,7 @@ func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
 
 func (x *UnicityTreeCertificate) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.SystemIdentifier)
+	b.Write(x.SystemIdentifier.Bytes())
 	b.Write(x.SystemDescriptionHash)
 	for _, siblingHash := range x.SiblingHashes {
 		b.Write(siblingHash)

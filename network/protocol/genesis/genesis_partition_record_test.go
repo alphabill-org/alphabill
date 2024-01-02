@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node id: 1",
 		},
@@ -77,7 +77,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node signing public key",
 		},
@@ -89,7 +89,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey2, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node encryption public key",
 		},
@@ -100,7 +100,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "unicity certificate validation failed, unicity certificate is nil",
 		},
@@ -140,7 +140,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   nodeID,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),

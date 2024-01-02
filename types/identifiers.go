@@ -2,18 +2,13 @@ package types
 
 import (
 	"bytes"
-	"errors"
+	"encoding/binary"
 	"fmt"
-
-	"github.com/alphabill-org/alphabill/util"
 )
-
-var ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")
 
 const SystemIdentifierLength = 4
 
-type SystemID []byte
-type SystemID32 uint32
+type SystemID uint32
 type UnitID []byte
 
 // NewUnitID creates a new UnitID consisting of a shardPart, unitPart and typePart.
@@ -57,17 +52,20 @@ func (uid UnitID) HasType(typePart []byte) bool {
 	return bytes.HasSuffix(uid, typePart)
 }
 
-func (sid SystemID) Id32() (SystemID32, error) {
-	if len(sid) != SystemIdentifierLength {
-		return 0, ErrInvalidSystemIdentifier
+func BytesToSystemID(b []byte) (SystemID, error) {
+	if len(b) != SystemIdentifierLength {
+		return 0, fmt.Errorf("partition ID length must be %d bytes, got %d bytes", SystemIdentifierLength, len(b))
 	}
-	return SystemID32(util.BytesToUint32(sid)), nil
+
+	return SystemID(binary.BigEndian.Uint32(b)), nil
 }
 
-func (sid SystemID32) ToSystemID() SystemID {
-	return util.Uint32ToBytes(uint32(sid))
+func (sid SystemID) Bytes() []byte {
+	bytes := make([]byte, SystemIdentifierLength)
+	binary.BigEndian.PutUint32(bytes, uint32(sid))
+	return bytes
 }
 
-func (sid SystemID32) String() string {
+func (sid SystemID) String() string {
 	return fmt.Sprintf("%08X", uint32(sid))
 }

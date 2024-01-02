@@ -47,12 +47,12 @@ var (
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
-	SystemIdentifier   []byte
+	SystemIdentifier   types.SystemID
 	Keys               *keysConfig
 	Output             string
 	OutputState        string
 	InitialBillID      types.UnitID
-	InitialBillValue   uint64   `validate:"gte=0"`
+	InitialBillValue   uint64 `validate:"gte=0"`
 	InitialBillOwner   predicates.PredicateBytes
 	DCMoneySupplyValue uint64   `validate:"gte=0"`
 	T2Timeout          uint32   `validate:"gte=0"`
@@ -61,6 +61,7 @@ type moneyGenesisConfig struct {
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
+	sysIDbytes := make([]byte, types.SystemIdentifierLength)
 	config := &moneyGenesisConfig{
 		Base:             baseConfig,
 		Keys:             NewKeysConf(baseConfig, moneyPartitionDir),
@@ -71,18 +72,23 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			config.SystemIdentifier, err = types.BytesToSystemID(sysIDbytes)
+			if err != nil {
+				return fmt.Errorf("partition ID: %w", err)
+			}
 			return abMoneyGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", money.DefaultSystemIdentifier, "system identifier in HEX format")
-	config.Keys.addCmdFlags(cmd)
+	cmd.Flags().BytesHexVarP(&sysIDbytes, "system-identifier", "s", money.DefaultSystemIdentifier.Bytes(), "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/money/node-genesis-state.cbor)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partion itself; defaults to single money partition only SDR)")
+	config.Keys.addCmdFlags(cmd)
 	return cmd
 }
 

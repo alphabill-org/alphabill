@@ -14,7 +14,7 @@ var (
 	errPrevBlockHashIsNil     = errors.New("previous block hash is nil")
 	errBlockProposerIDMissing = errors.New("block proposer node identifier is missing")
 	errTransactionsIsNil      = errors.New("transactions is nil")
-	errSystemIDIsNil          = errors.New("system identifier is nil")
+	errSystemIDIsNil          = errors.New("system identifier is unassigned")
 )
 
 type (
@@ -72,7 +72,7 @@ func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 	if b.Header == nil {
 		return errBlockHeaderIsNil
 	}
-	if len(b.Header.SystemID) != 4 {
+	if b.Header.SystemID == 0 {
 		return errSystemIDIsNil
 	}
 	// skip shard identifier for now, it is not used
@@ -103,7 +103,7 @@ func (b *Block) GetProposerID() string {
 
 func (b *Block) SystemID() SystemID {
 	if b == nil || b.Header == nil {
-		return nil
+		return 0
 	}
 	return b.Header.SystemID
 }
@@ -113,7 +113,7 @@ func (h *Header) Hash(algorithm crypto.Hash) []byte {
 		return nil
 	}
 	hasher := algorithm.New()
-	hasher.Write(h.SystemID)
+	hasher.Write(h.SystemID.Bytes())
 	hasher.Write(h.ShardID)
 	hasher.Write(h.PreviousBlockHash)
 	hasher.Write([]byte(h.ProposerID))

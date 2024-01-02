@@ -3,13 +3,13 @@ package transaction
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
-var defaultSystemID = []byte{0, 0, 0, 0}
+const defaultSystemID types.SystemID = 0x00000001
 
 func defaultTx() *types.TransactionOrder {
 	payload := &types.Payload{

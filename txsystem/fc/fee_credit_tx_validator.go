@@ -17,8 +17,8 @@ type (
 	// DefaultFeeCreditTxValidator default validator for partition specific add/close/lock/unlock fee credit
 	// transactions
 	DefaultFeeCreditTxValidator struct {
-		moneySystemID           []byte
-		systemID                []byte
+		moneySystemID           types.SystemID
+		systemID                types.SystemID
 		hashAlgorithm           crypto.Hash
 		verifiers               map[string]abcrypto.Verifier
 		feeCreditRecordUnitType []byte
@@ -48,7 +48,7 @@ type (
 	}
 )
 
-func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
+func NewDefaultFeeCreditTxValidator(moneySystemID, systemID types.SystemID, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
 		moneySystemID:           moneySystemID,
 		systemID:                systemID,
@@ -110,8 +110,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
 	transferTx := attr.FeeCreditTransfer.TransactionOrder
-	if !bytes.Equal(transferTx.SystemID(), v.moneySystemID) {
-		return errors.New("addFC: invalid transferFC system identifier")
+	if transferTx.SystemID() != v.moneySystemID {
+		return fmt.Errorf("addFC: invalid transferFC money system identifier %s (expected %s)", transferTx.SystemID(), v.moneySystemID)
 	}
 
 	if transferTx.PayloadType() != transactions.PayloadTypeTransferFeeCredit {
@@ -124,7 +124,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 5. P.A.P.A.α = P.α – bill was transferred to fee credits for this system
-	if !bytes.Equal(transferTxAttr.TargetSystemIdentifier, v.systemID) {
+	if transferTxAttr.TargetSystemIdentifier != v.systemID {
 		return fmt.Errorf("invalid transferFC target system identifier: expected_target_system_id: %X actual_target_system_id=%X", v.systemID, transferTxAttr.TargetSystemIdentifier)
 	}
 

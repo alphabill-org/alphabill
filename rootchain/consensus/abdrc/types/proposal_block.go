@@ -45,7 +45,7 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 
 func (x *Payload) IsValid() error {
 	// there can only be one request per system identifier in a block
-	sysIdSet := map[types.SystemID32]struct{}{}
+	sysIdSet := map[types.SystemID]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {

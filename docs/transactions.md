@@ -91,8 +91,9 @@ Data items in the *Payload* array:
 transaction system/partition that is supposed to execute the
 transaction. *SystemIdentifier*s currently in use:
 
-    - *h'00000000'* - money partition
+    - *h'00000001'* - money partition
     - *h'00000002'* - tokens partition 
+    - *h'00000003'* - EVM partition 
 
 2. *Type* (text string) is the type of the transaction. See section
 [Transaction Types](#transaction-types) for the list of supported values and

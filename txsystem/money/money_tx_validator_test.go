@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -397,15 +397,9 @@ func TestTransferFC(t *testing.T) {
 			wantErr: ErrBillNil,
 		},
 		{
-			name:    "TargetSystemIdentifier is nil",
+			name:    "TargetSystemIdentifier is zero",
 			bd:      newBillData(101, backlink),
-			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID(nil))),
-			wantErr: ErrTargetSystemIdentifierEmpty,
-		},
-		{
-			name:    "TargetSystemIdentifier is empty",
-			bd:      newBillData(101, backlink),
-			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID([]byte{}))),
+			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID(0))),
 			wantErr: ErrTargetSystemIdentifierEmpty,
 		},
 		{
@@ -842,7 +836,7 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 	swapId := newBillID(255)
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
-		testtransaction.WithSystemID([]byte{0, 0, 0, 1}),
+		testtransaction.WithSystemID(0),
 		testtransaction.WithPayloadType(PayloadTypeTransDC),
 		testtransaction.WithUnitId(transferId),
 		testtransaction.WithAttributes(&TransferDCAttributes{
@@ -1032,7 +1026,7 @@ func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *
 		tx:            tx,
 		attr:          attr,
 		state:         s,
-		systemID:      []byte{0, 0, 0, 0},
+		systemID:      1,
 		hashAlgorithm: crypto.SHA256,
 		trustBase:     trustBase,
 	}

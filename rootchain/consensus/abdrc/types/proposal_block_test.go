@@ -145,7 +145,7 @@ func TestPayload_IsEmpty(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{Requests: []*IRChangeReq{
-				{SystemIdentifier: types.SystemID32(1), CertReason: T2Timeout},
+				{SystemIdentifier: 1, CertReason: T2Timeout},
 			}},
 			want: false,
 		},
@@ -184,7 +184,7 @@ func TestPayload_IsValid(t *testing.T) {
 		{
 			name: "valid timeout",
 			fields: fields{Requests: []*IRChangeReq{
-				{SystemIdentifier: types.SystemID32(1), CertReason: T2Timeout},
+				{SystemIdentifier: 1, CertReason: T2Timeout},
 			}},
 			wantErrStr: "",
 		},
@@ -243,9 +243,9 @@ func TestBlockData_String(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.GenesisTime,
 			Payload: &Payload{Requests: []*IRChangeReq{
-				{SystemIdentifier: types.SystemID32(0), CertReason: Quorum},
-				{SystemIdentifier: types.SystemID32(1), CertReason: T2Timeout},
-				{SystemIdentifier: types.SystemID32(0xFF000002), CertReason: QuorumNotPossible},
+				{SystemIdentifier: 0, CertReason: Quorum},
+				{SystemIdentifier: 1, CertReason: T2Timeout},
+				{SystemIdentifier: 0xFF000002, CertReason: QuorumNotPossible},
 			}},
 		}
 		require.Equal(t, "round: 6, time: 1681971084, payload: 00000000->quorum, 00000001->timeout, FF000002->no-quorum", x.String())

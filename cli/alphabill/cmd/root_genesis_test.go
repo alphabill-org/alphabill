@@ -39,7 +39,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rootGenesis.Root.RootValidators, 1)
 	require.NoError(t, rootGenesis.Verify())
-	partitionGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, "partition-genesis-0.json"), &genesis.PartitionGenesis{})
+	partitionGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, "partition-genesis-1.json"), &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.Len(t, partitionGenesis.RootValidators, 1)
 	trustBase, err := genesis.NewValidatorTrustBase(partitionGenesis.RootValidators)

@@ -5,17 +5,18 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 type Option func(f *FeeCredit)
 
-func WithSystemIdentifier(systemID []byte) Option {
+func WithSystemIdentifier(systemID types.SystemID) Option {
 	return func(f *FeeCredit) {
 		f.systemIdentifier = systemID
 	}
 }
 
-func WithMoneySystemIdentifier(moneySystemID []byte) Option {
+func WithMoneySystemIdentifier(moneySystemID types.SystemID) Option {
 	return func(f *FeeCredit) {
 		f.moneySystemIdentifier = moneySystemID
 	}

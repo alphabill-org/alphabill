@@ -1,7 +1,6 @@
 package blockproposal
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -29,7 +28,7 @@ type BlockProposal struct {
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier []byte, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier types.SystemID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
@@ -42,8 +41,8 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 	if ucTrustBase == nil {
 		return ErrTrustBaseIsNil
 	}
-	if !bytes.Equal(systemIdentifier, x.SystemIdentifier) {
-		return fmt.Errorf("%w, expected %X, got %X", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
+	if systemIdentifier != x.SystemIdentifier {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
 	}
 	if err := x.UnicityCertificate.IsValid(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err
@@ -53,7 +52,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 
 func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher := algorithm.New()
-	hasher.Write(x.SystemIdentifier)
+	hasher.Write(x.SystemIdentifier.Bytes())
 	hasher.Write([]byte(x.NodeIdentifier))
 
 	ucBytes, err := cbor.Marshal(x.UnicityCertificate)

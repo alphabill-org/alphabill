@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
@@ -25,10 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sysID0 = types.SystemID32(0)
-var sysID1 = types.SystemID32(1)
-var sysID2 = types.SystemID32(2)
-var partitionID types.SystemID32 = 0x00FF0001
+const sysID0 types.SystemID = 0
+const sysID1 types.SystemID = 1
+const sysID2 types.SystemID = 2
+const partitionID types.SystemID = 0x00FF0001
+
 var partitionInputRecord = &types.InputRecord{
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
@@ -67,23 +68,23 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0.ToSystemID(), T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1.ToSystemID(), T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	store := NewStateStore(memorydb.New())
 	// store mock state
-	certs := map[types.SystemID32]*types.UnicityCertificate{
-		types.SystemID32(0): {
+	certs := map[types.SystemID]*types.UnicityCertificate{
+		types.SystemID(0): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 3}}, // no timeout (5 - 3) * 900 = 1800 ms
-		types.SystemID32(1): {
+		types.SystemID(1): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 2}}, // timeout (5 - 2) * 900 = 2700 ms
-		types.SystemID32(2): {
+		types.SystemID(2): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
@@ -98,12 +99,12 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		},
 		partitions: partitions,
 		stateStore: store,
-		ir: map[types.SystemID32]*types.InputRecord{
-			types.SystemID32(0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			types.SystemID32(1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			types.SystemID32(2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+		ir: map[types.SystemID]*types.InputRecord{
+			types.SystemID(0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			types.SystemID(1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			types.SystemID(2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 		},
-		changes: map[types.SystemID32]*types.InputRecord{},
+		changes: map[types.SystemID]*types.InputRecord{},
 		log:     testlogger.New(t),
 	}
 	require.NoError(t, manager.checkT2Timeout(5))
@@ -149,14 +150,14 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
 	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
 
 	// ask for non-existing cert
-	cert, err = cm.GetLatestUnicityCertificate(types.SystemID32(10))
-	require.ErrorContains(t, err, "find certificate for system id 0000000A failed, id 0000000A not in DB")
+	cert, err = cm.GetLatestUnicityCertificate(types.SystemID(10))
+	require.EqualError(t, err, "loading certificate for partition 0000000A from state store: no certificate for partition 0000000A in DB")
 	require.Nil(t, cert)
 }
 
@@ -215,7 +216,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
@@ -243,5 +244,5 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }

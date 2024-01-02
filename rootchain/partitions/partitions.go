@@ -13,6 +13,6 @@ type (
 	}
 
 	PartitionConfiguration interface {
-		GetInfo(id types.SystemID32) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error)
+		GetInfo(id types.SystemID) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error)
 	}
 )

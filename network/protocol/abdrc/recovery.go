@@ -19,7 +19,7 @@ type GetStateMsg struct {
 
 type InputData struct {
 	_     struct{}           `cbor:",toarray"`
-	SysID types.SystemID32   `json:"sysID,omitempty"`
+	SysID types.SystemID     `json:"sysID,omitempty"`
 	Ir    *types.InputRecord `json:"ir,omitempty"`
 	Sdrh  []byte             `json:"sdrh,omitempty"`
 }

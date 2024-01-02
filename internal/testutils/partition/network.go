@@ -1,7 +1,6 @@
 package testpartition
 
 import (
-	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
@@ -42,7 +41,7 @@ import (
 
 // AlphabillNetwork for integration tests
 type AlphabillNetwork struct {
-	NodePartitions map[types.SystemID32]*NodePartition
+	NodePartitions map[types.SystemID]*NodePartition
 	RootPartition  *RootPartition
 	ctxCancel      context.CancelFunc
 }
@@ -176,7 +175,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	// update partition genesis files
 	for _, pg := range partitionGenesisFiles {
 		for _, part := range nodePartitions {
-			if bytes.Equal(part.systemId, pg.SystemDescriptionRecord.SystemIdentifier) {
+			if part.systemId == pg.SystemDescriptionRecord.SystemIdentifier {
 				part.partitionGenesis = pg
 			}
 		}
@@ -256,7 +255,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte, state *state.State) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase map[string]abcrypto.Verifier) txsystem.TransactionSystem, systemIdentifier types.SystemID, state *state.State) (abPartition *NodePartition, err error) {
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
@@ -382,10 +381,9 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[types.SystemID32]*NodePartition)
+	nodeParts := make(map[types.SystemID]*NodePartition)
 	for _, part := range nodePartitions {
-		sysID, _ := part.systemId.Id32()
-		nodeParts[sysID] = part
+		nodeParts[part.systemId] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -402,10 +400,9 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[types.SystemID32]*NodePartition)
+	nodeParts := make(map[types.SystemID]*NodePartition)
 	for _, part := range nodePartitions {
-		sysID, _ := part.systemId.Id32()
-		nodeParts[sysID] = part
+		nodeParts[part.systemId] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -485,19 +482,17 @@ func (a *AlphabillNetwork) WaitClose(t *testing.T) {
 }
 
 func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {
-	id, _ := sysID.Id32()
-	part, f := a.NodePartitions[id]
+	part, f := a.NodePartitions[sysID]
 	if !f {
-		return nil, fmt.Errorf("unknown partition %X", sysID)
+		return nil, fmt.Errorf("unknown partition %s", sysID)
 	}
 	return part, nil
 }
 
 func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.UnicityCertificateValidator, error) {
-	id, _ := sysID.Id32()
-	part, f := a.NodePartitions[id]
+	part, f := a.NodePartitions[sysID]
 	if !f {
-		return nil, fmt.Errorf("unknown partition %X", sysID)
+		return nil, fmt.Errorf("unknown partition %s", sysID)
 	}
 	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, gocrypto.SHA256)
 }

@@ -27,7 +27,7 @@ type Module interface {
 }
 
 type GenericTxSystem struct {
-	systemIdentifier    []byte
+	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentBlockNumber  uint64

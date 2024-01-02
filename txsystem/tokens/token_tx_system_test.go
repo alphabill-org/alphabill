@@ -10,9 +10,9 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -40,15 +40,15 @@ var (
 	tokenCreationPredicate   = []byte{5}
 	invariantPredicate       = []byte{6}
 	dataUpdatePredicate      = []byte{7}
-	bearer                   = []byte{10}
-	data                     = []byte{12}
 	updatedData              = []byte{0, 12}
-	backlink                 = []byte{17}
+	//bearer                   = []byte{10}
+	//data                     = []byte{12}
+	//backlink                 = []byte{17}
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
-	txs, err := NewTxSystem(nil, WithSystemIdentifier(nil))
-	require.ErrorContains(t, err, ErrStrSystemIdentifierIsNil)
+	txs, err := NewTxSystem(nil, WithSystemIdentifier(0))
+	require.ErrorContains(t, err, ErrStrInvalidSystemID)
 	require.Nil(t, txs)
 }
 
@@ -369,7 +369,7 @@ func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
 		t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithUnitId(nftTypeID1),
-		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithSystemID(0),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{}),
 	)
 	_, err := txs.Execute(tx)

@@ -34,7 +34,7 @@ type (
 		LatestBlockNumber() (uint64, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
-		SystemIdentifier() []byte
+		SystemIdentifier() types.SystemID
 		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
 		SerializeState(writer io.Writer) error
 	}

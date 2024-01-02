@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -26,7 +27,7 @@ const (
 type evmGenesisConfig struct {
 	Base             *baseConfiguration
 	Keys             *keysConfig
-	SystemIdentifier []byte
+	SystemIdentifier types.SystemID
 	Output           string
 	OutputState      string
 	T2Timeout        uint32
@@ -36,16 +37,22 @@ type evmGenesisConfig struct {
 
 // newEvmGenesisCmd creates a new cobra command for the evm genesis.
 func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
+	sysIDbytes := make([]byte, types.SystemIdentifierLength)
 	config := &evmGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, evmDir)}
 	var cmd = &cobra.Command{
 		Use:   "evm-genesis",
 		Short: "Generates a genesis file for the evm partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			config.SystemIdentifier, err = types.BytesToSystemID(sysIDbytes)
+			if err != nil {
+				return fmt.Errorf("partition ID: %w", err)
+			}
 			return evmGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&sysIDbytes, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier.Bytes(), "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/evm/node-genesis-state.cbor)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
@@ -53,22 +60,6 @@ func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm.DefaultGasPrice, "gas unit price in wei")
 	config.Keys.addCmdFlags(cmd)
 	return cmd
-}
-
-func (c *evmGenesisConfig) getPartitionParams() ([]byte, error) {
-	if c.GasUnitPrice > math.MaxInt64 {
-		return nil, fmt.Errorf("gas unit price too big")
-	}
-
-	src := &genesis.EvmPartitionParams{
-		BlockGasLimit: c.BlockGasLimit,
-		GasUnitPrice:  c.GasUnitPrice,
-	}
-	res, err := cbor.Marshal(src)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
-	}
-	return res, nil
 }
 
 func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
@@ -130,6 +121,22 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 	}
 
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)
+}
+
+func (c *evmGenesisConfig) getPartitionParams() ([]byte, error) {
+	if c.GasUnitPrice > math.MaxInt64 {
+		return nil, fmt.Errorf("gas unit price too big")
+	}
+
+	src := &genesis.EvmPartitionParams{
+		BlockGasLimit: c.BlockGasLimit,
+		GasUnitPrice:  c.GasUnitPrice,
+	}
+	res, err := cbor.Marshal(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
+	}
+	return res, nil
 }
 
 func (c *evmGenesisConfig) getNodeGenesisFileLocation(homePath string) string {

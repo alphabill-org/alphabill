@@ -1,9 +1,10 @@
 package types
 
 import (
+	"bytes"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,81 +106,102 @@ func copyAndAppend(slice []byte, elems ...byte) []byte {
 	return append(newSlice, elems...)
 }
 
-func TestSystemID32_ToSystemID(t *testing.T) {
-	tests := []struct {
-		name string
-		sid  SystemID32
-		want SystemID
-	}{
-		{
-			name: "ID 00000001",
-			sid:  SystemID32(1),
-			want: SystemID{0, 0, 0, 1},
-		},
-		{
-			name: "ID FF000001",
-			sid:  SystemID32(0xFF000001),
-			want: SystemID{0xFF, 0, 0, 1},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, tt.sid.ToSystemID(), "ToSystemID()")
-		})
-	}
+func Test_BytesToSystemID(t *testing.T) {
+	t.Run("invalid input", func(t *testing.T) {
+		id, err := BytesToSystemID(nil)
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 0 bytes`)
+
+		id, err = BytesToSystemID([]byte{})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 0 bytes`)
+
+		id, err = BytesToSystemID([]byte{1})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 1 bytes`)
+
+		id, err = BytesToSystemID([]byte{2, 1})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 2 bytes`)
+
+		id, err = BytesToSystemID([]byte{3, 2, 1})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 3 bytes`)
+
+		id, err = BytesToSystemID([]byte{5, 4, 3, 2, 1})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 5 bytes`)
+
+		id, err = BytesToSystemID([]byte{8, 7, 6, 5, 4, 3, 2, 1})
+		require.Zero(t, id)
+		require.EqualError(t, err, `partition ID length must be 4 bytes, got 8 bytes`)
+	})
+
+	t.Run("valid input", func(t *testing.T) {
+		// testing that we get expected integer from bytes (so basically endianess check?)
+		id, err := BytesToSystemID([]byte{0, 0, 0, 0})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, id)
+
+		id, err = BytesToSystemID([]byte{0, 0, 0, 1})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, id)
+
+		id, err = BytesToSystemID([]byte{0, 0, 1, 0})
+		require.NoError(t, err)
+		require.EqualValues(t, 0x0100, id)
+
+		id, err = BytesToSystemID([]byte{0, 1, 0, 0})
+		require.NoError(t, err)
+		require.EqualValues(t, 0x010000, id)
+
+		id, err = BytesToSystemID([]byte{1, 0, 0, 0})
+		require.NoError(t, err)
+		require.EqualValues(t, 0x01000000, id)
+	})
 }
 
-func TestSystemID_Id32(t *testing.T) {
-	tests := []struct {
-		name    string
-		sid     SystemID
-		want    SystemID32
-		wantErr error
-	}{
-		{
-			name:    "nil",
-			sid:     nil,
-			wantErr: ErrInvalidSystemIdentifier,
-		},
-		{
-			name:    "ID too big gets truncated FF00000101",
-			sid:     SystemID{0xFF, 0, 0, 1, 1},
-			wantErr: ErrInvalidSystemIdentifier,
-		},
-		{
-			name:    "ID less than 4 bytes FF00",
-			sid:     SystemID{0xFF, 0, 1},
-			wantErr: ErrInvalidSystemIdentifier,
-		},
-		{
-			name: "ID 00000001",
-			sid:  SystemID{0, 0, 0, 1},
-			want: SystemID32(1),
-		},
-		{
-			name: "ID FF000001",
-			sid:  SystemID{0xFF, 0, 0, 1},
-			want: SystemID32(0xFF000001),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.sid.Id32()
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				require.EqualValues(t, 0, got)
-				return
+func Test_SystemID_conversion(t *testing.T) {
+	t.Run("converting bytes to ID and back", func(t *testing.T) {
+		var cases = [][]byte{{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 2, 0}, {0, 3, 0, 0}, {4, 0, 0, 0}, {1, 2, 3, 4}, {0x10, 0xA0, 0xB0, 0xC0}}
+		for _, tc := range cases {
+			id, err := BytesToSystemID(tc)
+			if err != nil {
+				t.Errorf("converting bytes %X to ID: %v", tc, err)
+				continue
 			}
-			assert.Equalf(t, tt.want, got, "Id32()")
-		})
-	}
+			if b := id.Bytes(); !bytes.Equal(b, tc) {
+				t.Errorf("expected ID %s as bytes %X, got %X", id, tc, b)
+			}
+		}
+	})
+
+	t.Run("converting ID to bytes and back", func(t *testing.T) {
+		var cases = []SystemID{0, 0x01, 0x0200, 0x030000, 0x04000000, 0xFF, 0xFF12, 0xFEDCBA98}
+		for _, tc := range cases {
+			b := tc.Bytes()
+			id, err := BytesToSystemID(b)
+			if err != nil {
+				t.Errorf("converting %s (bytes %X) back to ID: %v", tc, b, err)
+				continue
+			}
+			if id != tc {
+				t.Errorf("expected %s got %s from bytes %X", tc, id, b)
+			}
+		}
+	})
 }
 
-func TestSystemID32_String(t *testing.T) {
-	var id SystemID32 = 0x00000001
-	require.Equal(t, "00000001", id.String())
-	id = 0xFF000001
-	require.Equal(t, "FF000001", id.String())
-	id = 0
+func Test_SystemID_String(t *testing.T) {
+	var id SystemID // zero value
 	require.Equal(t, "00000000", id.String())
+
+	id = 0x00000001
+	require.Equal(t, "00000001", id.String())
+
+	id = 0xFF000010
+	require.Equal(t, "FF000010", id.String())
+
+	id = 0xFE01209A
+	require.Equal(t, "FE01209A", id.String())
 }

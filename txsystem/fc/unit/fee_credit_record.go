@@ -14,11 +14,14 @@ const UNLOCKED uint64 = 0
 type FeeCreditType interface {
 	// AddCredit - adds v to balance, sets Backlink equal to copy of b, Tiemout to t and lock to 0 (unlocks)
 	AddCredit(v uint64, b []byte, t uint64)
+	// DecCredit - decrements balance by v and updates backlink if backlink is not nil (probably should be different methods)
 	DecCredit(v uint64, b []byte)
 	GetBalance() uint64
 	GetTimeout() uint64
 	GetBacklink() []byte
+	// UpdateLock - sets lock value to lockstatus, decrements balace by fee and updates backlink
 	UpdateLock(lockStatus uint64, fee uint64, backlink []byte)
+	// IsLocked - returns true if lock status is not UNLOCKED
 	IsLocked() bool
 }
 

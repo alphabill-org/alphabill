@@ -3,14 +3,14 @@ package partitions
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var id1 = types.SystemID32(1)
-var id2 = types.SystemID32(2)
+const id1 types.SystemID = 1
+const id2 types.SystemID = 2
 
 func TestPartitionStore(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
@@ -23,8 +23,8 @@ func TestPartitionStore(t *testing.T) {
 	type want struct {
 		size                     int
 		nodeCounts               []int
-		containsPartitions       []types.SystemID32
-		doesNotContainPartitions []types.SystemID32
+		containsPartitions       []types.SystemID
+		doesNotContainPartitions []types.SystemID
 	}
 	tests := []struct {
 		name string
@@ -54,14 +54,14 @@ func TestPartitionStore(t *testing.T) {
 			args: args{partitions: []*genesis.GenesisPartitionRecord{
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: id1.ToSystemID(),
+						SystemIdentifier: id1,
 						T2Timeout:        2500,
 					},
 					Nodes: nil,
 				},
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: id2.ToSystemID(),
+						SystemIdentifier: id2,
 						T2Timeout:        2500,
 					},
 					Nodes: []*genesis.PartitionNode{
@@ -73,8 +73,8 @@ func TestPartitionStore(t *testing.T) {
 			want: want{
 				size:                     2,
 				nodeCounts:               []int{0, 2},
-				containsPartitions:       []types.SystemID32{types.SystemID32(1), types.SystemID32(2)},
-				doesNotContainPartitions: []types.SystemID32{0},
+				containsPartitions:       []types.SystemID{1, 2},
+				doesNotContainPartitions: []types.SystemID{0},
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestPartitionStore_Info(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: id1.ToSystemID(),
+				SystemIdentifier: id1,
 				T2Timeout:        2600,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -118,7 +118,7 @@ func TestPartitionStore_Info(t *testing.T) {
 		},
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: id2.ToSystemID(),
+				SystemIdentifier: id2,
 				T2Timeout:        2500,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -132,7 +132,7 @@ func TestPartitionStore_Info(t *testing.T) {
 	require.NoError(t, err)
 	sysDesc, tb, err := store.GetInfo(id1)
 	require.NoError(t, err)
-	require.Equal(t, id1.ToSystemID(), sysDesc.SystemIdentifier)
+	require.Equal(t, id1, sysDesc.SystemIdentifier)
 	require.Equal(t, uint32(2600), sysDesc.T2Timeout)
 	require.Equal(t, 3, int(tb.GetTotalNodes()))
 	require.Equal(t, uint64(2), tb.GetQuorum())

@@ -13,7 +13,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -377,20 +377,22 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, _ := cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
+	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       []byte{0, 0, 0, 0},
+			SystemID:       money.DefaultSystemIdentifier,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,
 	}
-	txBytes, _ := cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
+	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
-	_, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+	_, err = txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.NoError(t, err)
 }
 
@@ -400,18 +402,20 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, _ := cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
+	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       []byte{0},
+			SystemID:       0,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,
 	}
-	txBytes, _ := cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
+	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
 	response, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.Error(t, err)

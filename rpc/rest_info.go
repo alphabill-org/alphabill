@@ -1,7 +1,6 @@
 package rpc
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -40,7 +39,7 @@ func InfoEndpoints(node partitionNode, name string, self *network.Peer, log *slo
 func infoHandler(node partitionNode, name string, self *network.Peer, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		i := infoResponse{
-			SystemID: hex.EncodeToString(node.SystemIdentifier()),
+			SystemID: node.SystemIdentifier().String(),
 			Name:     name,
 			Self: peerInfo{
 				Identifier: self.ID().String(),

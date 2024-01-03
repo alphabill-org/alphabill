@@ -142,7 +142,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	// wrong partition tx
 	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
-	tx.Payload.SystemID = []byte{1, 1, 1, 1}
+	tx.Payload.SystemID = 0x01010101
 	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid transaction system identifier")
 	// and fee unit is not changed
 	feeCredit, err := s.GetUnit(fcrID, true)

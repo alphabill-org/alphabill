@@ -6,7 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
@@ -15,8 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const systemIdentifier types.SystemID = 1
+
 var zeroHash = make([]byte, 32)
-var systemIdentifier = types.SystemID([]byte{0, 0, 0, 1})
 var nodeID peer.ID = "test"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
@@ -42,7 +43,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			name: "client signer is nil",
 			args: args{
 				state: state.NewEmptyState(),
-				opts: []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+				opts:  []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
 		},
@@ -63,7 +64,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			args: args{
 				state: state.NewEmptyState(),
 				opts: []GenesisOption{
-					WithSystemIdentifier(nil),
+					WithSystemIdentifier(0),
 					WithPeerID("1"),
 					WithSigningKey(signer),
 					WithEncryptionPubKey(pubKeyBytes),
@@ -113,7 +114,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier types.SystemID, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()
 	require.NoError(t, err)
@@ -129,13 +130,13 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(systemIdentifier, previousHash []byte, isEmpty bool) []byte {
+func calculateBlockHash(systemIdentifier types.SystemID, previousHash []byte, isEmpty bool) []byte {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
 	if isEmpty {
 		return zeroHash
 	}
-	hasher.Write(systemIdentifier)
+	hasher.Write(systemIdentifier.Bytes())
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)
 	hasher.Reset()

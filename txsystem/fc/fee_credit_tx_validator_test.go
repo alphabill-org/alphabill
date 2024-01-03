@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
@@ -17,12 +17,12 @@ import (
 )
 
 var (
-	moneySystemID           = []byte{0, 0, 0, 0}
-	systemID                = []byte{0, 0, 0, 0}
-	recordID                = []byte{0}
-	feeProof                = []byte{1}
-	bearer                  = []byte{2}
-	feeCreditRecordUnitType = []byte{0xff}
+	moneySystemID           types.SystemID = 0x00000001
+	systemID                types.SystemID = 0x00000001
+	recordID                               = []byte{0}
+	feeProof                               = []byte{1}
+	bearer                                 = []byte{2}
+	feeCreditRecordUnitType                = []byte{0xff}
 )
 
 func TestAddFC(t *testing.T) {
@@ -108,13 +108,13 @@ func TestAddFC(t *testing.T) {
 				testutils.NewAddFCAttr(t, signer,
 					testutils.WithTransferFCTx(
 						&types.TransactionRecord{
-							TransactionOrder: testutils.NewTransferFC(t, nil, testtransaction.WithSystemID([]byte("not money partition"))),
+							TransactionOrder: testutils.NewTransferFC(t, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
 							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
 			),
-			wantErrMsg: "invalid transferFC system identifier",
+			wantErrMsg: `addFC: invalid transferFC money system identifier FFFFFFFF (expected 00000001)`,
 		},
 		{
 			name: "Invalid target systemID",
@@ -122,7 +122,7 @@ func TestAddFC(t *testing.T) {
 				testutils.NewAddFCAttr(t, signer,
 					testutils.WithTransferFCTx(
 						&types.TransactionRecord{
-							TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID([]byte("not money partition")))),
+							TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID(0xFFFFFFFF))),
 							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),

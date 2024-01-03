@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	DefaultSystemIdentifier = []byte{0, 0, 0, 0}
-	DefaultT2Timeout        = uint32(2500)
-	DefaultRoundNumber      = uint64(1)
+const (
+	DefaultSystemIdentifier = 0x00000001
+	DefaultT2Timeout        = 2500
+	DefaultRoundNumber      = 1
 )
 
 type (
@@ -38,7 +38,7 @@ func DefaultSDR() *genesis.SystemDescriptionRecord {
 	}
 }
 
-func WithSystemIdentifier(systemID []byte) Option {
+func WithSystemIdentifier(systemID types.SystemID) Option {
 	return func(g *Options) {
 		g.sdr.SystemIdentifier = systemID
 	}

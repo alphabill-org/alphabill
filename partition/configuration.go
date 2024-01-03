@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -24,8 +25,8 @@ const (
 )
 
 var (
-	ErrTxSystemIsNil       = errors.New("transaction system is nil")
-	ErrGenesisIsNil        = errors.New("genesis is nil")
+	ErrTxSystemIsNil = errors.New("transaction system is nil")
+	ErrGenesisIsNil  = errors.New("genesis is nil")
 )
 
 type (
@@ -198,7 +199,7 @@ func (c *configuration) initMissingDefaults() error {
 	return nil
 }
 
-func (c *configuration) GetSystemIdentifier() []byte {
+func (c *configuration) GetSystemIdentifier() types.SystemID {
 	return c.genesis.SystemDescriptionRecord.SystemIdentifier
 }
 

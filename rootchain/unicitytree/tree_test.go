@@ -20,7 +20,7 @@ var inputRecord = &types.InputRecord{
 func TestNewUnicityTree(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:            types.SystemID{0, 0, 0, 1},
+			SystemIdentifier:            1,
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
@@ -30,7 +30,7 @@ func TestNewUnicityTree(t *testing.T) {
 }
 
 func TestGetCertificate_Ok(t *testing.T) {
-	key := types.SystemID([]byte{0, 0, 0, 1})
+	key := types.SystemID(1)
 	data := []*Data{
 		{
 			SystemIdentifier:            key,
@@ -51,7 +51,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
 
-	root, err := smt.CalculatePathRoot(cert.SiblingHashes, dataHash, key, crypto.SHA256)
+	root, err := smt.CalculatePathRoot(cert.SiblingHashes, dataHash, key.Bytes(), crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 	ir, err := unicityTree.GetIR(key)
@@ -62,31 +62,31 @@ func TestGetCertificate_Ok(t *testing.T) {
 func TestGetCertificate_InvalidKey(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:            types.SystemID{1, 2, 3, 1},
+			SystemIdentifier:            0x01020301,
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
-	cert, err := unicityTree.GetCertificate(types.SystemID{1, 2})
+	cert, err := unicityTree.GetCertificate(0x0102)
 
 	require.Nil(t, cert)
-	require.ErrorIs(t, err, ErrInvalidSystemIdentifierLength)
+	require.EqualError(t, err, "certificate for system id 00000102 not found")
 }
 
 func TestGetCertificate_KeyNotFound(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:            []byte{1, 2, 3, 1},
+			SystemIdentifier:            0x01020301,
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
-	cert, err := unicityTree.GetCertificate(types.SystemID{0, 0, 0, 0})
+	cert, err := unicityTree.GetCertificate(1)
 	require.Nil(t, cert)
-	require.ErrorContains(t, err, "certificate for system id 00000000 not found")
-	ir, err := unicityTree.GetIR(types.SystemID{0, 0, 0, 0})
-	require.ErrorContains(t, err, "ir for system id 00000000 not found")
+	require.EqualError(t, err, "certificate for system id 00000001 not found")
+	ir, err := unicityTree.GetIR(1)
+	require.EqualError(t, err, "ir for system id 00000001 not found")
 	require.Nil(t, ir)
 }

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +66,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
@@ -79,7 +79,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
@@ -93,7 +93,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
@@ -108,7 +108,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
@@ -121,7 +121,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
@@ -134,7 +134,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
@@ -147,7 +147,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				Certificate:    nil,
@@ -161,7 +161,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
@@ -174,7 +174,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
-					SystemIdentifier: []byte{0, 0, 0, 0},
+					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},

@@ -60,9 +60,9 @@ func (t *TransactionOrder) UnitID() UnitID {
 	return t.Payload.UnitID
 }
 
-func (t *TransactionOrder) SystemID() []byte {
+func (t *TransactionOrder) SystemID() SystemID {
 	if t.Payload == nil {
-		return nil
+		return 0
 	}
 	return t.Payload.SystemID
 }

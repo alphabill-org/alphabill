@@ -17,6 +17,7 @@ import (
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemIdentifier = []byte{0, 0, 4, 2}
+const systemIdentifier types.SystemID = 0x00000402
 
 // SPDX-License-Identifier: GPL-3.0
 /*
@@ -74,7 +75,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	treeClean := tree.Clone()
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 3},
+		systemIdentifier: 3,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              logger.New(t),
@@ -110,7 +111,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              log,
@@ -166,7 +167,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              logger.New(t),
@@ -200,7 +201,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 	}

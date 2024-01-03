@@ -4,10 +4,11 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 type Options struct {
-	systemIdentifier    []byte
+	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	beginBlockFunctions []func(blockNumber uint64) error
@@ -37,7 +38,7 @@ func WithEndBlockFunctions(funcs ...func(blockNumber uint64) error) Option {
 	}
 }
 
-func WithSystemIdentifier(systemID []byte) Option {
+func WithSystemIdentifier(systemID types.SystemID) Option {
 	return func(g *Options) {
 		g.systemIdentifier = systemID
 	}

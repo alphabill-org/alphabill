@@ -24,8 +24,8 @@ type (
 		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
 		round        uint64
-		ir           map[types.SystemID32]*types.InputRecord
-		changes      map[types.SystemID32]*types.InputRecord
+		ir           map[types.SystemID]*types.InputRecord
+		changes      map[types.SystemID]*types.InputRecord
 		signer       crypto.Signer // private key of the root chain
 		trustBase    map[string]crypto.Verifier
 		log          *slog.Logger
@@ -78,7 +78,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		stateStore:   storage,
 		round:        lastRound,
 		ir:           lastIR,
-		changes:      make(map[types.SystemID32]*types.InputRecord),
+		changes:      make(map[types.SystemID]*types.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 		log:          log,
@@ -103,10 +103,10 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
+func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
 	luc, err := x.stateStore.GetCertificate(id)
 	if err != nil {
-		return nil, fmt.Errorf("find certificate for system id %s failed, %w", id, err)
+		return nil, fmt.Errorf("loading certificate for partition %s from state store: %w", id, err)
 	}
 	return luc, nil
 }
@@ -223,8 +223,8 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 	return nil
 }
 
-func getMergeInputRecords(currentIR, changed map[types.SystemID32]*types.InputRecord, log *slog.Logger) map[types.SystemID32]*types.InputRecord {
-	result := make(map[types.SystemID32]*types.InputRecord)
+func getMergeInputRecords(currentIR, changed map[types.SystemID]*types.InputRecord, log *slog.Logger) map[types.SystemID]*types.InputRecord {
+	result := make(map[types.SystemID]*types.InputRecord)
 	for id, ir := range currentIR {
 		result[id] = ir
 	}
@@ -237,7 +237,7 @@ func getMergeInputRecords(currentIR, changed map[types.SystemID32]*types.InputRe
 }
 
 // generateUnicityCertificates generates certificates for all changed input records in round
-func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.SystemID32]*types.UnicityCertificate, error) {
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error) {
 	// if no new consensus or timeouts then skip the round
 	if len(x.changes) == 0 {
 		x.log.Info("no IR changes", logger.Round(round))
@@ -263,7 +263,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 			SystemDescriptionRecordHash: sdrh,
 		})
 	}
-	certs := make(map[types.SystemID32]*types.UnicityCertificate)
+	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	// create unicity tree
 	ut, err := unicitytree.New(x.params.HashAlgorithm.New(), utData)
 	if err != nil {
@@ -282,7 +282,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	for sysID, ir := range x.changes {
 		// get certificate for change
 		var utCert *types.UnicityTreeCertificate
-		utCert, err = ut.GetCertificate(sysID.ToSystemID())
+		utCert, err = ut.GetCertificate(sysID)
 		if err != nil {
 			return nil, err
 		}
@@ -312,6 +312,6 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 		x.ir[id] = ir
 	}
 	// clear changed and return new certificates
-	x.changes = make(map[types.SystemID32]*types.InputRecord)
+	x.changes = make(map[types.SystemID]*types.InputRecord)
 	return certs, nil
 }

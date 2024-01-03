@@ -41,7 +41,7 @@ type (
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *types.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
-		GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
+		GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
@@ -156,12 +156,9 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
-	// process
-	// ignore error here, as validate already checks system identifier length, conversion cannot fail
-	sysID, _ := req.SystemIdentifier.Id32()
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(req.SystemIdentifier)
 	if err != nil {
-		return fmt.Errorf("reading partition %s certificate: %w", sysID, err)
+		return fmt.Errorf("reading partition %s certificate: %w", req.SystemIdentifier, err)
 	}
 	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
@@ -177,33 +174,33 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	ctx, span := v.tracer.Start(ctx, "node.onBlockCertificationRequest")
 	defer span.End()
 
-	sysID32, err := req.SystemIdentifier.Id32()
-	if err != nil {
+	sysID := req.SystemIdentifier
+	if sysID == 0 {
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", "err.sysid"))))
-		return fmt.Errorf("request contains invalid system identifier %X: %w", req.SystemIdentifier, err)
+		return fmt.Errorf("request contains invalid system identifier %s", req.SystemIdentifier)
 	}
 	defer func() {
 		if rErr != nil {
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
-		partition := observability.Partition(sysID32)
+		partition := observability.Partition(sysID)
 		span.SetAttributes(partition)
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
-	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
+	_, pTrustBase, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
 	}
 	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
 		return fmt.Errorf("%X node %v rejected: %w", req.SystemIdentifier, req.NodeIdentifier, err)
 	}
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID32)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
 		return fmt.Errorf("reading last certified state: %w", err)
 	}
-	v.subscription.Subscribe(sysID32, req.NodeIdentifier)
+	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	if err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
 		if se := v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); se != nil {
@@ -212,33 +209,33 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return err
 	}
 	// check if consensus is already achieved, then store, but it will not be used as proof
-	if res := v.incomingRequests.IsConsensusReceived(sysID32, pTrustBase); res != QuorumInProgress {
+	if res := v.incomingRequests.IsConsensusReceived(sysID, pTrustBase); res != QuorumInProgress {
 		// stale request buffer, but no need to add extra proof
-		if _, _, err = v.incomingRequests.Add(sysID32, req, pTrustBase); err != nil {
+		if _, _, err = v.incomingRequests.Add(sysID, req, pTrustBase); err != nil {
 			return fmt.Errorf("stale block certification request, could not be stored: %w", err)
 		}
 		return nil
 	}
 	// store new request and see if quorum is achieved
-	res, proof, err := v.incomingRequests.Add(sysID32, req, pTrustBase)
+	res, proof, err := v.incomingRequests.Add(sysID, req, pTrustBase)
 	if err != nil {
 		return fmt.Errorf("storing request: %w", err)
 	}
 	var reason consensus.CertReqReason
 	switch res {
 	case QuorumAchieved:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", sysID32, proof[0].InputRecord.Hash))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", sysID, proof[0].InputRecord.Hash))
 		reason = consensus.Quorum
 	case QuorumNotPossible:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", sysID32))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", sysID))
 		reason = consensus.QuorumNotPossible
 	case QuorumInProgress:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", sysID32))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", sysID))
 		return nil
 	}
 	if err = v.consensusManager.RequestCertification(ctx,
 		consensus.IRChangeRequest{
-			SystemIdentifier: sysID32,
+			SystemIdentifier: sysID,
 			Reason:           reason,
 			Requests:         proof,
 		}); err != nil {
@@ -263,9 +260,9 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 }
 
 func (v *Node) onCertificationResult(ctx context.Context, certificate *types.UnicityCertificate) {
-	sysID, err := certificate.UnicityTreeCertificate.SystemIdentifier.Id32()
-	if err != nil {
-		v.log.WarnContext(ctx, "certificate has invalid partition id", logger.Error(err))
+	sysID := certificate.UnicityTreeCertificate.SystemIdentifier
+	if sysID == 0 {
+		v.log.WarnContext(ctx, "certificate has invalid partition id")
 		return
 	}
 	// remember to clear the incoming buffer to accept new nodeRequest
@@ -280,7 +277,7 @@ func (v *Node) onCertificationResult(ctx context.Context, certificate *types.Uni
 		certificate.UnicityTreeCertificate.SystemIdentifier, certificate.InputRecord.Hash, certificate.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
-		if err = v.sendResponse(ctx, node, certificate); err != nil {
+		if err := v.sendResponse(ctx, node, certificate); err != nil {
 			v.log.WarnContext(ctx, "sending certification result", logger.Error(err))
 		}
 		v.subscription.ResponseSent(sysID, node)

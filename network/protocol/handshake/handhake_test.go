@@ -13,17 +13,13 @@ func TestHandshake_IsValid_Nil(t *testing.T) {
 
 func TestHandshake_IsValid_Error(t *testing.T) {
 	h := &Handshake{
-		SystemIdentifier: nil,
+		SystemIdentifier: 0,
 		NodeIdentifier:   "test",
 	}
 	require.ErrorIs(t, ErrInvalidSystemIdentifier, h.IsValid())
+
 	h = &Handshake{
-		SystemIdentifier: []byte{0},
-		NodeIdentifier:   "test",
-	}
-	require.ErrorIs(t, ErrInvalidSystemIdentifier, h.IsValid())
-	h = &Handshake{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "",
 	}
 	require.ErrorIs(t, ErrMissingNodeIdentifier, h.IsValid())
@@ -31,7 +27,7 @@ func TestHandshake_IsValid_Error(t *testing.T) {
 
 func TestHandshake_IsValid(t *testing.T) {
 	h := &Handshake{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "test",
 	}
 	require.NoError(t, h.IsValid())

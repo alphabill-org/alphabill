@@ -10,7 +10,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/state"
+	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -31,7 +31,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(10),
 		blockGasLimit:    10000,
 	}
@@ -67,7 +67,7 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(10),
 		blockGasLimit:    10000,
 	}
@@ -90,7 +90,7 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 func TestAPI_Balance_NotFound(t *testing.T) {
 	a := &API{
 		state:            abstate.NewEmptyState(),
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(10),
 		blockGasLimit:    10000,
 	}

@@ -33,8 +33,8 @@ func (x *SystemDescriptionRecord) IsValid() error {
 		return ErrSystemDescriptionIsNil
 	}
 
-	if len(x.SystemIdentifier) != types.SystemIdentifierLength {
-		return fmt.Errorf("invalid system identifier length: expected %v, got %v", types.SystemIdentifierLength, len(x.SystemIdentifier))
+	if x.SystemIdentifier == 0 {
+		return fmt.Errorf("invalid system identifier: %s", x.SystemIdentifier)
 	}
 	if x.T2Timeout == 0 {
 		return ErrT2TimeoutIsNil
@@ -43,7 +43,7 @@ func (x *SystemDescriptionRecord) IsValid() error {
 }
 
 func (x *SystemDescriptionRecord) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier)
+	hasher.Write(x.SystemIdentifier.Bytes())
 	hasher.Write(util.Uint64ToBytes(uint64(x.T2Timeout)))
 }
 

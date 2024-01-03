@@ -22,14 +22,14 @@ type (
 	}
 
 	TransferFeeCreditAttributes struct {
-		_                      struct{} `cbor:",toarray"`
-		Amount                 uint64   // amount to transfer
-		TargetSystemIdentifier []byte   // system_identifier of the target partition
-		TargetRecordID         []byte   // unit id of the corresponding “add fee credit” transaction
-		EarliestAdditionTime   uint64   // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
-		LatestAdditionTime     uint64   // latest round when the corresponding “add fee credit” transaction can be executed in the target system
-		TargetUnitBacklink     []byte   // current state hash of the target credit record if the record exists, or nil if the record does not exist yet
-		Backlink               []byte   // hash of this unit's previous transaction
+		_                      struct{}       `cbor:",toarray"`
+		Amount                 uint64         // amount to transfer
+		TargetSystemIdentifier types.SystemID // system_identifier of the target partition
+		TargetRecordID         []byte         // unit id of the corresponding “add fee credit” transaction
+		EarliestAdditionTime   uint64         // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
+		LatestAdditionTime     uint64         // latest round when the corresponding “add fee credit” transaction can be executed in the target system
+		TargetUnitBacklink     []byte         // current state hash of the target credit record if the record exists, or nil if the record does not exist yet
+		Backlink               []byte         // hash of this unit's previous transaction
 	}
 
 	CloseFeeCreditAttributes struct {

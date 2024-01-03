@@ -1,7 +1,6 @@
 package partition
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 )
 
 type (
-
 	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
@@ -22,7 +20,6 @@ type (
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
 	UnicityCertificateValidator interface {
-
 		// Validate validates the given certificates.UnicityCertificate. Returns an error if given unicity certificate
 		// is not valid.
 		Validate(uc *types.UnicityCertificate) error
@@ -30,7 +27,6 @@ type (
 
 	// BlockProposalValidator is used to validate block proposals.
 	BlockProposalValidator interface {
-
 		// Validate validates the given blockproposal.BlockProposal. Returns an error if given block proposal
 		// is not valid.
 		Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier) error
@@ -38,7 +34,7 @@ type (
 
 	// DefaultUnicityCertificateValidator is a default implementation of UnicityCertificateValidator.
 	DefaultUnicityCertificateValidator struct {
-		systemIdentifier      []byte
+		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
 		rootTrustBase         map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
@@ -46,23 +42,23 @@ type (
 
 	// DefaultBlockProposalValidator is a default implementation of UnicityCertificateValidator.
 	DefaultBlockProposalValidator struct {
-		systemIdentifier      []byte
+		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
 		rootTrustBase         map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
 	}
 
 	DefaultTxValidator struct {
-		systemIdentifier []byte
+		systemIdentifier types.SystemID
 	}
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
-func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
-	if len(systemIdentifier) != 4 {
-		return nil, fmt.Errorf("invalid transaction system identifier: expected 4 bytes, got %d", len(systemIdentifier))
+func NewDefaultTxValidator(systemIdentifier types.SystemID) (TxValidator, error) {
+	if systemIdentifier == 0 {
+		return nil, fmt.Errorf("invalid transaction system identifier: %s", systemIdentifier)
 	}
 	return &DefaultTxValidator{
 		systemIdentifier: systemIdentifier,
@@ -73,9 +69,9 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
-	if !bytes.Equal(dtv.systemIdentifier, tx.SystemID()) {
+	if dtv.systemIdentifier != tx.SystemID() {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %X, got %X: %w", dtv.systemIdentifier, tx.SystemID(), errInvalidSystemIdentifier)
+		return fmt.Errorf("expected %s, got %s: %w", dtv.systemIdentifier, tx.SystemID(), errInvalidSystemIdentifier)
 	}
 
 	if tx.Timeout() <= latestBlockNumber {

@@ -993,10 +993,10 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	if _, err := n.configuration.GetSigningPublicKey(lr.NodeIdentifier); err != nil {
 		return fmt.Errorf("unknown node, %w", err)
 	}
-	if !bytes.Equal(lr.SystemIdentifier, n.configuration.GetSystemIdentifier()) {
+	if lr.SystemIdentifier != n.configuration.GetSystemIdentifier() {
 		resp := &replication.LedgerReplicationResponse{
 			Status:  replication.UnknownSystemIdentifier,
-			Message: fmt.Sprintf("Unknown system identifier: %X", lr.SystemIdentifier),
+			Message: fmt.Sprintf("Unknown system identifier: %s", lr.SystemIdentifier),
 		}
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
 	}
@@ -1369,7 +1369,7 @@ func (n *Node) SerializeState(writer io.Writer) error {
 	return n.transactionSystem.SerializeState(writer, true)
 }
 
-func (n *Node) SystemIdentifier() []byte {
+func (n *Node) SystemIdentifier() types.SystemID {
 	return n.configuration.GetSystemIdentifier()
 }
 

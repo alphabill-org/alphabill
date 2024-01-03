@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/network"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -44,7 +44,7 @@ type SingleNodePartition struct {
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
-	certs      map[types.SystemID32]*types.UnicityCertificate
+	certs      map[types.SystemID]*types.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -73,7 +73,6 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
-	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
 		// Should actually create the genesis state before the
 		// txSystem and start the txSystem with it. Works like
@@ -82,7 +81,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
-		WithSystemIdentifier(systemId),
+		WithSystemIdentifier(0x01010101),
 		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
@@ -100,11 +99,9 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
 
 	// root state
-	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
+	var certs = make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		sysID, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
-		require.NoError(t, err)
-		certs[sysID] = partition.Certificate
+		certs[partition.GetSystemDescriptionRecord().GetSystemIdentifier()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)
@@ -281,16 +278,14 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	sysID, err := req.SystemIdentifier.Id32()
-	require.NoError(t, err)
-	luc, found := sn.certs[sysID]
+	luc, found := sn.certs[req.SystemIdentifier]
 	require.True(t, found)
 	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[sysID] = uc
+	sn.certs[req.SystemIdentifier] = uc
 	return uc
 }
 

@@ -18,7 +18,7 @@ import (
 
 type (
 	MockState struct {
-		inProgress   []types.SystemID32
+		inProgress   []types.SystemID
 		irInProgress *types.InputRecord
 	}
 )
@@ -32,9 +32,9 @@ var irSysID1 = &types.InputRecord{
 	SumOfEarnedFees: 0,
 }
 
-func (s *MockState) GetCertificates() map[types.SystemID32]*types.UnicityCertificate {
-	return map[types.SystemID32]*types.UnicityCertificate{
-		types.SystemID32(1): {
+func (s *MockState) GetCertificates() map[types.SystemID]*types.UnicityCertificate {
+	return map[types.SystemID]*types.UnicityCertificate{
+		types.SystemID(1): {
 			InputRecord:            irSysID1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal: &types.UnicitySeal{
@@ -44,7 +44,7 @@ func (s *MockState) GetCertificates() map[types.SystemID32]*types.UnicityCertifi
 	}
 }
 
-func (s *MockState) GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
+func (s *MockState) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
 	cm := s.GetCertificates()
 	if uc, ok := cm[id]; ok {
 		return uc, nil
@@ -52,7 +52,7 @@ func (s *MockState) GetCertificate(id types.SystemID32) (*types.UnicityCertifica
 	return nil, fmt.Errorf("no UC for partition %s", id)
 }
 
-func (s *MockState) IsChangeInProgress(id types.SystemID32) *types.InputRecord {
+func (s *MockState) IsChangeInProgress(id types.SystemID) *types.InputRecord {
 	for _, sysId := range s.inProgress {
 		if sysId == id {
 			return s.irInProgress
@@ -68,7 +68,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: 1,
 				T2Timeout:        2000,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -81,7 +81,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID32{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
 			partitions: pConf,
 		}
 		data, err := ver.VerifyIRChangeReq(2, nil)
@@ -93,7 +93,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID32{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
 			partitions: pConf,
 		}
 		newIR := &types.InputRecord{
@@ -105,7 +105,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1.ToSystemID(),
+			SystemIdentifier: sysID1,
 			NodeIdentifier:   "node1",
 			InputRecord:      newIR,
 			RootRoundNumber:  1,
@@ -125,7 +125,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID32{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
 			partitions: pConf,
 		}
 		newIR := &types.InputRecord{
@@ -137,7 +137,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID2.ToSystemID(),
+			SystemIdentifier: sysID2,
 			NodeIdentifier:   "node1",
 			InputRecord:      newIR,
 			RootRoundNumber:  1,
@@ -165,11 +165,11 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID32{sysID1}, irInProgress: newIR},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: newIR},
 			partitions: pConf,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1.ToSystemID(),
+			SystemIdentifier: sysID1,
 			NodeIdentifier:   "node1",
 			InputRecord:      newIR,
 			RootRoundNumber:  1,
@@ -201,7 +201,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1.ToSystemID(),
+			SystemIdentifier: sysID1,
 			NodeIdentifier:   "node1",
 			InputRecord:      newIR,
 			RootRoundNumber:  1,
@@ -233,7 +233,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1.ToSystemID(),
+			SystemIdentifier: sysID1,
 			NodeIdentifier:   "node1",
 			InputRecord:      newIR,
 			RootRoundNumber:  1,
@@ -258,7 +258,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -303,7 +303,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -346,7 +346,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: sysID1.ToSystemID(),
+				SystemIdentifier: sysID1,
 				T2Timeout:        2500,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -362,7 +362,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		state:      state,
 		partitions: pInfo,
 	}
-	var tmos []types.SystemID32
+	var tmos []types.SystemID
 	// last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
 	tmos, err = tmoGen.GetT2Timeouts(11)
 	require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	// last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 	tmos, err = tmoGen.GetT2Timeouts(12)
 	require.NoError(t, err)
-	require.EqualValues(t, []types.SystemID32{sysID1}, tmos)
+	require.EqualValues(t, []types.SystemID{sysID1}, tmos)
 	// mock sysID1 has pending change in pipeline - no timeout will be generated
 	state.inProgress = append(state.inProgress, sysID1)
 	state.irInProgress = irSysID1

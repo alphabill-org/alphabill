@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 	type args struct {
 		verifiers             map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
-		systemIdentifier      []byte
+		systemIdentifier      SystemID
 		systemDescriptionHash []byte
 	}
 	tests := []struct {
@@ -120,7 +120,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 
 func TestUnicityCertificate_UCIsNil(t *testing.T) {
 	var uc *UnicityCertificate
-	require.ErrorIs(t, uc.IsValid(nil, gocrypto.SHA256, nil, nil), ErrUnicityCertificateIsNil)
+	require.ErrorIs(t, uc.IsValid(nil, gocrypto.SHA256, 0, nil), ErrUnicityCertificateIsNil)
 }
 
 func TestUnicityCertificate_isRepeat(t *testing.T) {

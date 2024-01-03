@@ -15,7 +15,7 @@ import (
 )
 
 type TxSystem struct {
-	systemIdentifier    []byte
+	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentBlockNumber  uint64
@@ -27,7 +27,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)

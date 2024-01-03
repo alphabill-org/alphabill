@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*FeeAccount)(nil)
@@ -16,7 +17,7 @@ var _ txsystem.Module = (*FeeAccount)(nil)
 type (
 	FeeAccount struct {
 		state            *state.State
-		systemIdentifier []byte
+		systemIdentifier types.SystemID
 		trustBase        map[string]abcrypto.Verifier
 		hashAlgorithm    crypto.Hash
 		txValidator      *fc.DefaultFeeCreditTxValidator
@@ -33,7 +34,7 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(systemIdentifier []byte, options *Options, log *slog.Logger) (*FeeAccount, error) {
+func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.Logger) (*FeeAccount, error) {
 	return &FeeAccount{
 		state:            options.state,
 		systemIdentifier: systemIdentifier,

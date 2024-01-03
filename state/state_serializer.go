@@ -74,7 +74,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 	}
 
 	merkleTree := mt.New(s.hashAlgorithm, unit.logs)
-	unitTreePath, err := merkleTree.GetMerklePath(logSize-1)
+	unitTreePath, err := merkleTree.GetMerklePath(logSize - 1)
 	if err != nil {
 		s.err = fmt.Errorf("unable to extract unit tree path: %w", err)
 		return

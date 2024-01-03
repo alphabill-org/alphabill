@@ -23,7 +23,7 @@ type (
 		tx            *types.TransactionOrder
 		attr          *SwapDCAttributes
 		state         stateProvider
-		systemID      []byte
+		systemID      types.SystemID
 		hashAlgorithm crypto.Hash
 		trustBase     map[string]abcrypto.Verifier
 	}
@@ -32,7 +32,7 @@ type (
 	}
 )
 
-func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
+func handleSwapDCTx(s *state.State, systemID types.SystemID, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		c := &swapValidationContext{
 			tx:            tx,
@@ -80,8 +80,8 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
 		return &types.ServerMetadata{
-			ActualFee: fee,
-			TargetUnits: []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
+			ActualFee:        fee,
+			TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		}, nil
 	}
@@ -138,8 +138,8 @@ func (c *swapValidationContext) validateSwapTx() error {
 	}
 	for i, dcTx := range dustTransfers {
 		// 4. transfers were in the money partition
-		if !bytes.Equal(dcTx.tx.TransactionOrder.SystemID(), c.systemID) {
-			return fmt.Errorf("dust transfer system id is not money partition system id: expected %X vs provided %X",
+		if dcTx.tx.TransactionOrder.SystemID() != c.systemID {
+			return fmt.Errorf("dust transfer system id is not money partition system id: expected %s vs provided %s",
 				c.systemID, dcTx.tx.TransactionOrder.SystemID())
 		}
 		// 6. transfer orders are listed in strictly increasing order of bill identifiers
@@ -178,8 +178,8 @@ func (c *swapValidationContext) isValid() error {
 	if c.state == nil {
 		return errors.New("state is nil")
 	}
-	if c.systemID == nil {
-		return errors.New("systemID is nil")
+	if c.systemID == 0 {
+		return errors.New("systemID is unassigned")
 	}
 	if c.trustBase == nil {
 		return errors.New("trust base is nil")

@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const sysID0 types.SystemID = 0
 const sysID1 types.SystemID = 1
 const sysID2 types.SystemID = 2
+const sysID3 types.SystemID = 5
 const partitionID types.SystemID = 0x00FF0001
 
 var partitionInputRecord = &types.InputRecord{
@@ -68,7 +68,7 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
@@ -76,15 +76,15 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	store := NewStateStore(memorydb.New())
 	// store mock state
 	certs := map[types.SystemID]*types.UnicityCertificate{
-		types.SystemID(0): {
+		sysID3: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 3}}, // no timeout (5 - 3) * 900 = 1800 ms
-		types.SystemID(1): {
+		sysID1: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 2}}, // timeout (5 - 2) * 900 = 2700 ms
-		types.SystemID(2): {
+		sysID2: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
@@ -100,9 +100,9 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		partitions: partitions,
 		stateStore: store,
 		ir: map[types.SystemID]*types.InputRecord{
-			types.SystemID(0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			types.SystemID(1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			types.SystemID(2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			sysID3: {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			sysID1: {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			sysID2: {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 		},
 		changes: map[types.SystemID]*types.InputRecord{},
 		log:     testlogger.New(t),

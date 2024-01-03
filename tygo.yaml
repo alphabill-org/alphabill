@@ -1,0 +1,7 @@
+packages:
+  - path: "github.com/alphabill-org/alphabill/types"
+    output_path: "ts/types.ts"
+  - path: "github.com/alphabill-org/alphabill/txsystem/money"
+    output_path: "ts/money.ts"
+  - path: "github.com/alphabill-org/alphabill/txsystem/tokens"
+    output_path: "ts/tokens.ts"

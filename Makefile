@@ -25,6 +25,7 @@ tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	go install github.com/gzuidhof/tygo@latest
 
 .PHONY: \
 	all \

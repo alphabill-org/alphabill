@@ -102,7 +102,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 		if addedCredit == reclaimedCredit {
 			continue // no update if bill value doesn't change
 		}
-		fcUnitID := types.UnitID(sdr.FeeCreditBill.UnitId)
+		fcUnitID := types.UnitID(sdr.FeeCreditBill.UnitID)
 		_, err := f.state.GetUnit(fcUnitID, false)
 		if err != nil {
 			return err
@@ -130,7 +130,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 	// increment money fee credit bill with spent fees
 	spentFeeSum := f.getSpentFeeSum()
 	if spentFeeSum > 0 {
-		moneyFCUnitID := f.sdrs[f.systemIdentifier].FeeCreditBill.UnitId
+		moneyFCUnitID := f.sdrs[f.systemIdentifier].FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(moneyFCUnitID, false)
 		if err != nil {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)

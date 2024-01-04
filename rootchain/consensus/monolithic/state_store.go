@@ -60,10 +60,10 @@ func (s *StateStore) save(newRound uint64, certificates map[types.SystemID]*type
 }
 
 func (s *StateStore) Init(rg *genesis.RootGenesis) error {
-	var certs = make(map[types.SystemID]*types.UnicityCertificate)
 	if rg == nil {
 		return fmt.Errorf("store init failed, root genesis is nil")
 	}
+	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range rg.Partitions {
 		certs[partition.SystemDescriptionRecord.SystemIdentifier] = partition.Certificate
 	}

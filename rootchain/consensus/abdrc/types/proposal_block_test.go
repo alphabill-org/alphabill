@@ -243,11 +243,11 @@ func TestBlockData_String(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.GenesisTime,
 			Payload: &Payload{Requests: []*IRChangeReq{
-				{SystemIdentifier: 0, CertReason: Quorum},
+				{SystemIdentifier: 3, CertReason: Quorum},
 				{SystemIdentifier: 1, CertReason: T2Timeout},
 				{SystemIdentifier: 0xFF000002, CertReason: QuorumNotPossible},
 			}},
 		}
-		require.Equal(t, "round: 6, time: 1681971084, payload: 00000000->quorum, 00000001->timeout, FF000002->no-quorum", x.String())
+		require.Equal(t, "round: 6, time: 1681971084, payload: 00000003->quorum, 00000001->timeout, FF000002->no-quorum", x.String())
 	})
 }

@@ -37,22 +37,18 @@ type evmGenesisConfig struct {
 
 // newEvmGenesisCmd creates a new cobra command for the evm genesis.
 func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	sysIDbytes := make([]byte, types.SystemIdentifierLength)
+	var systemID uint32
 	config := &evmGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, evmDir)}
 	var cmd = &cobra.Command{
 		Use:   "evm-genesis",
 		Short: "Generates a genesis file for the evm partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			config.SystemIdentifier, err = types.BytesToSystemID(sysIDbytes)
-			if err != nil {
-				return fmt.Errorf("partition ID: %w", err)
-			}
+			config.SystemIdentifier = types.SystemID(systemID)
 			return evmGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&sysIDbytes, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier.Bytes(), "system identifier in HEX format")
+	addSystemIDFlag(cmd, &systemID, evm.DefaultEvmTxSystemIdentifier)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/evm/node-genesis-state.cbor)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")

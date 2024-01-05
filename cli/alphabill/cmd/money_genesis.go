@@ -61,7 +61,7 @@ type moneyGenesisConfig struct {
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	sysIDbytes := make([]byte, types.SystemIdentifierLength)
+	var systemID uint32
 	config := &moneyGenesisConfig{
 		Base:             baseConfig,
 		Keys:             NewKeysConf(baseConfig, moneyPartitionDir),
@@ -72,16 +72,12 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			config.SystemIdentifier, err = types.BytesToSystemID(sysIDbytes)
-			if err != nil {
-				return fmt.Errorf("partition ID: %w", err)
-			}
+			config.SystemIdentifier = types.SystemID(systemID)
 			return abMoneyGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&sysIDbytes, "system-identifier", "s", money.DefaultSystemIdentifier.Bytes(), "system identifier in HEX format")
+	addSystemIDFlag(cmd, &systemID, money.DefaultSystemIdentifier)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/money/node-genesis-state.cbor)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")

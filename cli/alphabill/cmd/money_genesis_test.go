@@ -115,7 +115,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 04030201" + " --home " + homeDir
+	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 4030201" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{4, 3, 2, 1}, pn.BlockCertificationRequest.SystemIdentifier.Bytes())
+	require.EqualValues(t, 4030201, pn.BlockCertificationRequest.SystemIdentifier)
 }
 
 func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {

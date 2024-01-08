@@ -33,7 +33,10 @@ func (pm *PortManager) GetFreePort() (int, error) {
 			return 0, err
 		}
 		port := l.Addr().(*net.TCPAddr).Port
-		l.Close()
+		err = l.Close()
+		if err != nil {
+			return 0, err
+		}
 
 		if !pm.usedPorts[port] {
 			pm.usedPorts[port] = true

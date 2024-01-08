@@ -77,7 +77,7 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if bd == nil {
 		return ErrBillNil
 	}
-	if len(attr.TargetSystemIdentifier) == 0 {
+	if attr.TargetSystemIdentifier == 0 {
 		return ErrTargetSystemIdentifierEmpty
 	}
 	if len(attr.TargetRecordID) == 0 {

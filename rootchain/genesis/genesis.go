@@ -12,7 +12,6 @@ import (
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
@@ -107,7 +106,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	}
 }
 
-func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID32]*types.UnicityCertificate, error) {
+func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID]*types.UnicityCertificate, error) {
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash.New(), utData)
 	if err != nil {
@@ -119,7 +118,7 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 	if err != nil {
 		return nil, fmt.Errorf("unicity seal generation failed: %w", err)
 	}
-	certs := make(map[types.SystemID32]*types.UnicityCertificate)
+	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	// extract certificates
 	for _, d := range utData {
 		utCert, err := ut.GetCertificate(d.SystemIdentifier)
@@ -135,22 +134,18 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 			},
 			UnicitySeal: seal,
 		}
-		sysID, err := d.SystemIdentifier.Id32()
-		if err != nil {
-			return nil, err
-		}
-		certs[sysID] = uc
+		certs[d.SystemIdentifier] = uc
 	}
 	return certs, nil
 }
 
 func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.PartitionRecord, error) {
-	var partitionNodesMap = make(map[string][]*genesis.PartitionNode)
+	var partitionNodesMap = make(map[types.SystemID][]*genesis.PartitionNode)
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
 			return nil, fmt.Errorf("partition node %s validation failed: %w", n.NodeIdentifier, err)
 		}
-		si := string(n.BlockCertificationRequest.SystemIdentifier)
+		si := n.BlockCertificationRequest.SystemIdentifier
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
@@ -201,7 +196,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// iterate over all partitions and make sure that all requests are matching and every node is represented
 	ucData := make([]*unicitytree.Data, len(partitions))
 	// remember system description records hashes and system id for verification
-	sdrhs := make(map[types.SystemID32][]byte, len(partitions))
+	sdrhs := make(map[types.SystemID][]byte, len(partitions))
 	for i, partition := range partitions {
 		// Check that partition is valid: required fields sent and no duplicate node, all requests with same system id
 		if err = partition.IsValid(); err != nil {
@@ -209,8 +204,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		}
 		sdrh := partition.SystemDescriptionRecord.Hash(c.hashAlgorithm)
 		// if partition is valid then conversion cannot fail
-		sysID, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
-		sdrhs[sysID] = sdrh
+		sdrhs[partition.SystemDescriptionRecord.SystemIdentifier] = sdrh
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		ucData[i] = &unicitytree.Data{
@@ -245,7 +239,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		// check the certificate
 		// ignore error, we just put it there and if not, then verify will fail anyway
 		srdh := sdrhs[sysId]
-		if err = uc.IsValid(trustBase, c.hashAlgorithm, sysId.ToSystemID(), srdh); err != nil {
+		if err = uc.IsValid(trustBase, c.hashAlgorithm, sysId, srdh); err != nil {
 			// should never happen.
 			return nil, nil, fmt.Errorf("generated unicity certificate validation failed: %w", err)
 		}
@@ -267,9 +261,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// generate genesis structs
 	for i, partition := range partitions {
-		// if partition is valid then conversion cannot fail
-		sysID, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
-		certificate, f := certs[sysID]
+		certificate, f := certs[partition.SystemDescriptionRecord.SystemIdentifier]
 		if !f {
 			return nil, nil, err
 		}
@@ -290,7 +282,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// sort genesis partition by system id
 	sort.Slice(genesisPartitions, func(i, j int) bool {
-		return util.BytesToUint32(genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier) < util.BytesToUint32(genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier)
+		return genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier < genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier
 	})
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{

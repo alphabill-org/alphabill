@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/network"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -27,6 +27,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -43,7 +44,7 @@ type SingleNodePartition struct {
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
-	certs      map[types.SystemID32]*types.UnicityCertificate
+	certs      map[types.SystemID]*types.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -72,13 +73,15 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
-	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
-		txSystem,
+		// Should actually create the genesis state before the
+		// txSystem and start the txSystem with it. Works like
+		// this if the txSystem has empty state as well.
+		state.NewEmptyState(),
 		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
-		WithSystemIdentifier(systemId),
+		WithSystemIdentifier(0x01010101),
 		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
@@ -93,12 +96,12 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 
+	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
+
 	// root state
-	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
+	var certs = make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		sysID, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
-		require.NoError(t, err)
-		certs[sysID] = partition.Certificate
+		certs[partition.GetSystemDescriptionRecord().GetSystemIdentifier()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)
@@ -247,6 +250,12 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 	return u, u.Sign("test", sn.rootSigner)
 }
 
+func (sn *SingleNodePartition) GetCommittedUC(t *testing.T) *types.UnicityCertificate {
+	uc := sn.nodeDeps.txSystem.CommittedUC()
+	require.NotNil(t, uc)
+	return uc
+}
+
 func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
@@ -269,16 +278,14 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	sysID, err := req.SystemIdentifier.Id32()
-	require.NoError(t, err)
-	luc, found := sn.certs[sysID]
+	luc, found := sn.certs[req.SystemIdentifier]
 	require.True(t, found)
 	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[sysID] = uc
+	sn.certs[req.SystemIdentifier] = uc
 	return uc
 }
 
@@ -359,12 +366,12 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	return peerConf
 }
 
-func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {
+func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types.UnicityCertificate) func() bool {
 	t.Helper()
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
-		return tp.partition.luc.Load().InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
+		return tp.partition.luc.Load().GetRoundNumber() > committedUC.GetRoundNumber()
 	}
 }
 

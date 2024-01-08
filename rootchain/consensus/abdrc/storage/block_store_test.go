@@ -63,8 +63,8 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	require.Len(t, bStore.GetCertificates(), 2)
 	uc, err := bStore.GetCertificate(sysID1)
 	require.NoError(t, err)
-	require.Equal(t, sysID1.ToSystemID(), uc.UnicityTreeCertificate.SystemIdentifier)
-	uc, err = bStore.GetCertificate(types.SystemID32(100))
+	require.Equal(t, sysID1, uc.UnicityTreeCertificate.SystemIdentifier)
+	uc, err = bStore.GetCertificate(types.SystemID(100))
 	require.Error(t, err)
 	require.Nil(t, uc)
 }
@@ -78,7 +78,7 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 			Qc:      qc,
 		},
 		CurrentIR: make(InputRecords, 0),
-		Changed:   make([]types.SystemID32, 0),
+		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
 		Qc:        &drctypes.QuorumCert{},

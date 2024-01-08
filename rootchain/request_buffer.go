@@ -15,7 +15,7 @@ type (
 
 	CertRequestBuffer struct {
 		mu    sync.RWMutex
-		store map[types.SystemID32]*requestBuffer
+		store map[types.SystemID]*requestBuffer
 	}
 
 	// requestBuffer keeps track of received certification nodeRequest and counts state hashes.
@@ -35,13 +35,13 @@ const (
 // NewCertificationRequestBuffer create new certification nodeRequest buffer
 func NewCertificationRequestBuffer() *CertRequestBuffer {
 	return &CertRequestBuffer{
-		store: make(map[types.SystemID32]*requestBuffer),
+		store: make(map[types.SystemID]*requestBuffer),
 	}
 }
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new nodeRequest
-func (c *CertRequestBuffer) Add(id types.SystemID32, request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
+func (c *CertRequestBuffer) Add(id types.SystemID, request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(id)
@@ -49,7 +49,7 @@ func (c *CertRequestBuffer) Add(id types.SystemID32, request *certification.Bloc
 }
 
 // IsConsensusReceived has partition with id reached consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID32, tb partitions.PartitionTrustBase) QuorumStatus {
+func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID, tb partitions.PartitionTrustBase) QuorumStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
@@ -67,7 +67,7 @@ func (c *CertRequestBuffer) Reset() {
 }
 
 // Clear clears node request in one partition
-func (c *CertRequestBuffer) Clear(id types.SystemID32) {
+func (c *CertRequestBuffer) Clear(id types.SystemID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(id)
@@ -75,7 +75,7 @@ func (c *CertRequestBuffer) Clear(id types.SystemID32) {
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
-func (c *CertRequestBuffer) get(id types.SystemID32) *requestBuffer {
+func (c *CertRequestBuffer) get(id types.SystemID) *requestBuffer {
 	rs, f := c.store[id]
 	if !f {
 		rs = newRequestStore()

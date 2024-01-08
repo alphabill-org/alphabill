@@ -42,8 +42,8 @@ func (x *PartitionRecord) IsValid() error {
 		if err := node.IsValid(); err != nil {
 			return fmt.Errorf("validators list error, %w", err)
 		}
-		if !bytes.Equal(id, node.BlockCertificationRequest.SystemIdentifier) {
-			return fmt.Errorf("invalid system id: expected %X, got %X", id, node.BlockCertificationRequest.SystemIdentifier)
+		if id != node.BlockCertificationRequest.SystemIdentifier {
+			return fmt.Errorf("invalid system id: expected %s, got %s", id, node.BlockCertificationRequest.SystemIdentifier)
 		}
 		// Input record of different validator nodes must match
 		// remember first
@@ -53,7 +53,7 @@ func (x *PartitionRecord) IsValid() error {
 		}
 		// more than one node, compare input record to fist node record
 		if !bytes.Equal(irBytes, node.BlockCertificationRequest.InputRecord.Bytes()) {
-			return fmt.Errorf("system id %X node %v input record is different", id, node.BlockCertificationRequest.NodeIdentifier)
+			return fmt.Errorf("system id %s node %v input record is different", id, node.BlockCertificationRequest.NodeIdentifier)
 		}
 	}
 	if err := nodesUnique(x.Validators); err != nil {

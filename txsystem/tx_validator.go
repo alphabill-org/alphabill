@@ -1,7 +1,6 @@
 package txsystem
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -20,13 +19,13 @@ type GenericTransactionValidator func(ctx *TxValidationContext) error
 type TxValidationContext struct {
 	Tx               *types.TransactionOrder
 	Unit             *state.Unit
-	SystemIdentifier []byte
+	SystemIdentifier types.SystemID
 	BlockNumber      uint64
 }
 
 func ValidateGenericTransaction(ctx *TxValidationContext) error {
 	// 1. transaction is sent to this system
-	if !bytes.Equal(ctx.Tx.SystemID(), ctx.SystemIdentifier) {
+	if ctx.Tx.SystemID() != ctx.SystemIdentifier {
 		return ErrInvalidSystemIdentifier
 	}
 

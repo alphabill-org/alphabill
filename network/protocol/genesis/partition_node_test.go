@@ -3,7 +3,7 @@ package genesis
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -102,7 +102,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   nodeIdentifier,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),

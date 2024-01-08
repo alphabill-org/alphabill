@@ -6,39 +6,45 @@ import (
 	"os"
 	"path/filepath"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
 const (
-	utGenesisFileName = "node-genesis.json"
-	utDir             = "tokens"
+	utGenesisFileName      = "node-genesis.json"
+	utGenesisStateFileName = "node-genesis-state.cbor"
+	utDir                  = "tokens"
 )
 
 type userTokenPartitionGenesisConfig struct {
 	Base             *baseConfiguration
 	Keys             *keysConfig
-	SystemIdentifier []byte
+	SystemIdentifier types.SystemID
 	Output           string
+	OutputState      string
 	T2Timeout        uint32
 }
 
 func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
+	var systemID uint32
 	config := &userTokenPartitionGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, utDir)}
 	var cmd = &cobra.Command{
 		Use:   "tokens-genesis",
 		Short: "Generates a genesis file for the User-Defined Token partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.SystemIdentifier = types.SystemID(systemID)
 			return utGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens.DefaultSystemIdentifier, "system identifier in HEX format")
+	addSystemIDFlag(cmd, &systemID, tokens.DefaultSystemIdentifier)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
+	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/tokens/node-genesis-state.cbor)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
 	return cmd
@@ -55,9 +61,13 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(utHomePath)
 	if util.FileExists(nodeGenesisFile) {
-		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis file %q already exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
+	}
+	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(utHomePath)
+	if util.FileExists(nodeGenesisStateFile) {
+		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
@@ -65,14 +75,7 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return fmt.Errorf("failed to load keys %v: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
-	txSystem, err := tokens.NewTxSystem(
-		config.Base.observe.Logger(),
-		tokens.WithSystemIdentifier(config.SystemIdentifier),
-		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
-	)
-	if err != nil {
-		return err
-	}
+	genesisState := state.NewEmptyState()
 
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
@@ -83,7 +86,7 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return err
 	}
 	nodeGenesis, err := partition.NewNodeGenesis(
-		txSystem,
+		genesisState,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
@@ -93,6 +96,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 	if err != nil {
 		return err
 	}
+
+	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+		return fmt.Errorf("failed to write genesis state file: %w", err)
+	}
+
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)
 }
 
@@ -101,4 +109,11 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisFileLocation(utHomePath 
 		return c.Output
 	}
 	return filepath.Join(utHomePath, utGenesisFileName)
+}
+
+func (c *userTokenPartitionGenesisConfig) getNodeGenesisStateFileLocation(utHomePath string) string {
+	if c.OutputState != "" {
+		return c.OutputState
+	}
+	return filepath.Join(utHomePath, utGenesisStateFileName)
 }

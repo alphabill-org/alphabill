@@ -297,6 +297,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
 	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.SharedPortManager.GetRandomFreePort(t))
@@ -307,7 +308,10 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		// generate node genesis
 		cmd := New(logF)
-		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+		args := "money-genesis --home " + homeDirMoney +
+			" -o " + nodeGenesisFileLocation +
+			" --output-state " + nodeGenesisStateFileLocation +
+			" -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
@@ -336,7 +340,12 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New(logF)
-			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --bootnodes=" + bootNodeStr + " --server-address " + moneyNodeAddr
+			args = "money --home " + homeDirMoney +
+				" -g " + partitionGenesisFileLocation +
+				" -s " + nodeGenesisStateFileLocation +
+				" -k " + keysFileLocation +
+				" --bootnodes=" + bootNodeStr +
+				" --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
@@ -368,20 +377,22 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, _ := cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
+	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       []byte{0, 0, 0, 0},
+			SystemID:       money.DefaultSystemIdentifier,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,
 	}
-	txBytes, _ := cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
+	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
-	_, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+	_, err = txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.NoError(t, err)
 }
 
@@ -391,18 +402,20 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, _ := cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
+	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       []byte{0},
+			SystemID:       0,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,
 	}
-	txBytes, _ := cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
+	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
 	response, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.Error(t, err)

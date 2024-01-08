@@ -2,7 +2,6 @@ package network
 
 import (
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -19,8 +18,8 @@ const (
 /*
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration, log *slog.Logger) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity, log)
+func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration, obs Observability) (*LibP2PNetwork, error) {
+	n, err := newLibP2PNetwork(self, capacity, obs)
 	if err != nil {
 		return nil, err
 	}

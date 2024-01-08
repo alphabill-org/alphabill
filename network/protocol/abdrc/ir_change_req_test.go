@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +13,7 @@ func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
 	msg := &IrChangeReqMsg{
 		Author: "test",
 		IrChangeReq: &abdrc.IRChangeReq{
-			SystemIdentifier: types.SystemID32(1),
+			SystemIdentifier: 1,
 			CertReason:       abdrc.Quorum,
 		},
 	}
@@ -40,7 +39,7 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			name: "no author",
 			fields: fields{
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.Quorum,
 				},
 			},
@@ -59,7 +58,7 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       10,
 				},
 			},
@@ -70,7 +69,7 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.T2Timeout,
 				},
 			},
@@ -115,7 +114,7 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 			name: "signer is nil",
 			fields: fields{
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.Quorum,
 				},
 			},
@@ -127,7 +126,7 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.T2Timeout,
 				},
 			},
@@ -169,7 +168,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.T2Timeout,
 				},
 			},
@@ -181,7 +180,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "bar",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.Quorum,
 				},
 			},
@@ -193,7 +192,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: types.SystemID32(1),
+					SystemIdentifier: 1,
 					CertReason:       abdrc.Quorum,
 				},
 				Signature: []byte{0, 1, 2, 3, 4, 5},
@@ -223,7 +222,7 @@ func TestIrChangeReqMsg_bytes(t *testing.T) {
 	msg := &IrChangeReqMsg{
 		Author: "test",
 		IrChangeReq: &abdrc.IRChangeReq{
-			SystemIdentifier: types.SystemID32(1),
+			SystemIdentifier: 1,
 			CertReason:       abdrc.T2Timeout,
 		},
 		Signature: []byte{1, 2, 4},

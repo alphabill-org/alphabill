@@ -123,7 +123,7 @@ func Test_rootNodeConfig_defaultPath(t *testing.T) {
 func Test_StartMonolithicNode(t *testing.T) {
 	homeDir := t.TempDir()
 	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
-	observe := observability.NewFactory(t)
+	observe := observability.Default(t)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
 		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.SharedPortManager.GetRandomFreePort(t))
@@ -132,7 +132,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			// start root node
-			cmd := New(observe)
+			cmd := New(observe.Factory())
 			dbLocation := filepath.Join(rootDir)
 			rootKeyPath := filepath.Join(rootDir, defaultKeysFileName)
 			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
@@ -145,7 +145,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
@@ -157,9 +157,9 @@ func Test_StartMonolithicNode(t *testing.T) {
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.DefaultLogger(), nil)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe.DefaultObserver(), observe.DefaultLogger())
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
@@ -213,17 +213,18 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	ctx, ctxCancel := context.WithCancel(context.Background())
+	observe := observability.Default(t)
+	obsF := observe.Factory()
 	// prepare genesis files
 	// generate money node genesis
-	logF := observability.NewFactory(t)
-	cmd := New(logF)
+	cmd := New(obsF)
 	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// create root node genesis with root node 1
 	genesisFileDirN1 := filepath.Join(homeDir, defaultRootChainDir+"1")
-	cmd = New(logF)
+	cmd = New(obsF)
 	args = "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDirN1 +
 		" --total-nodes=2" +
@@ -234,7 +235,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	require.NoError(t, err)
 	// create root node genesis with root node 2
 	genesisFileDirN2 := filepath.Join(homeDir, defaultRootChainDir+"2")
-	cmd = New(logF)
+	cmd = New(obsF)
 	args = "root-genesis new --home " + homeDir +
 		" -o " + genesisFileDirN2 +
 		" --total-nodes=2" +
@@ -244,7 +245,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 	// combine root genesis files
-	cmd = New(logF)
+	cmd = New(obsF)
 	args = "root-genesis combine --home " + homeDir +
 		" -o " + homeDir +
 		" --root-genesis=" + filepath.Join(genesisFileDirN1, rootGenesisFileName) +
@@ -256,24 +257,22 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
 		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.SharedPortManager.GetRandomFreePort(t))
-		// start the node in background
+		// start the root node in background
 		appStoppedWg.Add(1)
 		go func() {
-			// start root node
-			cmd = New(logF)
+			defer appStoppedWg.Done()
+			cmd = New(obsF)
 			dbLocation := filepath.Join(homeDir, defaultRootChainDir+"1")
 			genesisPath := filepath.Join(homeDir, rootGenesisFileName)
 			keyPath := filepath.Join(homeDir, defaultRootChainDir+"1", defaultKeysFileName)
 			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --address " + address
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err = cmd.Execute(ctx)
-			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
+			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
 		}()
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
@@ -285,9 +284,9 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
-		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, logF.DefaultLogger(), nil)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, logF.DefaultObserver(), logF.DefaultLogger())
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {

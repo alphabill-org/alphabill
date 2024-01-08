@@ -24,8 +24,9 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-var sysID1 = types.SystemID32(1)
-var sysID2 = types.SystemID32(2)
+const sysID1 types.SystemID = 1
+const sysID2 types.SystemID = 2
+
 var inputRecord1 = &types.InputRecord{
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
@@ -54,7 +55,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1.ToSystemID(),
+		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -63,8 +64,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		CertReason:       drctypes.Quorum,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := make([]types.SystemID32, 0, 2)
-	isPending := func(id types.SystemID32) *types.InputRecord {
+	timeouts := make([]types.SystemID, 0, 2)
+	isPending := func(id types.SystemID) *types.InputRecord {
 		return nil
 	}
 	// no requests, generate payload
@@ -104,8 +105,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
-	timeouts := []types.SystemID32{sysID1, sysID2}
-	isPending := func(id types.SystemID32) *types.InputRecord {
+	timeouts := []types.SystemID{sysID1, sysID2}
+	isPending := func(id types.SystemID) *types.InputRecord {
 		return nil
 	}
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
@@ -124,7 +125,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1.ToSystemID(),
+		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -133,8 +134,8 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		CertReason:       drctypes.Quorum,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.SystemID32{sysID1}
-	isPending := func(id types.SystemID32) *types.InputRecord {
+	timeouts := []types.SystemID{sysID1}
+	isPending := func(id types.SystemID) *types.InputRecord {
 		return nil
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
@@ -149,7 +150,7 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1.ToSystemID(),
+		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -158,8 +159,8 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 		CertReason:       drctypes.Quorum,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.SystemID32{sysID1}
-	isPending := func(id types.SystemID32) *types.InputRecord {
+	timeouts := []types.SystemID{sysID1}
+	isPending := func(id types.SystemID) *types.InputRecord {
 		return &types.InputRecord{}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))

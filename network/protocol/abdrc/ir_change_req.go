@@ -64,7 +64,7 @@ func (x *IrChangeReqMsg) Verify(rootTrust map[string]crypto.Verifier) error {
 func (x *IrChangeReqMsg) bytes() []byte {
 	var b bytes.Buffer
 	b.Write([]byte(x.Author))
-	b.Write(x.IrChangeReq.SystemIdentifier.ToSystemID())
+	b.Write(x.IrChangeReq.SystemIdentifier.Bytes())
 	b.Write(util.Uint32ToBytes(uint32(x.IrChangeReq.CertReason)))
 	return b.Bytes()
 }

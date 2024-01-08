@@ -109,7 +109,6 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		err = dbTx.Commit()
 	}()
 
-	uc := block.UnicityCertificate
 	var history historyIndex
 	for i, transaction := range block.Transactions {
 		// write down tx index for generating block proofs
@@ -136,7 +135,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 				if !bytes.Equal(l.TxRecordHash, trHash) {
 					continue
 				}
-				usp, e := bas.State.CreateUnitStateProof(id, i, uc)
+				usp, e := bas.State.CreateUnitStateProof(id, i)
 				if e != nil {
 					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", id, e))
 					continue

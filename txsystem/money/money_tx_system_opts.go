@@ -7,18 +7,17 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
+	"github.com/alphabill-org/alphabill/types"
 )
 
-var DefaultSystemIdentifier = []byte{0, 0, 0, 0}
+const DefaultSystemIdentifier types.SystemID = 0x00000001
 
 type (
 	Options struct {
-		systemIdentifier         []byte
+		systemIdentifier         types.SystemID
 		state                    *state.State
 		hashAlgorithm            gocrypto.Hash
 		trustBase                map[string]crypto.Verifier
-		initialBill              *InitialBill
-		dcMoneyAmount            uint64
 		systemDescriptionRecords []*genesis.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 	}
@@ -30,14 +29,12 @@ func DefaultOptions() *Options {
 	return &Options{
 		systemIdentifier: DefaultSystemIdentifier,
 		hashAlgorithm:    gocrypto.SHA256,
-		state:            state.NewEmptyState(),
 		trustBase:        make(map[string]crypto.Verifier),
-		dcMoneyAmount:    0,
 		feeCalculator:    fc.FixedFee(1),
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) Option {
+func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
 	return func(g *Options) {
 		g.systemIdentifier = systemIdentifier
 	}
@@ -58,18 +55,6 @@ func WithTrustBase(trust map[string]crypto.Verifier) Option {
 func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	return func(g *Options) {
 		g.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithInitialBill(bill *InitialBill) Option {
-	return func(g *Options) {
-		g.initialBill = bill
-	}
-}
-
-func WithDCMoneyAmount(a uint64) Option {
-	return func(g *Options) {
-		g.dcMoneyAmount = a
 	}
 }
 

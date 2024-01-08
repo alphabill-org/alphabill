@@ -8,11 +8,13 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/partition/genesis"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+var ErrStateIsNil = errors.New("state is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
 var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
@@ -20,7 +22,7 @@ var errInvalidSystemIdentifier = errors.New("invalid transaction system identifi
 type (
 	genesisConf struct {
 		peerID                peer.ID
-		systemIdentifier      []byte
+		systemIdentifier      types.SystemID
 		hashAlgorithm         gocrypto.Hash
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
@@ -41,7 +43,7 @@ func (c *genesisConf) isValid() error {
 	if len(c.encryptionPubKeyBytes) == 0 {
 		return ErrEncryptionPubKeyIsNil
 	}
-	if len(c.systemIdentifier) != types.SystemIdentifierLength {
+	if c.systemIdentifier == 0 {
 		return errInvalidSystemIdentifier
 	}
 	return nil
@@ -53,7 +55,7 @@ func WithPeerID(peerID peer.ID) GenesisOption {
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) GenesisOption {
+func WithSystemIdentifier(systemIdentifier types.SystemID) GenesisOption {
 	return func(c *genesisConf) {
 		c.systemIdentifier = systemIdentifier
 	}
@@ -102,9 +104,9 @@ func WithParams(params []byte) GenesisOption {
 //					)
 //
 // This function must be called by all partition nodes in the network.
-func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) (*genesis.PartitionNode, error) {
-	if txSystem == nil {
-		return nil, ErrTxSystemIsNil
+func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.PartitionNode, error) {
+	if state == nil {
+		return nil, ErrStateIsNil
 	}
 	c := &genesisConf{
 		hashAlgorithm: gocrypto.SHA256,
@@ -118,15 +120,14 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 		return nil, err
 	}
 
-	// create the first round of the tx system
-	state, err := txSystem.StateSummary()
+	zeroHash := make([]byte, c.hashAlgorithm.Size())
+	summaryValue, hash, err := state.CalculateRoot()
 	if err != nil {
 		return nil, err
 	}
-	hash := state.Root()
-	summaryValue := state.Summary()
-
-	zeroHash := make([]byte, c.hashAlgorithm.Size())
+	if hash == nil {
+		hash = zeroHash
+	}
 
 	// Protocol request
 	id := c.peerID.String()
@@ -138,7 +139,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			Hash:         hash,
 			BlockHash:    zeroHash, // first block's hash is zero
 			RoundNumber:  pg.PartitionRoundNumber,
-			SummaryValue: summaryValue,
+			SummaryValue: util.Uint64ToBytes(summaryValue),
 		},
 		RootRoundNumber: pg.RootRoundNumber,
 	}

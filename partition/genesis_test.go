@@ -6,18 +6,18 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
+const systemIdentifier types.SystemID = 1
+
 var zeroHash = make([]byte, 32)
-var systemIdentifier = types.SystemID([]byte{0, 0, 0, 1})
 var nodeID peer.ID = "test"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
@@ -25,8 +25,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type args struct {
-		txSystem txsystem.TransactionSystem
-		opts     []GenesisOption
+		state *state.State
+		opts  []GenesisOption
 	}
 
 	tests := []struct {
@@ -35,22 +35,22 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "tx system is nil",
-			args:    args{txSystem: nil},
-			wantErr: ErrTxSystemIsNil,
+			name:    "state is nil",
+			args:    args{state: nil},
+			wantErr: ErrStateIsNil,
 		},
 		{
 			name: "client signer is nil",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
-				opts:     []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+				state: state.NewEmptyState(),
+				opts:  []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
 		},
 		{
 			name: "encryption public key is nil",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
@@ -62,9 +62,9 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "invalid system identifier",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
-					WithSystemIdentifier(nil),
+					WithSystemIdentifier(0),
 					WithPeerID("1"),
 					WithSigningKey(signer),
 					WithEncryptionPubKey(pubKeyBytes),
@@ -76,7 +76,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "peer ID is empty",
 			args: args{
-				txSystem: &testtxsystem.CounterTxSystem{},
+				state: state.NewEmptyState(),
 				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
@@ -88,7 +88,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewNodeGenesis(tt.args.txSystem, tt.args.opts...)
+			got, err := NewNodeGenesis(tt.args.state, tt.args.opts...)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
@@ -114,13 +114,12 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier types.SystemID, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
-	txSystem := &testtxsystem.CounterTxSystem{}
 	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()
 	require.NoError(t, err)
 	pn, err := NewNodeGenesis(
-		txSystem,
+		state.NewEmptyState(),
 		WithPeerID(nodeIdentifier),
 		WithSystemIdentifier(systemIdentifier),
 		WithSigningKey(nodeSigningKey),
@@ -131,13 +130,13 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(systemIdentifier, previousHash []byte, isEmpty bool) []byte {
+func calculateBlockHash(systemIdentifier types.SystemID, previousHash []byte, isEmpty bool) []byte {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
 	if isEmpty {
 		return zeroHash
 	}
-	hasher.Write(systemIdentifier)
+	hasher.Write(systemIdentifier.Bytes())
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)
 	hasher.Reset()

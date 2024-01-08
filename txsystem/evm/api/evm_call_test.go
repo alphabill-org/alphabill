@@ -8,14 +8,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -23,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemIdentifier = []byte{0, 0, 4, 2}
+const systemIdentifier types.SystemID = 0x00000402
 
 // SPDX-License-Identifier: GPL-3.0
 /*
@@ -73,7 +75,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	treeClean := tree.Clone()
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 3},
+		systemIdentifier: 3,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              logger.New(t),
@@ -88,7 +90,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -102,13 +104,14 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 }
 
 func TestAPI_CallEVM_OK(t *testing.T) {
-	log := logger.New(t)
+	observe := observability.Default(t)
+	log := observe.Logger()
 	tree := abstate.NewEmptyState()
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              log,
@@ -127,7 +130,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), log, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -146,15 +149,12 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
-
-	_, _, err = tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), log, a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &CallEVMResponse{}
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
@@ -167,7 +167,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              logger.New(t),
@@ -184,7 +184,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	// this is an ok call, no an error, but You have to pay for your nonsense
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
@@ -201,14 +201,14 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()
 
-	rpc.NewRESTServer("", 2000, observability.NOPMetrics(), logger.NOP(), a).Handler.ServeHTTP(recorder, req)
+	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	resp := &struct {
 		_   struct{} `cbor:",toarray"`
@@ -240,8 +240,6 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	details := &evm.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)
-	_, _, err = tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, tree.Commit())
+	teststate.CommitWithUC(t, tree)
 	return address, details.ContractAddr
 }

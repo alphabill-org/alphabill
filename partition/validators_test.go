@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -15,7 +15,7 @@ import (
 )
 
 var systemDescription = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: []byte{0, 0, 0, 0},
+	SystemIdentifier: 1,
 	T2Timeout:        2500,
 }
 
@@ -183,28 +183,28 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		name                     string
 		tx                       *types.TransactionOrder
 		latestBlockNumber        uint64
-		expectedSystemIdentifier []byte
+		expectedSystemIdentifier types.SystemID
 		errStr                   string
 	}{
 		{
 			name:                     "tx is nil",
 			tx:                       nil,
 			latestBlockNumber:        10,
-			expectedSystemIdentifier: []byte{1, 2, 3, 4},
+			expectedSystemIdentifier: 0x01020304,
 			errStr:                   "transaction is nil",
 		},
 		{
 			name:                     "invalid system identifier",
-			tx:                       testtransaction.NewTransactionOrder(t), // default systemID is 0000
+			tx:                       testtransaction.NewTransactionOrder(t), // default systemID is 0x00000001
 			latestBlockNumber:        10,
-			expectedSystemIdentifier: []byte{1, 2, 3, 4},
-			errStr:                   "expected 01020304, got 00000000: invalid transaction system identifier",
+			expectedSystemIdentifier: 0x01020304,
+			errStr:                   "expected 01020304, got 00000001: invalid transaction system identifier",
 		},
 		{
 			name:                     "expired transaction",
 			tx:                       testtransaction.NewTransactionOrder(t), // default timeout is 10
 			latestBlockNumber:        11,
-			expectedSystemIdentifier: []byte{0, 0, 0, 0},
+			expectedSystemIdentifier: 0x00000001,
 			errStr:                   "transaction timeout round is 10, current round is 11: transaction has timed out",
 		},
 	}

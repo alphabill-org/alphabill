@@ -73,7 +73,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {
-	blockNumber := clonedState.CommittedTreeBlockNumber()
+	blockNumber := clonedState.CommittedUC().GetRoundNumber()
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	// Ensure message is initialized properly.
@@ -108,7 +108,7 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 		SkipAccountChecks: true,
 	}
 	blockCtx := evm.NewBlockContext(blockNumber, memorydb.New())
-	simEvm := vm.NewEVM(blockCtx, evm.NewTxContext(call, a.gasUnitPrice), stateDB, evm.NewChainConfig(new(big.Int).SetBytes(a.systemIdentifier)), evm.NewVMConfig())
+	simEvm := vm.NewEVM(blockCtx, evm.NewTxContext(call, a.gasUnitPrice), stateDB, evm.NewChainConfig(new(big.Int).SetBytes(a.systemIdentifier.Bytes())), evm.NewVMConfig())
 	// Apply the transaction to the current state (included in the env)
 	return core.ApplyMessage(simEvm, msg, gp)
 }

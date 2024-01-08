@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -66,7 +65,6 @@ type validatorNetwork struct {
 	txBuffer *txbuffer.TxBuffer
 	txFwdBy  metric.Int64Counter
 	txFwdTo  metric.Int64Counter
-	tracer   trace.Tracer
 }
 
 type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
@@ -76,21 +74,20 @@ NewLibP2PValidatorNetwork creates a new LibP2PNetwork based validator network.
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Observability, log *slog.Logger) (*validatorNetwork, error) {
-	base, err := newLibP2PNetwork(self, opts.ReceivedChannelCapacity, log)
+func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
+	base, err := newLibP2PNetwork(self, opts.ReceivedChannelCapacity, obs)
 	if err != nil {
 		return nil, err
 	}
 
-	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs, log)
+	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs)
 	if err != nil {
 		return nil, fmt.Errorf("tx buffer init error, %w", err)
 	}
 
 	n := &validatorNetwork{
-		txBuffer:      txBuffer,
 		LibP2PNetwork: base,
-		tracer:        obs.Tracer("validatorNetwork"),
+		txBuffer:      txBuffer,
 	}
 
 	sendProtocolDescriptions := []sendProtocolDescription{
@@ -101,7 +98,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 		{protocolID: ProtocolHandshake, timeout: opts.HandshakeTimeout, msgType: handshake.Handshake{}},
 	}
 	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("registering send protocols: %w", err)
 	}
 
 	receiveProtocolDescriptions := []receiveProtocolDescription{
@@ -127,7 +124,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 		},
 	}
 	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("registering receive protocols: %w", err)
 	}
 
 	if err := n.initMetrics(obs); err != nil {

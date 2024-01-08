@@ -1,7 +1,6 @@
 package partition
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -26,10 +25,8 @@ const (
 )
 
 var (
-	ErrTxSystemIsNil       = errors.New("transaction system is nil")
-	ErrGenesisIsNil        = errors.New("genesis is nil")
-	ErrInvalidRootHash     = errors.New("tx system root hash does not equal to genesis file hash")
-	ErrInvalidSummaryValue = errors.New("tx system summary value does not equal to genesis file summary value")
+	ErrTxSystemIsNil = errors.New("transaction system is nil")
+	ErrGenesisIsNil  = errors.New("genesis is nil")
 )
 
 type (
@@ -150,9 +147,10 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	if err := c.initMissingDefaults(); err != nil {
 		return nil, fmt.Errorf("failed to initiate default parameters, %w", err)
 	}
-	if err := c.isGenesisValid(txs); err != nil {
+	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
 		return nil, fmt.Errorf("genesis error, %w", err)
 	}
+
 	return c, nil
 }
 
@@ -201,40 +199,7 @@ func (c *configuration) initMissingDefaults() error {
 	return nil
 }
 
-func (c *configuration) genesisBlock() *types.Block {
-	return &types.Block{
-		Header: &types.Header{
-			SystemID:   c.genesis.SystemDescriptionRecord.SystemIdentifier,
-			ProposerID: "genesis",
-		},
-		Transactions:       []*types.TransactionRecord{},
-		UnicityCertificate: c.genesis.Certificate,
-	}
-}
-
-func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
-	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
-		return fmt.Errorf("invalid partition genesis file: %w", err)
-	}
-	state, err := txs.StateSummary()
-	if err != nil {
-		return err
-	}
-	txGenesisRoot := state.Root()
-	txSummaryValue := state.Summary()
-	genesisCertificate := c.genesis.Certificate
-	genesisInputRecord := genesisCertificate.InputRecord
-	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
-		return ErrInvalidRootHash
-	}
-
-	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue) {
-		return ErrInvalidSummaryValue
-	}
-	return nil
-}
-
-func (c *configuration) GetSystemIdentifier() []byte {
+func (c *configuration) GetSystemIdentifier() types.SystemID {
 	return c.genesis.SystemDescriptionRecord.SystemIdentifier
 }
 

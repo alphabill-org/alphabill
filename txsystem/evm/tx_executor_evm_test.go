@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	abstate "github.com/alphabill-org/alphabill/state"
@@ -92,7 +92,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 				Nonce: 0,
 			}
 			blockCtx := NewBlockContext(0, memorydb.New())
-			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
+			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier.Bytes())), NewVMConfig())
 			_, _, _, err := evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
 			require.NoError(t, err)
 			if eoa.Nonce != 0 {
@@ -103,9 +103,13 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 
 	require.NoError(t, stateDB.DBError())
 	require.NoError(t, stateDB.Finalize())
-	_, _, err := s.CalculateRoot()
+	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}))
 	return stateDB
 }
 

@@ -13,10 +13,10 @@ const defaultDustBillDeletionTimeout uint64 = 65536
 
 var (
 	// The ID of the dust collector money supply
-	dustCollectorMoneySupplyID = NewBillID(nil, nil)
+	DustCollectorMoneySupplyID = NewBillID(nil, nil)
 
 	// Dust collector predicate
-	dustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(abHasher.Sum256([]byte("dust collector")))
+	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(abHasher.Sum256([]byte("dust collector")))
 )
 
 type DustCollector struct {
@@ -66,11 +66,11 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 		}
 	}
 	if valueToTransfer > 0 {
-		err := d.state.Apply(state.UpdateUnitData(dustCollectorMoneySupplyID,
+		err := d.state.Apply(state.UpdateUnitData(DustCollectorMoneySupplyID,
 			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
+					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
 				bd.V += valueToTransfer
 				return bd, nil

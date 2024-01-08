@@ -7,11 +7,13 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,15 +46,22 @@ import (
 const counterContractCode = "60806040526000805534801561001457600080fd5b506101b1806100246000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636d4ce63c1461003b578063d09de08a14610059575b600080fd5b610043610077565b60405161005091906100e9565b60405180910390f35b610061610080565b60405161006e91906100e9565b60405180910390f35b60008054905090565b600080600081548092919061009490610133565b91905055506000547f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a8160405160405180910390a2600054905090565b6000819050919050565b6100e3816100d0565b82525050565b60006020820190506100fe60008301846100da565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061013e826100d0565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036101705761016f610104565b5b60018201905091905056fea2646970667358221220e77ebad0c44e3c4060e53c55352c0cc28d52a30710a3437aa1345775714eeb1f64736f6c63430008120033"
 const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"indexed\": true,\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"newValue\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"Increment\",\n\t\t\"type\": \"event\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"get\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"increment\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
 
-var systemIdentifier = []byte{0, 0, 4, 2}
+const systemIdentifier types.SystemID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
+	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+		genesisState = genesisState.Clone()
+		system, err := NewEVMTxSystem(
+			systemIdentifier,
+			logger.New(t),
+			WithBlockDB(memorydb.New()),
+			WithState(genesisState),
+		) // 1 ETH
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier)
+	}, systemIdentifier, genesisState)
 	require.NoError(t, err)
 
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
@@ -115,7 +124,8 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	from := test.RandomBytes(20)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
+	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithBlockDB(memorydb.New()), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -160,7 +170,11 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit())
+	require.NoError(t, system.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         round1EndState.Root(),
+		SummaryValue: round1EndState.Summary(),
+	}}))
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
 	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
@@ -187,6 +201,22 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round2EndState, err = system.EndBlock()
 	require.NoError(t, err)
 	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
+}
+
+func newGenesisState(t *testing.T, initialAccountAddress []byte, initialAccountBalance *big.Int) *state.State {
+	s := state.NewEmptyState()
+	if len(initialAccountAddress) > 0 && initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
+		address := common.BytesToAddress(initialAccountAddress)
+		id := s.Savepoint()
+		stateDB := statedb.NewStateDB(s, logger.New(t))
+		stateDB.CreateAccount(address)
+		stateDB.AddBalance(address, initialAccountBalance)
+		s.ReleaseToSavepoint(id)
+
+		_, _, err := s.CalculateRoot()
+		require.NoError(t, err)
+	}
+	return s
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -54,6 +55,22 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("loading partition genesis: %w", err)
 	}
 
+	stateFilePath := cfg.Node.StateFile
+	if stateFilePath == "" {
+		stateFilePath = filepath.Join(cfg.Base.HomeDir, utDir, utGenesisStateFileName)
+	}
+	state, err := loadStateFile(stateFilePath, tokens.NewUnitData)
+	if err != nil {
+		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
+	}
+
+	// Only genesis state can be uncommitted, try to commit
+	if !state.IsCommitted() {
+		if err := state.Commit(pg.Certificate); err != nil {
+			return fmt.Errorf("invalid genesis state: %w", err)
+		}
+	}
+
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
 		return fmt.Errorf("creating trustbase: %w", err)
@@ -87,6 +104,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
+		tokens.WithState(state),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

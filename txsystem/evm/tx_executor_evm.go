@@ -37,7 +37,7 @@ func (d *ProcessingDetails) Bytes() ([]byte, error) {
 	return cbor.Marshal(d)
 }
 
-func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {
+func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(opts.state, log)
@@ -58,7 +58,7 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	return cost.Mul(cost, gasPrice)
 }
 
-func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
 	}
 	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
-	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
+	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier.Bytes())), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)
 	// Apply the transaction to the current state (included in the env)
 	execResult, err := core.ApplyMessage(evm, msg, gp)

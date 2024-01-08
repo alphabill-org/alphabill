@@ -44,7 +44,6 @@ type Pacemaker struct {
 	statusUpd      sync.Mutex // lock to sync status (status and statusChan) update
 	status         atomic.Uint32
 	statusChan     chan paceMakerStatus
-	ticker         *time.Ticker
 	stopRoundClock context.CancelFunc
 
 	tracer   trace.Tracer
@@ -66,11 +65,9 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability)
 		maxRoundLen:    maxRoundLen,
 		pendingVotes:   NewVoteRegister(),
 		statusChan:     make(chan paceMakerStatus, 1),
-		ticker:         time.NewTicker(maxRoundLen),
 		stopRoundClock: func() { /* init as NOP */ },
 		tracer:         observe.Tracer("pacemaker"),
 	}
-	pm.ticker.Stop()
 
 	var err error
 	m := observe.Meter("pacemaker")
@@ -128,7 +125,6 @@ func (x *Pacemaker) Reset(ctx context.Context, highQCRound uint64, lastTc *types
 }
 
 func (x *Pacemaker) Stop() {
-	x.ticker.Stop()
 	x.stopRoundClock()
 }
 
@@ -194,14 +190,14 @@ func (x *Pacemaker) RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*types
 RegisterTimeoutVote registers time-out vote from root node (including vote from self) and tries to assemble
 a timeout quorum certificate for the round.
 */
-func (x *Pacemaker) RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*types.TimeoutCert, error) {
+func (x *Pacemaker) RegisterTimeoutVote(ctx context.Context, vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*types.TimeoutCert, error) {
 	tc, voteCnt, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
 		return nil, fmt.Errorf("inserting to pending votes: %w", err)
 	}
 	if tc == nil && voteCnt > quorum.GetMaxFaultyNodes() && x.status.Load() != uint32(pmsRoundTimeout) {
 		// there is f+1 votes for TO - jump to TO state as quorum shouldn't be possible now
-		x.setState(pmsRoundTimeout, x.maxRoundLen)
+		x.setState(ctx, pmsRoundTimeout)
 	}
 	return tc, nil
 }
@@ -222,7 +218,7 @@ func (x *Pacemaker) AdvanceRoundQC(ctx context.Context, qc *types.QuorumCert) bo
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
 	x.startNewRound(ctx, qc.VoteInfo.RoundNumber+1)
-	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc"))))
+	x.roundCnt.Add(ctx, 1, attrSetNextRoundQC)
 	return true
 }
 
@@ -238,7 +234,7 @@ func (x *Pacemaker) AdvanceRoundTC(ctx context.Context, tc *types.TimeoutCert) {
 
 	x.lastRoundTC = tc
 	x.startNewRound(ctx, tc.Timeout.Round+1)
-	x.roundCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc"))))
+	x.roundCnt.Add(ctx, 1, attrSetNextRoundTC)
 }
 
 /*
@@ -246,7 +242,7 @@ startNewRound - sets new current round number, resets all stores and
 starts round clock which produces events into StatusEvents channel.
 */
 func (x *Pacemaker) startNewRound(ctx context.Context, round uint64) {
-	_, span := x.tracer.Start(ctx, "Pacemaker.startNewRound", trace.WithAttributes(observability.Round(round)))
+	ctx, span := x.tracer.Start(ctx, "Pacemaker.startNewRound", trace.WithAttributes(observability.Round(round)))
 	defer span.End()
 
 	x.stopRoundClock()
@@ -257,7 +253,7 @@ func (x *Pacemaker) startNewRound(ctx context.Context, round uint64) {
 	x.pendingVotes.Reset()
 	x.currentRound.Store(round)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	stopped := x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
 	x.stopRoundClock = func() {
 		cancel()
@@ -277,16 +273,21 @@ the clock has been stopped there should be no event in the status event chan and
 is set to pmsRoundNone.
 */
 func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLen time.Duration) <-chan struct{} {
-	x.status.Store(uint32(pmsRoundInProgress))
-	x.ticker.Reset(minRoundLen)
-	select {
-	case <-x.ticker.C:
-	default:
-	}
+	ctx, span := x.tracer.Start(ctx, "Pacemaker.startRoundClock")
+	defer span.End()
 
+	x.status.Store(uint32(pmsRoundInProgress))
+	ticker := time.NewTicker(minRoundLen)
 	stopped := make(chan struct{})
+
 	go func() {
-		defer close(stopped)
+		ctx, span := x.tracer.Start(ctx, "Pacemaker.roundClock", trace.WithNewRoot(), trace.WithAttributes(observability.Round(x.currentRound.Load())), trace.WithLinks(trace.LinkFromContext(ctx)))
+		defer func() {
+			close(stopped)
+			ticker.Stop()
+			span.End()
+		}()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -296,14 +297,17 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 				}
 				x.status.Store(uint32(pmsRoundNone))
 				return
-			case <-x.ticker.C:
+			case <-ticker.C:
 				switch paceMakerStatus(x.status.Load()) {
 				case pmsRoundInProgress:
-					x.setState(pmsRoundMatured, maxRoundLen-minRoundLen)
+					x.setState(ctx, pmsRoundMatured)
+					ticker.Reset(maxRoundLen - minRoundLen)
 				case pmsRoundMatured:
-					x.setState(pmsRoundTimeout, maxRoundLen)
+					x.setState(ctx, pmsRoundTimeout)
+					ticker.Reset(maxRoundLen)
 				case pmsRoundTimeout:
-					x.setState(pmsRoundTimeout, maxRoundLen)
+					x.setState(ctx, pmsRoundTimeout)
+					ticker.Reset(maxRoundLen)
 				}
 			}
 		}
@@ -312,7 +316,10 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 	return stopped
 }
 
-func (x *Pacemaker) setState(state paceMakerStatus, tillNextState time.Duration) {
+func (x *Pacemaker) setState(ctx context.Context, state paceMakerStatus) {
+	_, span := x.tracer.Start(ctx, "Pacemaker.setState", trace.WithAttributes(attribute.Stringer("status", state)))
+	defer span.End()
+
 	x.statusUpd.Lock()
 	defer x.statusUpd.Unlock()
 
@@ -321,7 +328,6 @@ func (x *Pacemaker) setState(state paceMakerStatus, tillNextState time.Duration)
 	default:
 	}
 
-	x.ticker.Reset(tillNextState)
 	x.status.Store(uint32(state))
 	x.statusChan <- state
 }
@@ -371,4 +377,9 @@ const (
 	pmsRoundMatured paceMakerStatus = 2
 	// round has lasted longer than max round duration
 	pmsRoundTimeout paceMakerStatus = 3
+)
+
+var (
+	attrSetNextRoundQC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "qc")))
+	attrSetNextRoundTC = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "tc")))
 )

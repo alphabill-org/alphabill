@@ -12,7 +12,7 @@ import (
 
 var (
 	ErrBlockCertificationRequestIsNil = errors.New("block certification request is nil")
-	errInvalidSystemIdentifierLength  = errors.New("invalid system identifier length")
+	errInvalidSystemIdentifier        = errors.New("invalid system identifier")
 	errVerifierIsNil                  = errors.New("verifier is nil")
 	errEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
@@ -54,8 +54,8 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if v == nil {
 		return errVerifierIsNil
 	}
-	if len(x.SystemIdentifier) != types.SystemIdentifierLength {
-		return errInvalidSystemIdentifierLength
+	if x.SystemIdentifier == 0 {
+		return errInvalidSystemIdentifier
 	}
 	if x.NodeIdentifier == "" {
 		return errEmptyNodeIdentifier
@@ -83,7 +83,7 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 
 func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.SystemIdentifier)
+	b.Write(x.SystemIdentifier.Bytes())
 	b.WriteString(x.NodeIdentifier)
 	b.Write(x.InputRecord.PreviousHash)
 	b.Write(x.InputRecord.Hash)

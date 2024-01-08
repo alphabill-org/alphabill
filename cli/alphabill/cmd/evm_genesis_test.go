@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -51,7 +50,7 @@ func TestEvmGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	args := "evm-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
+	require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
 	require.NoFileExists(t, filepath.Join(homeDir, evmDir, defaultKeysFileName))
 }
 
@@ -85,15 +84,17 @@ func TestEvmGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
+	nodeGenesisStateFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisStateFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
+	args := "evm-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, evmDir, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
+	require.FileExists(t, nodeGenesisStateFile)
 }
 
 func TestEvmGenesis_WithSystemIdentifier(t *testing.T) {
@@ -108,7 +109,7 @@ func TestEvmGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 0x01020304" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -118,7 +119,7 @@ func TestEvmGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.True(t, bytes.Equal([]byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier))
+	require.EqualValues(t, 0x01020304, pn.BlockCertificationRequest.SystemIdentifier)
 }
 
 func TestEvmGenesis_WithParameters(t *testing.T) {
@@ -133,7 +134,7 @@ func TestEvmGenesis_WithParameters(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=1111111"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=1111111" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -161,7 +162,7 @@ func TestEvmGenesis_WithParameters_ErrorGasPriceTooBig(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, evmDir, "n1", evmGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=9223372036854775808"
+	args := "evm-genesis -g -k " + kf + " -o " + nodeGenesisFile + " --gas-limit=100000 --gas-price=9223372036854775808" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.ErrorContains(t, err, "gas unit price too big")

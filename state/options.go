@@ -2,15 +2,11 @@ package state
 
 import (
 	"crypto"
-	"io"
 )
 
 type (
 	Options struct {
-		hashAlgorithm       crypto.Hash
-		actions             []Action
-		reader              io.Reader
-		unitDataConstructor UnitDataConstructor
+		hashAlgorithm crypto.Hash
 	}
 
 	Option func(o *Options)
@@ -19,24 +15,6 @@ type (
 func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	return func(o *Options) {
 		o.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithInitActions(actions ...Action) Option {
-	return func(o *Options) {
-		o.actions = actions
-	}
-}
-
-func WithReader(reader io.Reader) Option {
-	return func(o *Options) {
-		o.reader = reader
-	}
-}
-
-func WithUnitDataConstructor(unitDataConstructor UnitDataConstructor) Option {
-	return func(o *Options) {
-		o.unitDataConstructor = unitDataConstructor
 	}
 }
 

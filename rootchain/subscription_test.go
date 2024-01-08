@@ -5,21 +5,22 @@ import (
 
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func TestNewSubscriptionsEmpty(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	// no panic
-	var sysID1 types.SystemID32 = 1
-	subscriptions.SubscriberError(sysID1, "1")
-	require.Len(t, subscriptions.subs, 0)
+	var sysID1 types.SystemID = 1
+	subscriptions.ResponseSent(sysID1, "1")
+	require.Empty(t, subscriptions.subs)
 	subscribed := subscriptions.Get(sysID1)
-	require.Len(t, subscribed, 0)
+	require.Empty(t, subscribed)
 }
 
 func TestNewSubscriptions(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
@@ -32,35 +33,38 @@ func TestNewSubscriptions(t *testing.T) {
 	subscribed = subscriptions.Get(sysID2)
 	require.Contains(t, subscribed, "1")
 	require.NotContains(t, subscribed, "2")
-	subscribed = subscriptions.Get(types.SystemID32(3))
-	require.Len(t, subscribed, 0)
+	subscribed = subscriptions.Get(types.SystemID(3))
+	require.Empty(t, subscribed)
 }
 
 func TestExpiredSubscriptions(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
-	// subscription is removed on errorCount number of send errors
-	for i := 0; i < defaultSubscriptionErrorCount; i++ {
-		subscriptions.SubscriberError(sysID1, "1")
+	// subscription is decremented on each send attempt
+	for i := 0; i < responsesPerSubscription; i++ {
+		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
-	require.Len(t, subscribed, 1)
+	// two responses where sent to "1" and it is now removed from subscriptions
+	require.NotContains(t, subscribed, "1")
+	// node 2 is still there
+	require.Contains(t, subscribed, "2")
 }
 
 func TestSubscriptionRefresh(t *testing.T) {
-	subscriptions := NewSubscriptions()
+	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
-	// subscription is removed on errorCount number of send errors
-	for i := 1; i < defaultSubscriptionErrorCount; i++ {
-		subscriptions.SubscriberError(sysID1, "1")
+	// subscription is decremented on each send attempt
+	for i := 1; i < responsesPerSubscription; i++ {
+		subscriptions.ResponseSent(sysID1, "1")
 	}
 	subscribed := subscriptions.Get(sysID1)
 	require.Len(t, subscribed, 2)
 	// simulate new request from partition
 	subscriptions.Subscribe(sysID1, "1")
-	require.Equal(t, defaultSubscriptionErrorCount, subscriptions.subs[sysID1]["1"])
+	require.Equal(t, responsesPerSubscription, subscriptions.subs[sysID1]["1"])
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -259,9 +260,7 @@ func TestStateDB_ContractStorage(t *testing.T) {
 	require.Equal(t, common.Hash{}, db.GetCommittedState(initialAccountAddress, key1))
 	require.Equal(t, common.Hash{}, db.GetCommittedState(initialAccountAddress, key2))
 
-	_, _, err := s.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	teststate.CommitWithUC(t, s)
 
 	require.Equal(t, value1, db.GetState(initialAccountAddress, key1))
 	require.Equal(t, value2, db.GetState(initialAccountAddress, key2))
@@ -303,9 +302,7 @@ func TestStateDB_SelfDestruct(t *testing.T) {
 
 	require.NoError(t, db.Finalize())
 
-	_, _, err := db.tree.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, db.tree.Commit())
+	teststate.CommitWithUC(t, db.tree)
 
 	u, err := db.tree.GetUnit(initialAccountAddress.Bytes(), false)
 	require.ErrorContains(t, err, "not found")
@@ -480,10 +477,8 @@ func initState(t *testing.T) *state.State {
 	db := NewStateDB(s, logger.New(t))
 	db.CreateAccount(initialAccountAddress)
 	db.AddBalance(initialAccountAddress, big.NewInt(200))
-	require.NoError(t, s.PruneLog(initialAccountAddress.Bytes()))
-	_, _, err := s.CalculateRoot()
-	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, s.Prune())
+	teststate.CommitWithUC(t, s)
 	require.NoError(t, db.Finalize())
 	return s
 }

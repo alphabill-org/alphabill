@@ -3,7 +3,7 @@ package certification
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,7 @@ func TestBlockCertificationRequest_IsValid_BlockCertificationRequestIsNil(t *tes
 
 func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord:      &types.InputRecord{},
 	}
@@ -25,17 +25,17 @@ func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
 func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0},
+		SystemIdentifier: 0,
 		NodeIdentifier:   "11",
 		InputRecord:      &types.InputRecord{},
 	}
-	require.ErrorIs(t, p1.IsValid(verifier), errInvalidSystemIdentifierLength)
+	require.ErrorIs(t, p1.IsValid(verifier), errInvalidSystemIdentifier)
 }
 
 func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "",
 		InputRecord:      &types.InputRecord{},
 	}
@@ -45,7 +45,7 @@ func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord:      nil,
 	}
@@ -55,7 +55,7 @@ func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
 func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord: &types.InputRecord{
 			PreviousHash: []byte{},
@@ -74,7 +74,7 @@ func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	p1 := &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord: &types.InputRecord{
 			PreviousHash: []byte{},
@@ -95,7 +95,7 @@ func TestBlockCertificationRequest_GetPreviousHash(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.Nil(t, req.IRPreviousHash())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord:      nil,
 	}
@@ -108,7 +108,7 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.EqualValues(t, 0, req.IRRound())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		InputRecord:      nil,
 	}
@@ -121,7 +121,7 @@ func TestBlockCertificationRequest_RootRound(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.EqualValues(t, 0, req.RootRound())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: 1,
 		NodeIdentifier:   "1",
 		RootRoundNumber:  11,
 	}

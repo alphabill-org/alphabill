@@ -522,19 +522,20 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	if err != nil {
 		return fmt.Errorf("invalid vote: %w", err)
 	}
-	// if a vote is received for the next round it is intended for the node which is going to be the
-	// leader in round current+2. We cache it in the voteBuffer anyway, in hope that this node will
-	// be the leader then (reputation based algorithm can't predict leader for the round current+2
-	// as ie round-robin can).
-	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 {
-		// either vote arrived before proposal or we're behind (others think we're the leader of
-		// the round but we haven't seen QC or TC for previous round?)
+	// if a vote is received for future round it is intended for the node which is going to be the
+	// leader. Cache the vote and wait for more one vote is not enough to trigger recovery.
+	// If the node has received at least f+1 votes, then at least 1 honest node also agrees that this node
+	// should be the next leader - try and recover.
+	err = x.checkRecoveryNeeded(vote.HighQc)
+	if err != nil || vote.VoteInfo.RoundNumber > x.pacemaker.GetCurrentRound() {
+		// either vote arrived before proposal or node is just behind (others think we're the leader of
+		// the round, but we haven't seen QC or TC for previous round?)
 		// Votes are buffered for one round only so if we overwrite author's vote it is either stale
 		// or we have received the vote more than once.
 		x.susVotes.Add(ctx, 1, attrSetQCVoteEarly)
-		x.log.DebugContext(ctx, "received vote before proposal, buffering vote", logger.Round(x.pacemaker.GetCurrentRound()))
+		x.log.DebugContext(ctx, "received vote for future round", logger.Round(x.pacemaker.GetCurrentRound()))
 		x.voteBuffer[vote.Author] = vote
-		// if we have received quorum votes, but no proposal yet, then try and recover the proposal.
+		// if we have received quorum votes, but no proposal yet or otherwise behind, then try and recover.
 		// NB! it seems that it's quite common that votes arrive before proposal and going into recovery
 		// too early is counterproductive... maybe do not trigger recovery here at all - if we're lucky
 		// proposal will arrive on time, otherwise round will likely TO anyway?
@@ -545,7 +546,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 			}
 			return err
 		}
-		return nil
+		return err
 	}
 
 	// Normal votes are only sent to the next leader (timeout votes are broadcast) is it us?
@@ -553,21 +554,6 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	nextRound := vote.VoteInfo.RoundNumber + 1
 	if x.leaderSelector.GetLeaderForRound(nextRound) != x.id {
 		return fmt.Errorf("validator is not the leader for round %d", nextRound)
-	}
-
-	// SyncState, compare last handled QC
-	// this check should be before checking are we the leader for the VVR+1 round as when
-	// we're out of sync the test for the next leader doesn't make sense? add check for VVR>CR+1 ?
-	if err := x.checkRecoveryNeeded(vote.HighQc); err != nil {
-		// we need to buffer the vote(s) so that when recovery succeeds we can "replay"
-		// them - otherwise there might not be enough votes to achieve quorum and round
-		// will time out
-		x.voteBuffer[vote.Author] = vote
-		err = fmt.Errorf("vote triggers recovery: %w", err)
-		if e := x.sendRecoveryRequests(ctx, vote); e != nil {
-			err = errors.Join(err, fmt.Errorf("sending recovery requests failed: %w", e))
-		}
-		return err
 	}
 
 	qc, mature, err := x.pacemaker.RegisterVote(vote, x.trustBase)
@@ -640,12 +626,12 @@ Returns nil when no recovery is needed and error describing the reason to trigge
 func (x *ConsensusManager) checkRecoveryNeeded(qc *drctypes.QuorumCert) error {
 	// when node has fallen behind we trigger recovery here as we fail to load block for
 	// the round - it would be nicer to have explicit round check?
-	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
+	block, err := x.blockStore.Block(qc.VoteInfo.RoundNumber)
 	if err != nil {
 		return fmt.Errorf("failed to read root hash for round %d from local block store: %w", qc.VoteInfo.RoundNumber, err)
 	}
-	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, rootHash) {
-		return fmt.Errorf("unexpected round %d state - expected %X, local %X", qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
+	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, block.RootHash) {
+		return fmt.Errorf("unexpected round %d state - expected %X, local %X", qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, block.RootHash)
 	}
 	return nil
 }
@@ -988,9 +974,9 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// Process QC first, update round
 		x.processQC(ctx, prop.Block.Qc)
 		x.processTC(ctx, prop.LastRoundTc)
-		stateHash, err := x.blockStore.GetBlockRootHash(prop.Block.Round)
-		// assume block not found, was not sent with recovery info
-		if err != nil {
+		var stateHash []byte
+		if block, err := x.blockStore.Block(prop.Block.Round); err != nil {
+			// Block not found, was not sent with recovery info
 			// execute proposed payload
 			stateHash, err = x.blockStore.Add(prop.Block, x.irReqVerifier)
 			if err != nil {
@@ -998,6 +984,9 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 				// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
 				return fmt.Errorf("recovery failed to execute proposal: %w", err)
 			}
+		} else {
+			// use the state hash from storage
+			stateHash = block.RootHash
 		}
 		// send a vote message to next leader
 		voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())

@@ -166,14 +166,6 @@ func (x *BlockStore) IsChangeInProgress(sysId types.SystemID) *types.InputRecord
 	return nil
 }
 
-func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {
-	b, err := x.blockTree.FindBlock(round)
-	if err != nil {
-		return nil, fmt.Errorf("get block root hash failed, %w", err)
-	}
-	return b.RootHash, nil
-}
-
 func (x *BlockStore) GetDB() keyvaluedb.KeyValueDB {
 	return x.storage
 }
@@ -310,12 +302,8 @@ func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
 Block returns block for given round.
 When store doesn't have block for the round it returns error.
 */
-func (x *BlockStore) Block(round uint64) (*drctypes.BlockData, error) {
-	eb, err := x.blockTree.FindBlock(round)
-	if err != nil {
-		return nil, err
-	}
-	return eb.BlockData, nil
+func (x *BlockStore) Block(round uint64) (*ExecutedBlock, error) {
+	return x.blockTree.FindBlock(round)
 }
 
 // StoreLastVote - store last sent vote message

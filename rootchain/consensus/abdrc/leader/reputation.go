@@ -152,7 +152,7 @@ func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader Block
 		}
 
 		if len(authors) < rb.excludeSize {
-			authors[block.Author] = struct{}{}
+			authors[block.BlockData.Author] = struct{}{}
 		}
 		if i < rb.windowSize {
 			for signerID := range qc.Signatures {
@@ -160,7 +160,7 @@ func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader Block
 			}
 		}
 
-		qc = block.Qc
+		qc = block.BlockData.Qc
 		round = qc.GetRound()
 	}
 

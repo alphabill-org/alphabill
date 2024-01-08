@@ -548,7 +548,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
-
+		cms[0].blockStore.GetDB()
 		vote := makeVoteMsg(t, cms, votedRound+1)
 		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.NoError(t, err)

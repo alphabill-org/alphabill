@@ -279,18 +279,6 @@ func (x *BlockStore) GetCertificates() map[types.SystemID]*types.UnicityCertific
 	return maps.Clone(x.certificates)
 }
 
-func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
-	inputData := make([]*abdrc.InputData, len(data))
-	for i, d := range data {
-		inputData[i] = &abdrc.InputData{
-			SysID: d.SysID,
-			Ir:    d.IR,
-			Sdrh:  d.Sdrh,
-		}
-	}
-	return inputData
-}
-
 func (x *BlockStore) GetState() *abdrc.StateMsg {
 	certs := x.GetCertificates()
 	ucs := make([]*types.UnicityCertificate, 0, len(certs))
@@ -321,12 +309,25 @@ func (x *BlockStore) Block(round uint64) (*ExecutedBlock, error) {
 	return x.blockTree.FindBlock(round)
 }
 
-// StoreLastVote - store last sent vote message
+// StoreLastVote stores last sent vote message by this node
 func (x *BlockStore) StoreLastVote(vote any) error {
 	return WriteVote(x.storage, vote)
 }
 
-// ReadLastVote - read last vote message
+// ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
+}
+
+// ToRecoveryInputData free conversion function for recovery InputData
+func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
+	inputData := make([]*abdrc.InputData, len(data))
+	for i, d := range data {
+		inputData[i] = &abdrc.InputData{
+			SysID: d.SysID,
+			Ir:    d.IR,
+			Sdrh:  d.Sdrh,
+		}
+	}
+	return inputData
 }

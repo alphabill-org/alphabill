@@ -273,10 +273,10 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// commit head is still at round 1, as round 3 that would have committed 2 resulted in timeout
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 2, len(stateMsg.BlockNode))
+	require.Equal(t, 2, len(stateMsg.BlockData))
 	// round 3 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(2), stateMsg.BlockNode[0].Block.Round)
-	require.Equal(t, uint64(4), stateMsg.BlockNode[1].Block.Round)
+	require.Equal(t, uint64(2), stateMsg.BlockData[0].Round)
+	require.Equal(t, uint64(4), stateMsg.BlockData[1].Round)
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootVote, lastVoteMsg)
 
@@ -296,11 +296,11 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// commit head is still at round 1, rounds 2, 4 and 5 are added, 5 will commit 4 when it reaches quorum, but
 	// this will after vote is routed back, so current expected state is:
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 3, len(stateMsg.BlockNode))
+	require.Equal(t, 3, len(stateMsg.BlockData))
 	// round 3 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(2), stateMsg.BlockNode[0].Block.Round)
-	require.Equal(t, uint64(4), stateMsg.BlockNode[1].Block.Round)
-	require.Equal(t, uint64(5), stateMsg.BlockNode[2].Block.Round)
+	require.Equal(t, uint64(2), stateMsg.BlockData[0].Round)
+	require.Equal(t, uint64(4), stateMsg.BlockData[1].Round)
+	require.Equal(t, uint64(5), stateMsg.BlockData[2].Round)
 
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootVote, lastVoteMsg)
@@ -330,8 +330,8 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	stateMsg = testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// at this stage the committed round is 4 and round 5 block is pending, if it reaches quorum it will commit 4
 	require.Equal(t, uint64(4), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 1, len(stateMsg.BlockNode))
-	require.Equal(t, uint64(5), stateMsg.BlockNode[0].Block.Round)
+	require.Equal(t, 1, len(stateMsg.BlockData))
+	require.Equal(t, uint64(5), stateMsg.BlockData[0].Round)
 }
 
 func TestIRChangeRequestFromRootValidator(t *testing.T) {
@@ -476,7 +476,7 @@ func TestGetState(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// at this stage there is only genesis block
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 0, len(stateMsg.BlockNode))
+	require.Equal(t, 0, len(stateMsg.BlockData))
 	require.Len(t, stateMsg.Certificates, 1)
 }
 
@@ -842,7 +842,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			state := msg.(*abdrc.StateMsg)
 			require.NotNil(t, state)
 			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
-			require.Empty(t, state.BlockNode)
+			require.Empty(t, state.BlockData)
 			require.Len(t, state.Certificates, 1)
 		}
 	})

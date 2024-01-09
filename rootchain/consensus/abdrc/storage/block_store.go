@@ -101,13 +101,13 @@ func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb
 	}, nil
 }
 
-func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*types.UnicityCertificate, db keyvaluedb.KeyValueDB) (*BlockStore, error) {
+func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB) (*BlockStore, error) {
 	// Initiate store
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 	certificates := make(map[types.SystemID]*types.UnicityCertificate)
-	for _, cert := range certs {
+	for _, cert := range stateMsg.Certificates {
 		id := cert.UnicityTreeCertificate.SystemIdentifier
 		// persist changes
 		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
@@ -118,12 +118,12 @@ func NewFromState(hash gocrypto.Hash, rRootBlock *abdrc.RecoveryBlock, certs []*
 	}
 
 	// create new root node
-	rootNode, err := NewRootBlockFromRecovery(hash, rRootBlock)
+	rootNode, err := NewRecoveredBlock(hash, stateMsg.CommittedHead)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
 
-	blTree, err := NewBlockTreeFromRecovery(rootNode, nil, db)
+	blTree, err := NewBlockTreeFromRecovery(rootNode, db)
 	if err != nil {
 		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
 	}
@@ -212,10 +212,11 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) (map[types.SystemID]*typ
 func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier) ([]byte, error) {
 	// verify that block for the round does not exist yet
 	b, err := x.blockTree.FindBlock(block.GetRound())
+	// if block already exists
 	if err == nil {
 		b1h := b.BlockData.Hash(gocrypto.SHA256)
 		b2h := block.Hash(gocrypto.SHA256)
-		// block was found, ignore if it is the same block, recovery may have added it when state was duplicated
+		// ignore if it is the same block, recovery may have added it when state was duplicated
 		if bytes.Equal(b1h, b2h) {
 			return b.RootHash, nil
 		}
@@ -278,10 +279,6 @@ func (x *BlockStore) GetCertificates() map[types.SystemID]*types.UnicityCertific
 	return maps.Clone(x.certificates)
 }
 
-func (x *BlockStore) GetRoot() *ExecutedBlock {
-	return x.blockTree.Root()
-}
-
 func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 	inputData := make([]*abdrc.InputData, len(data))
 	for i, d := range data {
@@ -294,8 +291,26 @@ func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 	return inputData
 }
 
-func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
-	return x.blockTree.GetAllUncommittedNodes()
+func (x *BlockStore) GetState() *abdrc.StateMsg {
+	certs := x.GetCertificates()
+	ucs := make([]*types.UnicityCertificate, 0, len(certs))
+	for _, c := range certs {
+		ucs = append(ucs, c)
+	}
+	committedBlock := x.blockTree.Root()
+	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
+	pending := make([]*drctypes.BlockData, len(pendingBlocks))
+	for i, b := range pendingBlocks {
+		pending[i] = b.BlockData
+	}
+	return &abdrc.StateMsg{
+		Certificates: ucs,
+		CommittedHead: &abdrc.CommittedBlock{
+			Block: committedBlock.BlockData,
+			Ir:    ToRecoveryInputData(committedBlock.CurrentIR),
+		},
+		BlockData: pending,
+	}
 }
 
 /*

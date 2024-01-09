@@ -3,7 +3,6 @@ package storage
 import (
 	gocrypto "crypto"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -81,8 +80,6 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
-		Qc:        &drctypes.QuorumCert{},
-		CommitQc:  nil,
 	}
 }
 
@@ -93,30 +90,30 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
-	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
-	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
-	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
+	// keep the DB clean, only one chain should be in the DB at all times
 	bStore, err := New(gocrypto.SHA256, pg, db)
-	require.NotNil(t, bStore)
-	require.NoError(t, err)
-	// although store contains more than one root, the latest is preferred
-	require.EqualValues(t, 8, bStore.GetRoot().GetRound())
-	// first root is cleaned up
-	itr := db.Find([]byte(blockPrefix))
-	defer func() { require.NoError(t, itr.Close()) }()
-	i := 0
-	// the db now contains blocks 8,9,10 the old blocks have been cleaned up
-	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
-		var b ExecutedBlock
-		require.NoError(t, itr.Value(&b))
-		require.EqualValues(t, 8+i, b.GetRound())
-		i++
-	}
-	require.EqualValues(t, 3, i)
+	require.EqualError(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
+	require.Nil(t, bStore)
+	/*
+		// although store contains more than one root, the latest is preferred
+		require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
+		// first root is cleaned up
+		itr := db.Find([]byte(blockPrefix))
+		defer func() { require.NoError(t, itr.Close()) }()
+		i := 0
+		// the db now contains blocks 8,9,10 the old blocks have been cleaned up
+		for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
+			var b ExecutedBlock
+			require.NoError(t, itr.Value(&b))
+			require.EqualValues(t, 8+i, b.GetRound())
+			i++
+		}
+		require.EqualValues(t, 3, i)
+	*/
 }
 
 func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
@@ -126,11 +123,8 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
-	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
-	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
-	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
 	bStore, err := New(gocrypto.SHA256, pg, db)
@@ -169,7 +163,7 @@ func TestHandleQcError(t *testing.T) {
 
 func TestBlockStoreAdd(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
-	rBlock := bStore.GetRoot()
+	rBlock := bStore.blockTree.Root()
 	mockBlockVer := NewAlwaysOkBlockVerifier(bStore)
 	block := &drctypes.BlockData{
 		Round:   genesis.RootRound,
@@ -216,7 +210,6 @@ func TestBlockStoreAdd(t *testing.T) {
 	b, err := bStore.Block(genesis.RootRound + 1)
 	require.NoError(t, err)
 	require.EqualValues(t, genesis.RootRound+1, b.BlockData.Round)
-	require.NotNil(t, b.Qc)
 	// add block 3
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
@@ -247,7 +240,7 @@ func TestBlockStoreAdd(t *testing.T) {
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
 	require.Len(t, rh, 32)
-	rBlock = bStore.GetRoot()
+	rBlock = bStore.blockTree.Root()
 	// block in round 2 becomes root
 	require.Equal(t, uint64(2), rBlock.BlockData.Round)
 	hQc := bStore.GetHighQc()

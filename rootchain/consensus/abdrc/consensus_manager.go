@@ -876,38 +876,12 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMs
 	if x.recovery != nil {
 		return fmt.Errorf("node is in recovery: %s", x.recovery.String())
 	}
-
-	certs := x.blockStore.GetCertificates()
-	ucs := make([]*types.UnicityCertificate, 0, len(certs))
-	for _, c := range certs {
-		ucs = append(ucs, c)
-	}
-	committedBlock := x.blockStore.GetRoot()
-	pendingBlocks := x.blockStore.GetPendingBlocks()
-	pending := make([]*abdrc.RecoveryBlock, len(pendingBlocks))
-	for i, b := range pendingBlocks {
-		pending[i] = &abdrc.RecoveryBlock{
-			Block:    b.BlockData,
-			Ir:       storage.ToRecoveryInputData(b.CurrentIR),
-			Qc:       b.Qc,
-			CommitQc: nil,
-		}
-	}
-	respMsg := &abdrc.StateMsg{
-		Certificates: ucs,
-		CommittedHead: &abdrc.RecoveryBlock{
-			Block:    committedBlock.BlockData,
-			Ir:       storage.ToRecoveryInputData(committedBlock.CurrentIR),
-			Qc:       committedBlock.Qc,
-			CommitQc: committedBlock.CommitQc,
-		},
-		BlockNode: pending,
-	}
+	stateMsg := x.blockStore.GetState()
 	peerID, err := peer.Decode(req.NodeId)
 	if err != nil {
 		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
-	if err = x.net.Send(ctx, respMsg, peerID); err != nil {
+	if err = x.net.Send(ctx, stateMsg, peerID); err != nil {
 		return fmt.Errorf("failed to send state response message: %w", err)
 	}
 	return nil
@@ -927,7 +901,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, rsp.Certificates, x.blockStore.GetDB())
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB())
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
@@ -938,15 +912,18 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	}
 	x.pacemaker.Reset(ctx, blockStore.GetHighQc().GetRound(), nil, nil)
 
-	for i, n := range rsp.BlockNode {
+	for i, block := range rsp.BlockData {
 		// if received block has QC then process it first as with a block received normally
-		if n.Block.Qc != nil {
-			if _, err = blockStore.ProcessQc(n.Block.Qc); err != nil {
-				return fmt.Errorf("block %d for round %v add qc failed: %w", i, n.Block.GetRound(), err)
+		if block.Qc != nil {
+			if _, err = blockStore.ProcessQc(block.Qc); err != nil {
+				if i != 0 || !errors.Is(err, storage.ErrCommitFailed) {
+					// since history is only kept until the last committed round it is not possible to commit a previous round
+					return fmt.Errorf("block %d for round %v add qc failed: %w", i, block.GetRound(), err)
+				}
 			}
-			x.pacemaker.AdvanceRoundQC(ctx, n.Block.Qc)
+			x.pacemaker.AdvanceRoundQC(ctx, block.Qc)
 		}
-		if _, err = blockStore.Add(n.Block, reqVerifier); err != nil {
+		if _, err = blockStore.Add(block, reqVerifier); err != nil {
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
 		}
 	}

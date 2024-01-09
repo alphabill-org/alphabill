@@ -460,7 +460,7 @@ func Test_ReputationBased(t *testing.T) {
 			return
 		}
 		sign := []string{}
-		for k := range b.Qc.Signatures {
+		for k := range b.BlockData.Qc.Signatures {
 			sign = append(sign, k)
 		}
 		t.Logf("block[%d] Author: %s Signed (%d): %v", round, b.BlockData.Author, len(sign), sign)

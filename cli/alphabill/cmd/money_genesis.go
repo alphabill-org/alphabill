@@ -38,7 +38,7 @@ var (
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        defaultT2Timeout,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         money.NewBillID(nil, []byte{2}),
+			UnitID:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}
@@ -250,15 +250,18 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 	}
 
 	for _, sdr := range sdrs {
-		feeCreditBill := sdr.FeeCreditBill
-		if feeCreditBill == nil {
+		fcb := sdr.FeeCreditBill
+		if fcb == nil {
 			return fmt.Errorf("fee credit bill is nil in system description record")
 		}
-		if bytes.Equal(feeCreditBill.UnitId, money.DustCollectorMoneySupplyID) || bytes.Equal(feeCreditBill.UnitId, config.InitialBillID) {
+		if !fcb.UnitID.HasType(money.BillUnitType) {
+			return fmt.Errorf("fee credit bill ID has wrong unit type")
+		}
+		if bytes.Equal(fcb.UnitID, money.DustCollectorMoneySupplyID) || bytes.Equal(fcb.UnitID, config.InitialBillID) {
 			return fmt.Errorf("fee credit bill ID may not be equal to DC money supply ID or initial bill ID")
 		}
 
-		err := s.Apply(state.AddUnit(feeCreditBill.UnitId, feeCreditBill.OwnerPredicate, &money.BillData{
+		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &money.BillData{
 			V:        0,
 			T:        0,
 			Backlink: nil,
@@ -266,7 +269,7 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		if err != nil {
 			return err
 		}
-		if err := s.AddUnitLog(feeCreditBill.UnitId, zeroHash); err != nil {
+		if err := s.AddUnitLog(fcb.UnitID, zeroHash); err != nil {
 			return err
 		}
 	}

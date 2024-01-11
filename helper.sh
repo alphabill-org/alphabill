@@ -73,7 +73,7 @@ esac
 for i in $(seq 1 "$2")
 do
   # "-g" flags also generates keys
-  build/alphabill "$cmd" --home "${home}$i" -g "$3"
+  build/alphabill "$cmd" --home "${home}$i" -g $3
 done
 }
 

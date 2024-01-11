@@ -23,9 +23,9 @@ type SystemDescriptionRecord struct {
 }
 
 type FeeCreditBill struct {
-	_              struct{} `cbor:",toarray"`
-	UnitId         []byte   `json:"unit_id,omitempty"`
-	OwnerPredicate []byte   `json:"owner_predicate,omitempty"`
+	_              struct{}     `cbor:",toarray"`
+	UnitID         types.UnitID `json:"unit_id,omitempty"`
+	OwnerPredicate []byte       `json:"owner_predicate,omitempty"`
 }
 
 func (x *SystemDescriptionRecord) IsValid() error {

@@ -11,21 +11,6 @@ import (
 )
 
 /*
-NOP factory can be shared between tests.
-*/
-var nopFactory = Factory{
-	logF: func(lc *logger.LogConfiguration) (*slog.Logger, error) { return testlogr.NOP(), nil },
-	obsF: func(metrics, traces string) (*Observability, error) { return NOPObservability(), nil },
-}
-
-/*
-NOPFactory returns observability factory implementation where everything returned is no-op.
-*/
-func NOPFactory(t *testing.T) Factory {
-	return nopFactory
-}
-
-/*
 NewFactory returns observability implementation fot test "t" based on
 (global) configuration (ie environment variables).
 */

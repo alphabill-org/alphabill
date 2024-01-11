@@ -36,17 +36,17 @@ func (a AlwaysValidVerifier) UnmarshalPubKey() (gocrypto.PublicKey, error) {
 
 func TestRecoveryBlock_GetRound(t *testing.T) {
 	t.Run("recovery block is nil", func(t *testing.T) {
-		var block *RecoveryBlock = nil
+		var block *CommittedBlock = nil
 		require.EqualValues(t, 0, block.GetRound())
 	})
 	t.Run("block data is nil", func(t *testing.T) {
-		block := &RecoveryBlock{
+		block := &CommittedBlock{
 			Block: nil,
 		}
 		require.EqualValues(t, 0, block.GetRound())
 	})
 	t.Run("block data round is 3", func(t *testing.T) {
-		block := &RecoveryBlock{
+		block := &CommittedBlock{
 			Block: &drctypes.BlockData{
 				Round: 3,
 			},
@@ -60,54 +60,63 @@ func TestStateMsg_CanRecoverToRound(t *testing.T) {
 		sm := &StateMsg{
 			CommittedHead: nil,
 		}
-		require.ErrorContains(t, sm.CanRecoverToRound(3), "state must have non-nil commit QC")
+		require.ErrorContains(t, sm.CanRecoverToRound(3), "committed block is nil")
 	})
 	t.Run("commit head commit qc is nil", func(t *testing.T) {
 		sm := &StateMsg{
-			CommittedHead: &RecoveryBlock{CommitQc: nil},
+			CommittedHead: &CommittedBlock{},
 		}
-		require.ErrorContains(t, sm.CanRecoverToRound(3), "state must have non-nil commit QC")
+		require.ErrorContains(t, sm.CanRecoverToRound(3), "state has no data block for round 3")
 	})
 	t.Run("commit head block is from later round", func(t *testing.T) {
 		sm := &StateMsg{
-			CommittedHead: &RecoveryBlock{
-				Block:    &drctypes.BlockData{Round: 5},
-				CommitQc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}},
+			CommittedHead: &CommittedBlock{
+				Block: &drctypes.BlockData{
+					Round: 5,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 4}},
+				},
 			},
 		}
 		require.ErrorContains(t, sm.CanRecoverToRound(3), "can't recover to round 3 with committed block for round 5")
 	})
 	t.Run("exact block for round not found", func(t *testing.T) {
 		sm := &StateMsg{
-			CommittedHead: &RecoveryBlock{
-				Block:    &drctypes.BlockData{Round: 5},
-				CommitQc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}},
+			CommittedHead: &CommittedBlock{
+				Block: &drctypes.BlockData{
+					Round: 5,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 4}},
+				},
 			},
 		}
 		require.ErrorContains(t, sm.CanRecoverToRound(8), "state has no data block for round 8")
 	})
 	t.Run("commit head is the block needed", func(t *testing.T) {
 		sm := &StateMsg{
-			CommittedHead: &RecoveryBlock{
-				Block:    &drctypes.BlockData{Round: 5},
-				CommitQc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}},
+			CommittedHead: &CommittedBlock{
+				Block: &drctypes.BlockData{
+					Round: 5,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 4}},
+				},
 			},
 		}
 		require.NoError(t, sm.CanRecoverToRound(5))
 	})
 	t.Run("most common case", func(t *testing.T) {
 		sm := &StateMsg{
-			CommittedHead: &RecoveryBlock{
-				Block:    &drctypes.BlockData{Round: 5},
-				CommitQc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}},
+			CommittedHead: &CommittedBlock{
+				Block: &drctypes.BlockData{
+					Round: 5,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 4}},
+				},
 			},
-			BlockNode: []*RecoveryBlock{
+			BlockData: []*drctypes.BlockData{
 				{
-					Block: &drctypes.BlockData{Round: 6},
-					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}},
+					Round: 6,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 5}},
 				},
 				{
-					Block: &drctypes.BlockData{Round: 7},
+					Round: 7,
+					Qc:    &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 6}},
 				},
 			},
 		}
@@ -120,15 +129,15 @@ func TestStateMsg_Verify(t *testing.T) {
 		sm := &StateMsg{
 			Certificates:  nil,
 			CommittedHead: nil,
-			BlockNode:     nil,
+			BlockData:     nil,
 		}
 		verifiers := make(map[string]abcrypto.Verifier)
 		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "commit head is nil")
 	})
-	t.Run("commit head, commit QC is nil", func(t *testing.T) {
+	t.Run("commit head, invalid QC", func(t *testing.T) {
 		sm := &StateMsg{
 			Certificates: nil,
-			CommittedHead: &RecoveryBlock{
+			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
 						SysID: 1,
@@ -158,40 +167,31 @@ func TestStateMsg_Verify(t *testing.T) {
 						},
 					},
 				},
-				CommitQc: &drctypes.QuorumCert{
-					VoteInfo: &drctypes.RoundInfo{
-						RoundNumber:       7,
-						ParentRoundNumber: 6,
-						CurrentRootHash:   test.RandomBytes(32),
-						Timestamp:         types.NewTimestamp(),
-					},
-					LedgerCommitInfo: &types.UnicitySeal{
-						PreviousHash: test.RandomBytes(32),
-					},
-				},
 			},
-			BlockNode: nil,
+			BlockData: nil,
 		}
 		verifiers := make(map[string]abcrypto.Verifier)
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid commit head, commit qc error: vote info hash verification failed")
+		require.EqualError(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "commit head qc verification error: vote info hash verification failed")
 	})
-	t.Run("commit qc is nil", func(t *testing.T) {
+	t.Run("commit not found", func(t *testing.T) {
+		vInfoR4 := &drctypes.RoundInfo{
+			RoundNumber:       4,
+			ParentRoundNumber: 3,
+			CurrentRootHash:   test.RandomBytes(32),
+			Timestamp:         types.NewTimestamp(),
+		}
 		sm := &StateMsg{
 			Certificates: nil,
-			CommittedHead: &RecoveryBlock{
+			CommittedHead: &CommittedBlock{
 				Block: &drctypes.BlockData{
 					Round:   5,
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
-						VoteInfo: &drctypes.RoundInfo{
-							RoundNumber:       4,
-							ParentRoundNumber: 3,
-							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         types.NewTimestamp(),
-						},
+						VoteInfo: vInfoR4,
 						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: test.RandomBytes(32),
+							PreviousHash: vInfoR4.Hash(gocrypto.SHA256),
 						},
+						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
 					},
 				},
 				Ir: []*InputData{
@@ -208,23 +208,23 @@ func TestStateMsg_Verify(t *testing.T) {
 						Sdrh: make([]byte, 32),
 					},
 				},
-				CommitQc: nil,
 			},
-			BlockNode: nil,
+			BlockData: nil,
 		}
 		verifiers := make(map[string]abcrypto.Verifier)
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid commit head, commit qc is nil")
+		verifiers["test"] = AlwaysValidVerifier{}
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "commit QC for head block not found")
 	})
 	t.Run("invalid block node data", func(t *testing.T) {
-		commitVoteInfo := &drctypes.RoundInfo{
-			RoundNumber:       7,
-			ParentRoundNumber: 6,
+		r4vInfo := &drctypes.RoundInfo{
+			RoundNumber:       4,
+			ParentRoundNumber: 3,
 			CurrentRootHash:   test.RandomBytes(32),
 			Timestamp:         types.NewTimestamp(),
 		}
 		sm := &StateMsg{
 			Certificates: nil,
-			CommittedHead: &RecoveryBlock{
+			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
 						SysID: 1,
@@ -243,46 +243,39 @@ func TestStateMsg_Verify(t *testing.T) {
 					Round:   5,
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
-						VoteInfo: &drctypes.RoundInfo{
-							RoundNumber:       4,
-							ParentRoundNumber: 3,
-							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         types.NewTimestamp(),
-						},
+						VoteInfo: r4vInfo,
 						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: test.RandomBytes(32),
+							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
 						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
 					},
 				},
-				CommitQc: &drctypes.QuorumCert{
-					VoteInfo: commitVoteInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
-						PreviousHash: commitVoteInfo.Hash(gocrypto.SHA256),
-					},
-					Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-				},
 			},
-			BlockNode: []*RecoveryBlock{{
-				Block: &drctypes.BlockData{
-					Round:   5,
-					Payload: &drctypes.Payload{}},
-			}},
+			BlockData: []*drctypes.BlockData{{
+				Round:   5,
+				Payload: &drctypes.Payload{}},
+			},
 		}
 		verifiers := map[string]abcrypto.Verifier{"test": AlwaysValidVerifier{}}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node: missing input record state")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node: proposed block is missing quorum certificate")
 	})
-	t.Run("invalid block node, contains commit QC", func(t *testing.T) {
-		commitVoteInfo := &drctypes.RoundInfo{
-			RoundNumber:       7,
-			ParentRoundNumber: 6,
+	t.Run("ok", func(t *testing.T) {
+		r4vInfo := &drctypes.RoundInfo{
+			RoundNumber:       4,
+			ParentRoundNumber: 3,
+			CurrentRootHash:   test.RandomBytes(32),
+			Timestamp:         types.NewTimestamp(),
+		}
+		r5vInfo := &drctypes.RoundInfo{
+			RoundNumber:       5,
+			ParentRoundNumber: 4,
 			CurrentRootHash:   test.RandomBytes(32),
 			Timestamp:         types.NewTimestamp(),
 		}
 		sm := &StateMsg{
 			Certificates: nil,
-			CommittedHead: &RecoveryBlock{
+			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
 						SysID: 1,
@@ -301,76 +294,39 @@ func TestStateMsg_Verify(t *testing.T) {
 					Round:   5,
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
-						VoteInfo: &drctypes.RoundInfo{
-							RoundNumber:       4,
-							ParentRoundNumber: 3,
-							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         types.NewTimestamp(),
-						},
+						VoteInfo: r4vInfo,
 						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: test.RandomBytes(32),
+							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
 						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
 					},
 				},
-				CommitQc: &drctypes.QuorumCert{
-					VoteInfo: commitVoteInfo,
+			},
+			BlockData: []*drctypes.BlockData{{
+				Round:   6,
+				Payload: &drctypes.Payload{},
+				Qc: &drctypes.QuorumCert{
+					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
-						PreviousHash: commitVoteInfo.Hash(gocrypto.SHA256),
+						PreviousHash:         r5vInfo.Hash(gocrypto.SHA256),
+						RootChainRoundNumber: 5,
+						Hash:                 test.RandomBytes(32),
+						Signatures:           map[string][]byte{"test": test.RandomBytes(65)},
 					},
 					Signatures: map[string][]byte{"test": test.RandomBytes(65)},
 				},
 			},
-			BlockNode: []*RecoveryBlock{{
-				Ir: []*InputData{
-					{
-						SysID: 1,
-						Ir: &types.InputRecord{
-							PreviousHash:    test.RandomBytes(32),
-							Hash:            test.RandomBytes(32),
-							BlockHash:       test.RandomBytes(32),
-							SummaryValue:    test.RandomBytes(32),
-							RoundNumber:     3,
-							SumOfEarnedFees: 10,
-						},
-						Sdrh: make([]byte, 32),
-					},
-				},
-				Block: &drctypes.BlockData{
-					Round:   6,
-					Payload: &drctypes.Payload{},
-					Qc: &drctypes.QuorumCert{
-						VoteInfo: &drctypes.RoundInfo{
-							RoundNumber:       5,
-							ParentRoundNumber: 4,
-							CurrentRootHash:   test.RandomBytes(32),
-							Timestamp:         types.NewTimestamp(),
-						},
-						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: test.RandomBytes(32),
-							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
-						},
-						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-					},
-				},
-				CommitQc: &drctypes.QuorumCert{
-					VoteInfo: commitVoteInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
-						PreviousHash: commitVoteInfo.Hash(gocrypto.SHA256),
-					},
-					Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-				},
-			}},
+			},
 		}
 		verifiers := map[string]abcrypto.Verifier{"test": AlwaysValidVerifier{}}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node, has commit qc set")
+		require.NoError(t, sm.Verify(gocrypto.SHA256, 1, verifiers))
 	})
 }
 
 func TestRecoveryBlock_IsValid(t *testing.T) {
 	t.Run("input record state is invalid", func(t *testing.T) {
-		r := &RecoveryBlock{
+		r := &CommittedBlock{
 			Block: &drctypes.BlockData{
 				Round:   5,
 				Payload: &drctypes.Payload{},
@@ -391,7 +347,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		require.ErrorContains(t, r.IsValid(), "missing input record state")
 	})
 	t.Run("input record state is nil", func(t *testing.T) {
-		r := &RecoveryBlock{
+		r := &CommittedBlock{
 			Block: &drctypes.BlockData{
 				Round:   5,
 				Payload: &drctypes.Payload{},
@@ -418,7 +374,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		require.ErrorContains(t, r.IsValid(), "invalid input record: input record is nil")
 	})
 	t.Run("block data is nil", func(t *testing.T) {
-		r := &RecoveryBlock{
+		r := &CommittedBlock{
 			Block: nil,
 			Ir: []*InputData{
 				{
@@ -438,7 +394,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		require.ErrorContains(t, r.IsValid(), "block data is nil")
 	})
 	t.Run("block data is invalid", func(t *testing.T) {
-		r := &RecoveryBlock{
+		r := &CommittedBlock{
 			Block: &drctypes.BlockData{
 				Round:   5,
 				Payload: &drctypes.Payload{},
@@ -471,7 +427,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		require.ErrorContains(t, r.IsValid(), "block data error: invalid quorum certificate: invalid vote info: parent round number is not assigned")
 	})
 	t.Run("block data is invalid", func(t *testing.T) {
-		r := &RecoveryBlock{
+		r := &CommittedBlock{
 			Block: &drctypes.BlockData{
 				Round:   5,
 				Payload: &drctypes.Payload{},

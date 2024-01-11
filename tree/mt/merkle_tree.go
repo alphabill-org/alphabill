@@ -29,11 +29,6 @@ type (
 		right *node
 		hash  []byte
 	}
-
-	// ByteHasher helper struct to satisfy Data interface
-	ByteHasher struct {
-		Val []byte
-	}
 )
 
 // New creates a new canonical Merkle Tree.
@@ -185,10 +180,4 @@ func hibit(n int) int {
 	n |= n >> 8
 	n |= n >> 16
 	return n - (n >> 1)
-}
-
-func (h *ByteHasher) Hash(hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.Val)
-	return hasher.Sum(nil)
 }

@@ -527,7 +527,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	// If the node has received at least f+1 votes, then at least 1 honest node also agrees that this node
 	// should be the next leader - try and recover.
 	err = x.checkRecoveryNeeded(vote.HighQc)
-	if err != nil || vote.VoteInfo.RoundNumber > x.pacemaker.GetCurrentRound() {
+	if vote.VoteInfo.RoundNumber > x.pacemaker.GetCurrentRound() || err != nil {
 		// either vote arrived before proposal or node is just behind (others think we're the leader of
 		// the round, but we haven't seen QC or TC for previous round?)
 		// Votes are buffered for one round only so if we overwrite author's vote it is either stale
@@ -536,6 +536,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		x.log.DebugContext(ctx, "received vote for future round", logger.Round(x.pacemaker.GetCurrentRound()))
 		x.voteBuffer[vote.Author] = vote
 		// if we have received quorum votes, but no proposal yet or otherwise behind, then try and recover.
+		// other nodes seem to think we are the next leader
 		// NB! it seems that it's quite common that votes arrive before proposal and going into recovery
 		// too early is counterproductive... maybe do not trigger recovery here at all - if we're lucky
 		// proposal will arrive on time, otherwise round will likely TO anyway?
@@ -546,7 +547,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 			}
 			return err
 		}
-		return err
+		return nil
 	}
 
 	// Normal votes are only sent to the next leader (timeout votes are broadcast) is it us?

@@ -122,6 +122,35 @@ func TestNewIMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.NotNil(t, imt)
 	require.EqualValues(t, "E7A8501605679E35DBF5642EB8372623CD8258FB541680891A77DAF82236B4CE", fmt.Sprintf("%X", imt.GetRootHash()))
 	require.NotEmpty(t, imt.PrettyPrint())
+	for _, d := range data {
+		path, err := imt.GetMerklePath(d.Index)
+		require.NoError(t, err)
+		hash := EvalMerklePath(path, d, crypto.SHA256)
+		require.EqualValues(t, hash, imt.GetRootHash())
+	}
+	// non-inclusion
+	item := Pair{
+		Index: util.Uint32ToBytes(uint32(9)),
+		Data:  &TestData{hash: makeData(byte(9))},
+	}
+	path, err := imt.GetMerklePath(item.Index)
+	require.NoError(t, err)
+
+	hash := EvalMerklePath(path, item, crypto.SHA256)
+	require.NotEqualValues(t, hash, imt.GetRootHash())
+}
+
+func TestSingleNodeTreeMerklePath(t *testing.T) {
+	var data = []Pair{
+		{
+			Index: util.Uint32ToBytes(uint32(0)),
+			Data:  &TestData{hash: make([]byte, 32)},
+		},
+	}
+	imt := New(crypto.SHA256, data)
+	path, err := imt.GetMerklePath(data[0].Index)
+	require.NoError(t, err)
+	require.NotEmpty(t, path)
 }
 
 func makeData(firstByte byte) []byte {

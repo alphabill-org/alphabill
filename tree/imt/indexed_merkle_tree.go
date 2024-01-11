@@ -136,6 +136,9 @@ func (s *MerkleTree) GetMerklePath(leafIdx []byte) ([]*PathItem, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("tree empty")
 	}
+	if s.root.nType == Leaf {
+		return []*PathItem{{Index: s.root.index, Hash: s.root.hash}}, nil
+	}
 	var z []*PathItem
 	curr := s.root
 	for {

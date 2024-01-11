@@ -1,7 +1,6 @@
 package types
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -23,9 +22,9 @@ const (
 type IRChangeReason uint8
 
 type IRChangeReq struct {
-	_                struct{}         `cbor:",toarray"`
-	SystemIdentifier types.SystemID32 `json:"system_identifier,omitempty"`
-	CertReason       IRChangeReason   `json:"cert_reason,omitempty"`
+	_                struct{}       `cbor:",toarray"`
+	SystemIdentifier types.SystemID `json:"system_identifier,omitempty"`
+	CertReason       IRChangeReason `json:"cert_reason,omitempty"`
 	// IR change (quorum or no quorum possible of block certification requests)
 	Requests []*certification.BlockCertificationRequest `json:"requests,omitempty"`
 }
@@ -79,11 +78,11 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 	// validate all block request in the proof
 	for _, req := range x.Requests {
 		if err := tb.Verify(req.NodeIdentifier, req); err != nil {
-			return nil, fmt.Errorf("request proof from system id %X node %v is not valid: %w",
+			return nil, fmt.Errorf("request proof from partition %s node %v is not valid: %w",
 				req.SystemIdentifier, req.NodeIdentifier, err)
 		}
-		if !bytes.Equal(x.SystemIdentifier.ToSystemID(), req.SystemIdentifier) {
-			return nil, fmt.Errorf("invalid partition %s proof: node %v request system id %X does not match request",
+		if x.SystemIdentifier != req.SystemIdentifier {
+			return nil, fmt.Errorf("invalid partition %s proof: node %v request system id %s does not match request",
 				x.SystemIdentifier, req.NodeIdentifier, req.SystemIdentifier)
 		}
 		if err := consensus.CheckBlockCertificationRequest(req, luc); err != nil {
@@ -147,7 +146,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 }
 
 func (x *IRChangeReq) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier.ToSystemID())
+	hasher.Write(x.SystemIdentifier.Bytes())
 	hasher.Write(util.Uint32ToBytes(uint32(x.CertReason)))
 	for _, req := range x.Requests {
 		hasher.Write(req.Bytes())

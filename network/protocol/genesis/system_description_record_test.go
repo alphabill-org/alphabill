@@ -5,21 +5,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSystemDescriptionRecord_CanBeHashed(t *testing.T) {
 	sdr := &SystemDescriptionRecord{
-		SystemIdentifier: []byte{1},
+		SystemIdentifier: 1,
 		T2Timeout:        2,
 	}
-
-	hasher := gocrypto.SHA256.New()
 	actualHash := sdr.Hash(gocrypto.SHA256)
 
+	hasher := gocrypto.SHA256.New()
 	hasher.Reset()
-	hasher.Write([]byte{1})
+	hasher.Write(sdr.SystemIdentifier.Bytes())
 	hasher.Write(util.Uint64ToBytes(2))
 	expectedHash := hasher.Sum(nil)
 
@@ -28,7 +28,7 @@ func TestSystemDescriptionRecord_CanBeHashed(t *testing.T) {
 
 func TestSystemDescriptionRecord_IsValid(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID
 		T2Timeout        uint32
 	}
 	tests := []struct {
@@ -39,15 +39,15 @@ func TestSystemDescriptionRecord_IsValid(t *testing.T) {
 		{
 			name: "invalid system identifier",
 			fields: fields{
-				SystemIdentifier: nil,
+				SystemIdentifier: 0,
 				T2Timeout:        2,
 			},
-			wantStr: "invalid system identifier length",
+			wantStr: "invalid system identifier",
 		},
 		{
 			name: "invalid t2 timeout",
 			fields: fields{
-				SystemIdentifier: []byte{0, 0, 0, 0},
+				SystemIdentifier: 1,
 				T2Timeout:        0,
 			},
 			wantStr: ErrT2TimeoutIsNil.Error(),

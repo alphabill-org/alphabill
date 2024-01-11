@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = &FeeCredit{}
@@ -21,11 +22,10 @@ var (
 )
 
 type (
-
 	// FeeCredit contains fee credit related functionality.
 	FeeCredit struct {
-		systemIdentifier        []byte
-		moneySystemIdentifier   []byte
+		systemIdentifier        types.SystemID
+		moneySystemIdentifier   types.SystemID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               map[string]abcrypto.Verifier
@@ -78,10 +78,10 @@ func (f *FeeCredit) GenericTransactionValidator() txsystem.GenericTransactionVal
 }
 
 func validConfiguration(m *FeeCredit) error {
-	if len(m.systemIdentifier) == 0 {
+	if m.systemIdentifier == 0 {
 		return ErrSystemIdentifierMissing
 	}
-	if len(m.moneySystemIdentifier) == 0 {
+	if m.moneySystemIdentifier == 0 {
 		return ErrMoneySystemIdentifierMissing
 	}
 	if m.state == nil {

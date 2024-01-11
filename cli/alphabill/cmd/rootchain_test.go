@@ -145,7 +145,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
@@ -272,7 +272,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
 		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey

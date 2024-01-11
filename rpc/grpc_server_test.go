@@ -68,8 +68,8 @@ func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 	return mn.maxRoundNumber, nil
 }
 
-func (mn *MockNode) SystemIdentifier() []byte {
-	return []byte{0, 1, 0, 0}
+func (mn *MockNode) SystemIdentifier() types.SystemID {
+	return 0x00010000
 }
 
 func (mn *MockNode) GetPeer() *network.Peer {

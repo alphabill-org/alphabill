@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -183,8 +182,7 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 }
 
 func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
-	sid := binary.BigEndian.Uint32(pg.SystemDescriptionRecord.SystemIdentifier)
-	filename := fmt.Sprintf("partition-genesis-%d.json", sid)
+	filename := fmt.Sprintf("partition-genesis-%d.json", pg.SystemDescriptionRecord.SystemIdentifier)
 	outputFile := filepath.Join(outputDir, filename)
 	return util.WriteJsonFile(outputFile, pg)
 }

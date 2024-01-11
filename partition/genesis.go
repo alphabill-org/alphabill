@@ -22,7 +22,7 @@ var errInvalidSystemIdentifier = errors.New("invalid transaction system identifi
 type (
 	genesisConf struct {
 		peerID                peer.ID
-		systemIdentifier      []byte
+		systemIdentifier      types.SystemID
 		hashAlgorithm         gocrypto.Hash
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
@@ -43,7 +43,7 @@ func (c *genesisConf) isValid() error {
 	if len(c.encryptionPubKeyBytes) == 0 {
 		return ErrEncryptionPubKeyIsNil
 	}
-	if len(c.systemIdentifier) != types.SystemIdentifierLength {
+	if c.systemIdentifier == 0 {
 		return errInvalidSystemIdentifier
 	}
 	return nil
@@ -55,7 +55,7 @@ func WithPeerID(peerID peer.ID) GenesisOption {
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) GenesisOption {
+func WithSystemIdentifier(systemIdentifier types.SystemID) GenesisOption {
 	return func(c *genesisConf) {
 		c.systemIdentifier = systemIdentifier
 	}

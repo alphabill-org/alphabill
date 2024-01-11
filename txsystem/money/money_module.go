@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*Module)(nil)
@@ -16,7 +17,7 @@ var _ txsystem.Module = (*Module)(nil)
 type (
 	Module struct {
 		state               *state.State
-		systemID            []byte
+		systemID            types.SystemID
 		trustBase           map[string]abcrypto.Verifier
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector

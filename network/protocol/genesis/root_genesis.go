@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -30,14 +31,13 @@ type SystemDescriptionRecordGetter interface {
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
-	ids := make(map[string]struct{}, len(records))
+	ids := make(map[types.SystemID]struct{}, len(records))
 	for _, rec := range records {
 		record := rec.GetSystemDescriptionRecord()
-		id := string(record.SystemIdentifier)
-		if _, f := ids[id]; f {
-			return fmt.Errorf("duplicated system identifier: %X", record.SystemIdentifier)
+		if _, f := ids[record.SystemIdentifier]; f {
+			return fmt.Errorf("duplicated system identifier: %s", record.SystemIdentifier)
 		}
-		ids[id] = struct{}{}
+		ids[record.SystemIdentifier] = struct{}{}
 	}
 	return nil
 }

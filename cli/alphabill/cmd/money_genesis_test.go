@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -116,7 +115,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101" + " --home " + homeDir
+	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 4030201" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -126,7 +125,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
+	require.EqualValues(t, 4030201, pn.BlockCertificationRequest.SystemIdentifier)
 }
 
 func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
@@ -227,10 +226,46 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
 	require.ErrorContains(t, err, "fee credit bill ID may not be equal to")
 }
 
+func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
+	testDir := t.TempDir()
+
+	t.Run("parse file", func(t *testing.T) {
+		// setup-testab.sh creates the SDR files with hardcoded content - refactor
+		// so that these files can be tested here?
+		fileName := filepath.Join(testDir, "sdr.json")
+		err := os.WriteFile(fileName, []byte(`{"system_identifier": 1234567890, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}`), 0666)
+		require.NoError(t, err)
+
+		cfg := moneyGenesisConfig{SDRFiles: []string{fileName}}
+		sdrs, err := cfg.getSDRs()
+		require.NoError(t, err)
+		require.Len(t, sdrs, 1)
+		require.EqualValues(t, 1234567890, sdrs[0].SystemIdentifier)
+	})
+
+	t.Run("defaultMoneySDR", func(t *testing.T) {
+		// serialize and deserialize default money SDR
+		fileName, err := createSDRFile(testDir, defaultMoneySDR)
+		require.NoError(t, err)
+		cfg := moneyGenesisConfig{SDRFiles: []string{fileName}}
+		sdrs, err := cfg.getSDRs()
+		require.NoError(t, err)
+		require.Len(t, sdrs, 1)
+		require.Equal(t, defaultMoneySDR, sdrs[0])
+	})
+
+	t.Run("if no files default will be returned", func(t *testing.T) {
+		cfg := moneyGenesisConfig{SDRFiles: nil} // no files provided!
+		sdrs, err := cfg.getSDRs()
+		require.NoError(t, err)
+		require.Len(t, sdrs, 1)
+		require.Equal(t, defaultMoneySDR, sdrs[0])
+	})
+}
+
 func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {
-	filePath := path.Join(dir, "money-sdr.json")
-	err := util.WriteJsonFile(filePath, sdr)
-	if err != nil {
+	filePath := filepath.Join(dir, "money-sdr.json")
+	if err := util.WriteJsonFile(filePath, sdr); err != nil {
 		return "", err
 	}
 	return filePath, nil

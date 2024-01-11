@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var systemIdentifier = []byte{0, 0, 0, 1}
+const systemIdentifier types.SystemID = 1
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	_, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		SystemIdentifier   []byte
+		SystemIdentifier   types.SystemID
 		NodeIdentifier     string
 		UnicityCertificate *types.UnicityCertificate
 		Transactions       []*types.TransactionRecord
@@ -26,7 +26,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		nodeSignatureVerifier crypto.Verifier
 		ucTrustBase           map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
-		systemIdentifier      []byte
+		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
 	}
 
@@ -79,7 +79,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      []byte{0, 0, 0, 2},
+				systemIdentifier:      2,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrInvalidSystemIdentifier,
@@ -169,7 +169,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Transactions: []*types.TransactionRecord{{
 			TransactionOrder: &types.TransactionOrder{
 				Payload: &types.Payload{
-					SystemID:       nil,
+					SystemID:       0,
 					Type:           "test",
 					UnitID:         nil,
 					Attributes:     nil,
@@ -219,7 +219,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		},
 		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       nil,
+				SystemID:       0,
 				Type:           "test",
 				UnitID:         nil,
 				Attributes:     nil,

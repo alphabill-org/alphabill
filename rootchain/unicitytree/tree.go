@@ -46,15 +46,15 @@ func (u *UnicityTree) GetRootHash() []byte {
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
 func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCertificate, error) {
-	if len(sysID) != types.SystemIdentifierLength {
-		return nil, ErrInvalidSystemIdentifierLength
+	if sysID == 0 {
+		return nil, errors.New("partition ID is unassigned")
 	}
-	path, data, err := u.smt.GetAuthPath(sysID)
+	path, data, err := u.smt.GetAuthPath(sysID.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, fmt.Errorf("certificate for system id %X not found", sysID)
+		return nil, fmt.Errorf("certificate for system id %s not found", sysID)
 	}
 	leafData, ok := data.(*Data)
 	if !ok {
@@ -71,15 +71,15 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 
 // GetIR returns Input Record for system identifier.
 func (u *UnicityTree) GetIR(systemIdentifier types.SystemID) (*types.InputRecord, error) {
-	if len(systemIdentifier) != types.SystemIdentifierLength {
-		return nil, ErrInvalidSystemIdentifierLength
+	if systemIdentifier == 0 {
+		return nil, errors.New("partition ID is unassigned")
 	}
-	_, data, err := u.smt.GetAuthPath(systemIdentifier)
+	_, data, err := u.smt.GetAuthPath(systemIdentifier.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, fmt.Errorf("ir for system id %X not found", systemIdentifier)
+		return nil, fmt.Errorf("ir for system id %s not found", systemIdentifier)
 	}
 	leafData, ok := data.(*Data)
 	if !ok {
@@ -89,7 +89,7 @@ func (u *UnicityTree) GetIR(systemIdentifier types.SystemID) (*types.InputRecord
 }
 
 func (d *Data) Key() []byte {
-	return d.SystemIdentifier
+	return d.SystemIdentifier.Bytes()
 }
 
 func (d *Data) AddToHasher(hasher hash.Hash) {

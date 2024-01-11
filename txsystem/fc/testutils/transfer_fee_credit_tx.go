@@ -68,7 +68,7 @@ func WithBacklink(backlink []byte) TransferFeeCreditOption {
 	}
 }
 
-func WithTargetSystemID(systemID []byte) TransferFeeCreditOption {
+func WithTargetSystemID(systemID types.SystemID) TransferFeeCreditOption {
 	return func(tx *transactions.TransferFeeCreditAttributes) TransferFeeCreditOption {
 		tx.TargetSystemIdentifier = systemID
 		return nil

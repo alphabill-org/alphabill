@@ -22,7 +22,7 @@ const (
 	ErrStrInvalidUnitID         = "invalid unit ID"
 	ErrStrInvalidTypeID         = "invalid type ID"
 	ErrStrInvalidParentTypeID   = "invalid parent type ID"
-	ErrStrSystemIdentifierIsNil = "system identifier is nil"
+	ErrStrInvalidSystemID       = "system identifier is not assigned"
 	ErrStrStateIsNil            = "state is nil"
 	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"
 	ErrStrInvalidNameLength     = "name length exceeds the allowed maximum of 256 bytes"
@@ -35,8 +35,8 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	for _, opt := range opts {
 		opt(options)
 	}
-	if options.systemIdentifier == nil {
-		return nil, errors.New(ErrStrSystemIdentifierIsNil)
+	if options.systemIdentifier == 0 {
+		return nil, errors.New(ErrStrInvalidSystemID)
 	}
 	if options.state == nil {
 		return nil, errors.New(ErrStrStateIsNil)

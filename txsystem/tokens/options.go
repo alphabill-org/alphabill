@@ -7,14 +7,15 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/types"
 )
 
-var DefaultSystemIdentifier = []byte{0, 0, 0, 2}
+const DefaultSystemIdentifier types.SystemID = 0x00000002
 
 type (
 	Options struct {
-		systemIdentifier        []byte
-		moneyTXSystemIdentifier []byte
+		systemIdentifier        types.SystemID
+		moneyTXSystemIdentifier types.SystemID
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
 		state                   *state.State
@@ -40,13 +41,13 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) Option {
+func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
 	return func(c *Options) {
 		c.systemIdentifier = systemIdentifier
 	}
 }
 
-func WithMoneyTXSystemIdentifier(moneySystemIdentifier []byte) Option {
+func WithMoneyTXSystemIdentifier(moneySystemIdentifier types.SystemID) Option {
 	return func(c *Options) {
 		c.moneyTXSystemIdentifier = moneySystemIdentifier
 	}

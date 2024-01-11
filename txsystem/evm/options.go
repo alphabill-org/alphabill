@@ -7,16 +7,17 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 const DefaultBlockGasLimit = 15000000
 const DefaultGasPrice = 210000000
 
-var DefaultEvmTxSystemIdentifier = []byte{0, 0, 0, 3}
+const DefaultEvmTxSystemIdentifier types.SystemID = 0x00000003
 
 type (
 	Options struct {
-		moneyTXSystemIdentifier []byte
+		moneyTXSystemIdentifier types.SystemID
 		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
@@ -30,7 +31,7 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
+		moneyTXSystemIdentifier: 1,
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		blockGasLimit:           DefaultBlockGasLimit,
@@ -62,7 +63,7 @@ func WithTrustBase(tb map[string]crypto.Verifier) Option {
 	}
 }
 
-func WithMoneyTXSystemIdentifier(moneyTxSystemID []byte) Option {
+func WithMoneyTXSystemIdentifier(moneyTxSystemID types.SystemID) Option {
 	return func(o *Options) {
 		o.moneyTXSystemIdentifier = moneyTxSystemID
 	}

@@ -7,17 +7,18 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var systemID = []byte{1, 0, 0, 1}
+const systemID types.SystemID = 0x01000001
 
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)

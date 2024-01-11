@@ -46,7 +46,7 @@ func createTxOrder(t *testing.T) *types.TransactionOrder {
 	transaction := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithAttributes([]byte{0, 0, 0, 0, 0, 0, 0}),
 		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
-		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithSystemID(1),
 		testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 100}),
 		testtransaction.WithPayloadType("test"),

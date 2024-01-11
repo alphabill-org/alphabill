@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
@@ -171,7 +171,7 @@ func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
 	block := &types.Block{
-		Header: &types.Header{SystemID: []byte{0, 0, 0, 1}},
+		Header: &types.Header{SystemID: 1},
 		Transactions: []*types.TransactionRecord{
 			{
 				TransactionOrder: &types.TransactionOrder{},
@@ -190,7 +190,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 
 func simulateEmptyInput(round uint64) *BlockAndState {
 	block := &types.Block{
-		Header:       &types.Header{SystemID: []byte{0, 0, 0, 1}},
+		Header:       &types.Header{SystemID: 1},
 		Transactions: []*types.TransactionRecord{},
 		UnicityCertificate: &types.UnicityCertificate{
 			InputRecord: &types.InputRecord{RoundNumber: round},

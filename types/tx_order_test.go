@@ -16,18 +16,18 @@ type Attributes struct {
 }
 
 var (
-	systemID                     = []byte{1, 0, 0, 1}
-	payloadAttributesType        = "transfer"
-	unitID                       = make([]byte, 32)
-	timeout               uint64 = 42
-	maxFee                uint64 = 69
-	feeCreditRecordID            = []byte{32, 32, 32, 32}
-	newBearer                    = []byte{1, 2, 3, 4}
-	targetValue           uint64 = 100
-	backlink                     = make([]byte, 32)
+	systemID              SystemID = 0x01000001
+	payloadAttributesType          = "transfer"
+	unitID                         = make([]byte, 32)
+	timeout               uint64   = 42
+	maxFee                uint64   = 69
+	feeCreditRecordID              = []byte{32, 32, 32, 32}
+	newBearer                      = []byte{1, 2, 3, 4}
+	targetValue           uint64   = 100
+	backlink                       = make([]byte, 32)
 
 	// 85                                       # array(5)
-	//   44                                     #   bytes(4)
+	//   1A                                     #   uint32
 	//      01000001                            #     "\x01\x00\x00\x01"
 	//   68                                     #   text(8)
 	//      7472616e73666572                    #     "transfer"
@@ -47,7 +47,7 @@ var (
 	//      44                                  #     bytes(4)
 	//         20202020                         #       "    "
 	payloadInHEX = "85" +
-		"4401000001" + // SystemID
+		"1A01000001" + // SystemID
 		"687472616E73666572" + // Type
 		"58200000000000000000000000000000000000000000000000000000000000000000" + // UnitID
 		"834401020304186458200000000000000000000000000000000000000000000000000000000000000000" + // Attributes
@@ -69,7 +69,7 @@ func TestMarshalNilPayload(t *testing.T) {
 
 func TestMarshalNilValuesInPayload(t *testing.T) {
 	order := &TransactionOrder{Payload: &Payload{
-		SystemID:       nil,
+		SystemID:       0,
 		Type:           "",
 		UnitID:         nil,
 		Attributes:     nil,
@@ -78,13 +78,13 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	payloadBytes, err := order.PayloadBytes()
 	require.NoError(t, err)
 	// 85    # array(5)
-	//   f6 #   null, simple(22)
+	//   00 #   zero, unsigned int
 	//   60 #   text(0)
 	//      #     ""
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
-	require.Equal(t, []byte{0x85, 0xf6, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
+	require.Equal(t, []byte{0x85, 0x00, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
 	require.NoError(t, cbor.Unmarshal(payloadBytes, payload))
@@ -95,7 +95,7 @@ func TestUnmarshalPayload(t *testing.T) {
 	payload := &Payload{}
 	require.NoError(t, cbor.Unmarshal(hexDecode(t, payloadInHEX), payload))
 
-	require.Equal(t, SystemID(systemID), payload.SystemID)
+	require.Equal(t, systemID, payload.SystemID)
 	require.Equal(t, payloadAttributesType, payload.Type)
 	require.Equal(t, UnitID(unitID), payload.UnitID)
 

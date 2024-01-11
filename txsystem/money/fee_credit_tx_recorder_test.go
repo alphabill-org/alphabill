@@ -11,14 +11,9 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
-var (
-	moneySystemIDString   = string(moneySystemID)
-	systemIDUnknown       = []byte{1, 2, 3, 4}
-	unknownSystemIDString = string(systemIDUnknown)
-)
-
 func TestTxRecording(t *testing.T) {
-	f := newFeeCreditTxRecorder(nil, nil, nil)
+	const systemIDUnknown types.SystemID = 0x01020304
+	f := newFeeCreditTxRecorder(nil, 0, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	transferFCAmount := uint64(10)
@@ -57,13 +52,13 @@ func TestTxRecording(t *testing.T) {
 		},
 	)
 
-	addedCredit := f.getAddedCredit(moneySystemIDString)
+	addedCredit := f.getAddedCredit(moneySystemID)
 	require.EqualValues(t, transferFCAmount-transferFCFee, addedCredit)
-	require.EqualValues(t, 0, f.getAddedCredit(unknownSystemIDString))
+	require.EqualValues(t, 0, f.getAddedCredit(systemIDUnknown))
 
-	reclaimedCredit := f.getReclaimedCredit(moneySystemIDString)
+	reclaimedCredit := f.getReclaimedCredit(moneySystemID)
 	require.EqualValues(t, closeFCAmount-closeFCFee, reclaimedCredit)
-	require.EqualValues(t, 0, f.getReclaimedCredit(unknownSystemIDString))
+	require.EqualValues(t, 0, f.getReclaimedCredit(systemIDUnknown))
 
 	spentFees := f.getSpentFeeSum()
 	require.EqualValues(t, transferFCFee+reclaimFCFee, spentFees)

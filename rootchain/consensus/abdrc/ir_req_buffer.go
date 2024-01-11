@@ -15,7 +15,7 @@ type (
 		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error)
 	}
 	PartitionTimeout interface {
-		GetT2Timeouts(currenRound uint64) ([]types.SystemID32, error)
+		GetT2Timeouts(currenRound uint64) ([]types.SystemID, error)
 	}
 	irChange struct {
 		InputRecord *types.InputRecord
@@ -23,16 +23,16 @@ type (
 		Req         *drctypes.IRChangeReq
 	}
 	IrReqBuffer struct {
-		irChgReqBuffer map[types.SystemID32]*irChange
+		irChgReqBuffer map[types.SystemID]*irChange
 		log            *slog.Logger
 	}
 
-	InProgressFn func(id32 types.SystemID32) *types.InputRecord
+	InProgressFn func(id32 types.SystemID) *types.InputRecord
 )
 
 func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 	return &IrReqBuffer{
-		irChgReqBuffer: make(map[types.SystemID32]*irChange),
+		irChgReqBuffer: make(map[types.SystemID]*irChange),
 		log:            log,
 	}
 }
@@ -75,13 +75,13 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 
 // IsChangeInBuffer returns true if there is a request for IR change from the partition
 // in the buffer
-func (x *IrReqBuffer) IsChangeInBuffer(id types.SystemID32) bool {
+func (x *IrReqBuffer) IsChangeInBuffer(id types.SystemID) bool {
 	_, found := x.irChgReqBuffer[id]
 	return found
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32, inProgress InProgressFn) *drctypes.Payload {
+func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID, inProgress InProgressFn) *drctypes.Payload {
 	payload := &drctypes.Payload{
 		Requests: make([]*drctypes.IRChangeReq, 0, len(x.irChgReqBuffer)+len(timeouts)),
 	}

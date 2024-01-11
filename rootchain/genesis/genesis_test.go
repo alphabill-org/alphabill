@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/partition/genesis"
@@ -249,7 +249,7 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 }
 
 func TestNewGenesis_Ok(t *testing.T) {
-	id := []byte{0, 0, 0, 1}
+	const id types.SystemID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
@@ -270,7 +270,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 }
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
-	id := []byte{0, 0, 0, 1}
+	const id types.SystemID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partitionSigner2, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -302,7 +302,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 }
 
 func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
-	id := []byte{0, 0, 0, 1}
+	const id types.SystemID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partitionSigner2, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -326,9 +326,9 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 }
 
 func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
-	systemIdentifier1 := []byte{0, 0, 0, 0}
-	systemIdentifier2 := []byte{0, 0, 0, 1}
-	systemIdentifier3 := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	const systemIdentifier1 types.SystemID = 2
+	const systemIdentifier2 types.SystemID = 1
+	const systemIdentifier3 types.SystemID = 0xFFFFFFFF
 
 	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
 	partitionSigner2, _ := testsig.CreateSignerAndVerifier(t)
@@ -357,7 +357,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 }
 
 func TestNewGenesis_AddSignature(t *testing.T) {
-	id := []byte{0, 0, 0, 1}
+	const id types.SystemID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
@@ -418,7 +418,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 }
 
 func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
-	id := []byte{0, 0, 0, 1}
+	const id types.SystemID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partition := createPartition(t, id, "1", partitionSigner)

@@ -77,7 +77,7 @@ signature and consists of the following (with example values):
 
 ```
 /Payload/ [
-    /SystemIdentifier/ h'00000000',
+    /SystemIdentifier/ 0x04030201,
     /Type/             "trans",
     /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
     /Attributes/       [/omitted, Type dependent/],
@@ -87,12 +87,13 @@ signature and consists of the following (with example values):
 
 Data items in the *Payload* array:
 
-1. *SystemIdentifier* (byte string) is a 4-byte identifier of the
+1. *SystemIdentifier* (32bit uint) is a 4-byte identifier of the
 transaction system/partition that is supposed to execute the
 transaction. *SystemIdentifier*s currently in use:
 
-    - *h'00000000'* - money partition
-    - *h'00000002'* - tokens partition 
+    - `0x00000001` - money partition
+    - `0x00000002` - tokens partition 
+    - `0x00000003` - EVM partition 
 
 2. *Type* (text string) is the type of the transaction. See section
 [Transaction Types](#transaction-types) for the list of supported values and
@@ -156,7 +157,7 @@ partition.
 
 #### Money Partition
 
-System identifier: h'00000000'
+System identifier: 0x00000001
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
@@ -429,7 +430,7 @@ Fee Credit](#add-fee-credit) transaction.
 ```
 /transFCAttributes/ [
     /Amount/                 100000000,
-    /TargetSystemIdentifier/ h'00000002',
+    /TargetSystemIdentifier/ 0x00000002,
     /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
@@ -441,7 +442,7 @@ Fee Credit](#add-fee-credit) transaction.
 1. *Amount* (unsigned integer) is the amount of money to reserve for
    paying fees in the target partition. A bill can be transferred to
    partially.
-2. *TargetSystemIdentifier* (byte string) is the system identifier of
+2. *TargetSystemIdentifier* (32bit uint) is the system identifier of
    the target partition where the *Amount* can be spent on fees.
 3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
@@ -563,7 +564,7 @@ with [Lock Bill](#lock-bill) transaction.
 
 #### Tokens Partition
 
-System identifier: *h'00000002'*
+System identifier: *0x00000002*
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
@@ -919,15 +920,14 @@ Extended Diagnostic Notation to raw hex encoded CBOR format.
 
 Raw hex encoded transaction:
 ```
-838544000000006573706c697458210000000000000000000000000000000000000000000000000000000000000001008382821a05f5e100582683000281582062c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d821a0bebc2005826830002815820411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a1b0de0b6b389969afd5820d064c1fb52b454760e29bf9c3012cb893bf8a4d633bc9a71b50ba51166b27c938319024f015821b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa00f5867825841d80b1a7b9777f00a7975a90a5d16773458678febbb3cef9e3d1e2df6659ed21d0295ea32b13843ffbd160f51813397c7c3217c5ea8b15955ac0c4378c16fe40b0058210227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
+8385016573706c697458210000000000000000000000000000000000000000000000000000000000000001008382821a05f5e100582683000281582062c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d821a0bebc2005826830002815820411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a1b0de0b6b389969afd5820d064c1fb52b454760e29bf9c3012cb893bf8a4d633bc9a71b50ba51166b27c938319024f015821b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa00f5867825841d80b1a7b9777f00a7975a90a5d16773458678febbb3cef9e3d1e2df6659ed21d0295ea32b13843ffbd160f51813397c7c3217c5ea8b15955ac0c4378c16fe40b0058210227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
 ```
 
 Same hex encoded data with annotations:
 ```
 83                                      # array(3)
    85                                   # array(5)
-      44                                # bytes(4)
-         00000000                       # "\u0000\u0000\u0000\u0000"
+      01                                # unsigned(1)
       65                                # text(5)
          73706C6974                     # "split"
       58 21                             # bytes(33)
@@ -959,7 +959,7 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ h'00000000',
+        /SystemIdentifier/ 1,
         /Type/             "split",
         /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
         /splitAttributes/ [
@@ -991,15 +991,14 @@ Extended Diagnostic Notation with annotations:
 
 Raw hex encoded transaction:
 ```
-83854400000000657472616e7358216f1d819ff441c203faa98133ac5acf3ab04d398a6a26d5f79794a7241cce166f0083582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc200582062a0acc76c31d9f8c5e7009cafec766af40a7fddb3a7b8aa8ce804a85033b1fd83182401582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f58675354015fbc6496ffa12d63a145e817495b0fdc7d59fe9a4e5263b84af13ffaacdc3421308c602f19bfc92c9f6b2b036f37a94e65fd5bcc8539775f2559b65cb8b4b733015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
+838501657472616e7358216f1d819ff441c203faa98133ac5acf3ab04d398a6a26d5f79794a7241cce166f0083582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc200582062a0acc76c31d9f8c5e7009cafec766af40a7fddb3a7b8aa8ce804a85033b1fd83182401582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f58675354015fbc6496ffa12d63a145e817495b0fdc7d59fe9a4e5263b84af13ffaacdc3421308c602f19bfc92c9f6b2b036f37a94e65fd5bcc8539775f2559b65cb8b4b733015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
 ```
 
 Same hex encoded data with annotations:
 ```
 83                                      # array(3)
    85                                   # array(5)
-      44                                # bytes(4)
-         00000000                       # "\u0000\u0000\u0000\u0000"
+      01                                # unsigned(1)
       65                                # text(5)
          7472616E73                     # "trans"
       58 21                             # bytes(33)
@@ -1024,7 +1023,7 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ h'00000000',
+        /SystemIdentifier/ 1,
         /Type/             "trans",
         /UnitID/           h'6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00',
         /transAttributes/ [

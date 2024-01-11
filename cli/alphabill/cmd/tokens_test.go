@@ -123,7 +123,7 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 
 		// failing case
-		tx.Payload.SystemID = []byte{1, 0, 0, 0} // incorrect system id
+		tx.Payload.SystemID = 0x01000000 // incorrect system id
 		txBytes, err = cbor.Marshal(tx)
 		require.NoError(t, err)
 		protoTx = &alphabill.Transaction{Order: txBytes}

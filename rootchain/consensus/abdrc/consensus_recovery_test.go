@@ -277,7 +277,7 @@ func Test_recoverState(t *testing.T) {
 	}
 
 	partitionRecs := []*genesis.PartitionRecord{
-		createPartitionRecord(t, partitionID.ToSystemID(), partitionInputRecord, 2),
+		createPartitionRecord(t, partitionID, partitionInputRecord, 2),
 	}
 
 	t.Run("late joiner catches up", func(t *testing.T) {
@@ -793,7 +793,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	return cms, nw, rootG
 }
 
-func createPartitionRecord(t *testing.T, systemID []byte, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
+func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{

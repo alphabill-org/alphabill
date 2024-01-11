@@ -162,7 +162,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 	attr, err := cbor.Marshal(
 		&transactions.TransferFeeCreditAttributes{
 			Amount:                 feeAmount,
-			TargetSystemIdentifier: []byte{0, 0, 0, 0},
+			TargetSystemIdentifier: 1,
 			TargetRecordID:         targetUnitID,
 			EarliestAdditionTime:   t1,
 			LatestAdditionTime:     t2,
@@ -173,7 +173,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 	}
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       []byte{0, 0, 0, 0},
+			SystemID:       1,
 			Type:           transactions.PayloadTypeTransferFeeCredit,
 			UnitID:         unitID,
 			Attributes:     attr,
@@ -197,7 +197,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       []byte{0, 0, 0, 0},
+			SystemID:       1,
 			Type:           transactions.PayloadTypeAddFeeCredit,
 			UnitID:         unitID,
 			Attributes:     attr,
@@ -220,7 +220,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 	}
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:   []byte{0, 0, 0, 0},
+			SystemID:   1,
 			Type:       money.PayloadTypeTransfer,
 			UnitID:     unitID,
 			Attributes: attr,

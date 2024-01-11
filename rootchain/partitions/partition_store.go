@@ -24,7 +24,7 @@ type (
 	// PartitionStore stores partition related information. key of the map is system identifier.
 	PartitionStore struct {
 		mu         sync.Mutex
-		partitions map[types.SystemID32]*PartitionInfo
+		partitions map[types.SystemID]*PartitionInfo
 	}
 
 	MsgVerification interface {
@@ -59,12 +59,8 @@ func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {
 
 // NewPartitionStoreFromGenesis creates a new partition store from root genesis.
 func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) (*PartitionStore, error) {
-	parts := make(map[types.SystemID32]*PartitionInfo)
+	parts := make(map[types.SystemID]*PartitionInfo)
 	for _, partition := range partitions {
-		sysID, err := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
-		if err != nil {
-			return nil, err
-		}
 		trustBase := make(map[string]abcrypto.Verifier)
 		for _, node := range partition.Nodes {
 			ver, err := abcrypto.NewVerifierSecp256k1(node.SigningPublicKey)
@@ -73,13 +69,15 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[sysID] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
-			Verifier: NewPartitionTrustBase(trustBase)}
+		parts[partition.SystemDescriptionRecord.SystemIdentifier] = &PartitionInfo{
+			SystemDescription: partition.SystemDescriptionRecord,
+			Verifier:          NewPartitionTrustBase(trustBase),
+		}
 	}
 	return &PartitionStore{partitions: parts}, nil
 }
 
-func (ps *PartitionStore) GetInfo(id types.SystemID32) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error) {
+func (ps *PartitionStore) GetInfo(id types.SystemID) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	info, f := ps.partitions[id]

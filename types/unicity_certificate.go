@@ -19,7 +19,7 @@ type UnicityCertificate struct {
 	UnicitySeal            *UnicitySeal            `json:"unicity_seal,omitempty"`
 }
 
-func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier, systemDescriptionHash []byte) error {
+func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier SystemID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrUnicityCertificateIsNil
 	}

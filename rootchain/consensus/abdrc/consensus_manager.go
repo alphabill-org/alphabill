@@ -71,7 +71,7 @@ type (
 		certResultCh chan *types.UnicityCertificate
 		// internal buffer for "certification request" response to allow CM to
 		// continue without waiting validator to consume the response
-		ucSink         chan map[types.SystemID32]*types.UnicityCertificate
+		ucSink         chan map[types.SystemID]*types.UnicityCertificate
 		params         *consensus.Parameters
 		id             peer.ID
 		net            RootNet
@@ -156,7 +156,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan certRequest),
 		certResultCh:   make(chan *types.UnicityCertificate),
-		ucSink:         make(chan map[types.SystemID32]*types.UnicityCertificate, 1),
+		ucSink:         make(chan map[types.SystemID]*types.UnicityCertificate, 1),
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
@@ -277,7 +277,7 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
+func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
 	return x.blockStore.GetCertificate(id)
 }
 
@@ -766,7 +766,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 	// pending certificates, to be consumed by the validator.
 	// access to it is "serialized" ie we either update it with
 	// new certs sent by CM or we feed it's content to validator
-	certs := make(map[types.SystemID32]*types.UnicityCertificate)
+	certs := make(map[types.SystemID]*types.UnicityCertificate)
 
 	feedValidator := func(ctx context.Context) chan struct{} {
 		stopped := make(chan struct{})

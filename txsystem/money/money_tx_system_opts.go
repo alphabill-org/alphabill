@@ -7,13 +7,14 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
+	"github.com/alphabill-org/alphabill/types"
 )
 
-var DefaultSystemIdentifier = []byte{0, 0, 0, 0}
+const DefaultSystemIdentifier types.SystemID = 0x00000001
 
 type (
 	Options struct {
-		systemIdentifier         []byte
+		systemIdentifier         types.SystemID
 		state                    *state.State
 		hashAlgorithm            gocrypto.Hash
 		trustBase                map[string]crypto.Verifier
@@ -33,7 +34,7 @@ func DefaultOptions() *Options {
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) Option {
+func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
 	return func(g *Options) {
 		g.systemIdentifier = systemIdentifier
 	}

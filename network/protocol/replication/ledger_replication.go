@@ -73,7 +73,7 @@ func (r *LedgerReplicationRequest) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationReqIsNil
 	}
-	if len(r.SystemIdentifier) != types.SystemIdentifierLength {
+	if r.SystemIdentifier == 0 {
 		return ErrInvalidSystemIdentifier
 	}
 	if r.NodeIdentifier == "" {

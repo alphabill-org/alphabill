@@ -144,7 +144,7 @@ local restPort=0
     money)
       home="testab/money"
       key_files="testab/money*/money/keys.json"
-      genesis_file="testab/rootchain1/rootchain/partition-genesis-0.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
       aPort=26666
       grpcPort=26766
       restPort=26866

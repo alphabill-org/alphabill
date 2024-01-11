@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	utDirectory     = "tokens"
-	utGenesisDir    = "ut-genesis"
+	utDirectory  = "tokens"
+	utGenesisDir = "ut-genesis"
 )
 
 func TestTokensGenesis_KeyFileNotFound(t *testing.T) {
@@ -111,7 +111,7 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101" + " --home " + homeDir
+	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01020304" + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -121,5 +121,5 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
+	require.EqualValues(t, 0o1020304, pn.BlockCertificationRequest.SystemIdentifier)
 }

@@ -23,7 +23,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	tree := abstate.NewEmptyState()
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 3},
+		systemIdentifier: 3,
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    100000000000,
 		log:              observe.Logger(),
@@ -55,7 +55,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    100000000000,
 		log:              observe.Logger(),
@@ -105,7 +105,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
@@ -141,7 +141,7 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
@@ -177,7 +177,7 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
@@ -214,7 +214,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
@@ -250,7 +250,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
@@ -282,7 +282,7 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 
 	a := &API{
 		state:            tree,
-		systemIdentifier: []byte{0, 0, 0, 1},
+		systemIdentifier: 1,
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    100000000000,
 		log:              observe.Logger(),

@@ -14,6 +14,7 @@ import (
 
 type (
 	InputData struct {
+		_     struct{}           `cbor:",toarray"`
 		SysID types.SystemID     `json:"systemIdentifier"`
 		IR    *types.InputRecord `json:"ir"`
 		Sdrh  []byte             `json:"sdrh"` // System Description Record Hash
@@ -23,6 +24,7 @@ type (
 	SysIDList    []types.SystemID
 
 	ExecutedBlock struct {
+		_         struct{}             `cbor:",toarray"`
 		BlockData *drctypes.BlockData  `json:"block"`         // proposed block
 		CurrentIR InputRecords         `json:"inputData"`     // all input records in this block
 		Changed   SysIDList            `json:"changed"`       // changed partition system identifiers

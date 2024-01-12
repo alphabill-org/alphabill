@@ -326,7 +326,9 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		nd.proofDB = memorydb.New()
+		if nd.proofDB, err = memorydb.New(); err != nil {
+			return fmt.Errorf("creating proof DB: %w", err)
+		}
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,

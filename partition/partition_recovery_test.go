@@ -112,7 +112,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 // the proposal is valid and must be restored correctly since the latest UC will certify it
 // that is, node does not need to send replication request, but instead should restore proposal and accept UC to finalize the block
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR(t *testing.T) {
-	store := memorydb.New()
+	store, err := memorydb.New()
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -158,7 +159,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
-	store := memorydb.New()
+	store, err := memorydb.New()
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -195,7 +197,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err := tp.CreateUnicityCertificate(
+	uc, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -211,7 +213,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
-	store := memorydb.New()
+	store, err := memorydb.New()
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -236,7 +239,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err := tp.CreateUnicityCertificate(
+	uc, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -252,7 +255,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
-	store := memorydb.New()
+	store, err := memorydb.New()
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -279,7 +283,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	// since there's no proposal, the node will start a new round (the one that has been already finalized)
 	ir := uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber += 1
-	uc, err := tp.CreateUnicityCertificate(
+	uc, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -711,7 +715,8 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 
 func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
@@ -784,7 +789,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 
 func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
@@ -857,7 +863,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 
 func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))

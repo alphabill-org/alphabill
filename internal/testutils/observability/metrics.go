@@ -170,6 +170,12 @@ func testID(t *testing.T) int64 {
 	}
 	id := rand.Int63() // #nosec G404
 	reg[t] = id
+	t.Cleanup(func() {
+		m.Lock()
+		delete(reg, t)
+		m.Unlock()
+	})
+
 	return id
 }
 

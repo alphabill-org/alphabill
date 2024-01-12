@@ -243,7 +243,7 @@ func initStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
 	if dbFile != "" {
 		return boltdb.New(dbFile)
 	}
-	return memorydb.New(), nil
+	return memorydb.New()
 }
 
 func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error) {

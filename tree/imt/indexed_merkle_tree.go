@@ -153,8 +153,8 @@ func (s *IMT) GetMerklePath(leafIdx []byte) ([]*PathItem, error) {
 
 // PrettyPrint returns human readable string representation of the Merkle Tree.
 func (s *IMT) PrettyPrint() string {
-	if s.root == nil {
-		return "tree is empty"
+	if s == nil || s.root == nil {
+		return "────┤ empty"
 	}
 	out := ""
 	s.output(s.root, "", false, &out)
@@ -185,25 +185,25 @@ func (s *IMT) output(node *node, prefix string, isTail bool, str *string) {
 	if node.right != nil {
 		newPrefix := prefix
 		if isTail {
-			newPrefix += "│   "
+			newPrefix += "│\t"
 		} else {
-			newPrefix += "    "
+			newPrefix += "\t"
 		}
 		s.output(node.right, newPrefix, false, str)
 	}
 	*str += prefix
 	if isTail {
-		*str += "└── "
+		*str += "└──"
 	} else {
-		*str += "┌── "
+		*str += "┌──"
 	}
 	*str += fmt.Sprintf("i: %x, %X\n", node.index, node.hash)
 	if node.left != nil {
 		newPrefix := prefix
 		if isTail {
-			newPrefix += "    "
+			newPrefix += "\t"
 		} else {
-			newPrefix += "│   "
+			newPrefix += "│\t"
 		}
 		s.output(node.left, newPrefix, true, str)
 	}

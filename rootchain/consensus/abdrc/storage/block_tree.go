@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -98,11 +99,22 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	sort.Slice(blocks, func(i, j int) bool {
 		return blocks[i].GetRound() < blocks[j].GetRound()
 	})
-	// first block must always be a committed block
-	rootNode := newNode(blocks[0])
+	// find root
+	rootIdx := 0
+	for commitIdx := len(blocks) - 1; commitIdx >= 0; commitIdx-- {
+		if rootRound := blocks[commitIdx].BlockData.Qc.GetCommitRound(); rootRound != 0 {
+			idx := slices.IndexFunc(blocks, func(b *ExecutedBlock) bool { return b.GetRound() == rootRound })
+			if idx == -1 {
+				return nil, fmt.Errorf("committed root block not found")
+			}
+			rootIdx = idx
+			break
+		}
+	}
+	rootNode := newNode(blocks[rootIdx])
 	hQC = rootNode.data.BlockData.Qc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
-	for i := 1; i < len(blocks); i++ {
+	for i := rootIdx + 1; i < len(blocks); i++ {
 		block := blocks[i]
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[block.GetParentRound()]

@@ -55,6 +55,13 @@ func (x *QuorumCert) GetParentRound() uint64 {
 	return 0
 }
 
+func (x *QuorumCert) GetCommitRound() uint64 {
+	if x.LedgerCommitInfo != nil && x.LedgerCommitInfo.Hash != nil {
+		return x.LedgerCommitInfo.RootChainRoundNumber
+	}
+	return 0
+}
+
 func (x *QuorumCert) IsValid() error {
 	if x.VoteInfo == nil {
 		return errVoteInfoIsNil
@@ -69,7 +76,7 @@ func (x *QuorumCert) IsValid() error {
 	}
 	// todo: should call x.LedgerCommitInfo.IsValid but that requires some refactoring
 	// not to require trustbase parameter?
-	// For root validator commit state id can be empty
+	// For root validator PreviousHash can be empty, it always contains vote info hash
 	if len(x.LedgerCommitInfo.PreviousHash) < 1 {
 		return errInvalidRoundInfoHash
 	}

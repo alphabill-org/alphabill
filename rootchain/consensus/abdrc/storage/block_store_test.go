@@ -3,8 +3,10 @@ package storage
 import (
 	gocrypto "crypto"
 	"fmt"
+	"strings"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -87,33 +89,52 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	db := memorydb.New()
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create second root
-	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
+	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
+	b10 := fakeBlock(10, &drctypes.QuorumCert{
+		VoteInfo: vInfo9,
+		LedgerCommitInfo: &types.UnicitySeal{
+			PreviousHash: vInfo9.Hash(gocrypto.SHA256),
+		},
+	})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
-	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
+	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
+	b9 := fakeBlock(9, &drctypes.QuorumCert{
+		VoteInfo: vInfo8,
+		LedgerCommitInfo: &types.UnicitySeal{
+			PreviousHash:         vInfo8.Hash(gocrypto.SHA256),
+			RootChainRoundNumber: 8,
+			Hash:                 test.RandomBytes(32),
+		},
+	})
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
-	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
+	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
+	b8 := fakeBlock(8, &drctypes.QuorumCert{
+		VoteInfo: vInfo7,
+		LedgerCommitInfo: &types.UnicitySeal{
+			PreviousHash:         vInfo7.Hash(gocrypto.SHA256),
+			RootChainRoundNumber: 7,
+			Hash:                 test.RandomBytes(32),
+		},
+	})
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	// keep the DB clean, only one chain should be in the DB at all times
 	bStore, err := New(gocrypto.SHA256, pg, db)
-	require.EqualError(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
-	require.Nil(t, bStore)
-	/*
-		// although store contains more than one root, the latest is preferred
-		require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
-		// first root is cleaned up
-		itr := db.Find([]byte(blockPrefix))
-		defer func() { require.NoError(t, itr.Close()) }()
-		i := 0
-		// the db now contains blocks 8,9,10 the old blocks have been cleaned up
-		for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
-			var b ExecutedBlock
-			require.NoError(t, itr.Value(&b))
-			require.EqualValues(t, 8+i, b.GetRound())
-			i++
-		}
-		require.EqualValues(t, 3, i)
-	*/
+	require.NoError(t, err)
+	// although store contains more than one root, the latest is preferred
+	require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
+	// first root is cleaned up
+	itr := db.Find([]byte(blockPrefix))
+	defer func() { require.NoError(t, itr.Close()) }()
+	i := 0
+	// the db now contains blocks 8,9,10 the old blocks have been cleaned up
+	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
+		var b ExecutedBlock
+		require.NoError(t, itr.Value(&b))
+		require.EqualValues(t, 8+i, b.GetRound())
+		i++
+	}
+	require.EqualValues(t, 3, i)
+
 }
 
 func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {

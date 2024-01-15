@@ -3,11 +3,9 @@ package imt
 import (
 	"bytes"
 	"crypto"
-	"errors"
 	"fmt"
+	"hash"
 )
-
-var ErrIndexOutOfBounds = errors.New("index out of bounds")
 
 const (
 	Leaf byte = 0
@@ -20,21 +18,26 @@ type (
 		dataLength int // number of leaves
 	}
 
-	Pair struct {
+	// Data for calculating hash of leaf data
+	Data interface {
+		AddToHasher(hasher hash.Hash)
+	}
+
+	// LeafData index tree leaf. NB! Index tree leaves must be sorted lexicographically in strictly ascending order
+	LeafData struct {
 		Index []byte
 		Data  Data
 	}
-
-	Data interface {
-		Hash(hashAlgorithm crypto.Hash) []byte
-	}
-
-	// PathItem helper struct for proof extraction, contains Hash and Direction from parent node
+	// PathItem helper struct for proof extraction, contains Hash and Index of node
 	PathItem struct {
 		Index []byte
 		Hash  []byte
 	}
 
+	pair struct {
+		index    []byte
+		dataHash []byte
+	}
 	node struct {
 		left  *node
 		right *node
@@ -50,60 +53,42 @@ func (n *node) isLeaf() bool {
 	return false
 }
 
-func (p *Pair) Hash(hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write([]byte{Leaf})
-	hasher.Write(p.Index)
-	hasher.Write(p.Data.Hash(hashAlgorithm))
-	return hasher.Sum(nil)
-}
-
 // New creates a new indexed Merkle Tree.
-func New(hashAlgorithm crypto.Hash, data []Pair) (*IMT, error) {
-	if len(data) == 0 {
+func New(hashAlgorithm crypto.Hash, leaves []LeafData) (*IMT, error) {
+	if len(leaves) == 0 {
 		return &IMT{root: nil, dataLength: 0}, nil
 	}
 	// validate order - perhaps could just sort here instead?
-	for i := len(data) - 1; i > 0; i-- {
-		if bytes.Compare(data[i].Index, data[i-1].Index) != 1 {
+	for i := len(leaves) - 1; i > 0; i-- {
+		if bytes.Compare(leaves[i].Index, leaves[i-1].Index) != 1 {
 			return nil, fmt.Errorf("data not sorted by index in not strictly ascending order")
 		}
 	}
-	return &IMT{root: createMerkleTree(data, hashAlgorithm), dataLength: len(data)}, nil
-}
-
-// EvalMerklePath returns root hash calculated from the given leaf and path items
-func EvalMerklePath(merklePath []*PathItem, leaf Pair, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
-	h := leaf.Hash(hashAlgorithm)
-	for _, item := range merklePath {
-		if bytes.Compare(leaf.Index, item.Index) == 1 {
-			// index > item.Index is bigger - left link
-			hasher.Write([]byte{Node})
-			hasher.Write(item.Index)
-			hasher.Write(item.Hash)
-			hasher.Write(h)
-		} else {
-			// index <= item.Index is smaller or equal right link
-			hasher.Write([]byte{Node})
-			hasher.Write(item.Index)
-			hasher.Write(h)
-			hasher.Write(item.Hash)
-		}
-		h = hasher.Sum(nil)
+	// calculate data hash for leaves
+	pairs := make([]pair, len(leaves))
+	for i, l := range leaves {
+		l.Data.AddToHasher(hasher)
+		pairs[i] = pair{index: l.Index, dataHash: hasher.Sum(nil)}
 		hasher.Reset()
 	}
-	return h
+	return &IMT{root: createMerkleTree(pairs, hasher), dataLength: len(pairs)}, nil
 }
 
-// IndexTreeOutput calculates the output hash of the chain.
+// IndexTreeOutput calculates the output hash of the index Merkle tree hash chain.
 func IndexTreeOutput(merklePath []*PathItem, index []byte, data Data, hashAlgorithm crypto.Hash) []byte {
-	leaf := Pair{
-		Index: index,
-		Data:  data,
-	}
 	hasher := hashAlgorithm.New()
-	h := leaf.Hash(hashAlgorithm)
+	// calculate data hash
+	data.AddToHasher(hasher)
+	dataHash := hasher.Sum(nil)
+	hasher.Reset()
+	// calculate leaf hash
+	hasher.Write([]byte{Leaf})
+	hasher.Write(index)
+	hasher.Write(dataHash)
+	h := hasher.Sum(nil)
+	hasher.Reset()
+	// follow hash chain
 	for _, item := range merklePath {
 		if bytes.Compare(index, item.Index) == 1 {
 			// index > item.Index is bigger - left link
@@ -124,7 +109,7 @@ func IndexTreeOutput(merklePath []*PathItem, index []byte, data Data, hashAlgori
 	return h
 }
 
-// GetRootHash returns the root Hash of the Merkle Tree.
+// GetRootHash returns the root Hash of the indexed Merkle tree.
 func (s *IMT) GetRootHash() []byte {
 	if s.root == nil {
 		return nil
@@ -132,7 +117,7 @@ func (s *IMT) GetRootHash() []byte {
 	return s.root.hash
 }
 
-// GetMerklePath extracts the merkle path from the given leaf to root.
+// GetMerklePath extracts the indexed merkle hash chain from the given leaf to root.
 func (s *IMT) GetMerklePath(leafIdx []byte) ([]*PathItem, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("tree empty")
@@ -151,7 +136,7 @@ func (s *IMT) GetMerklePath(leafIdx []byte) ([]*PathItem, error) {
 	return z, nil
 }
 
-// PrettyPrint returns human readable string representation of the Merkle Tree.
+// PrettyPrint returns a human-readable string representation of the indexed Merkle tree.
 func (s *IMT) PrettyPrint() string {
 	if s == nil || s.root == nil {
 		return "────┤ empty"
@@ -161,24 +146,28 @@ func (s *IMT) PrettyPrint() string {
 	return out
 }
 
-func createMerkleTree(data []Pair, hashAlgorithm crypto.Hash) *node {
-	if len(data) == 0 {
-		return &node{hash: make([]byte, hashAlgorithm.Size())}
+func createMerkleTree(pairs []pair, hasher hash.Hash) *node {
+	if len(pairs) == 0 {
+		return &node{hash: make([]byte, hasher.Size())}
 	}
-	if len(data) == 1 {
-		return &node{index: data[0].Index, hash: data[0].Hash(hashAlgorithm)}
+	if len(pairs) == 1 {
+		hasher.Reset()
+		hasher.Write([]byte{Leaf})
+		hasher.Write(pairs[0].index)
+		hasher.Write(pairs[0].dataHash)
+		return &node{index: pairs[0].index, hash: hasher.Sum(nil)}
 	}
-	m := (len(data) + 1) / 2
-	leftSub := data[:m]
-	rightSub := data[m:]
-	hasher := hashAlgorithm.New()
-	left := createMerkleTree(leftSub, hashAlgorithm)
-	right := createMerkleTree(rightSub, hashAlgorithm)
+	m := (len(pairs) + 1) / 2
+	leftSub := pairs[:m]
+	rightSub := pairs[m:]
+	left := createMerkleTree(leftSub, hasher)
+	right := createMerkleTree(rightSub, hasher)
+	hasher.Reset()
 	hasher.Write([]byte{Node})
-	hasher.Write(leftSub[len(leftSub)-1].Index)
+	hasher.Write(leftSub[len(leftSub)-1].index)
 	hasher.Write(left.hash)
 	hasher.Write(right.hash)
-	return &node{index: leftSub[len(leftSub)-1].Index, left: left, right: right, hash: hasher.Sum(nil)}
+	return &node{index: leftSub[len(leftSub)-1].index, left: left, right: right, hash: hasher.Sum(nil)}
 }
 
 func (s *IMT) output(node *node, prefix string, isTail bool, str *string) {

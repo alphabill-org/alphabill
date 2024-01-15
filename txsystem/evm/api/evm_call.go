@@ -92,7 +92,7 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 		err = clonedState.Apply(statedb.SetBalance(call.From, math.MaxBig256))
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to set fake balance %w", err)
+		return nil, fmt.Errorf("failed to set fake balance: %w", err)
 	}
 	// Execute the call.
 	msg := &core.Message{
@@ -107,7 +107,11 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 		AccessList:        ethtypes.AccessList{},
 		SkipAccountChecks: true,
 	}
-	blockCtx := evm.NewBlockContext(blockNumber, memorydb.New())
+	db, err := memorydb.New()
+	if err != nil {
+		return nil, fmt.Errorf("creating block DB: %w", err)
+	}
+	blockCtx := evm.NewBlockContext(blockNumber, db)
 	simEvm := vm.NewEVM(blockCtx, evm.NewTxContext(call, a.gasUnitPrice), stateDB, evm.NewChainConfig(new(big.Int).SetBytes(a.systemIdentifier.Bytes())), evm.NewVMConfig())
 	// Apply the transaction to the current state (included in the env)
 	return core.ApplyMessage(simEvm, msg, gp)

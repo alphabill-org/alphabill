@@ -46,27 +46,30 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		return nil, fmt.Errorf("signing key error, %w", err)
 	}
 	// load optional parameters
-	optional := consensus.LoadConf(opts)
+	optional, err := consensus.LoadConf(opts)
+	if err != nil {
+		return nil, fmt.Errorf("loading optional configuration: %w", err)
+	}
 	// Initiate store
 	storage := NewStateStore(optional.Storage)
 	empty, err := storage.IsEmpty()
 	if err != nil {
-		return nil, fmt.Errorf("storage init db empty check failed, %w", err)
+		return nil, fmt.Errorf("storage init db empty check failed: %w", err)
 	}
 	if empty {
 		// init form genesis
 		log.Info("Consensus init from genesis")
 		if err = storage.Init(rg); err != nil {
-			return nil, fmt.Errorf("consneus manager genesis init failed, %w", err)
+			return nil, fmt.Errorf("consensus manager genesis init failed: %w", err)
 		}
 	}
 	lastIR, err := storage.GetLastCertifiedInputRecords()
 	if err != nil {
-		return nil, fmt.Errorf("restore root state from DB failed, %w", err)
+		return nil, fmt.Errorf("restore root state from DB failed: %w", err)
 	}
 	lastRound, err := storage.GetRound()
 	if err != nil {
-		return nil, fmt.Errorf("restore root round from DB failed, %w", err)
+		return nil, fmt.Errorf("restore root round from DB failed: %w", err)
 	}
 	consensusParams := consensus.NewConsensusParams(rg.Root)
 	consensusManager := &ConsensusManager{

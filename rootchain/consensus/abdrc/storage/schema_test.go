@@ -24,18 +24,21 @@ func TestBlockKey(t *testing.T) {
 
 func TestWriteReadLastVote(t *testing.T) {
 	t.Run("error - store proposal", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		proposal := abdrc.ProposalMsg{}
 		require.ErrorContains(t, WriteVote(db, proposal), "unknown vote type")
 	})
 	t.Run("read blank store", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		msg, err := ReadVote(db)
 		require.NoError(t, err)
 		require.Nil(t, msg)
 	})
 	t.Run("ok - store vote", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		vote := &abdrc.VoteMsg{Author: "test"}
 		require.NoError(t, WriteVote(db, vote))
 		// read back
@@ -45,7 +48,8 @@ func TestWriteReadLastVote(t *testing.T) {
 		require.Equal(t, "test", msg.(*abdrc.VoteMsg).Author)
 	})
 	t.Run("ok - store timeout vote", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		vote := &abdrc.TimeoutMsg{Timeout: &abtypes.Timeout{Round: 1}, Author: "test"}
 		require.NoError(t, WriteVote(db, vote))
 		// read back

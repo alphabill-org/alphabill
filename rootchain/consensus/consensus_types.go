@@ -2,6 +2,7 @@ package consensus
 
 import (
 	gocrypto "crypto"
+	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -42,15 +43,20 @@ func WithStorage(db keyvaluedb.KeyValueDB) Option {
 	}
 }
 
-func LoadConf(opts []Option) *Optional {
-	conf := &Optional{
-		Storage: memorydb.New(),
-	}
+func LoadConf(opts []Option) (*Optional, error) {
+	conf := &Optional{}
 	for _, opt := range opts {
 		if opt == nil {
 			continue
 		}
 		opt(conf)
 	}
-	return conf
+
+	if conf.Storage == nil {
+		var err error
+		if conf.Storage, err = memorydb.New(); err != nil {
+			return nil, fmt.Errorf("creating storage: %w", err)
+		}
+	}
+	return conf, nil
 }

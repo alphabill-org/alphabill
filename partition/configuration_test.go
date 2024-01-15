@@ -89,7 +89,8 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	blockStore := memorydb.New()
+	blockStore, err := memorydb.New()
+	require.NoError(t, err)
 	selector := NewDefaultLeaderSelector()
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)

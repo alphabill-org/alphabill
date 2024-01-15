@@ -45,7 +45,9 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 
 func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
-	bStore, err := New(gocrypto.SHA256, pg, memorydb.New())
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.NoError(t, err)
 	return bStore
 }
@@ -87,7 +89,8 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 }
 
 func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create second root
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
@@ -120,7 +123,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 }
 
 func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create a second chain, that has no root
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})

@@ -108,7 +108,8 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 */
 func createTestBlockTree(t *testing.T) *BlockTree {
 	treeNodes := make(map[uint64]*node)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	rootNode := &node{data: &ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B5", Round: 5}}}
 	b6 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B6", Round: 6, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 5}}}})
 	b7 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B7", Round: 7, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 6}}}})
@@ -156,7 +157,8 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	require.NoError(t, blockStoreGenesisInit(gBlock, db))
 	btree, err := NewBlockTree(db)
 	require.NoError(t, err)
@@ -301,7 +303,8 @@ func TestNewBlockTree(t *testing.T) {
 }
 
 func TestNewBlockTreeFromDb(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
@@ -332,8 +335,8 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 }
 
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
-	db := memorydb.New()
-
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -394,7 +397,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 }
 
 func TestNewBlockTreeFromRecovery(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3

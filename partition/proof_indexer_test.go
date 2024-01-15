@@ -17,7 +17,8 @@ import (
 type mockStateStoreOK struct{}
 
 func TestNewProofIndexer_history_2(t *testing.T) {
-	proofDB := memorydb.New()
+	proofDB, err := memorydb.New()
+	require.NoError(t, err)
 	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
@@ -48,7 +49,8 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 }
 
 func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
-	proofDB := memorydb.New()
+	proofDB, err := memorydb.New()
+	require.NoError(t, err)
 	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
@@ -75,7 +77,8 @@ func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 
 func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - no history clean-up", func(t *testing.T) {
-		proofDB := memorydb.New()
+		proofDB, err := memorydb.New()
+		require.NoError(t, err)
 		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, testlogger.New(t))
 		// start indexing loop
 		ctx := context.Background()
@@ -118,7 +121,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		}
 	})
 	t.Run("run loop - keep last 2 rounds", func(t *testing.T) {
-		proofDB := memorydb.New()
+		proofDB, err := memorydb.New()
+		require.NoError(t, err)
 		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
 		// start indexing loop
 		ctx := context.Background()

@@ -11,11 +11,16 @@ import (
 )
 
 type TestData struct {
-	data byte
+	index []byte
+	data  byte
 }
 
 func (t TestData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte{t.data})
+}
+
+func (t TestData) Index() []byte {
+	return t.index
 }
 
 func TestIMTNilCases(t *testing.T) {
@@ -50,9 +55,9 @@ func TestNewIMTWithEmptyData(t *testing.T) {
 
 func TestNewIMTWithSingleNode(t *testing.T) {
 	data := []LeafData{
-		{
-			Index: []byte{0, 0, 0, 0},
-			Data:  &TestData{data: 1},
+		&TestData{
+			index: []byte{0, 0, 0, 0},
+			data:  1,
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -60,27 +65,27 @@ func TestNewIMTWithSingleNode(t *testing.T) {
 	require.NotNil(t, imt)
 	require.NotNil(t, imt.GetRootHash())
 	hasher := crypto.SHA256.New()
-	data[0].Data.AddToHasher(hasher)
+	data[0].AddToHasher(hasher)
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
 	hasher.Write([]byte{Leaf})
-	hasher.Write(data[0].Index)
+	hasher.Write(data[0].Index())
 	hasher.Write(dataHash)
 	require.Equal(t, hasher.Sum(nil), imt.GetRootHash())
-	path, err := imt.GetMerklePath(data[0].Index)
-	h := IndexTreeOutput(path, data[0].Index, data[0].Data, crypto.SHA256)
+	path, err := imt.GetMerklePath(data[0].Index())
+	h := IndexTreeOutput(path, data[0], crypto.SHA256)
 	require.Equal(t, h, imt.GetRootHash())
 }
 
 func TestNewIMTUnsortedInput(t *testing.T) {
 	var data = []LeafData{
-		{
-			Index: util.Uint32ToBytes(uint32(3)),
-			Data:  &TestData{data: 3},
+		&TestData{
+			index: util.Uint32ToBytes(uint32(3)),
+			data:  3,
 		},
-		{
-			Index: util.Uint32ToBytes(uint32(1)),
-			Data:  &TestData{data: 1},
+		&TestData{
+			index: util.Uint32ToBytes(uint32(1)),
+			data:  1,
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -90,17 +95,17 @@ func TestNewIMTUnsortedInput(t *testing.T) {
 
 func TestNewIMTEqualIndexValues(t *testing.T) {
 	var data = []LeafData{
-		{
-			Index: util.Uint32ToBytes(uint32(1)),
-			Data:  &TestData{data: 1},
+		&TestData{
+			index: util.Uint32ToBytes(uint32(1)),
+			data:  1,
 		},
-		{
-			Index: util.Uint32ToBytes(uint32(3)),
-			Data:  &TestData{data: 3},
+		&TestData{
+			index: util.Uint32ToBytes(uint32(3)),
+			data:  3,
 		},
-		{
-			Index: util.Uint32ToBytes(uint32(3)),
-			Data:  &TestData{data: 3},
+		&TestData{
+			index: util.Uint32ToBytes(uint32(3)),
+			data:  3,
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -110,25 +115,25 @@ func TestNewIMTEqualIndexValues(t *testing.T) {
 
 func TestNewIMTYellowpaperExample(t *testing.T) {
 	var data = []LeafData{
-		{
-			Index: []byte{1},
-			Data:  &TestData{data: 1},
+		&TestData{
+			index: []byte{1},
+			data:  1,
 		},
-		{
-			Index: []byte{3},
-			Data:  &TestData{data: 3},
+		&TestData{
+			index: []byte{3},
+			data:  3,
 		},
-		{
-			Index: []byte{7},
-			Data:  &TestData{data: 7},
+		&TestData{
+			index: []byte{7},
+			data:  7,
 		},
-		{
-			Index: []byte{9},
-			Data:  &TestData{data: 9},
+		&TestData{
+			index: []byte{9},
+			data:  9,
 		},
-		{
-			Index: []byte{10},
-			Data:  &TestData{data: 10},
+		&TestData{
+			index: []byte{10},
+			data:  10,
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -150,29 +155,29 @@ func TestNewIMTYellowpaperExample(t *testing.T) {
 	require.Equal(t, treeStr, imt.PrettyPrint())
 	// check tree node index values
 	for _, d := range data {
-		path, err := imt.GetMerklePath(d.Index)
+		path, err := imt.GetMerklePath(d.Index())
 		require.NoError(t, err)
-		h := IndexTreeOutput(path, d.Index, d.Data, crypto.SHA256)
+		h := IndexTreeOutput(path, d, crypto.SHA256)
 		require.EqualValues(t, h, imt.GetRootHash())
 	}
 	// test non-inclusion
-	item := LeafData{
-		Index: util.Uint32ToBytes(uint32(5)),
-		Data:  &TestData{data: 5},
+	item := TestData{
+		index: util.Uint32ToBytes(uint32(5)),
+		data:  5,
 	}
-	path, err := imt.GetMerklePath(item.Index)
+	path, err := imt.GetMerklePath(item.Index())
 	require.NoError(t, err)
 
-	h := IndexTreeOutput(path, item.Index, item.Data, crypto.SHA256)
+	h := IndexTreeOutput(path, item, crypto.SHA256)
 	require.NotEqualValues(t, h, imt.GetRootHash())
 }
 
 func TestNewIMTWithOddNumberOfLeaves(t *testing.T) {
 	var data = make([]LeafData, 5)
 	for i := 0; i < len(data); i++ {
-		data[i] = LeafData{
-			Index: util.Uint32ToBytes(uint32(i)),
-			Data:  &TestData{data: byte(i)},
+		data[i] = &TestData{
+			index: util.Uint32ToBytes(uint32(i)),
+			data:  byte(i),
 		}
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -182,29 +187,29 @@ func TestNewIMTWithOddNumberOfLeaves(t *testing.T) {
 	require.NotEmpty(t, imt.PrettyPrint())
 	// check the hash chain of all index nodes
 	for _, d := range data {
-		path, err := imt.GetMerklePath(d.Index)
+		path, err := imt.GetMerklePath(d.Index())
 		require.NoError(t, err)
-		h := IndexTreeOutput(path, d.Index, d.Data, crypto.SHA256)
+		h := IndexTreeOutput(path, d, crypto.SHA256)
 		require.EqualValues(t, h, imt.GetRootHash())
 	}
 	// non-inclusion
-	item := LeafData{
-		Index: util.Uint32ToBytes(uint32(9)),
-		Data:  &TestData{data: byte(9)},
+	leaf := TestData{
+		index: util.Uint32ToBytes(uint32(9)),
+		data:  9,
 	}
-	path, err := imt.GetMerklePath(item.Index)
+	path, err := imt.GetMerklePath(leaf.Index())
 	require.NoError(t, err)
 
-	h := IndexTreeOutput(path, item.Index, item.Data, crypto.SHA256)
+	h := IndexTreeOutput(path, leaf, crypto.SHA256)
 	require.NotEqualValues(t, h, imt.GetRootHash())
 }
 
 func TestNewIMTWithEvenNumberOfLeaves(t *testing.T) {
 	var data = make([]LeafData, 8)
 	for i := 0; i < len(data); i++ {
-		data[i] = LeafData{
-			Index: util.Uint32ToBytes(uint32(i)),
-			Data:  &TestData{data: byte(i)},
+		data[i] = &TestData{
+			index: util.Uint32ToBytes(uint32(i)),
+			data:  byte(i),
 		}
 	}
 	imt, err := New(crypto.SHA256, data)
@@ -214,19 +219,19 @@ func TestNewIMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.NotEmpty(t, imt.PrettyPrint())
 	// check the hash chain of all index nodes
 	for _, d := range data {
-		path, err := imt.GetMerklePath(d.Index)
+		path, err := imt.GetMerklePath(d.Index())
 		require.NoError(t, err)
-		h := IndexTreeOutput(path, d.Index, d.Data, crypto.SHA256)
+		h := IndexTreeOutput(path, d, crypto.SHA256)
 		require.EqualValues(t, h, imt.GetRootHash())
 	}
 	// non-inclusion
-	item := LeafData{
-		Index: util.Uint32ToBytes(uint32(9)),
-		Data:  &TestData{data: byte(9)},
+	leaf := TestData{
+		index: util.Uint32ToBytes(uint32(9)),
+		data:  byte(9),
 	}
-	path, err := imt.GetMerklePath(item.Index)
+	path, err := imt.GetMerklePath(leaf.Index())
 	require.NoError(t, err)
 
-	h := IndexTreeOutput(path, item.Index, item.Data, crypto.SHA256)
+	h := IndexTreeOutput(path, leaf, crypto.SHA256)
 	require.NotEqualValues(t, h, imt.GetRootHash())
 }

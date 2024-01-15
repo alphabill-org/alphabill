@@ -18,15 +18,10 @@ type (
 		dataLength int // number of leaves
 	}
 
-	// Data for calculating hash of leaf data
-	Data interface {
-		AddToHasher(hasher hash.Hash)
-	}
-
 	// LeafData index tree leaf. NB! Index tree leaves must be sorted lexicographically in strictly ascending order
-	LeafData struct {
-		Index []byte
-		Data  Data
+	LeafData interface {
+		Index() []byte
+		AddToHasher(hasher hash.Hash)
 	}
 	// PathItem helper struct for proof extraction, contains Hash and Index of node
 	PathItem struct {
@@ -53,14 +48,14 @@ func (n *node) isLeaf() bool {
 	return false
 }
 
-// New creates a new indexed Merkle Tree.
+// New creates a new indexed Merkle tree.
 func New(hashAlgorithm crypto.Hash, leaves []LeafData) (*IMT, error) {
 	if len(leaves) == 0 {
 		return &IMT{root: nil, dataLength: 0}, nil
 	}
-	// validate order - perhaps could just sort here instead?
+	// validate order
 	for i := len(leaves) - 1; i > 0; i-- {
-		if bytes.Compare(leaves[i].Index, leaves[i-1].Index) != 1 {
+		if bytes.Compare(leaves[i].Index(), leaves[i-1].Index()) != 1 {
 			return nil, fmt.Errorf("data not sorted by index in not strictly ascending order")
 		}
 	}
@@ -68,15 +63,15 @@ func New(hashAlgorithm crypto.Hash, leaves []LeafData) (*IMT, error) {
 	// calculate data hash for leaves
 	pairs := make([]pair, len(leaves))
 	for i, l := range leaves {
-		l.Data.AddToHasher(hasher)
-		pairs[i] = pair{index: l.Index, dataHash: hasher.Sum(nil)}
+		l.AddToHasher(hasher)
+		pairs[i] = pair{index: l.Index(), dataHash: hasher.Sum(nil)}
 		hasher.Reset()
 	}
 	return &IMT{root: createMerkleTree(pairs, hasher), dataLength: len(pairs)}, nil
 }
 
 // IndexTreeOutput calculates the output hash of the index Merkle tree hash chain.
-func IndexTreeOutput(merklePath []*PathItem, index []byte, data Data, hashAlgorithm crypto.Hash) []byte {
+func IndexTreeOutput(merklePath []*PathItem, data LeafData, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	// calculate data hash
 	data.AddToHasher(hasher)
@@ -84,13 +79,13 @@ func IndexTreeOutput(merklePath []*PathItem, index []byte, data Data, hashAlgori
 	hasher.Reset()
 	// calculate leaf hash
 	hasher.Write([]byte{Leaf})
-	hasher.Write(index)
+	hasher.Write(data.Index())
 	hasher.Write(dataHash)
 	h := hasher.Sum(nil)
 	hasher.Reset()
 	// follow hash chain
 	for _, item := range merklePath {
-		if bytes.Compare(index, item.Index) == 1 {
+		if bytes.Compare(data.Index(), item.Index) == 1 {
 			// index > item.Index is bigger - left link
 			hasher.Write([]byte{Node})
 			hasher.Write(item.Index)

@@ -52,7 +52,7 @@ Zero value is not usable, use constructor!
 
 Remarks:
   - same leader might be elected for up to three consecutive rounds - leader of
-    the round R is not eligble to be leader for rounds [R+3 .. R+3+excludeSize-1];
+    the round R is not eligible to be leader for rounds [R+3 .. R+3+excludeSize-1];
 */
 type ReputationBased struct {
 	windowSize  int // number of latest commits to take into account when determining which validators are active

@@ -133,7 +133,7 @@ func (i *InputData) IsValid() error {
 		return fmt.Errorf("input record error: %w", err)
 	}
 	if len(i.Sdrh) == 0 {
-		return fmt.Errorf("system descrition hash not set")
+		return fmt.Errorf("system description hash not set")
 	}
 	return nil
 }

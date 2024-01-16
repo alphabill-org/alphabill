@@ -34,7 +34,7 @@ type StateMsg struct {
 	_             struct{}                    `cbor:",toarray"`
 	Certificates  []*types.UnicityCertificate `json:"certificates,omitempty"`
 	CommittedHead *CommittedBlock             `json:"committedHead,omitempty"`
-	BlockData     []*drctypes.BlockData       `json:"blockNode,omitempty"`
+	BlockData     []*drctypes.BlockData       `json:"blockData,omitempty"`
 }
 
 /*

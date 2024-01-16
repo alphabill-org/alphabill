@@ -76,7 +76,7 @@ func (x *QuorumCert) IsValid() error {
 	}
 	// todo: should call x.LedgerCommitInfo.IsValid but that requires some refactoring
 	// not to require trustbase parameter?
-	// For root validator PreviousHash can be empty, it always contains vote info hash
+	// For root validator PreviousHash cannot be empty, it always contains vote info hash
 	if len(x.LedgerCommitInfo.PreviousHash) < 1 {
 		return errInvalidRoundInfoHash
 	}

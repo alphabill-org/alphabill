@@ -91,7 +91,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		}
 		err = rl.Update(qc, 3, loadBlock)
 		require.NoError(t, err)
-		// "signer A" is the author of the previous "ineresting block" (1) so "signer B" must
+		// "signer A" is the author of the previous "interesting block" (1) so "signer B" must
 		// have been elected to be the leader of the next round (4)
 		require.Equal(t, signerBid, rl.leaders[rl.curIdx].leader)
 		require.EqualValues(t, 4, rl.leaders[rl.curIdx].round)
@@ -218,7 +218,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 
 	t.Run("loading block fails - nil block is returned", func(t *testing.T) {
 		t.Skip("crashes")
-		// this is unexpected behaviour - we define that blockLoader must not return nil
+		// this is unexpected behavior - we define that blockLoader must not return nil
 		// block and nil error. current implementation survives this (ie doesn't crash)
 		// and because it wasn't able to get any info about block signers we get error
 		// about no active validators
@@ -426,7 +426,7 @@ func Test_ReputationBased(t *testing.T) {
 
 	// generate some peer IDs
 	peerIDs := test.GeneratePeerIDs(t, 10)
-	// we mostly need ID's string representation so as a optimisation convert once here
+	// we mostly need ID's string representation so as a optimization convert once here
 	peerIDstr := make([]string, len(peerIDs))
 	for k, v := range peerIDs {
 		peerIDstr[k] = v.String()
@@ -468,7 +468,7 @@ func Test_ReputationBased(t *testing.T) {
 	// method is called with the QC of the new block
 	// "round" is supposed to be the current round as per pacemaker, must be >= 2
 	// so basically it mimics one full cycle in consensus manager (collecting votes for
-	// the round, geting quorum, adding block to the tree...)
+	// the round, getting quorum, adding block to the tree...)
 	processRound := func(rl *ReputationBased, round uint64) error {
 		// create QC for the previous round
 		qc := &types.QuorumCert{

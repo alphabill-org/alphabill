@@ -6,7 +6,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/crypto/canonicalizer"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -528,7 +528,7 @@ func TestInputData_IsValid(t *testing.T) {
 			},
 			Sdrh: nil,
 		}
-		require.ErrorContains(t, i.IsValid(), "system descrition hash not set")
+		require.ErrorContains(t, i.IsValid(), "system description hash not set")
 	})
 	t.Run("ok", func(t *testing.T) {
 		i := &InputData{

@@ -19,7 +19,7 @@ type (
 	}
 
 	// LeafData indexed tree leaf.
-	// NB!: Index tree leaves must be sorted lexicographically by key in strict order k1 < k2 < ... kn
+	// NB!: indexed tree leaves must be sorted lexicographically by key in strict order k1 < k2 < ... kn
 	LeafData interface {
 		Key() []byte
 		AddToHasher(hasher hash.Hash)
@@ -71,7 +71,7 @@ func New(hashAlgorithm crypto.Hash, leaves []LeafData) (*IMT, error) {
 	return &IMT{root: createMerkleTree(pairs, hasher), dataLength: len(pairs)}, nil
 }
 
-// IndexTreeOutput calculates the output hash of the key Merkle tree hash chain.
+// IndexTreeOutput calculates the output hash of the index Merkle tree hash chain from hash chain, key and data hash.
 func IndexTreeOutput(merklePath []*PathItem, data LeafData, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	// calculate data hash
@@ -113,15 +113,18 @@ func (s *IMT) GetRootHash() []byte {
 	return s.root.hash
 }
 
-// GetMerklePath extracts the indexed merkle hash chain from the given leaf to root.
-func (s *IMT) GetMerklePath(leafIdx []byte) ([]*PathItem, error) {
+// GetMerklePath extracts the indexed merkle hash chain from the given leaf key
+// to root. A hash chain is always returned. If the key is not present, a chain
+// is returned from where the key is supposed to be.
+// This can be used to prove that the key was not present.
+func (s *IMT) GetMerklePath(key []byte) ([]*PathItem, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("tree empty")
 	}
 	var z []*PathItem
 	curr := s.root
 	for !curr.isLeaf() {
-		if bytes.Compare(leafIdx, curr.k) == 1 {
+		if bytes.Compare(key, curr.k) == 1 {
 			z = append([]*PathItem{{Key: curr.k, Hash: curr.left.hash}}, z...)
 			curr = curr.right
 		} else { // smaller or equal key

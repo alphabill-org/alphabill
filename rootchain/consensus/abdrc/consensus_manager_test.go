@@ -540,7 +540,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		require.EqualError(t, err, `invalid vote: author 'foobar' is not in the trustbase`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
-	/* todo - need a way to mock storage*/
+
 	t.Run("vote for next round should be buffered", func(t *testing.T) {
 		const votedRound = 10
 		// need at least two CMs so that we do not trigger recovery because of having
@@ -548,7 +548,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
-		cms[0].blockStore.GetDB()
+
 		vote := makeVoteMsg(t, cms, votedRound+1)
 		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.NoError(t, err)
@@ -572,6 +572,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author], "expected original vote still to be in the buffer")
 		require.Len(t, cms[0].voteBuffer, 1, "expected only one vote to be buffered")
 	})
+
 	t.Run("quorum of votes for next round should trigger recovery", func(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})

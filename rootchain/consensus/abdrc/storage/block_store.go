@@ -211,9 +211,8 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) (map[types.SystemID]*typ
 // Add adds new round state to pipeline and returns the new state root hash a.k.a. execStateID
 func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier) ([]byte, error) {
 	// verify that block for the round does not exist yet
-	b, err := x.blockTree.FindBlock(block.GetRound())
-	// if block already exists
-	if err == nil {
+	// if block already exists, then check that it is the same block by comparing block hash
+	if b, err := x.blockTree.FindBlock(block.GetRound()); err == nil {
 		b1h := b.BlockData.Hash(gocrypto.SHA256)
 		b2h := block.Hash(gocrypto.SHA256)
 		// ignore if it is the same block, recovery may have added it when state was duplicated

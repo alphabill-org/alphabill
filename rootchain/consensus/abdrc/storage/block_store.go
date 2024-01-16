@@ -318,7 +318,7 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
 }
 
-// ToRecoveryInputData free conversion function for recovery InputData
+// ToRecoveryInputData function for type conversion
 func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 	inputData := make([]*abdrc.InputData, len(data))
 	for i, d := range data {

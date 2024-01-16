@@ -25,8 +25,8 @@ type (
 
 	ExecutedBlock struct {
 		_         struct{}            `cbor:",toarray"`
-		BlockData *drctypes.BlockData `json:"block"`         // proposed block
-		CurrentIR InputRecords        `json:"inputData"`     // all input records in this block
+		BlockData *drctypes.BlockData `json:"blockData"`     // proposed block
+		CurrentIR InputRecords        `json:"currentIR"`     // all input records in this block
 		Changed   SysIDList           `json:"changed"`       // changed partition system identifiers
 		HashAlgo  gocrypto.Hash       `json:"hashAlgorithm"` // hash algorithm for the block
 		RootHash  []byte              `json:"rootHash"`      // resulting root hash

@@ -265,7 +265,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	}
 	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	// create unicity tree
-	ut, err := unicitytree.New(x.params.HashAlgorithm.New(), utData)
+	ut, err := unicitytree.New(x.params.HashAlgorithm, utData)
 	if err != nil {
 		return nil, err
 	}

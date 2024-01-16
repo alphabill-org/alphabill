@@ -25,7 +25,7 @@ func CreateUnicityCertificate(
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: systemDescription.Hash(gocrypto.SHA256),
 	}}
-	ut, err := unicitytree.New(gocrypto.SHA256.New(), data)
+	ut, err := unicitytree.New(gocrypto.SHA256, data)
 	if err != nil {
 		t.Error(err)
 	}

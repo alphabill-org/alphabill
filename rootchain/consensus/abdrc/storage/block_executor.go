@@ -134,7 +134,7 @@ func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBl
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	return unicitytree.New(x.HashAlgo.New(), utData)
+	return unicitytree.New(x.HashAlgo, utData)
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map[types.SystemID]*types.UnicityCertificate, error) {

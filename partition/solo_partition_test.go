@@ -214,7 +214,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		SystemDescriptionRecordHash: sdrHash,
 	},
 	}
-	ut, err := unicitytree.New(gocrypto.SHA256.New(), data)
+	ut, err := unicitytree.New(gocrypto.SHA256, data)
 	if err != nil {
 		return nil, err
 	}

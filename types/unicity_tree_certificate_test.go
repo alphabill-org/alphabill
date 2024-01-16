@@ -4,18 +4,16 @@ import (
 	"strings"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/stretchr/testify/require"
 )
 
 const identifier SystemID = 0x01010101
 
 var uct = &UnicityTreeCertificate{
-	SystemIdentifier: identifier,
-	SiblingHashes: [][]byte{
-		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
-		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
-		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
-		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash},
+	SystemIdentifier:      identifier,
+	SiblingHashes:         []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 	SystemDescriptionHash: zeroHash,
 }
 
@@ -41,7 +39,7 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			name: "invalid system identifier",
 			uct: &UnicityTreeCertificate{
 				SystemIdentifier:      0x01010101,
-				SiblingHashes:         [][]byte{},
+				SiblingHashes:         []*imt.PathItem{},
 				SystemDescriptionHash: zeroHash,
 			},
 			args: args{
@@ -53,7 +51,7 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			name: "invalid system description hash",
 			uct: &UnicityTreeCertificate{
 				SystemIdentifier:      0x01010101,
-				SiblingHashes:         [][]byte{},
+				SiblingHashes:         []*imt.PathItem{},
 				SystemDescriptionHash: nil,
 			},
 			args: args{
@@ -61,19 +59,6 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 				systemDescriptionHash: []byte{2, 1, 1, 1},
 			},
 			errStr: "invalid system description hash",
-		},
-		{
-			name: "invalid count of sibling hashes",
-			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      0x01010101,
-				SiblingHashes:         [][]byte{},
-				SystemDescriptionHash: []byte{2, 1, 1, 1},
-			},
-			args: args{
-				systemIdentifier:      0x01010101,
-				systemDescriptionHash: []byte{2, 1, 1, 1},
-			},
-			errStr: "invalid count of sibling hashes",
 		},
 	}
 	for _, tt := range tests {

@@ -32,13 +32,7 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	if err := x.UnicityTreeCertificate.IsValid(systemIdentifier, systemDescriptionHash); err != nil {
 		return fmt.Errorf("unicity tree certificate validation failed, %w", err)
 	}
-	hasher := algorithm.New()
-	x.InputRecord.AddToHasher(hasher)
-	hasher.Write(x.UnicityTreeCertificate.SystemDescriptionHash)
-	treeRoot, err := x.UnicityTreeCertificate.GetAuthPath(hasher.Sum(nil), algorithm)
-	if err != nil {
-		return fmt.Errorf("failed to get authentication path from unicity tree certificate, %w", err)
-	}
+	treeRoot := x.UnicityTreeCertificate.EvalAuthPath(x.InputRecord, x.UnicityTreeCertificate.SystemDescriptionHash, algorithm)
 	rootHash := x.UnicitySeal.Hash
 	if !bytes.Equal(treeRoot, rootHash) {
 		return fmt.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)

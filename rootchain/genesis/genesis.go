@@ -108,7 +108,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 
 func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID]*types.UnicityCertificate, error) {
 	// calculate unicity tree
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, fmt.Errorf("unicity tree calculation failed: %w", err)
 	}

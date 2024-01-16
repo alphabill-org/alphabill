@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
@@ -161,7 +162,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      systemIdentifier,
-				SiblingHashes:         [][]byte{test.RandomBytes(32)},
+				SiblingHashes:         []*imt.PathItem{{test.RandomBytes(4), test.RandomBytes(32)}},
 				SystemDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
@@ -212,7 +213,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      systemIdentifier,
-				SiblingHashes:         [][]byte{test.RandomBytes(32)},
+				SiblingHashes:         []*imt.PathItem{{test.RandomBytes(4), test.RandomBytes(32)}},
 				SystemDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,

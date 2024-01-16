@@ -204,12 +204,6 @@ func TestBlockStoreAdd(t *testing.T) {
 			Hash: rBlock.RootHash,
 		},
 	}
-	// qc for round 2, does not commit a round
-	block = &drctypes.BlockData{
-		Round:   genesis.RootRound + 2,
-		Payload: &drctypes.Payload{},
-		Qc:      qc,
-	}
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)
@@ -218,6 +212,12 @@ func TestBlockStoreAdd(t *testing.T) {
 	require.EqualValues(t, genesis.RootRound+1, b.Round)
 	require.NotNil(t, b.Qc)
 	// add block 3
+	// qc for round 2, does not commit a round
+	block = &drctypes.BlockData{
+		Round:   genesis.RootRound + 2,
+		Payload: &drctypes.Payload{},
+		Qc:      qc,
+	}
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
 	require.Len(t, rh, 32)

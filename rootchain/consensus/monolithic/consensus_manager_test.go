@@ -73,7 +73,9 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
-	store := NewStateStore(memorydb.New())
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	store := NewStateStore(db)
 	// store mock state
 	certs := map[types.SystemID]*types.UnicityCertificate{
 		sysID3: {
@@ -115,7 +117,8 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -162,7 +165,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 }
 
 func TestConsensusManager_PersistFails(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)

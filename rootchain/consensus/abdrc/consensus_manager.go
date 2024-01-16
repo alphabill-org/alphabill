@@ -119,7 +119,10 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		return nil, errors.New("network is nil")
 	}
 	// load options
-	optional := consensus.LoadConf(opts)
+	optional, err := consensus.LoadConf(opts)
+	if err != nil {
+		return nil, fmt.Errorf("loading optional configuration: %w", err)
+	}
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
 	// init storage

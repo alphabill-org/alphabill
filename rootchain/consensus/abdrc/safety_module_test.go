@@ -16,7 +16,8 @@ func initSafetyModule(t *testing.T, id string) *SafetyModule {
 	t.Helper()
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	safety, err := NewSafetyModule(id, signer, db)
 	require.NoError(t, err)
 	require.NotNil(t, safety)
@@ -42,7 +43,8 @@ func TestNewSafetyModule_WithStorageEmpty(t *testing.T) {
 	// creates and initiates the bolt store backend, and saves initial state
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	s, err := NewSafetyModule("1", signer, db)
 	require.NoError(t, err)
 	require.NotNil(t, s)
@@ -52,7 +54,8 @@ func TestNewSafetyModule_WithStorageEmpty(t *testing.T) {
 
 func TestNewSafetyModule_WithStorageNotEmpty(t *testing.T) {
 	// creates and initiates the bolt store backend, and saves initial state
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	hQcRound := uint64(3)
 	hVotedRound := uint64(4)
 	require.NoError(t, db.Write([]byte(highestVotedKey), hVotedRound))
@@ -71,7 +74,8 @@ func TestSafetyModule_isSafeToVote(t *testing.T) {
 		block       *drctypes.BlockData
 		lastRoundTC *drctypes.TimeoutCert
 	}
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	require.NoError(t, db.Write([]byte(highestVotedKey), 3))
 	tests := []struct {
 		name       string
@@ -316,7 +320,8 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 func TestSafetyModule_SignTimeout(t *testing.T) {
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	hQcRound := uint64(2)
 	hVotedRound := uint64(3)
 	require.NoError(t, db.Write([]byte(highestVotedKey), hVotedRound))
@@ -385,7 +390,8 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db := memorydb.New()
+			db, err := memorydb.New()
+			require.NoError(t, err)
 			require.NoError(t, db.Write([]byte(highestVotedKey), tt.fields.highestVotedRound))
 			require.NoError(t, db.Write([]byte(highestQcKey), tt.fields.highestQcRound))
 			s := &SafetyModule{
@@ -448,7 +454,8 @@ func TestSafetyModule_isCommitCandidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db := memorydb.New()
+			db, err := memorydb.New()
+			require.NoError(t, err)
 			require.NoError(t, db.Write([]byte(highestVotedKey), tt.fields.highestVotedRound))
 			require.NoError(t, db.Write([]byte(highestQcKey), tt.fields.highestQcRound))
 
@@ -467,7 +474,8 @@ func TestSafetyModule_isCommitCandidate(t *testing.T) {
 
 func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 1
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -483,7 +491,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.NoError(t, s.isSafeToTimeout(2, 1, tc))
 	})
 	t.Run("not safe - last round was not TC, but QC round is smaller than the QC we have seen", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 2
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -494,7 +503,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.ErrorContains(t, s.isSafeToTimeout(2, 1, nil), "qc round 1 is smaller than highest qc round 2 seen")
 	})
 	t.Run("ok - already voted for round 2 and can vote again for timeout", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 1
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -505,7 +515,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.NoError(t, s.isSafeToTimeout(2, 1, nil))
 	})
 	t.Run("not safe - timeout round is in past", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 1
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -516,7 +527,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.ErrorContains(t, s.isSafeToTimeout(2, 2, nil), "timeout round 2 is in the past, timeout msg high qc is for round 2")
 	})
 	t.Run("not safe - already signed vote for round", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 3
 		var highestQcRound uint64 = 1
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -527,7 +539,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.ErrorContains(t, s.isSafeToTimeout(2, 1, nil), "timeout round 2 is in the past, already signed vote for round 3")
 	})
 	t.Run("not safe - round does not follow QC", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 2
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))
@@ -538,7 +551,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		require.ErrorContains(t, s.isSafeToTimeout(4, 2, nil), "round 4 does not follow last qc round 2 or tc round 0")
 	})
 	t.Run("not safe - round does not follow TC", func(t *testing.T) {
-		db := memorydb.New()
+		db, err := memorydb.New()
+		require.NoError(t, err)
 		var highestVotedRound uint64 = 2
 		var highestQcRound uint64 = 2
 		require.NoError(t, db.Write([]byte(highestVotedKey), highestVotedRound))

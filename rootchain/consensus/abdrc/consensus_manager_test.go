@@ -1194,8 +1194,9 @@ func TestConsensusManger_ResoreVote(t *testing.T) {
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	// load timeout vote to DB
-	db := memorydb.New()
+	// store timeout vote to DB
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	// init DB from genesis
 	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db)
 	require.NoError(t, err)

@@ -29,6 +29,7 @@ var mockUc = &types.UnicityCertificate{
 	UnicitySeal: &types.UnicitySeal{
 		RootChainRoundNumber: 1,
 		Hash:                 make([]byte, gocrypto.SHA256.Size()),
+		Signatures:           types.SignatureMap{},
 	},
 }
 
@@ -111,7 +112,9 @@ func storeTest(t *testing.T, store *StateStore) {
 }
 
 func TestInMemState(t *testing.T) {
-	stateStore := NewStateStore(memorydb.New())
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	stateStore := NewStateStore(db)
 	require.NotNil(t, stateStore)
 	storeTest(t, stateStore)
 }

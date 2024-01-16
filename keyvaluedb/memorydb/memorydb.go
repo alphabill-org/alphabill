@@ -1,11 +1,11 @@
 package memorydb
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -24,12 +24,16 @@ type (
 
 // New creates a new mock key value db that currently uses map as storage
 // NB! map is probably not the best solution and should be replaced with binary search tree
-func New() *MemoryDB {
+func New() (*MemoryDB, error) {
+	encM, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, fmt.Errorf("creating CBOR encoder: %w", err)
+	}
 	return &MemoryDB{
 		db:      make(map[string][]byte),
-		encoder: json.Marshal,
-		decoder: json.Unmarshal,
-	}
+		encoder: encM.Marshal,
+		decoder: cbor.Unmarshal,
+	}, nil
 }
 
 // Read retrieves the given key if it's present in the key-value store.

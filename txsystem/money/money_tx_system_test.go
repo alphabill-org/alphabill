@@ -945,8 +945,8 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*genesis.System
 	// fee credit bills
 	for _, sdr := range sdrs {
 		fcb := sdr.FeeCreditBill
-		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitId, fcb.OwnerPredicate, &BillData{})))
-		require.NoError(t, s.AddUnitLog(fcb.UnitId, zeroHash))
+		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &BillData{})))
+		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
 	}
 
 	_, _, err := s.CalculateRoot()
@@ -972,7 +972,7 @@ func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
 		SystemIdentifier: moneySystemID,
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         fcbID,
+			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}

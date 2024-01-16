@@ -51,12 +51,14 @@ const systemIdentifier types.SystemID = 0x00000402
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
+	blockDB, err := memorydb.New()
+	require.NoError(t, err)
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			systemIdentifier,
 			logger.New(t),
-			WithBlockDB(memorydb.New()),
+			WithBlockDB(blockDB),
 			WithState(genesisState),
 		) // 1 ETH
 		require.NoError(t, err)
@@ -124,8 +126,10 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	from := test.RandomBytes(20)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
+	blockDB, err := memorydb.New()
+	require.NoError(t, err)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
-	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithBlockDB(memorydb.New()), WithState(genesisState)) // 1 ETH
+	system, err := NewEVMTxSystem(systemIdentifier, logger.New(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1

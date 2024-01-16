@@ -147,7 +147,9 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false, log)
+	blockDB, err := memorydb.New()
+	require.NoError(t, err)
+	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), blockDB, callContract, systemIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	teststate.CommitWithUC(t, tree)
 
@@ -236,7 +238,9 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	sm, err := evm.Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
+	blockDB, err := memorydb.New()
+	require.NoError(t, err)
+	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
 	details := &evm.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)

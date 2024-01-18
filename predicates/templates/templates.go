@@ -171,3 +171,19 @@ func ExtractPubKeyHash(pb []byte) ([]byte, error) {
 	}
 	return p2pkh256Payload.PubKeyHash, nil
 }
+
+func ExtractPredicate(predicateBytes []byte) (*predicates.Predicate, error) {
+	predicate := &predicates.Predicate{}
+	if err := cbor.Unmarshal(predicateBytes, predicate); err != nil {
+		return nil, err
+	}
+	return predicate, nil
+}
+
+func ExtractP2pkhPredicate(predicate *predicates.Predicate) (*P2pkh256Payload, error) {
+	p2pkh256Payload := &P2pkh256Payload{}
+	if err := cbor.Unmarshal(predicate.Body, p2pkh256Payload); err != nil {
+		return nil, err
+	}
+	return p2pkh256Payload, nil
+}

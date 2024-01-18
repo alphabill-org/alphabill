@@ -1397,6 +1397,10 @@ func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*
 	return response, nil
 }
 
+func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	return n.proofIndexer.GetOwnerUnits(ownerID)
+}
+
 func (n *Node) stopForwardingOrHandlingTransactions() {
 	n.stopTxProcessor.Load().(func())()
 }

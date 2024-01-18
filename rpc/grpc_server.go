@@ -36,6 +36,7 @@ type (
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() types.SystemID
 		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
+		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
 		SerializeState(writer io.Writer) error
 	}
 )

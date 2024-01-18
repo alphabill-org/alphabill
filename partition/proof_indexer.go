@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
@@ -43,6 +46,9 @@ type (
 		historySize   uint64 // number of rounds for which the history of unit states is kept
 		log           *slog.Logger
 		blockCh       chan *BlockAndState
+
+		mu         sync.RWMutex
+		ownerUnits map[string][]types.UnitID
 	}
 )
 
@@ -53,6 +59,7 @@ func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uin
 		historySize:   historySize,
 		log:           l,
 		blockCh:       make(chan *BlockAndState, 20),
+		ownerUnits:    map[string][]types.UnitID{},
 	}
 }
 
@@ -110,49 +117,54 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	}()
 
 	var history historyIndex
-	for i, transaction := range block.Transactions {
+	for i, tx := range block.Transactions {
 		// write down tx index for generating block proofs
-		oderHash := transaction.TransactionOrder.Hash(p.hashAlgorithm)
-		if err = dbTx.Write(oderHash, &TxIndex{
+		txoHash := tx.TransactionOrder.Hash(p.hashAlgorithm)
+		if err = dbTx.Write(txoHash, &TxIndex{
 			RoundNumber:  bas.Block.GetRoundNumber(),
 			TxOrderIndex: i,
 		}); err != nil {
 			return err
 		}
-		history.TxIndexKey = oderHash
+		history.TxIndexKey = txoHash
 		// generate and store proofs for all updated units
-		trHash := transaction.Hash(p.hashAlgorithm)
-		targets := transaction.ServerMetadata.TargetUnits
-		for _, id := range targets {
-			var u *state.Unit
-			u, err = bas.State.GetUnit(id, true)
+		txrHash := tx.Hash(p.hashAlgorithm)
+		for _, unitID := range tx.ServerMetadata.TargetUnits {
+			var unit *state.Unit
+			unit, err = bas.State.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			logs := u.Logs()
-			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(logs), id))
-			for i, l := range logs {
-				if !bytes.Equal(l.TxRecordHash, trHash) {
+			unitLogs := unit.Logs()
+			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(unitLogs), unitID))
+			for j, unitLog := range unitLogs {
+				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {
 					continue
 				}
-				usp, e := bas.State.CreateUnitStateProof(id, i)
+				usp, e := bas.State.CreateUnitStateProof(unitID, j)
 				if e != nil {
-					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", id, e))
+					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", unitID, e))
 					continue
 				}
-				res, e := state.MarshalUnitData(l.NewUnitData)
+				res, e := state.MarshalUnitData(unitLog.NewUnitData)
 				if e != nil {
-					err = errors.Join(err, fmt.Errorf("unit %X data encode failed: %w", id, e))
+					err = errors.Join(err, fmt.Errorf("unit %X data encode failed: %w", unitID, e))
 					continue
 				}
-				key := bytes.Join([][]byte{id, oderHash}, nil)
+				key := bytes.Join([][]byte{unitID, txoHash}, nil)
 				history.UnitProofIndexKeys = append(history.UnitProofIndexKeys, key)
 				if err = dbTx.Write(key, &types.UnitDataAndProof{
-					UnitData: &types.StateUnitData{Data: res, Bearer: l.NewBearer},
+					UnitData: &types.StateUnitData{Data: res, Bearer: unitLog.NewBearer},
 					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)
 				}
+			}
+
+			// update owner index
+			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Updating owner index for unit %X", unitID))
+			if err = p.indexOwner(unitID, unitLogs); err != nil {
+				return fmt.Errorf("failed to update owner index: %w", err)
 			}
 		}
 	}
@@ -220,6 +232,90 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 	}
 	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Removed old proofs from block %d, index size %d", d, len(history.UnitProofIndexKeys)))
 	return err
+}
+
+func (p *ProofIndexer) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.ownerUnits[string(ownerID)], nil
+}
+
+func (p *ProofIndexer) indexOwner(unitID types.UnitID, logs []*state.Log) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(logs) == 0 {
+		p.log.Error(fmt.Sprintf("cannot index unit owners, unit logs is empty, unitID=%x", unitID))
+		return nil
+	}
+	// logs - tx logs that changed the unit
+	// if unit was created in this round:
+	//   logs[0] - tx that created the unit
+	//   logs[1..n] - txs changing the unit in current round
+	// if unit existed before this round:
+	//   logs[0] - last tx that changed the unit from previous rounds
+	//   logs[1..n] - txs changing the unit in current round
+	currOwnerPredicate := logs[len(logs)-1].NewBearer
+	if err := p.addOwnerIndex(unitID, currOwnerPredicate); err != nil {
+		return fmt.Errorf("failed to add owner index: %w", err)
+	}
+	if len(logs) > 1 {
+		prevOwnerPredicate := logs[0].NewBearer
+		if err := p.delOwnerIndex(unitID, prevOwnerPredicate); err != nil {
+			return fmt.Errorf("failed to remove owner index: %w", err)
+		}
+	}
+	return nil
+}
+
+func (p *ProofIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
+	ownerID, err := p.extractOwnerID(ownerPredicate)
+	if err != nil {
+		return err
+	}
+	p.ownerUnits[ownerID] = append(p.ownerUnits[ownerID], unitID)
+	return nil
+}
+
+func (p *ProofIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
+	ownerID, err := p.extractOwnerID(ownerPredicate)
+	if err != nil {
+		return err
+	}
+	unitIDs := p.ownerUnits[ownerID]
+	for i, uid := range unitIDs {
+		if uid.Eq(unitID) {
+			unitIDs = slices.Delete(unitIDs, i, i+1)
+			break
+		}
+	}
+	if len(unitIDs) == 0 {
+		// no units for owner, delete map key
+		delete(p.ownerUnits, ownerID)
+	} else {
+		// update the removed list
+		p.ownerUnits[ownerID] = unitIDs
+	}
+	return nil
+}
+
+func (p *ProofIndexer) extractOwnerID(ownerPredicate []byte) (string, error) {
+	predicate, err := templates.ExtractPredicate(ownerPredicate)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract predicate: %w", err)
+	}
+	var ownerID string
+	if predicate.ID == templates.P2pkh256ID {
+		p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
+		}
+		// for p2pkh predicates use pubkey hash as the owner id
+		ownerID = string(p2pkhPredicate.PubKeyHash)
+	} else {
+		// for non-p2pkh predicates use the entire owner predicate as the owner id
+		ownerID = string(ownerPredicate)
+	}
+	return ownerID, nil
 }
 
 func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxIndex, error) {

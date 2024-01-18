@@ -3,6 +3,7 @@ package rpc
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -68,7 +69,7 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "unable to decode request body as transaction")
 }
 
-func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
+func TestRESTServer_GetLatestRoundNumber_Ok(t *testing.T) {
 	node := &MockNode{}
 	obs := observability.Default(t)
 
@@ -79,6 +80,17 @@ func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
 	var response uint64
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
 	require.Equal(t, node.maxBlockNumber, response)
+}
+
+func TestRESTServer_GetLatestRoundNumber_Error(t *testing.T) {
+	node := &MockNode{err: errors.New("round number error")}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/rounds/latest", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "round number error")
 }
 
 func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
@@ -109,6 +121,16 @@ func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 	require.Equal(t, int64(-1), recorder.Result().ContentLength)
+}
+
+func TestRESTServer_GetTransactionRecord_Error(t *testing.T) {
+	obs := observability.Default(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/INVALID", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: partition.ErrIndexNotFound}, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "invalid tx order hash: INVALID")
 }
 
 func TestRESTServer_GetUnitProof(t *testing.T) {
@@ -234,4 +256,25 @@ func TestRESTServer_GetUnitProof(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 		require.Equal(t, int64(-1), recorder.Result().ContentLength)
 	})
+}
+
+func TestRESTServer_GetState_Ok(t *testing.T) {
+	node := &MockNode{}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+}
+
+func TestRESTServer_GetState_Error(t *testing.T) {
+	node := &MockNode{err: errors.New("state error")}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "state error")
 }

@@ -65,6 +65,9 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 }
 
 func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+	if mn.err != nil {
+		return 0, mn.err
+	}
 	return mn.maxRoundNumber, nil
 }
 
@@ -96,6 +99,9 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
+	if mn.err != nil {
+		return mn.err
+	}
 	return nil
 }
 

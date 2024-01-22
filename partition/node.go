@@ -164,6 +164,12 @@ func NewNode(
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
 	}
+
+	// load proof indexer
+	proofIndexer := NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger())
+	if err := proofIndexer.LoadState(txSystem.State()); err != nil {
+		return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
+	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -172,7 +178,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
+		proofIndexer:                proofIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -320,7 +326,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		}
 		// node must have exited before block was indexed
 		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
-			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.StateStorage())
+			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.State())
 		}
 
 		luc = bl.UnicityCertificate
@@ -919,7 +925,7 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 		return err
 	}
 	n.sendEvent(event.BlockFinalized, b)
-	n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
+	n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
 	return nil
 }
 
@@ -1374,7 +1380,7 @@ func (n *Node) SystemIdentifier() types.SystemID {
 }
 
 func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
-	clonedState := n.transactionSystem.StateStorage()
+	clonedState := n.transactionSystem.State()
 	unit, err := clonedState.GetUnit(unitID, true)
 	if err != nil {
 		return nil, err

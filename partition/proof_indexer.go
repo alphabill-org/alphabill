@@ -14,7 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -25,9 +25,17 @@ var (
 )
 
 type (
+	// UnitAndProof read access to state to access unit and unit proofs
+	UnitAndProof interface {
+		// GetUnit - access tx system unit state
+		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		// CreateUnitStateProof - create unit proofs
+		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
+	}
+
 	BlockAndState struct {
 		Block *types.Block
-		State txsystem.UnitAndProof
+		State UnitAndProof
 	}
 
 	TxIndex struct {
@@ -63,7 +71,7 @@ func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uin
 	}
 }
 
-func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state txsystem.UnitAndProof) {
+func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state UnitAndProof) {
 	select {
 	case <-ctx.Done():
 	case p.blockCh <- &BlockAndState{
@@ -268,18 +276,18 @@ func (p *ProofIndexer) indexOwner(unitID types.UnitID, logs []*state.Log) error 
 }
 
 func (p *ProofIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := p.extractOwnerID(ownerPredicate)
+	ownerID, err := extractOwnerID(ownerPredicate)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract owner id: %w", err)
 	}
 	p.ownerUnits[ownerID] = append(p.ownerUnits[ownerID], unitID)
 	return nil
 }
 
 func (p *ProofIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := p.extractOwnerID(ownerPredicate)
+	ownerID, err := extractOwnerID(ownerPredicate)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract owner id: %w", err)
 	}
 	unitIDs := p.ownerUnits[ownerID]
 	for i, uid := range unitIDs {
@@ -298,24 +306,37 @@ func (p *ProofIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	return nil
 }
 
-func (p *ProofIndexer) extractOwnerID(ownerPredicate []byte) (string, error) {
-	predicate, err := templates.ExtractPredicate(ownerPredicate)
+// LoadState fills the owner units index from state.
+func (p *ProofIndexer) LoadState(s *state.State) error {
+	t := &ownerTraverser{ownerUnits: map[string][]types.UnitID{}}
+	s.Traverse(t)
+	if t.err != nil {
+		return fmt.Errorf("failed to traverse state tree: %w", t.err)
+	}
+	p.ownerUnits = t.ownerUnits
+	return nil
+}
+
+// ownerTraverser traverses state tree and records all nodes into ownerUnits map
+type ownerTraverser struct {
+	ownerUnits map[string][]types.UnitID
+	err        error
+}
+
+func (s *ownerTraverser) Traverse(n *avl.Node[types.UnitID, *state.Unit]) {
+	if n == nil || s.err != nil {
+		return
+	}
+	s.Traverse(n.Left())
+	s.Traverse(n.Right())
+
+	unit := n.Value()
+	ownerID, err := extractOwnerID(unit.Bearer())
 	if err != nil {
-		return "", fmt.Errorf("failed to extract predicate: %w", err)
+		s.err = fmt.Errorf("failed to extract owner id: %w", err)
+		return
 	}
-	var ownerID string
-	if predicate.ID == templates.P2pkh256ID {
-		p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
-		if err != nil {
-			return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
-		}
-		// for p2pkh predicates use pubkey hash as the owner id
-		ownerID = string(p2pkhPredicate.PubKeyHash)
-	} else {
-		// for non-p2pkh predicates use the entire owner predicate as the owner id
-		ownerID = string(ownerPredicate)
-	}
-	return ownerID, nil
+	s.ownerUnits[ownerID] = append(s.ownerUnits[ownerID], n.Key())
 }
 
 func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxIndex, error) {
@@ -341,4 +362,24 @@ func ReadUnitProofIndex(db keyvaluedb.KeyValueDB, unitID []byte, txOrderHash []b
 		return nil, ErrIndexNotFound
 	}
 	return index, nil
+}
+
+func extractOwnerID(ownerPredicate []byte) (string, error) {
+	predicate, err := templates.ExtractPredicate(ownerPredicate)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract predicate: %w", err)
+	}
+	var ownerID string
+	if predicate.ID == templates.P2pkh256ID {
+		p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
+		}
+		// for p2pkh predicates use pubkey hash as the owner id
+		ownerID = string(p2pkhPredicate.PubKeyHash)
+	} else {
+		// for non-p2pkh predicates use the entire owner predicate as the owner id
+		ownerID = string(ownerPredicate)
+	}
+	return ownerID, nil
 }

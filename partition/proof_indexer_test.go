@@ -3,6 +3,7 @@ package partition
 import (
 	"context"
 	"crypto"
+	"hash"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -243,6 +245,30 @@ func TestNewProofIndexer_OwnerIndex(t *testing.T) {
 		require.Len(t, ownerUnitIDs, 1)
 		require.Equal(t, unitID, ownerUnitIDs[0])
 	})
+	t.Run("index can be loaded from state", func(t *testing.T) {
+		proofIndexer := NewProofIndexer(crypto.SHA256, nil, 0, testlogger.New(t))
+		unitID := types.UnitID{1}
+		ownerID := templates.AlwaysTrueBytes()
+		s := state.NewEmptyState()
+		err := s.Apply(state.AddUnit(unitID, ownerID, &mockUnitData{}))
+		require.NoError(t, err)
+		summaryValue, summaryHash, err := s.CalculateRoot()
+		require.NoError(t, err)
+		err = s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+			RoundNumber:  1,
+			Hash:         summaryHash,
+			SummaryValue: util.Uint64ToBytes(summaryValue),
+		}})
+		require.NoError(t, err)
+
+		err = proofIndexer.LoadState(s)
+		require.NoError(t, err)
+
+		// verify that unit is indexed
+		ownerUnitIDs := proofIndexer.ownerUnits[string(ownerID)]
+		require.Len(t, ownerUnitIDs, 1)
+		require.Equal(t, unitID, ownerUnitIDs[0])
+	})
 }
 
 type mockStateStoreOK struct{}
@@ -286,4 +312,16 @@ func simulateEmptyInput(round uint64) *BlockAndState {
 		Block: block,
 		State: mockStateStoreOK{},
 	}
+}
+
+type mockUnitData struct{}
+
+func (m mockUnitData) Write(hash.Hash) error { return nil }
+
+func (m mockUnitData) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (m mockUnitData) Copy() state.UnitData {
+	return mockUnitData{}
 }

@@ -345,7 +345,7 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	require.NoError(t, txs.State().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
+	require.NoError(t, txs.GetState().Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
@@ -1318,7 +1318,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 // Test LockFC -> UnlockFC
 func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	s := txs.State()
+	s := txs.GetState()
 
 	err := txs.BeginBlock(1)
 	require.NoError(t, err)

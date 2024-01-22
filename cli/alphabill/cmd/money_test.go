@@ -300,7 +300,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
-		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		moneyNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 		logF := testobserve.NewFactory(t)
 
 		appStoppedWg := sync.WaitGroup{}

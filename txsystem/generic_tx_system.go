@@ -74,7 +74,8 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 	return txs, nil
 }
 
-func (m *GenericTxSystem) State() *state.State {
+// GetState returns pointer to the underlying state object i.e. not a clone
+func (m *GenericTxSystem) GetState() *state.State {
 	return m.state
 }
 
@@ -169,7 +170,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) StateStorage() UnitAndProof {
+func (m *GenericTxSystem) State() *state.State {
 	return m.state.Clone()
 }
 

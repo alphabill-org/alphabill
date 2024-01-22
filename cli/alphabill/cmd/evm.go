@@ -127,7 +127,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
 	cfg.RESTServer.router = api.NewAPI(
-		txs.State(),
+		state,
 		systemIdentifier,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,

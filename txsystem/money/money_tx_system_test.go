@@ -46,7 +46,7 @@ var (
 	moneySystemID = DefaultSystemIdentifier
 )
 
-func TestNewMoneyTxSystem(t *testing.T) {
+func TestNewTxSystem(t *testing.T) {
 	var (
 		sdrs          = createSDRs(newBillID(3))
 		txsState      = genesisStateWithUC(t, initialBill, sdrs)
@@ -76,6 +76,72 @@ func TestNewMoneyTxSystem(t *testing.T) {
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
 	require.Equal(t, predicates.PredicateBytes(DustCollectorPredicate), d.Bearer())
+}
+
+func TestNewTxSystem_RecoveredState(t *testing.T) {
+	sdrs := createSDRs(newBillID(2))
+	s := genesisStateWithUC(t, initialBill, sdrs)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+
+	originalTxs, err := NewTxSystem(
+		logger.New(t),
+		WithSystemIdentifier(systemIdentifier),
+		WithSystemDescriptionRecords(sdrs),
+		WithState(s),
+		WithTrustBase(trustBase),
+	)
+	require.NoError(t, err)
+
+	// Create a state with some units having multiple log entries - a prunable state
+	require.NoError(t, originalTxs.BeginBlock(1))
+	transFC := testutils.NewTransferFC(t,
+		testutils.NewTransferFCAttr(
+			testutils.WithBacklink(nil),
+			testutils.WithAmount(20),
+			testutils.WithTargetRecordID(NewFeeCreditRecordID(nil, []byte{100})),
+		),
+		testtransaction.WithUnitId(initialBill.ID),
+		testtransaction.WithOwnerProof(nil),
+	)
+	_, err = originalTxs.Execute(transFC)
+	require.NoError(t, err)
+	originalSummaryRound1, err := originalTxs.EndBlock()
+	require.NoError(t, err)
+
+	// Commit and serialize the state
+	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
+	buf := &bytes.Buffer{}
+	require.NoError(t, originalTxs.SerializeState(buf, true))
+
+	// Create a recovered state and txSystem from the serialized state
+	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
+	require.NoError(t, err)
+	recoveredTxs, err := NewTxSystem(
+		logger.New(t),
+		WithSystemIdentifier(systemIdentifier),
+		WithSystemDescriptionRecords(sdrs),
+		WithState(recoveredState),
+		WithTrustBase(trustBase),
+	)
+	require.NoError(t, err)
+
+	// Original and recovered summary hashes for round 1 must match
+	recoveredSummaryRound1, err := recoveredTxs.StateSummary()
+	require.NoError(t, err)
+	require.EqualValues(t, originalSummaryRound1.Root(), recoveredSummaryRound1.Root())
+
+	// Calculate the summary hash of a new empty round for the original txs
+	require.NoError(t, originalTxs.BeginBlock(2))
+	originalSummaryRound2, err := originalTxs.EndBlock()
+
+	// Calculate the summary hash of a new empty round for the recovered txs
+	require.NoError(t, recoveredTxs.BeginBlock(2))
+	recoveredSummaryRound2, err := recoveredTxs.EndBlock()
+	require.EqualValues(t, originalSummaryRound2.Root(), recoveredSummaryRound2.Root())
+
+	// Since there was pruning, summary hashes of round 1 and round 2 cannot match
+	require.NotEqualValues(t, originalSummaryRound1.Root(), originalSummaryRound2.Root())
 }
 
 func TestExecute_TransferOk(t *testing.T) {

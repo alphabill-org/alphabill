@@ -134,9 +134,17 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 		}
 		logRoot := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
 
-		unit := &Unit{
-			logs:    []*Log{latestLog},
-			logRoot: logRoot,
+		unit := &Unit{logRoot: logRoot}
+		if len(nodeRecord.UnitTreePath) > 0 {
+			// A non-zero UnitTreePath length means that the unit had multiple logs at serialization.
+			// Those logs must be pruned at the beginning of the next round and the summary hash must
+			// be recalculated for such units after pruning. Let's add an extra empty log for the unit,
+			// so that the pruner can find it and the summary hash is recalculated. This does not
+			// interfere with proof indexer as proofs are not calculated for the recovered round.
+			// Everything else uses just the latest log.
+			unit.logs = []*Log{{}, latestLog}
+		} else {
+			unit.logs = []*Log{latestLog}
 		}
 
 		var right, left *node

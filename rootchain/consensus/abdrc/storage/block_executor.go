@@ -24,14 +24,12 @@ type (
 	SysIDList    []types.SystemID
 
 	ExecutedBlock struct {
-		_         struct{}             `cbor:",toarray"`
-		BlockData *drctypes.BlockData  `json:"block"`         // proposed block
-		CurrentIR InputRecords         `json:"inputData"`     // all input records in this block
-		Changed   SysIDList            `json:"changed"`       // changed partition system identifiers
-		HashAlgo  gocrypto.Hash        `json:"hashAlgorithm"` // hash algorithm for the block
-		RootHash  []byte               `json:"rootHash"`      // resulting root hash
-		Qc        *drctypes.QuorumCert `json:"Qc"`            // block's quorum certificate (from next view)
-		CommitQc  *drctypes.QuorumCert `json:"commitQc"`      // commit certificate
+		_         struct{}            `cbor:",toarray"`
+		BlockData *drctypes.BlockData `json:"blockData"`     // proposed block
+		CurrentIR InputRecords        `json:"currentIR"`     // all input records in this block
+		Changed   SysIDList           `json:"changed"`       // changed partition system identifiers
+		HashAlgo  gocrypto.Hash       `json:"hashAlgorithm"` // hash algorithm for the block
+		RootHash  []byte              `json:"rootHash"`      // resulting root hash
 	}
 
 	IRChangeReqVerifier interface {
@@ -98,29 +96,27 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 			Epoch:     0,
 			Timestamp: genesis.Timestamp,
 			Payload:   nil,
-			Qc:        nil,
+			Qc:        qc, // qc to itself
 		},
 		CurrentIR: data,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  hash,
 		RootHash:  qc.LedgerCommitInfo.Hash,
-		Qc:        qc, // qc to itself
-		CommitQc:  qc, // use same qc to itself for genesis block
 	}
 }
 
-func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock) (*ExecutedBlock, error) {
+func NewRecoveredBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
 	var changes SysIDList
-	if recoverBlock.Block.Payload != nil {
-		changes = make([]types.SystemID, 0, len(recoverBlock.Block.Payload.Requests))
+	if block.Block.Payload != nil {
+		changes = make([]types.SystemID, 0, len(block.Block.Payload.Requests))
 		// verify requests for IR change and proof of consensus
-		for _, irChReq := range recoverBlock.Block.Payload.Requests {
+		for _, irChReq := range block.Block.Payload.Requests {
 			changes = append(changes, irChReq.SystemIdentifier)
 		}
 	}
 	// recover input records
-	irState := make(InputRecords, len(recoverBlock.Ir))
-	for i, d := range recoverBlock.Ir {
+	irState := make(InputRecords, len(block.Ir))
+	for i, d := range block.Ir {
 		irState[i] = &InputData{
 			SysID: d.SysID,
 			IR:    d.Ir,
@@ -140,26 +136,12 @@ func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBl
 	if err != nil {
 		return nil, err
 	}
-	root := ut.GetRootHash()
-	// check against qc and commit qc
-	if recoverBlock.Qc != nil {
-		if !bytes.Equal(root, recoverBlock.Qc.VoteInfo.CurrentRootHash) {
-			return nil, fmt.Errorf("invalid recovery data, qc state hash does not match input records")
-		}
-	}
-	if recoverBlock.CommitQc != nil {
-		if !bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.Hash) {
-			return nil, fmt.Errorf("invalid recovery data, commit qc state hash does not match input records")
-		}
-	}
 	return &ExecutedBlock{
-		BlockData: recoverBlock.Block,
+		BlockData: block.Block,
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
 		RootHash:  bytes.Clone(ut.GetRootHash()),
-		Qc:        recoverBlock.Qc,
-		CommitQc:  recoverBlock.CommitQc,
 	}, nil
 }
 
@@ -268,7 +250,6 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map
 		}
 		ucs[sysID] = certificate
 	}
-	x.CommitQc = commitQc
 	return ucs, nil
 }
 

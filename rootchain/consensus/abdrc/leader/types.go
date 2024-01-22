@@ -1,7 +1,7 @@
 package leader
 
 import (
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 )
 
-type BlockLoader func(round uint64) (*abtypes.BlockData, error)
+type BlockLoader func(round uint64) (*storage.ExecutedBlock, error)

@@ -446,18 +446,17 @@ func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 
-	// prepare proposal, send "newer" UC, revert state and start recovery
+	// prepare a proposal, send "newer" UC from block 2
 	tp.SubmitT1Timeout(t)
 	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
-
+	// node starts recovery
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-
 	// make sure replication request is sent
 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
-	// send back the response with 3 blocks, block 3 is newer than requested
+	// send back the response with 3 blocks, block 3 has newer UC than the node has
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status: replication.Ok,
 		Blocks: []*types.Block{newBlock1, newBlock2, newBlock3},

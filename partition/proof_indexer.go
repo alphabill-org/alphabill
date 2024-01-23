@@ -163,10 +163,12 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 				}
 			}
 
-			// update owner index
-			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Updating owner index for unit %X", unitID))
-			if err := p.ownerIndexer.IndexOwner(unitID, unitLogs); err != nil {
-				return fmt.Errorf("failed to update owner index: %w", err)
+			if p.ownerIndexer != nil {
+				// update owner index
+				p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Updating owner index for unit %X", unitID))
+				if err := p.ownerIndexer.IndexOwner(unitID, unitLogs); err != nil {
+					return fmt.Errorf("failed to update owner index: %w", err)
+				}
 			}
 		}
 	}

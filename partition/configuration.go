@@ -53,9 +53,11 @@ type (
 	// historyLen - number of rounds/blocks to keep in indexer:
 	// - if 0, there is no clean-up and all blocks are kept in the index;
 	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
+	// withOwnerIndex - if true indexes all units by their owner
 	proofIndexConfig struct {
-		store      keyvaluedb.KeyValueDB
-		historyLen uint64
+		store          keyvaluedb.KeyValueDB
+		historyLen     uint64
+		withOwnerIndex bool
 	}
 
 	ledgerReplicationConfig struct {
@@ -95,10 +97,11 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
-func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64, withOwnerIndex bool) NodeOption {
 	return func(c *configuration) {
 		c.proofIndexConfig.store = db
 		c.proofIndexConfig.historyLen = history
+		c.proofIndexConfig.withOwnerIndex = withOwnerIndex
 	}
 }
 

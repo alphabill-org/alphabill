@@ -166,9 +166,12 @@ func NewNode(
 	}
 
 	// load owner indexer
-	ownerIndexer := NewOwnerIndexer(observe.Logger())
-	if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
-		return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
+	var ownerIndexer *OwnerIndexer
+	if conf.proofIndexConfig.withOwnerIndex {
+		ownerIndexer = NewOwnerIndexer(observe.Logger())
+		if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
+			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
+		}
 	}
 	n := &Node{
 		configuration:               conf,
@@ -1404,6 +1407,9 @@ func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*
 }
 
 func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	if n.proofIndexer.ownerIndexer == nil {
+		return nil, errors.New("owner indexer is disabled")
+	}
 	return n.proofIndexer.ownerIndexer.GetOwnerUnits(ownerID)
 }
 

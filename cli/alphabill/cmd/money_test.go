@@ -259,6 +259,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			Address:                    "/ip4/127.0.0.1/tcp/26652",
 			LedgerReplicationMaxBlocks: 1000,
 			LedgerReplicationMaxTx:     10000,
+			WithOwnerIndex:             true,
 		},
 		RPCServer: &grpcServerConfiguration{
 			Address:               defaultServerAddr,

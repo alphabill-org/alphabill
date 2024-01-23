@@ -66,12 +66,9 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
-	require.NotNil(t, b.Qc)
-	require.NotNil(t, b.CommitQc)
 	require.NotNil(t, b.BlockData)
 	require.Equal(t, uint64(1), b.BlockData.Round)
 	require.Equal(t, "genesis", b.BlockData.Author)
-	require.NoError(t, b.CommitQc.IsValid())
 }
 
 func TestExecutedBlock(t *testing.T) {
@@ -119,8 +116,6 @@ func TestExecutedBlock(t *testing.T) {
 	require.Equal(t, hash, executedBlock.HashAlgo)
 	rootHash := []byte{0xd0, 0xf7, 0xc6, 0x55, 0xcd, 0xa, 0xbc, 0x28, 0xc4, 0x26, 0x32, 0xaf, 0x6e, 0x29, 0x50, 0x69, 0x5e, 0xee, 0x55, 0x31, 0x6, 0xbd, 0xbd, 0x56, 0x7e, 0xa2, 0x77, 0xd7, 0xaa, 0x8b, 0xfc, 0x27}
 	require.Equal(t, rootHash, executedBlock.RootHash)
-	require.Nil(t, executedBlock.Qc)
-	require.Nil(t, executedBlock.CommitQc)
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
@@ -161,8 +156,6 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		HashAlgo: gocrypto.SHA256,
 		RootHash: []byte{0xF2, 0xE8, 0xBC, 0xC5, 0x71, 0x0D, 0x40, 0xAB, 0x42, 0xD5, 0x70, 0x57, 0x6F, 0x56, 0xA2, 0xF2,
 			0x7E, 0xF6, 0x0F, 0xE9, 0x21, 0x25, 0x0A, 0x4B, 0x4C, 0xF5, 0xBC, 0xAC, 0xA3, 0x29, 0xBF, 0x32},
-		Qc:       &drctypes.QuorumCert{},
-		CommitQc: nil,
 	}
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{
@@ -196,8 +189,6 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	certs, err = block.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
-	require.NotNil(t, block.CommitQc)
-
 }
 
 func TestExecutedBlock_GetRound(t *testing.T) {

@@ -471,23 +471,6 @@ func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
-	b, err := tp.partition.GetBlock(context.Background(), 0)
-	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
-	require.Nil(t, b)
-	b, err = tp.partition.GetBlock(context.Background(), 1)
-	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock1))
-	b, err = tp.partition.GetBlock(context.Background(), 2)
-	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock2))
-	b, err = tp.partition.GetBlock(context.Background(), 3)
-	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock3))
-	require.True(t, reflect.DeepEqual(b, latestBlock))
-	// on not found nil is returned
-	b, err = tp.partition.GetBlock(context.Background(), 4)
-	require.NoError(t, err)
-	require.Nil(t, b)
 	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
 }
 

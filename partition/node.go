@@ -165,9 +165,9 @@ func NewNode(
 		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
 	}
 
-	// load proof indexer
-	proofIndexer := NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger())
-	if err := proofIndexer.LoadState(txSystem.State()); err != nil {
+	// load owner indexer
+	ownerIndexer := NewOwnerIndexer(observe.Logger())
+	if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
 		return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
 	}
 	n := &Node{
@@ -178,7 +178,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                proofIndexer,
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, ownerIndexer, observe.Logger()),
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -1404,7 +1404,7 @@ func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*
 }
 
 func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
-	return n.proofIndexer.GetOwnerUnits(ownerID)
+	return n.proofIndexer.ownerIndexer.GetOwnerUnits(ownerID)
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

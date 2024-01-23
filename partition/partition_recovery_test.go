@@ -437,6 +437,60 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
 }
 
+func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	uc0 := tp.GetCommittedUC(t)
+
+	system := &testtxsystem.CounterTxSystem{}
+	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+
+	// prepare proposal, send "newer" UC, revert state and start recovery
+	tp.SubmitT1Timeout(t)
+	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
+
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, recovering, tp.partition.status.Load())
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure replication request is sent
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	// send back the response with 3 blocks, block 3 is newer than requested
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status: replication.Ok,
+		Blocks: []*types.Block{newBlock1, newBlock2, newBlock3},
+	})
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	require.Equal(t, normal, tp.partition.status.Load())
+	// test get interfaces
+	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), nr)
+	latestBlock := tp.GetLatestBlock(t)
+	require.NoError(t, err)
+	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
+	b, err := tp.partition.GetBlock(context.Background(), 0)
+	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
+	require.Nil(t, b)
+	b, err = tp.partition.GetBlock(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reflect.DeepEqual(b, newBlock1))
+	b, err = tp.partition.GetBlock(context.Background(), 2)
+	require.NoError(t, err)
+	require.True(t, reflect.DeepEqual(b, newBlock2))
+	b, err = tp.partition.GetBlock(context.Background(), 3)
+	require.NoError(t, err)
+	require.True(t, reflect.DeepEqual(b, newBlock3))
+	require.True(t, reflect.DeepEqual(b, latestBlock))
+	// on not found nil is returned
+	b, err = tp.partition.GetBlock(context.Background(), 4)
+	require.NoError(t, err)
+	require.Nil(t, b)
+	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
+}
+
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true})
 	uc0 := tp.GetCommittedUC(t)

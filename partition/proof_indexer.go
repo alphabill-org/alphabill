@@ -280,7 +280,9 @@ func (p *ProofIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	if err != nil {
 		return fmt.Errorf("failed to extract owner id: %w", err)
 	}
-	p.ownerUnits[ownerID] = append(p.ownerUnits[ownerID], unitID)
+	if ownerID != "" {
+		p.ownerUnits[ownerID] = append(p.ownerUnits[ownerID], unitID)
+	}
 	return nil
 }
 
@@ -288,6 +290,9 @@ func (p *ProofIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	ownerID, err := extractOwnerID(ownerPredicate)
 	if err != nil {
 		return fmt.Errorf("failed to extract owner id: %w", err)
+	}
+	if ownerID == "" {
+		return nil
 	}
 	unitIDs := p.ownerUnits[ownerID]
 	for i, uid := range unitIDs {
@@ -336,7 +341,9 @@ func (s *ownerTraverser) Traverse(n *avl.Node[types.UnitID, *state.Unit]) {
 		s.err = fmt.Errorf("failed to extract owner id: %w", err)
 		return
 	}
-	s.ownerUnits[ownerID] = append(s.ownerUnits[ownerID], n.Key())
+	if ownerID != "" {
+		s.ownerUnits[ownerID] = append(s.ownerUnits[ownerID], n.Key())
+	}
 }
 
 func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxIndex, error) {
@@ -369,17 +376,14 @@ func extractOwnerID(ownerPredicate []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to extract predicate: %w", err)
 	}
-	var ownerID string
-	if predicate.ID == templates.P2pkh256ID {
-		p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
-		if err != nil {
-			return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
-		}
-		// for p2pkh predicates use pubkey hash as the owner id
-		ownerID = string(p2pkhPredicate.PubKeyHash)
-	} else {
-		// for non-p2pkh predicates use the entire owner predicate as the owner id
-		ownerID = string(ownerPredicate)
+	if predicate.ID != templates.P2pkh256ID {
+		// do not index non-p2pkh predicates
+		return "", nil
 	}
-	return ownerID, nil
+	p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
+	}
+	// for p2pkh predicates use pubkey hash as the owner id
+	return string(p2pkhPredicate.PubKeyHash), nil
 }

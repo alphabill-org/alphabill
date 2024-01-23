@@ -232,7 +232,7 @@ func TestNewProofIndexer_OwnerIndex(t *testing.T) {
 		require.False(t, ok)
 		require.Nil(t, owner1UnitIDs)
 	})
-	t.Run("non-p2pkh predicate is indexed as the entire predicate", func(t *testing.T) {
+	t.Run("non-p2pkh predicate is not indexed", func(t *testing.T) {
 		proofIndexer := NewProofIndexer(crypto.SHA256, nil, 0, testlogger.New(t))
 		unitID := types.UnitID{1}
 		ownerID := templates.AlwaysTrueBytes()
@@ -242,8 +242,7 @@ func TestNewProofIndexer_OwnerIndex(t *testing.T) {
 
 		// verify that unit is indexed
 		ownerUnitIDs := proofIndexer.ownerUnits[string(ownerID)]
-		require.Len(t, ownerUnitIDs, 1)
-		require.Equal(t, unitID, ownerUnitIDs[0])
+		require.Len(t, ownerUnitIDs, 0)
 	})
 	t.Run("index can be loaded from state", func(t *testing.T) {
 		proofIndexer := NewProofIndexer(crypto.SHA256, nil, 0, testlogger.New(t))

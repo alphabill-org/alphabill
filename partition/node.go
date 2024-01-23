@@ -1131,7 +1131,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", recoveringRoundNo, err))
 		}
 		// node might get a newer UC while recovering, update latest if received is newer
-		if luc := n.luc.Load(); luc.GetRoundNumber() < b.UnicityCertificate.GetRoundNumber() {
+		if n.luc.Load().GetRoundNumber() < b.UnicityCertificate.GetRoundNumber() {
 			// error is only returned if LUC is newer
 			_ = n.updateLUC(b.UnicityCertificate)
 		}

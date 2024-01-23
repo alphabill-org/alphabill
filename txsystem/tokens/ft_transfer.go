@@ -32,7 +32,7 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					d.T = currentBlockNr
-					d.backlink = tx.Hash(options.hashAlgorithm)
+					d.Backlink = tx.Hash(options.hashAlgorithm)
 					return d, nil
 				})); err != nil {
 			return nil, err
@@ -48,7 +48,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 		return err
 	}
 
-	if d.locked != 0 {
+	if d.Locked != 0 {
 		return fmt.Errorf("token is locked")
 	}
 
@@ -56,8 +56,8 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
 
-	if !bytes.Equal(d.backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
+	if !bytes.Equal(d.Backlink, attr.Backlink) {
+		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
 
 	if !bytes.Equal(attr.TypeID, d.TokenType) {

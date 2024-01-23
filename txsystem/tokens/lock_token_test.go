@@ -45,8 +45,8 @@ func TestLockFT_Ok(t *testing.T) {
 	require.Equal(t, existingTokenTypeUnitID, d.TokenType)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
 	require.Equal(t, roundNo, d.T)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, attr.LockStatus, d.locked)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, attr.LockStatus, d.Locked)
 }
 
 func TestLockFT_NotOk(t *testing.T) {
@@ -256,7 +256,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		backlink:  make([]byte, 32),
+		Backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
 
@@ -264,8 +264,8 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		backlink:  make([]byte, 32),
-		locked:    1,
+		Backlink:  make([]byte, 32),
+		Locked:    1,
 	}))
 	require.NoError(t, err)
 

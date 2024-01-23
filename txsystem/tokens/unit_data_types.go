@@ -52,8 +52,8 @@ type FungibleTokenData struct {
 	TokenType types.UnitID // the type of the token;
 	Value     uint64       // the value of the token;
 	T         uint64       // the round number of the last transaction with this token;
-	backlink  []byte       // the hash of the last transaction order for this token
-	locked    uint64       // locked status of the bill, non-zero value means locked
+	Backlink  []byte       // the hash of the last transaction order for this token
+	Locked    uint64       // locked status of the bill, non-zero value means locked
 }
 
 func newFungibleTokenTypeData(attr *CreateFungibleTokenTypeAttributes) state.UnitData {
@@ -99,7 +99,7 @@ func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, curr
 		TokenType: attr.TypeID,
 		Value:     attr.Value,
 		T:         currentBlockNr,
-		backlink:  txHash,
+		Backlink:  txHash,
 	}
 }
 
@@ -235,15 +235,15 @@ func (f *FungibleTokenData) Copy() state.UnitData {
 		TokenType: bytes.Clone(f.TokenType),
 		Value:     f.Value,
 		T:         f.T,
-		backlink:  bytes.Clone(f.backlink),
-		locked:    f.locked,
+		Backlink:  bytes.Clone(f.Backlink),
+		Locked:    f.Locked,
 	}
 }
 
 func (f *FungibleTokenData) GetBacklink() []byte {
-	return f.backlink
+	return f.Backlink
 }
 
 func (f *FungibleTokenData) IsLocked() uint64 {
-	return f.locked
+	return f.Locked
 }

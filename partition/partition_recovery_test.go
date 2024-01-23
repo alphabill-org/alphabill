@@ -437,7 +437,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
 }
 
-func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
+func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	uc0 := tp.GetCommittedUC(t)
 
@@ -445,9 +445,9 @@ func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-
-	// prepare a proposal, send "newer" UC from block 2
+	// prepare a proposal
 	tp.SubmitT1Timeout(t)
+	// simulate root response with newer UC from round 2
 	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
 	// node starts recovery
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
@@ -461,6 +461,7 @@ func TestNode_RecoverBlocks_NewerStateReceivedThanRequested(t *testing.T) {
 		Status: replication.Ok,
 		Blocks: []*types.Block{newBlock1, newBlock2, newBlock3},
 	})
+	// verify that recovery is successfully completed
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces

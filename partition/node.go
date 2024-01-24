@@ -684,7 +684,9 @@ func (n *Node) updateLUC(uc *types.UnicityCertificate) error {
 		return fmt.Errorf("received stale unicity certificate, current uc round %d, received uc round %d",
 			luc.GetRoundNumber(), uc.GetRoundNumber())
 	}
-	if n.luc.CompareAndSwap(luc, uc) {
+	// only swaps if received is newer, ignore if it is for the same round
+	if uc.GetRoundNumber() > luc.GetRoundNumber() {
+		n.luc.CompareAndSwap(luc, uc)
 		n.log.Debug("updated LUC", logger.Round(uc.GetRoundNumber()))
 		n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 	}
@@ -1131,10 +1133,8 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", recoveringRoundNo, err))
 		}
 		// node might get a newer UC while recovering, update latest if received is newer
-		if n.luc.Load().GetRoundNumber() < b.UnicityCertificate.GetRoundNumber() {
-			// error is only returned if LUC is newer
-			_ = n.updateLUC(b.UnicityCertificate)
-		}
+		// ignore error here, only returned if LUC is newer (which commonly the case)
+		_ = n.updateLUC(b.UnicityCertificate)
 		latestProcessedRoundNumber = recoveringRoundNo
 		latestStateHash = b.UnicityCertificate.InputRecord.Hash
 	}

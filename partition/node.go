@@ -1133,6 +1133,16 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		latestProcessedRoundNumber = recoveringRoundNo
 		latestStateHash = b.UnicityCertificate.InputRecord.Hash
 	}
+	// check if a newer UC was received compared to the one we last saw from root node
+	if len(lr.Blocks) > 0 {
+		lastBlock := lr.Blocks[len(lr.Blocks)-1]
+		if n.luc.Load().GetRoundNumber() < lastBlock.UnicityCertificate.GetRoundNumber() {
+			if err = n.updateLUC(lastBlock.UnicityCertificate); err != nil {
+				// log the error, node will issue a new request below if state does not match
+				n.log.WarnContext(ctx, fmt.Sprintf("Failed to update LUC: %v", err))
+			}
+		}
+	}
 
 	// check if recovery is complete
 	n.log.DebugContext(ctx, fmt.Sprintf("Checking if recovery is complete, last recovered round: %d", latestProcessedRoundNumber))

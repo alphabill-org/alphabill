@@ -38,7 +38,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 					TokenType: d.TokenType,
 					Value:     attr.TargetValue,
 					T:         currentBlockNr,
-					backlink:  txHash,
+					Backlink:  txHash,
 				}),
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
@@ -50,7 +50,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 						TokenType: d.TokenType,
 						Value:     d.Value - attr.TargetValue,
 						T:         currentBlockNr,
-						backlink:  txHash,
+						Backlink:  txHash,
 					}, nil
 				})); err != nil {
 			return nil, err
@@ -73,7 +73,7 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 	if err != nil {
 		return err
 	}
-	if d.locked != 0 {
+	if d.Locked != 0 {
 		return errors.New("token is locked")
 	}
 	if attr.TargetValue == 0 {
@@ -90,8 +90,8 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 		return errors.New("remaining value must equal to the original value minus target value")
 	}
 
-	if !bytes.Equal(d.backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
+	if !bytes.Equal(d.Backlink, attr.Backlink) {
+		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)

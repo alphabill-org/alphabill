@@ -432,7 +432,7 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 	require.IsType(t, &FungibleTokenData{}, u.Data())
 	d := u.Data().(*FungibleTokenData)
 	require.Equal(t, e.tokenValue, d.Value)
-	require.Equal(t, e.backlink, d.backlink)
+	require.Equal(t, e.backlink, d.Backlink)
 	require.Equal(t, types.UnitID(e.typeUnitID), d.TokenType)
 }
 

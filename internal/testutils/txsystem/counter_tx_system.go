@@ -3,6 +3,7 @@ package testtxsystem
 import (
 	"encoding/binary"
 	"io"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -31,6 +32,9 @@ type CounterTxSystem struct {
 
 	// fee charged for each tx
 	Fee uint64
+
+	// mutex guarding all CounterTxSystem fields
+	mu sync.Mutex
 }
 
 type Summary struct {
@@ -51,21 +55,27 @@ func (m *CounterTxSystem) StateStorage() txsystem.UnitAndProof {
 }
 
 func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.uncommitted {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
 	bytes := make([]byte, 32)
-	var state = m.InitCount + m.ExecuteCount
+	var c = m.InitCount + m.ExecuteCount
 	if m.EndBlockChangesState {
-		state += m.EndBlockCount
+		c += m.EndBlockCount
 	}
-	binary.LittleEndian.PutUint64(bytes, state)
+	binary.LittleEndian.PutUint64(bytes, c)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
 }
 
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.blockNo = nr
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
@@ -73,6 +83,9 @@ func (m *CounterTxSystem) BeginBlock(nr uint64) error {
 }
 
 func (m *CounterTxSystem) Revert() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.ExecuteCountDelta = 0
 	m.EndBlockCountDelta = 0
 	m.BeginBlockCountDelta = 0
@@ -81,6 +94,9 @@ func (m *CounterTxSystem) Revert() {
 }
 
 func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount + m.ExecuteCountDelta
@@ -95,6 +111,9 @@ func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
 }
 
 func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.ExecuteCount += m.ExecuteCountDelta
 	m.EndBlockCount += m.EndBlockCountDelta
 	m.BeginBlockCount += m.BeginBlockCountDelta
@@ -104,6 +123,9 @@ func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
 }
 
 func (m *CounterTxSystem) CommittedUC() *types.UnicityCertificate {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return m.committedUC
 }
 
@@ -112,6 +134,9 @@ func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error
 }
 
 func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.ExecuteCountDelta++
 	m.uncommitted = true
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil

@@ -74,11 +74,6 @@ func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*Ge
 	return txs, nil
 }
 
-// GetState returns pointer to the underlying state object i.e. not a clone
-func (m *GenericTxSystem) GetState() *state.State {
-	return m.state
-}
-
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, ErrStateContainsUncommittedChanges

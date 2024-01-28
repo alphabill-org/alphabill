@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	Leaf byte = 0
-	Node byte = 1
+	Node byte = 0
+	Leaf byte = 1
 )
 
 type (
@@ -35,10 +35,11 @@ type (
 		dataHash []byte
 	}
 	node struct {
-		left  *node
-		right *node
-		hash  []byte
-		k     []byte
+		left     *node
+		right    *node
+		hash     []byte
+		dataHash []byte // only leaf nodes have data hash
+		k        []byte
 	}
 )
 
@@ -72,21 +73,21 @@ func New(hashAlgorithm crypto.Hash, leaves []LeafData) (*IMT, error) {
 }
 
 // IndexTreeOutput calculates the output hash of the index Merkle tree hash chain from hash chain, key and data hash.
-func IndexTreeOutput(merklePath []*PathItem, data LeafData, hashAlgorithm crypto.Hash) []byte {
+func IndexTreeOutput(merklePath []*PathItem, key []byte, hashAlgorithm crypto.Hash) []byte {
+	if len(merklePath) == 0 {
+		return nil
+	}
+	leaf, merklePath := merklePath[0], merklePath[1:]
+
 	hasher := hashAlgorithm.New()
-	// calculate data hash
-	data.AddToHasher(hasher)
-	dataHash := hasher.Sum(nil)
-	hasher.Reset()
-	// calculate leaf hash
 	hasher.Write([]byte{Leaf})
-	hasher.Write(data.Key())
-	hasher.Write(dataHash)
+	hasher.Write(leaf.Key)
+	hasher.Write(leaf.Hash)
 	h := hasher.Sum(nil)
 	hasher.Reset()
 	// follow hash chain
 	for _, item := range merklePath {
-		if bytes.Compare(data.Key(), item.Key) == 1 {
+		if bytes.Compare(key, item.Key) == 1 {
 			// key > item.Key is bigger - left link
 			hasher.Write([]byte{Node})
 			hasher.Write(item.Key)
@@ -132,6 +133,8 @@ func (s *IMT) GetMerklePath(key []byte) ([]*PathItem, error) {
 			curr = curr.left
 		}
 	}
+	// append leaf
+	z = append([]*PathItem{{Key: curr.k, Hash: curr.dataHash}}, z...)
 	return z, nil
 }
 
@@ -154,7 +157,7 @@ func createMerkleTree(pairs []pair, hasher hash.Hash) *node {
 		hasher.Write([]byte{Leaf})
 		hasher.Write(pairs[0].key)
 		hasher.Write(pairs[0].dataHash)
-		return &node{k: pairs[0].key, hash: hasher.Sum(nil)}
+		return &node{k: pairs[0].key, dataHash: pairs[0].dataHash, hash: hasher.Sum(nil)}
 	}
 	m := (len(pairs) + 1) / 2
 	leftSub := pairs[:m]

@@ -43,6 +43,11 @@ func TestNewIMTWithNilData(t *testing.T) {
 	require.NotNil(t, imt)
 	require.Nil(t, imt.GetRootHash())
 	require.Equal(t, 0, imt.dataLength)
+	path, err := imt.GetMerklePath([]byte{0})
+	require.EqualError(t, err, "tree empty")
+	require.Nil(t, path)
+	var merklePath []*PathItem = nil
+	require.Nil(t, IndexTreeOutput(merklePath, []byte{0}, crypto.SHA256))
 }
 
 func TestNewIMTWithEmptyData(t *testing.T) {
@@ -51,6 +56,11 @@ func TestNewIMTWithEmptyData(t *testing.T) {
 	require.NotNil(t, imt)
 	require.Nil(t, imt.GetRootHash())
 	require.Equal(t, 0, imt.dataLength)
+	path, err := imt.GetMerklePath([]byte{0})
+	require.EqualError(t, err, "tree empty")
+	require.Nil(t, path)
+	var merklePath []*PathItem
+	require.Nil(t, IndexTreeOutput(merklePath, []byte{0}, crypto.SHA256))
 }
 
 func TestNewIMTWithSingleNode(t *testing.T) {
@@ -140,7 +150,7 @@ func TestNewIMTYellowpaperExample(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, imt)
 	require.EqualValues(t, "4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A", fmt.Sprintf("%X", imt.GetRootHash()))
-	/* See Yellowpaper appendix C.2.1 Figure 33. Identifiers of the nodes of an indexed hash tree
+	/* See Yellowpaper appendix C.2.1 Figure 32. Keys of the nodes of an indexed hash tree.
 			┌──k: 0a, 08D4FA5D3E55BF5D9B62A4A42DBDDCBE9BFDC121D4A7B9722E53A24AC0C3291D
 		┌──k: 09, 71FE84320E781FE3801AF502382064AF0DFAB9E312014286DD519F355C6BDD18
 		│	└──k: 09, 6F9842322C9343721ED01CE894C9C35F291FE0237084914D780CF658CF9E7F13
@@ -159,6 +169,10 @@ func TestNewIMTYellowpaperExample(t *testing.T) {
 		require.NoError(t, err)
 		h := IndexTreeOutput(path, d.Key(), crypto.SHA256)
 		require.EqualValues(t, h, imt.GetRootHash())
+		// verify data hash
+		hasher := crypto.SHA256.New()
+		d.AddToHasher(hasher)
+		require.EqualValues(t, hasher.Sum(nil), path[0].Hash)
 	}
 	// test non-inclusion
 	idx := []byte{8}
@@ -189,6 +203,10 @@ func TestNewIMTWithOddNumberOfLeaves(t *testing.T) {
 		require.NoError(t, err)
 		h := IndexTreeOutput(path, d.Key(), crypto.SHA256)
 		require.EqualValues(t, h, imt.GetRootHash())
+		// verify data hash
+		hasher := crypto.SHA256.New()
+		d.AddToHasher(hasher)
+		require.EqualValues(t, hasher.Sum(nil), path[0].Hash)
 	}
 	// non-inclusion
 	leaf := TestData{
@@ -201,6 +219,9 @@ func TestNewIMTWithOddNumberOfLeaves(t *testing.T) {
 	require.EqualValues(t, h, imt.GetRootHash())
 	// however, it is not from index 9
 	require.NotEqualValues(t, leaf.key, path[0].Key)
+	hasher := crypto.SHA256.New()
+	leaf.AddToHasher(hasher)
+	require.NotEqualValues(t, hasher.Sum(nil), path[0].Hash)
 }
 
 func TestNewIMTWithEvenNumberOfLeaves(t *testing.T) {
@@ -235,4 +256,7 @@ func TestNewIMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.EqualValues(t, h, imt.GetRootHash())
 	// however, it is not from index 9
 	require.NotEqualValues(t, leaf.key, path[0].Key)
+	hasher := crypto.SHA256.New()
+	leaf.AddToHasher(hasher)
+	require.NotEqualValues(t, hasher.Sum(nil), path[0].Hash)
 }

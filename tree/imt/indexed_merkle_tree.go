@@ -117,7 +117,6 @@ func (s *IMT) GetRootHash() []byte {
 // GetMerklePath extracts the indexed merkle hash chain from the given leaf key
 // to root. A hash chain is always returned. If the key is not present, a chain
 // is returned from where the key is supposed to be.
-// This can be used to prove that the key was not present.
 func (s *IMT) GetMerklePath(key []byte) ([]*PathItem, error) {
 	if s.root == nil {
 		return nil, fmt.Errorf("tree empty")

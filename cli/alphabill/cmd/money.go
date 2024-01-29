@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -19,8 +20,8 @@ type (
 	moneyNodeConfiguration struct {
 		baseNodeConfiguration
 		Node       *startNodeConfiguration
-		RPCServer  *grpcServerConfiguration
-		RESTServer *restServerConfiguration
+		grpcServer *grpcServerConfiguration
+		rpcServer  *rpc.ServerConfiguration
 	}
 
 	// moneyNodeRunnable is the function that is run after configuration is loaded.
@@ -35,9 +36,9 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		RPCServer:  &grpcServerConfiguration{},
-		RESTServer: &restServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		grpcServer: &grpcServerConfiguration{},
+		rpcServer: &rpc.ServerConfiguration{},
 	}
 	var nodeCmd = &cobra.Command{
 		Use:   "money",
@@ -52,9 +53,8 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 	}
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "money")
-
-	config.RPCServer.addConfigurationFlags(nodeCmd)
-	config.RESTServer.addConfigurationFlags(nodeCmd)
+	addRPCServerConfigurationFlags(nodeCmd, config.rpcServer)
+	config.grpcServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -128,5 +128,6 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
+
+	return run(ctx, "money node", node, cfg.grpcServer, cfg.rpcServer, proofStore, obs)
 }

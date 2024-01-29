@@ -49,6 +49,7 @@ type startNodeConfiguration struct {
 	KeyFile                    string
 	DbFile                     string
 	TxIndexerDBFile            string
+	WithOwnerIndex             bool
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
@@ -218,7 +219,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithProofIndex(proofStore, 20),
+		partition.WithProofIndex(proofStore, 20, cfg.WithOwnerIndex),
 		// TODO history size!
 	}
 
@@ -279,6 +280,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
+	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

@@ -14,12 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockStateStoreOK struct{}
-
 func TestNewProofIndexer_history_2(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -51,7 +50,8 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -79,7 +79,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - no history clean-up", func(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, testlogger.New(t))
+		logger := testlogger.New(t)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, NewOwnerIndexer(logger), logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -123,7 +124,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - keep last 2 rounds", func(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, testlogger.New(t))
+		logger := testlogger.New(t)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -164,6 +166,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		}
 	})
 }
+
+type mockStateStoreOK struct{}
 
 func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return &state.Unit{}, nil

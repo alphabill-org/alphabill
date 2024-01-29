@@ -29,10 +29,10 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	if err := x.InputRecord.IsValid(); err != nil {
 		return fmt.Errorf("intput record validation failed, %w", err)
 	}
-	if err := x.UnicityTreeCertificate.IsValid(systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityTreeCertificate.IsValid(x.InputRecord, systemIdentifier, systemDescriptionHash, algorithm); err != nil {
 		return fmt.Errorf("unicity tree certificate validation failed, %w", err)
 	}
-	treeRoot := x.UnicityTreeCertificate.EvalAuthPath(x.InputRecord, x.UnicityTreeCertificate.SystemDescriptionHash, algorithm)
+	treeRoot := x.UnicityTreeCertificate.EvalAuthPath(algorithm)
 	rootHash := x.UnicitySeal.Hash
 	if !bytes.Equal(treeRoot, rootHash) {
 		return fmt.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)

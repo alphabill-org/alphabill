@@ -1,7 +1,7 @@
 package types
 
 import (
-	"strings"
+	gocrypto "crypto"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -11,68 +11,55 @@ import (
 
 const identifier SystemID = 0x01010101
 
-var uct = &UnicityTreeCertificate{
-	SystemIdentifier:      identifier,
-	SiblingHashes:         []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
-	SystemDescriptionHash: zeroHash,
-}
-
 func TestUnicityTreeCertificate_IsValid(t *testing.T) {
-	type args struct {
-		systemIdentifier      SystemID
-		systemDescriptionHash []byte
-	}
-	tests := []struct {
-		name   string
-		uct    *UnicityTreeCertificate
-		args   args
-		err    error
-		errStr string
-	}{
-		{
-			name: "unicity tree certificate is nil",
-			uct:  nil,
-			args: args{},
-			err:  ErrUnicityTreeCertificateIsNil,
-		},
-		{
-			name: "invalid system identifier",
-			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      0x01010101,
-				SiblingHashes:         []*imt.PathItem{},
-				SystemDescriptionHash: zeroHash,
-			},
-			args: args{
-				systemIdentifier: 0x01010100,
-			},
-			errStr: "invalid system identifier",
-		},
-		{
-			name: "invalid system description hash",
-			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      0x01010101,
-				SiblingHashes:         []*imt.PathItem{},
-				SystemDescriptionHash: nil,
-			},
-			args: args{
-				systemIdentifier:      0x01010101,
-				systemDescriptionHash: []byte{2, 1, 1, 1},
-			},
-			errStr: "invalid system description hash",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.uct.IsValid(tt.args.systemIdentifier, tt.args.systemDescriptionHash)
-			if tt.err != nil {
-				require.ErrorIs(t, err, tt.err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.errStr))
-			}
-		})
-	}
-}
+	t.Run("unicity tree certificate is nil", func(t *testing.T) {
+		var uct *UnicityTreeCertificate = nil
+		require.ErrorIs(t, uct.IsValid(nil, SystemID(2), test.RandomBytes(32), gocrypto.SHA256), ErrUnicityTreeCertificateIsNil)
+	})
 
-func TestUnicityTreeCertificate_IsValidOk(t *testing.T) {
-	require.NoError(t, uct.IsValid(identifier, zeroHash))
+	t.Run("invalid system identifier", func(t *testing.T) {
+		uct := &UnicityTreeCertificate{
+			SystemIdentifier:      0x01010101,
+			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: test.RandomBytes(32)}},
+			SystemDescriptionHash: zeroHash,
+		}
+		require.EqualError(t, uct.IsValid(nil, 0x01010100, test.RandomBytes(32), gocrypto.SHA256),
+			"invalid system identifier: expected 01010100, got 01010101")
+	})
+
+	t.Run("invalid system description hash", func(t *testing.T) {
+		uct := &UnicityTreeCertificate{
+			SystemIdentifier:      identifier,
+			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: test.RandomBytes(32)}},
+			SystemDescriptionHash: []byte{1, 1, 1, 1},
+		}
+		require.EqualError(t, uct.IsValid(nil, identifier, []byte{1, 1, 1, 2}, gocrypto.SHA256),
+			"invalid system description hash: expected 01010102, got 01010101")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		ir := &InputRecord{
+			PreviousHash:    []byte{0, 0, 0, 0},
+			Hash:            []byte{0, 0, 0, 2},
+			BlockHash:       []byte{0, 0, 0, 3},
+			SummaryValue:    []byte{0, 0, 0, 4},
+			RoundNumber:     5,
+			SumOfEarnedFees: 10,
+		}
+		sdrh := []byte{1, 2, 3, 4}
+		leaf := treeData{
+			Idx:  identifier,
+			IR:   ir,
+			Sdrh: sdrh,
+		}
+		hasher := gocrypto.SHA256.New()
+		leaf.AddToHasher(hasher)
+		var uct = &UnicityTreeCertificate{
+			SystemIdentifier:      identifier,
+			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: hasher.Sum(nil)}},
+			SystemDescriptionHash: sdrh,
+		}
+		require.NoError(t, uct.IsValid(ir, identifier, sdrh, gocrypto.SHA256))
+	})
+
 }

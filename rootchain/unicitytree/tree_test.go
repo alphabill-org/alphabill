@@ -43,7 +43,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key, cert.SystemIdentifier)
-	root := imt.IndexTreeOutput(cert.SiblingHashes, data[0], crypto.SHA256)
+	root := imt.IndexTreeOutput(cert.SiblingHashes, key.Bytes(), crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 }

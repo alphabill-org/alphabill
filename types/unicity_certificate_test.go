@@ -7,10 +7,25 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUnicityCertificate_IsValid(t *testing.T) {
+	sdrh := zeroHash
+	hasher := gocrypto.SHA256.New()
+	leaf := treeData{
+		Idx:  identifier,
+		IR:   ir,
+		Sdrh: sdrh,
+	}
+	leaf.AddToHasher(hasher)
+	dataHash := hasher.Sum(nil)
+	var uct = &UnicityTreeCertificate{
+		SystemIdentifier:      identifier,
+		SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
+		SystemDescriptionHash: zeroHash,
+	}
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
@@ -42,14 +57,14 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 			name: "invalid input record",
 			fields: fields{
 				InputRecord:            nil,
-				UnicityTreeCertificate: uct,
+				UnicityTreeCertificate: nil,
 				UnicitySeal:            seal,
 			},
 			args: args{
 				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
-				systemDescriptionHash: zeroHash,
+				systemDescriptionHash: sdrh,
 			},
 			err: ErrInputRecordIsNil,
 		},
@@ -64,7 +79,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
-				systemDescriptionHash: zeroHash,
+				systemDescriptionHash: sdrh,
 			},
 			err: ErrUnicityTreeCertificateIsNil,
 		},
@@ -79,7 +94,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
-				systemDescriptionHash: zeroHash,
+				systemDescriptionHash: sdrh,
 			},
 			err: ErrUnicitySealIsNil,
 		},
@@ -94,7 +109,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
-				systemDescriptionHash: zeroHash,
+				systemDescriptionHash: sdrh,
 			},
 			errStr: "does not match with the root hash of the unicity tree",
 		},

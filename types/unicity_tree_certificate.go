@@ -36,7 +36,7 @@ func (t treeData) Key() []byte {
 	return t.Idx.Bytes()
 }
 
-func (x *UnicityTreeCertificate) IsValid(systemIdentifier SystemID, systemDescriptionHash []byte) error {
+func (x *UnicityTreeCertificate) IsValid(ir *InputRecord, systemIdentifier SystemID, systemDescriptionHash []byte, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
 		return ErrUnicityTreeCertificateIsNil
 	}
@@ -46,16 +46,29 @@ func (x *UnicityTreeCertificate) IsValid(systemIdentifier SystemID, systemDescri
 	if !bytes.Equal(systemDescriptionHash, x.SystemDescriptionHash) {
 		return fmt.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
 	}
-	return nil
-}
-
-func (x *UnicityTreeCertificate) EvalAuthPath(ir *InputRecord, sdrh []byte, hashAlgorithm gocrypto.Hash) []byte {
+	if len(x.SiblingHashes) == 0 {
+		return fmt.Errorf("error merkle path is empty")
+	}
+	if !bytes.Equal(x.SiblingHashes[0].Key, x.SystemIdentifier.Bytes()) {
+		return fmt.Errorf("error invalid tree index: expected %X got %X", x.SystemIdentifier.Bytes(), x.SiblingHashes[0].Key)
+	}
 	leaf := treeData{
 		Idx:  x.SystemIdentifier,
 		IR:   ir,
-		Sdrh: sdrh,
+		Sdrh: x.SystemDescriptionHash,
 	}
-	return imt.IndexTreeOutput(x.SiblingHashes, leaf, hashAlgorithm)
+	hasher := hashAlgorithm.New()
+	leaf.AddToHasher(hasher)
+	dataHash := hasher.Sum(nil)
+	if !bytes.Equal(x.SiblingHashes[0].Hash, dataHash) {
+		return fmt.Errorf("error invalid data hash: expected %X got %X", x.SiblingHashes[0].Hash, dataHash)
+	}
+	return nil
+}
+
+func (x *UnicityTreeCertificate) EvalAuthPath(hashAlgorithm gocrypto.Hash) []byte {
+	// calculate root hash from the merkle path
+	return imt.IndexTreeOutput(x.SiblingHashes, x.SystemIdentifier.Bytes(), hashAlgorithm)
 }
 
 func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {

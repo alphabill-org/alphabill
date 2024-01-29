@@ -34,7 +34,6 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +42,7 @@ import (
 type AlphabillNetwork struct {
 	NodePartitions map[types.SystemID]*NodePartition
 	RootPartition  *RootPartition
+	BootNodes      []*network.Peer
 	ctxCancel      context.CancelFunc
 }
 
@@ -187,7 +187,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	}, nil
 }
 
-func (r *RootPartition) start(ctx context.Context) error {
+func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo) error {
 	rootNodes := len(r.Nodes)
 	var peerIDs = make([]peer.ID, rootNodes)
 	for i := 0; i < len(peerIDs); i++ {
@@ -203,7 +203,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get free port, %w", err)
 		}
-		peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[i].EncKeyPair, nil, peerIDs)
+		peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[i].EncKeyPair, bootNodes, peerIDs)
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}
@@ -218,9 +218,10 @@ func (r *RootPartition) start(ctx context.Context) error {
 		log := r.obs.DefaultLogger().With(logger.NodeID(rootPeer.ID()))
 		obs := observability.WithLogger(r.obs.DefaultObserver(), log)
 		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
-		for _, p := range rootPeers {
-			rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
-		}
+		/*
+			for _, p := range rootPeers {
+				rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
+		*/
 		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
@@ -412,11 +413,27 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	}, nil
 }
 
-func getBootstrapNodes(t *testing.T, root *RootPartition) []peer.AddrInfo {
-	require.NotNil(t, root)
-	bootNodes := make([]peer.AddrInfo, len(root.Nodes))
-	for i, n := range root.Nodes {
-		bootNodes[i] = peer.AddrInfo{ID: n.id, Addrs: []multiaddr.Multiaddr{n.addr}}
+func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, obs testobserve.Factory, nofBootNodes uint8) {
+	encKeyPairs, err := generateKeyPairs(nofBootNodes)
+	require.NoError(t, err)
+	bootNodes := make([]*network.Peer, nofBootNodes)
+	for i := 0; i < int(nofBootNodes); i++ {
+		port, err := net.GetFreePort()
+		require.NoError(t, err)
+		peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), encKeyPairs[i], nil, nil)
+		require.NoError(t, err)
+		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
+		require.NoError(t, err)
+	}
+	a.BootNodes = bootNodes
+	return
+}
+
+func (a *AlphabillNetwork) getBootstrapNodeInfo(t *testing.T) []peer.AddrInfo {
+	require.NotNil(t, a.BootNodes)
+	bootNodes := make([]peer.AddrInfo, len(a.BootNodes))
+	for i, n := range a.BootNodes {
+		bootNodes[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}
 	}
 	return bootNodes
 }
@@ -425,14 +442,16 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 	a.RootPartition.obs = testobserve.NewFactory(t)
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	if err := a.RootPartition.start(ctx); err != nil {
+	// create boot nodes
+	a.createBootNodes(t, ctx, a.RootPartition.obs, 2)
+
+	if err := a.RootPartition.start(ctx, a.getBootstrapNodeInfo(t)); err != nil {
 		ctxCancel()
 		return fmt.Errorf("failed to start root partition, %w", err)
 	}
-	bootNodes := getBootstrapNodes(t, a.RootPartition)
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(t, ctx, bootNodes); err != nil {
+		if err := part.start(t, ctx, a.getBootstrapNodeInfo(t)); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}

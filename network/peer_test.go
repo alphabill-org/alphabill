@@ -127,7 +127,7 @@ func createDHT(ctx context.Context, t *testing.T, client bool, options ...dht.Op
 	baseOpts := []dht.Option{
 		dht.DisableAutoRefresh(),
 		dht.Validator(&blankValidator{}),
-		dht.ProtocolPrefix(dhtProtocolPrefix),
+		dht.ProtocolPrefix(AlphaBillPrefix + DhtProtocolPrefix),
 	}
 
 	if client {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	mrand "math/rand"
+	"time"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p"
@@ -17,14 +18,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
+	AlphaBillPrefix   = "/ab"
 	defaultAddress    = "/ip4/0.0.0.0/tcp/0"
-	dhtProtocolPrefix = "/ab/dht/0.1.0"
+	DhtProtocolPrefix = "/dht/0.1.0"
 )
 
 var (
@@ -81,10 +84,18 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, err
 	}
 
+	var kademliaDHT *dht.IpfsDHT
+
 	opts := []config.Option{
 		libp2p.ListenAddrStrings(address),
 		libp2p.Identity(privateKey),
 		libp2p.Peerstore(peerStore),
+		// Let this host use the DHT to find other hosts
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeAutoServer, log)
+			return kademliaDHT, err
+		}),
+
 		libp2p.Ping(true), // make sure ping service is enabled
 	}
 	if prom != nil {
@@ -94,16 +105,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	if err != nil {
 		return nil, err
 	}
-
-	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
-	if err != nil {
-		if e := h.Close(); e != nil {
-			err = errors.Join(err, fmt.Errorf("closing libp2p host: %w", err))
-		}
-		return nil, err
-	}
 	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
-
 	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
 	return p, nil
 }
@@ -240,14 +242,65 @@ func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
 	return id, nil
 }
 
-func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt) (*dht.IpfsDHT, error) {
-	kdht, err := dht.New(ctx, h, dht.ProtocolPrefix(dhtProtocolPrefix), dht.BootstrapPeers(bootstrapPeers...), dht.Mode(opt))
+func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt, log *slog.Logger) (*dht.IpfsDHT, error) {
+	kdht, err := dht.New(ctx, h, dht.ProtocolPrefix(AlphaBillPrefix+DhtProtocolPrefix), dht.BootstrapPeers(bootstrapPeers...), dht.Mode(opt))
 	if err != nil {
 		return nil, fmt.Errorf("creating DHT: %w", err)
 	}
 	if err = kdht.Bootstrap(ctx); err != nil {
 		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
+	routingTable := kdht.RoutingTable()
+	peerRemovedCb := routingTable.PeerRemoved
+	peerAddedCb := routingTable.PeerAdded
+	routingTable.PeerRemoved = func(pid peer.ID) {
+		peerRemovedCb(pid)
+		log.DebugContext(ctx, fmt.Sprintf("peer %s removed from routing table", pid.String()))
+		// meter routing table size? -> decrease
+	}
+	routingTable.PeerAdded = func(pid peer.ID) {
+		peerAddedCb(pid)
+		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()))
+		// meter routing table size? -> increase?
+	}
+	// Let's connect to the bootstrap nodes first. They can tell us about the other nodes in the network.
+	//var wg sync.WaitGroup
+	for _, p := range bootstrapPeers {
+		//wg.Add(1)
+		pInfo := p
+		go func() {
+			cctx, cancel := context.WithTimeout(ctx, 900*time.Millisecond)
+			defer func() {
+				//wg.Done()
+				cancel()
+			}()
+			if err = h.Connect(cctx, pInfo); err != nil {
+				log.WarnContext(cctx, "bootstrap node connection failed", logger.Error(err))
+			} else {
+				log.DebugContext(cctx, "Connection established with bootstrap node: "+pInfo.String())
+			}
+		}()
+	}
+	//wg.Wait()
+
+	/*
+		for _, p := range bootstrapPeers {
+			//peerinfo, _ := peer.AddrInfoFromP2pAddr(peerAddr.Addrs[0])
+			peerInfo := p
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err = h.Connect(ctx, peerInfo); err != nil {
+					log.WarnContext(ctx, "bootstrap node connection failed", logger.Error(err))
+				} else {
+					log.DebugContext(ctx, "Connection established with bootstrap node: ", peerInfo)
+				}
+			}()
+		}
+	*/
+	/*	if err = kdht.Provide(ctx, nil, true); err != nil {
+		log.DebugContext(ctx, fmt.Sprintf("routing provide failed: %v", err))
+	}*/
 	return kdht, nil
 }
 

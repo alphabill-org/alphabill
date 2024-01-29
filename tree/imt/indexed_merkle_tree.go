@@ -134,9 +134,6 @@ func (s *Tree) GetMerklePath(key []byte) ([]*PathItem, error) {
 }
 
 func createMerkleTree(pairs []pair, hasher hash.Hash) *node {
-	if len(pairs) == 0 {
-		return &node{hash: make([]byte, hasher.Size())}
-	}
 	if len(pairs) == 1 {
 		hasher.Reset()
 		hasher.Write([]byte{tagLeaf})

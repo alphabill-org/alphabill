@@ -23,24 +23,12 @@ func (t TestData) Key() []byte {
 	return t.key
 }
 
-func TestIMTZeroValue(t *testing.T) {
-	imt := &Tree{}
-	require.Nil(t, imt.GetRootHash())
-	require.EqualValues(t, "────┤ empty", imt.PrettyPrint())
-	index := []byte{0}
-	path, err := imt.GetMerklePath(index)
-	require.EqualError(t, err, "tree is empty")
-	require.Nil(t, path)
-	var pairs []pair
-	hashAlgo := crypto.SHA256
-	require.EqualValues(t, &node{hash: make([]byte, hashAlgo.Size())}, createMerkleTree(pairs, hashAlgo.New()))
-}
-
 func TestNewIMTWithNilData(t *testing.T) {
 	var data []LeafData = nil
 	imt, err := New(crypto.SHA256, data)
 	require.NoError(t, err)
 	require.NotNil(t, imt)
+	require.EqualValues(t, "────┤ empty", imt.PrettyPrint())
 	require.Nil(t, imt.GetRootHash())
 	require.Equal(t, 0, imt.dataLength)
 	path, err := imt.GetMerklePath([]byte{0})

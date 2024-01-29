@@ -24,6 +24,7 @@ const (
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
 	pathState                = "/state"
+	pathOwnerUnits           = "/owner-unit-ids/{ownerID}"
 	pathUnits                = "/units/{unitID}"
 )
 
@@ -45,6 +46,9 @@ func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Ob
 
 		// get the state file
 		r.HandleFunc(pathState, getState(node, log))
+
+		// get owner unit ids
+		r.HandleFunc(pathOwnerUnits, getOwnerUnits(node, log)).Methods(http.MethodGet, http.MethodOptions)
 	}
 }
 

@@ -31,6 +31,7 @@ type (
 		maxBlockNumber uint64
 		maxRoundNumber uint64
 		transactions   []*types.TransactionOrder
+		ownerUnits     map[string][]types.UnitID
 		err            error
 	}
 )
@@ -97,6 +98,13 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
 	return nil
+}
+
+func (mn *MockNode) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	return mn.ownerUnits[string(ownerID)], nil
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {

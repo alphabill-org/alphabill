@@ -13,7 +13,7 @@ import (
 
 type (
 	UnicityTree struct {
-		imt     *imt.IMT
+		imt     *imt.Tree
 		sdrhMap map[types.SystemID][]byte
 	}
 )

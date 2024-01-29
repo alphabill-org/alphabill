@@ -23,13 +23,13 @@ func (t TestData) Key() []byte {
 	return t.key
 }
 
-func TestIMTNilCases(t *testing.T) {
-	imt := &IMT{}
+func TestIMTZeroValue(t *testing.T) {
+	imt := &Tree{}
 	require.Nil(t, imt.GetRootHash())
 	require.EqualValues(t, "────┤ empty", imt.PrettyPrint())
 	index := []byte{0}
 	path, err := imt.GetMerklePath(index)
-	require.EqualError(t, err, "tree empty")
+	require.EqualError(t, err, "tree is empty")
 	require.Nil(t, path)
 	var pairs []pair
 	hashAlgo := crypto.SHA256
@@ -44,7 +44,7 @@ func TestNewIMTWithNilData(t *testing.T) {
 	require.Nil(t, imt.GetRootHash())
 	require.Equal(t, 0, imt.dataLength)
 	path, err := imt.GetMerklePath([]byte{0})
-	require.EqualError(t, err, "tree empty")
+	require.EqualError(t, err, "tree is empty")
 	require.Nil(t, path)
 	var merklePath []*PathItem = nil
 	require.Nil(t, IndexTreeOutput(merklePath, []byte{0}, crypto.SHA256))
@@ -57,7 +57,7 @@ func TestNewIMTWithEmptyData(t *testing.T) {
 	require.Nil(t, imt.GetRootHash())
 	require.Equal(t, 0, imt.dataLength)
 	path, err := imt.GetMerklePath([]byte{0})
-	require.EqualError(t, err, "tree empty")
+	require.EqualError(t, err, "tree is empty")
 	require.Nil(t, path)
 	var merklePath []*PathItem
 	require.Nil(t, IndexTreeOutput(merklePath, []byte{0}, crypto.SHA256))
@@ -78,7 +78,7 @@ func TestNewIMTWithSingleNode(t *testing.T) {
 	data[0].AddToHasher(hasher)
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
-	hasher.Write([]byte{Leaf})
+	hasher.Write([]byte{tagLeaf})
 	hasher.Write(data[0].Key())
 	hasher.Write(dataHash)
 	require.Equal(t, hasher.Sum(nil), imt.GetRootHash())
@@ -99,7 +99,7 @@ func TestNewIMTUnsortedInput(t *testing.T) {
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
-	require.EqualError(t, err, "data not sorted by key in not strictly ascending order")
+	require.EqualError(t, err, "data is not sorted by key in strictly ascending order")
 	require.Nil(t, imt)
 }
 
@@ -119,7 +119,7 @@ func TestNewIMTEqualIndexValues(t *testing.T) {
 		},
 	}
 	imt, err := New(crypto.SHA256, data)
-	require.EqualError(t, err, "data not sorted by key in not strictly ascending order")
+	require.EqualError(t, err, "data is not sorted by key in strictly ascending order")
 	require.Nil(t, imt)
 }
 
@@ -151,17 +151,17 @@ func TestNewIMTYellowpaperExample(t *testing.T) {
 	require.NotNil(t, imt)
 	require.EqualValues(t, "4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A", fmt.Sprintf("%X", imt.GetRootHash()))
 	/* See Yellowpaper appendix C.2.1 Figure 32. Keys of the nodes of an indexed hash tree.
-			┌──k: 0a, 08D4FA5D3E55BF5D9B62A4A42DBDDCBE9BFDC121D4A7B9722E53A24AC0C3291D
-		┌──k: 09, 71FE84320E781FE3801AF502382064AF0DFAB9E312014286DD519F355C6BDD18
-		│	└──k: 09, 6F9842322C9343721ED01CE894C9C35F291FE0237084914D780CF658CF9E7F13
-	┌──k: 07, 4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A
-	│	│	┌──k: 07, 89982C789FBD76A9905DF9D0140EC8FD62891E6388059627BA65F2C51BD0B176
-	│	└──k: 03, 09B830E43D654AFDDF7573657171141D26320FA1629946AE03B1702D556A1E08
-	│		│	┌──k: 03, 5377F86D8DD6BA6A8B1F81DD0BE890E1376E27B3127EC780A47A9ACCA3059B71
-	│		└──k: 01, F772ACD488C7A878D1EEB22D1603DF00D95370CC4310E75B6A5EBEB191B6C526
-	│			└──k: 01, E5A827C8C45F8F4F226286E77F92A5315779467029F90F135FD7F45E14918995
+			┌──key: 0a, 08D4FA5D3E55BF5D9B62A4A42DBDDCBE9BFDC121D4A7B9722E53A24AC0C3291D
+		┌──key: 09, 71FE84320E781FE3801AF502382064AF0DFAB9E312014286DD519F355C6BDD18
+		│	└──key: 09, 6F9842322C9343721ED01CE894C9C35F291FE0237084914D780CF658CF9E7F13
+	┌──key: 07, 4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A
+	│	│	┌──key: 07, 89982C789FBD76A9905DF9D0140EC8FD62891E6388059627BA65F2C51BD0B176
+	│	└──key: 03, 09B830E43D654AFDDF7573657171141D26320FA1629946AE03B1702D556A1E08
+	│		│	┌──key: 03, 5377F86D8DD6BA6A8B1F81DD0BE890E1376E27B3127EC780A47A9ACCA3059B71
+	│		└──key: 01, F772ACD488C7A878D1EEB22D1603DF00D95370CC4310E75B6A5EBEB191B6C526
+	│			└──key: 01, E5A827C8C45F8F4F226286E77F92A5315779467029F90F135FD7F45E14918995
 	*/
-	treeStr := "\t\t┌──k: 0a, 08D4FA5D3E55BF5D9B62A4A42DBDDCBE9BFDC121D4A7B9722E53A24AC0C3291D\n\t┌──k: 09, 71FE84320E781FE3801AF502382064AF0DFAB9E312014286DD519F355C6BDD18\n\t│\t└──k: 09, 6F9842322C9343721ED01CE894C9C35F291FE0237084914D780CF658CF9E7F13\n┌──k: 07, 4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A\n│\t│\t┌──k: 07, 89982C789FBD76A9905DF9D0140EC8FD62891E6388059627BA65F2C51BD0B176\n│\t└──k: 03, 09B830E43D654AFDDF7573657171141D26320FA1629946AE03B1702D556A1E08\n│\t\t│\t┌──k: 03, 5377F86D8DD6BA6A8B1F81DD0BE890E1376E27B3127EC780A47A9ACCA3059B71\n│\t\t└──k: 01, F772ACD488C7A878D1EEB22D1603DF00D95370CC4310E75B6A5EBEB191B6C526\n│\t\t\t└──k: 01, E5A827C8C45F8F4F226286E77F92A5315779467029F90F135FD7F45E14918995\n"
+	treeStr := "\t\t┌──key: 0a, 08D4FA5D3E55BF5D9B62A4A42DBDDCBE9BFDC121D4A7B9722E53A24AC0C3291D\n\t┌──key: 09, 71FE84320E781FE3801AF502382064AF0DFAB9E312014286DD519F355C6BDD18\n\t│\t└──key: 09, 6F9842322C9343721ED01CE894C9C35F291FE0237084914D780CF658CF9E7F13\n┌──key: 07, 4FBAE3CCCF457AA68E3F242FBC981989E9ABB9ACEFBE67D509C1617B39BEE03A\n│\t│\t┌──key: 07, 89982C789FBD76A9905DF9D0140EC8FD62891E6388059627BA65F2C51BD0B176\n│\t└──key: 03, 09B830E43D654AFDDF7573657171141D26320FA1629946AE03B1702D556A1E08\n│\t\t│\t┌──key: 03, 5377F86D8DD6BA6A8B1F81DD0BE890E1376E27B3127EC780A47A9ACCA3059B71\n│\t\t└──key: 01, F772ACD488C7A878D1EEB22D1603DF00D95370CC4310E75B6A5EBEB191B6C526\n│\t\t\t└──key: 01, E5A827C8C45F8F4F226286E77F92A5315779467029F90F135FD7F45E14918995\n"
 	require.Equal(t, treeStr, imt.PrettyPrint())
 	// check tree node key values
 	for _, d := range data {

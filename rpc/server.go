@@ -122,7 +122,7 @@ func NewHTTPServer(conf *ServerConfiguration, obs Observability, registrars ...R
 	}
 
 	// RPC WebSocket handler
-	router.Handle("/rpc", rpcServer.WebsocketHandler([]string{"foo"})).Headers(
+	router.Handle("/rpc", rpcServer.WebsocketHandler([]string{"*"})).Headers(
 		"Connection", "Upgrade",
 		"Upgrade", "websocket",
 	)

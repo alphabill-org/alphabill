@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"hash"
 	"slices"
 
 	"github.com/alphabill-org/alphabill/tree/imt"
@@ -13,11 +12,6 @@ import (
 )
 
 type (
-	Data struct {
-		SystemIdentifier            types.SystemID
-		InputRecord                 *types.InputRecord
-		SystemDescriptionRecordHash []byte
-	}
 	UnicityTree struct {
 		imt     *imt.IMT
 		sdrhMap map[types.SystemID][]byte
@@ -25,9 +19,9 @@ type (
 )
 
 // New creates a new unicity tree with given input records.
-func New(hashAlgorithm crypto.Hash, data []*Data) (*UnicityTree, error) {
+func New(hashAlgorithm crypto.Hash, data []*types.UTData) (*UnicityTree, error) {
 	// sort by index - system id
-	slices.SortFunc(data, func(a, b *Data) int {
+	slices.SortFunc(data, func(a, b *types.UTData) int {
 		return cmp.Compare(a.SystemIdentifier, b.SystemIdentifier)
 	})
 	sdMap := make(map[types.SystemID][]byte)
@@ -68,13 +62,4 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 		SystemDescriptionHash: sdrh,
 		SiblingHashes:         path,
 	}, nil
-}
-
-func (d *Data) Key() []byte {
-	return d.SystemIdentifier.Bytes()
-}
-
-func (d *Data) AddToHasher(hasher hash.Hash) {
-	hasher.Write(d.InputRecord.Bytes())
-	hasher.Write(d.SystemDescriptionRecordHash)
 }

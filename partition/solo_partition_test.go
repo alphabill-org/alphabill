@@ -208,7 +208,7 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
 	sdr := sn.nodeDeps.genesis.SystemDescriptionRecord
 	sdrHash := sdr.Hash(gocrypto.SHA256)
-	data := []*unicitytree.Data{{
+	data := []*types.UTData{{
 		SystemIdentifier:            sdr.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: sdrHash,

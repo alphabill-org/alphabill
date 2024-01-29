@@ -21,19 +21,19 @@ type UnicityTreeCertificate struct {
 	SystemDescriptionHash []byte          `json:"system_description_hash,omitempty"`
 }
 
-type treeData struct {
-	Idx  SystemID
-	IR   *InputRecord
-	Sdrh []byte
+type UTData struct {
+	SystemIdentifier            SystemID
+	InputRecord                 *InputRecord
+	SystemDescriptionRecordHash []byte
 }
 
-func (t treeData) AddToHasher(hasher hash.Hash) {
-	t.IR.AddToHasher(hasher)
-	hasher.Write(t.Sdrh)
+func (t *UTData) AddToHasher(hasher hash.Hash) {
+	t.InputRecord.AddToHasher(hasher)
+	hasher.Write(t.SystemDescriptionRecordHash)
 }
 
-func (t treeData) Key() []byte {
-	return t.Idx.Bytes()
+func (t *UTData) Key() []byte {
+	return t.SystemIdentifier.Bytes()
 }
 
 func (x *UnicityTreeCertificate) IsValid(ir *InputRecord, systemIdentifier SystemID, systemDescriptionHash []byte, hashAlgorithm gocrypto.Hash) error {
@@ -52,10 +52,10 @@ func (x *UnicityTreeCertificate) IsValid(ir *InputRecord, systemIdentifier Syste
 	if !bytes.Equal(x.SiblingHashes[0].Key, x.SystemIdentifier.Bytes()) {
 		return fmt.Errorf("error invalid tree index: expected %X got %X", x.SystemIdentifier.Bytes(), x.SiblingHashes[0].Key)
 	}
-	leaf := treeData{
-		Idx:  x.SystemIdentifier,
-		IR:   ir,
-		Sdrh: x.SystemDescriptionHash,
+	leaf := UTData{
+		SystemIdentifier:            x.SystemIdentifier,
+		InputRecord:                 ir,
+		SystemDescriptionRecordHash: x.SystemDescriptionHash,
 	}
 	hasher := hashAlgorithm.New()
 	leaf.AddToHasher(hasher)

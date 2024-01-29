@@ -14,10 +14,10 @@ import (
 func TestUnicityCertificate_IsValid(t *testing.T) {
 	sdrh := zeroHash
 	hasher := gocrypto.SHA256.New()
-	leaf := treeData{
-		Idx:  identifier,
-		IR:   ir,
-		Sdrh: sdrh,
+	leaf := UTData{
+		SystemIdentifier:            identifier,
+		InputRecord:                 ir,
+		SystemDescriptionRecordHash: sdrh,
 	}
 	leaf.AddToHasher(hasher)
 	dataHash := hasher.Sum(nil)

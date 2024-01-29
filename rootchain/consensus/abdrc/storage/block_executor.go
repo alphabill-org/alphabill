@@ -126,9 +126,9 @@ func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBl
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UTData, 0, len(irState))
 	for _, data := range irState {
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UTData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
@@ -182,11 +182,11 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UTData, 0, len(irState))
 	for _, data := range irState {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UTData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
@@ -206,11 +206,11 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 }
 
 func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) {
-	utData := make([]*unicitytree.Data, 0, len(x.CurrentIR))
+	utData := make([]*types.UTData, 0, len(x.CurrentIR))
 	for _, data := range x.CurrentIR {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UTData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,

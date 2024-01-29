@@ -47,10 +47,10 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			SumOfEarnedFees: 10,
 		}
 		sdrh := []byte{1, 2, 3, 4}
-		leaf := treeData{
-			Idx:  identifier,
-			IR:   ir,
-			Sdrh: sdrh,
+		leaf := UTData{
+			SystemIdentifier:            identifier,
+			InputRecord:                 ir,
+			SystemDescriptionRecordHash: sdrh,
 		}
 		hasher := gocrypto.SHA256.New()
 		leaf.AddToHasher(hasher)

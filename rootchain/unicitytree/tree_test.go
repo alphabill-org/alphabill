@@ -17,7 +17,7 @@ var inputRecord = &types.InputRecord{
 }
 
 func TestNewUnicityTree(t *testing.T) {
-	unicityTree, err := New(crypto.SHA256, []*Data{
+	unicityTree, err := New(crypto.SHA256, []*types.UTData{
 		{
 			SystemIdentifier:            1,
 			InputRecord:                 inputRecord,
@@ -30,7 +30,7 @@ func TestNewUnicityTree(t *testing.T) {
 
 func TestGetCertificate_Ok(t *testing.T) {
 	key := types.SystemID(1)
-	data := []*Data{
+	data := []*types.UTData{
 		{
 			SystemIdentifier:            key,
 			InputRecord:                 inputRecord,
@@ -49,7 +49,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {
-	unicityTree, err := New(crypto.SHA256, []*Data{
+	unicityTree, err := New(crypto.SHA256, []*types.UTData{
 		{
 			SystemIdentifier:            0x01020301,
 			InputRecord:                 inputRecord,
@@ -64,7 +64,7 @@ func TestGetCertificate_InvalidKey(t *testing.T) {
 }
 
 func TestGetCertificate_KeyNotFound(t *testing.T) {
-	unicityTree, err := New(crypto.SHA256, []*Data{
+	unicityTree, err := New(crypto.SHA256, []*types.UTData{
 		{
 			SystemIdentifier:            0x01020301,
 			InputRecord:                 inputRecord,

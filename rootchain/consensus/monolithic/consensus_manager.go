@@ -250,14 +250,14 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	// merge changed and unchanged input records and create unicity tree from the whole set
 	newIR := getMergeInputRecords(x.ir, x.changes, x.log)
 	// convert IR to unicity tree input
-	utData := make([]*unicitytree.Data, 0, len(newIR))
+	utData := make([]*types.UTData, 0, len(newIR))
 	for id, rec := range newIR {
 		sysDesc, _, err := x.partitions.GetInfo(id)
 		if err != nil {
 			return nil, err
 		}
 		sdrh := sysDesc.Hash(x.params.HashAlgorithm)
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UTData{
 			SystemIdentifier:            sysDesc.SystemIdentifier,
 			InputRecord:                 rec,
 			SystemDescriptionRecordHash: sdrh,

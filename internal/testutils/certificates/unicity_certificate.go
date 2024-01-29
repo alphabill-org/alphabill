@@ -20,7 +20,7 @@ func CreateUnicityCertificate(
 
 ) *types.UnicityCertificate {
 	t.Helper()
-	data := []*unicitytree.Data{{
+	data := []*types.UTData{{
 		SystemIdentifier:            systemDescription.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: systemDescription.Hash(gocrypto.SHA256),

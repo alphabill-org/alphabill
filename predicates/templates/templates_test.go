@@ -148,8 +148,9 @@ func TestP2pkh256_Execute(t *testing.T) {
 	})
 
 	t.Run("P2pkh256 bad pubkey", func(t *testing.T) {
-		sig, _ := testsig.SignBytes(t, []byte{0x01})
-		pubKey := test.RandomBytes(33)
+		sig, pubKey := testsig.SignBytes(t, []byte{0x01})
+		// set incorrect first byte, compressed key should start with 0x02 or 0x03
+		pubKey[0] = 0x00
 		payload := &P2pkh256Payload{PubKeyHash: hash.Sum256(pubKey)}
 		payloadBytes, err := cbor.Marshal(payload)
 		require.NoError(t, err)

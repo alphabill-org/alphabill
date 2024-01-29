@@ -46,7 +46,7 @@ type rootNodeConfig struct {
 	StoragePath        string // path to Bolt storage file
 	MaxRequests        uint   // validator partition certification request channel capacity
 	BootStrapAddresses string // boot strap addresses (libp2p multiaddress format)
-	RESTAddress        string // address on which http server is exposed with metrics endpoint
+	RPCServerAddress   string // address on which http server is exposed with metrics endpoint
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -68,7 +68,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
-	cmd.Flags().StringVar(&config.RESTAddress, "rest-server-address", "", `Specifies the TCP address for the REST server to listen on, in the form "host:port". REST server isn't initialised if address is empty.`)
+	cmd.Flags().StringVar(&config.RPCServerAddress, "rpc-server-address", "", `Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
 	return cmd
 }
 
@@ -224,7 +224,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 
 	g.Go(func() error {
 		pr := config.Base.observe.PrometheusRegisterer()
-		if pr == nil || config.RESTAddress == "" {
+		if pr == nil || config.RPCServerAddress == "" {
 			return nil // do not kill the group!
 		}
 
@@ -232,7 +232,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		return httpsrv.Run(ctx,
 			http.Server{
-				Addr:              config.RESTAddress,
+				Addr:              config.RPCServerAddress,
 				Handler:           mux,
 				ReadTimeout:       3 * time.Second,
 				ReadHeaderTimeout: time.Second,

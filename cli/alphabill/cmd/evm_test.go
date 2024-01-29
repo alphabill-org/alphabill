@@ -72,7 +72,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 			" -s " + nodeGenesisStateFileLocation +
 			" -k " + keysFileLocation +
 			" --bootnodes=" + bootNodeStr +
-			" --rest-server-address " + listenAddr
+			" --rpc-server-address " + listenAddr
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		err = cmd.Execute(ctx)

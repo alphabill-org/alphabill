@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -18,8 +19,8 @@ type (
 	tokensConfiguration struct {
 		baseNodeConfiguration
 		Node       *startNodeConfiguration
-		RPCServer  *grpcServerConfiguration
-		RESTServer *restServerConfiguration
+		GRPCServer *grpcServerConfiguration
+		RPCServer  *rpc.ServerConfiguration
 	}
 )
 
@@ -29,8 +30,8 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 			Base: baseConfig,
 		},
 		Node:       &startNodeConfiguration{},
-		RPCServer:  &grpcServerConfiguration{},
-		RESTServer: &restServerConfiguration{},
+		GRPCServer: &grpcServerConfiguration{},
+		RPCServer:  &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -43,9 +44,9 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "tokens")
+	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
+	config.GRPCServer.addConfigurationFlags(nodeCmd)
 
-	config.RPCServer.addConfigurationFlags(nodeCmd)
-	config.RESTServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -113,5 +114,5 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
+	return run(ctx, "tokens node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
 }

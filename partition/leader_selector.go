@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -61,7 +62,8 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate, validat
 	}
 	peerCount := uint64(len(validators))
 	hasher := crypto.SHA256.New()
-	hasher.Write(uc.Bytes())
+	ucBytes, _ := cbor.Marshal(uc)
+	hasher.Write(ucBytes)
 	hash := hasher.Sum(nil)
 	x := uint256.NewInt(0).SetBytes(hash)
 	i := uint256.NewInt(0)

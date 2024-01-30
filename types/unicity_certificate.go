@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 
 	"github.com/alphabill-org/alphabill/crypto"
 )
@@ -40,24 +39,25 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	return nil
 }
 
-func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.Bytes())
-}
+/*
+	func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
+		hasher.Write(x.Bytes())
+	}
 
-func (x *UnicityCertificate) Bytes() []byte {
-	var b bytes.Buffer
-	if x.InputRecord != nil {
-		b.Write(x.InputRecord.Bytes())
+	func (x *UnicityCertificate) Bytes() []byte {
+		var b bytes.Buffer
+		if x.InputRecord != nil {
+			b.Write(x.InputRecord.Bytes())
+		}
+		if x.UnicityTreeCertificate != nil {
+			b.Write(x.UnicityTreeCertificate.Bytes())
+		}
+		if x.UnicitySeal != nil {
+			b.Write(x.UnicitySeal.Bytes())
+		}
+		return b.Bytes()
 	}
-	if x.UnicityTreeCertificate != nil {
-		b.Write(x.UnicityTreeCertificate.Bytes())
-	}
-	if x.UnicitySeal != nil {
-		b.Write(x.UnicitySeal.Bytes())
-	}
-	return b.Bytes()
-}
-
+*/
 func (x *UnicityCertificate) GetStateHash() []byte {
 	if x != nil && x.InputRecord != nil {
 		return x.InputRecord.Hash

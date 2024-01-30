@@ -7,6 +7,7 @@ import (
 	"math/rand"
 
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -51,7 +52,15 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
-	hash := sha256.Sum256(luc.Bytes())
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, fmt.Errorf("cbor encoder init failed: %w", err)
+	}
+	ucBytes, err := enc.Marshal(luc)
+	if err != nil {
+		return nil, fmt.Errorf("UC serialization failed: %w", err)
+	}
+	hash := sha256.Sum256(ucBytes)
 	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hash[:]), big.NewInt(int64(nodeCnt))).Int64())
 	// choose upToNodes from index
 	idx := index

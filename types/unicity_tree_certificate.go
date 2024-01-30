@@ -47,10 +47,10 @@ func (x *UnicityTreeCertificate) IsValid(ir *InputRecord, systemIdentifier Syste
 		return fmt.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
 	}
 	if len(x.SiblingHashes) == 0 {
-		return fmt.Errorf("error merkle path is empty")
+		return fmt.Errorf("error sibling hash chain is empty")
 	}
 	if !bytes.Equal(x.SiblingHashes[0].Key, x.SystemIdentifier.Bytes()) {
-		return fmt.Errorf("error invalid tree index: expected %X got %X", x.SystemIdentifier.Bytes(), x.SiblingHashes[0].Key)
+		return fmt.Errorf("error invalid leaf key: expected %X got %X", x.SystemIdentifier.Bytes(), x.SiblingHashes[0].Key)
 	}
 	leaf := UTData{
 		SystemIdentifier:            x.SystemIdentifier,
@@ -71,6 +71,7 @@ func (x *UnicityTreeCertificate) EvalAuthPath(hashAlgorithm gocrypto.Hash) []byt
 	return imt.IndexTreeOutput(x.SiblingHashes, x.SystemIdentifier.Bytes(), hashAlgorithm)
 }
 
+/*
 func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
 	hasher.Write(x.Bytes())
 }
@@ -85,3 +86,4 @@ func (x *UnicityTreeCertificate) Bytes() []byte {
 	}
 	return b.Bytes()
 }
+*/

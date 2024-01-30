@@ -66,6 +66,9 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 }
 
 func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+	if mn.err != nil {
+		return 0, mn.err
+	}
 	return mn.maxRoundNumber, nil
 }
 

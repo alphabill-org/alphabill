@@ -25,6 +25,10 @@ type (
 		TxRecordCbor cbor.RawMessage `json:"txRecordCbor"`
 		TxProofCbor  cbor.RawMessage `json:"txProofCbor"`
 	}
+
+	Block struct {
+		BlockCbor cbor.RawMessage `json:"blockCbor"`
+	}
 )
 
 func NewStateAPI(node partitionNode) *StateAPI {
@@ -77,11 +81,11 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash []byte) (*Tra
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordCbor, err := cbor.Marshal(txRecord)
+	txRecordCbor, err := encodeCbor(txRecord)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
-	txProofCbor, err := cbor.Marshal(txProof)
+	txProofCbor, err := encodeCbor(txProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx proof: %w", err)
 	}
@@ -89,4 +93,29 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash []byte) (*Tra
 		TxRecordCbor: txRecordCbor,
 		TxProofCbor:  txProofCbor,
 	}, nil
+}
+
+// GetBlock returns block for the given block number.
+func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (*Block, error) {
+	block, err := s.node.GetBlock(ctx, blockNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load block: %w", err)
+	}
+	blockCbor, err := encodeCbor(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode block: %w", err)
+	}
+	return &Block{BlockCbor: blockCbor}, nil
+}
+
+func encodeCbor(v interface{}) ([]byte, error) {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, err
+	}
+	data, err := enc.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }

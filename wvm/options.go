@@ -3,6 +3,8 @@ package wvm
 import (
 	"context"
 
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -10,7 +12,7 @@ import (
 type (
 	Options struct {
 		cfg     wazero.RuntimeConfig
-		hostMod []HostModuleFn
+		storage keyvaluedb.KeyValueDB
 	}
 
 	Option       func(*Options)
@@ -18,9 +20,10 @@ type (
 )
 
 func defaultOptions() *Options {
+	memDB, _ := memorydb.New()
 	return &Options{
 		cfg:     wazero.NewRuntimeConfig().WithCloseOnContextDone(true),
-		hostMod: make([]HostModuleFn, 0, 2),
+		storage: memDB,
 	}
 }
 
@@ -30,8 +33,8 @@ func WithRuntimeConfig(cfg wazero.RuntimeConfig) Option {
 	}
 }
 
-func WithHostModule(hostFn HostModuleFn) Option {
+func WithStorage(db keyvaluedb.KeyValueDB) Option {
 	return func(c *Options) {
-		c.hostMod = append(c.hostMod, hostFn)
+		c.storage = db
 	}
 }

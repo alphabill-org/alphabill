@@ -1,155 +1,155 @@
 package wvm
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
 
+	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/holiman/uint256"
-	"github.com/tetratelabs/wazero"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/tetratelabs/wazero/api"
 )
 
 const (
-	abModule           = "ab"
-	getState           = "get_state"
-	setState           = "set_state"
-	getParams          = "get_params"
-	getInputParameters = "get_input_params"
+	Success = 0
+	Error   = -1
 )
 
-const (
-	Success              = 0
-	StateReadError       = -1
-	StateWriteError      = -2
-	ParamsReadError      = -3
-	InputParamsReadError = -4
-)
+func getStateV1(ctx context.Context, m api.Module, fileID, offset, size uint32) int32 {
+	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+	if rtCtx == nil {
+		panic("nil runtime context")
+	}
 
-type ExecutionCtx interface {
-	GetProgramID() *uint256.Int
-	GetInputData() []byte
-	GetParams() []byte
-	GetTxHash() []byte
+	rtCtx.Log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
+	var Value []byte
+	found, err := rtCtx.Storage.Read(util.Uint32ToBytes(fileID), &Value)
+	if !found {
+		return 0
+	}
+	if err != nil {
+		rtCtx.Log.WarnContext(ctx, "get state from storage failed, %v", logger.Error(err))
+		return -1
+	}
+	if uint32(len(Value)) > size {
+		rtCtx.Log.WarnContext(ctx, "program state file is too big")
+		return -2
+	}
+	if ok := m.Memory().Write(offset, Value); !ok {
+		rtCtx.Log.WarnContext(ctx, "program state file write failed")
+		return -1
+	}
+	return int32(len(Value))
 }
 
-type Storage interface {
-	Get(key []byte) ([]byte, error)
-	Put(key []byte, file []byte) error
+func setStateV1(ctx context.Context, m api.Module, fileID, offset, size uint32) int32 {
+	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+	if rtCtx == nil {
+		panic("nil runtime context")
+	}
+
+	data, ok := m.Memory().Read(offset, size)
+	if !ok {
+		rtCtx.Log.WarnContext(ctx, "failed to read state from program memory")
+		return -1
+	}
+	rtCtx.Log.WarnContext(ctx, fmt.Sprintf("set state, %v id, new state: %v", fileID, data))
+	if err := rtCtx.Storage.Write(util.Uint32ToBytes(fileID), data); err != nil {
+		rtCtx.Log.WarnContext(ctx, "failed to persist program state")
+		return -1
+	}
+	return 0
 }
 
-func BuildABHostModule(eCtx ExecutionCtx, log *slog.Logger, storage Storage) (HostModuleFn, error) {
-	if eCtx == nil {
-		return nil, errors.New("execution context is nil")
+func getInitValueV1(ctx context.Context, m api.Module, offset, size uint32) int32 {
+	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+	if rtCtx == nil {
+		panic("nil runtime context")
 	}
-	if storage == nil {
-		return nil, errors.New("storage is nil")
+
+	rtCtx.Log.WarnContext(ctx, "get program parameters data")
+	params := rtCtx.AbCtx.InitArgs
+	if params == nil {
+		return -2
 	}
-	return func(ctx context.Context, rt wazero.Runtime) (api.Module, error) {
-		return rt.NewHostModuleBuilder(abModule).
-			NewFunctionBuilder().WithGoModuleFunction(buildGetStateHostFn(ctx, log, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getState).
-			NewFunctionBuilder().WithGoModuleFunction(buildSetStateHostFn(ctx, log, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(setState).
-			NewFunctionBuilder().WithGoModuleFunction(buildGetParamsHostFn(ctx, log, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getParams).
-			NewFunctionBuilder().WithGoModuleFunction(buildGetInputParametersFn(ctx, log, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getInputParameters).
-			Instantiate(ctx)
-	}, nil
+	if uint32(len(params)) > size {
+		rtCtx.Log.WarnContext(ctx, "program parameters too big")
+		return -2
+	}
+	if ok := m.Memory().Write(offset, params); !ok {
+		rtCtx.Log.WarnContext(ctx, "program parameters write failed")
+		return -3
+	}
+	return int32(len(params))
 }
 
-func buildGetStateHostFn(ctx context.Context, log *slog.Logger, storage Storage) api.GoModuleFunc {
-	return func(ctx context.Context, m api.Module, stack []uint64) {
-		fileID := api.DecodeU32(stack[0]) // read the parameter from the stack
-		offset := api.DecodeU32(stack[1]) // read the parameter from the stack
-		size := api.DecodeU32(stack[2])   // read the parameter from the stack
-		log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
-		file, err := storage.Get(util.Uint32ToBytes(fileID))
-		if err != nil {
-			log.WarnContext(ctx, "get state from storage failed, %v", logger.Error(err))
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		if uint32(len(file)) > size {
-			log.WarnContext(ctx, "program state file is too big")
-			stack[0] = api.EncodeI32(-2)
-			return
-		}
-		if ok := m.Memory().Write(offset, file); !ok {
-			log.WarnContext(ctx, "program state file write failed")
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		stack[0] = api.EncodeI32(int32(len(file)))
+func getInputData(ctx context.Context, m api.Module, offset, size uint32) int32 {
+	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+	if rtCtx == nil {
+		panic("nil runtime context")
 	}
+
+	rtCtx.Log.WarnContext(ctx, "get input data")
+	input := rtCtx.InputArgs
+	if input == nil {
+		return -2
+	}
+	if uint32(len(input)) > size {
+		rtCtx.Log.WarnContext(ctx, "input data is too big")
+		return -2
+	}
+	if ok := m.Memory().Write(offset, input); !ok {
+		rtCtx.Log.WarnContext(ctx, "input data write failed")
+		return -1
+	}
+	return int32(len(input))
 }
 
-func buildSetStateHostFn(ctx context.Context, log *slog.Logger, storage Storage) api.GoModuleFunc {
-	return func(ctx context.Context, m api.Module, stack []uint64) {
-		fileID := api.DecodeU32(stack[0]) // read the parameter from the stack
-		offset := api.DecodeU32(stack[1]) // read the parameter from the stack
-		size := api.DecodeU32(stack[2])   // read the parameter from the stack
-		data, ok := m.Memory().Read(offset, size)
-		if !ok {
-			log.WarnContext(ctx, "failed to read state from program memory")
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		log.WarnContext(ctx, fmt.Sprintf("set state, %v id, new state: %v", fileID, data))
-		if err := storage.Put(util.Uint32ToBytes(fileID), data); err != nil {
-			log.WarnContext(ctx, "failed to persist program state")
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		stack[0] = api.EncodeI32(0)
+func p2pkhV1(ctx context.Context, m api.Module) int32 {
+	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+	if rtCtx == nil {
+		panic("nil runtime context")
 	}
-}
 
-func buildGetParamsHostFn(ctx context.Context, log *slog.Logger, eCtx ExecutionCtx) api.GoModuleFunc {
-	return func(ctx context.Context, m api.Module, stack []uint64) {
-		offset := api.DecodeU32(stack[0])
-		size := api.DecodeU32(stack[1])
-		log.WarnContext(ctx, "get program parameters data")
-		params := eCtx.GetParams()
-		if params == nil {
-			stack[0] = api.EncodeI32(-2)
-			return
-		}
-		if uint32(len(params)) > size {
-			log.WarnContext(ctx, "program parameters too big")
-			stack[0] = api.EncodeI32(-2)
-			return
-		}
-		if ok := m.Memory().Write(offset, params); !ok {
-			log.WarnContext(ctx, "program parameters write failed")
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		stack[0] = api.EncodeI32(int32(len(params)))
+	p2pkh256Signature := &templates.P2pkh256Signature{}
+	if err := cbor.Unmarshal(rtCtx.AbCtx.Txo.OwnerProof, p2pkh256Signature); err != nil {
+		rtCtx.Log.WarnContext(ctx, "p2pkh v1 failed to decode P2PKH256 signature:", logger.Error(err))
+		return -1
 	}
-}
-
-func buildGetInputParametersFn(ctx context.Context, log *slog.Logger, eCtx ExecutionCtx) api.GoModuleFunc {
-	return func(ctx context.Context, m api.Module, stack []uint64) {
-		offset := api.DecodeU32(stack[0])
-		size := api.DecodeU32(stack[1])
-		log.WarnContext(ctx, "get input data")
-		input := eCtx.GetInputData()
-		if input == nil {
-			stack[0] = api.EncodeI32(-2)
-			return
-		}
-		if uint32(len(input)) > size {
-			log.WarnContext(ctx, "inout data is too big")
-			stack[0] = api.EncodeI32(-2)
-			return
-		}
-		if ok := m.Memory().Write(offset, input); !ok {
-			log.WarnContext(ctx, "input data write failed")
-			stack[0] = api.EncodeI32(-1)
-			return
-		}
-		stack[0] = api.EncodeI32(int32(len(input)))
-		return
+	pubKeyHas := rtCtx.AbCtx.InitArgs
+	if len(pubKeyHas) != 32 {
+		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey hash size: %X, expected 32", pubKeyHas))
+		return -1
 	}
+	if len(p2pkh256Signature.Sig) != 65 {
+		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid signature size: %X, expected 65", p2pkh256Signature.Sig))
+		return -1
+	}
+	if len(p2pkh256Signature.PubKey) != 33 {
+		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey))
+		return -1
+	}
+	if !bytes.Equal(pubKeyHas, hash.Sum256(p2pkh256Signature.PubKey)) {
+		rtCtx.Log.WarnContext(ctx, "pubkey hash does not match")
+		return -1
+	}
+	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
+	if err != nil {
+		rtCtx.Log.WarnContext(ctx, "failed to create verifier:", logger.Error(err))
+		return -1
+	}
+	payloadBytes, err := rtCtx.AbCtx.Txo.PayloadBytes()
+	if err != nil {
+		rtCtx.Log.WarnContext(ctx, "failed to marshal payload bytes: %w", logger.Error(err))
+		return -1
+	}
+	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
+		rtCtx.Log.WarnContext(ctx, "failed to verify signature: ", logger.Error(err))
+		return -1
+	}
+	return 1
 }

@@ -28,16 +28,11 @@ type (
 	AlwaysFalse struct{}
 
 	P2pkh256 struct{}
-
-	P2pkh256Payload struct {
-		_          struct{} `cbor:",toarray"`
-		PubKeyHash []byte
-	}
 )
 
 var (
-	alwaysFalseBytes = []byte{0x83, 0x0, 0x0, 0xf6}
-	alwaysTrueBytes  = []byte{0x83, 0x0, 0x1, 0xf6}
+	alwaysFalseBytes = []byte{0x83, 0x00, 0x41, 0x00, 0xf6}
+	alwaysTrueBytes  = []byte{0x83, 0x00, 0x41, 0x01, 0xf6}
 
 	cborNull = []byte{0xf6}
 )
@@ -67,18 +62,13 @@ func (t *P2pkh256) ID() byte {
 	return P2pkh256ID
 }
 
-func (t *P2pkh256) Execute(predicate, sig, sigData []byte) error {
-	p2pkh256Payload := &P2pkh256Payload{}
-	err := cbor.Unmarshal(predicate, p2pkh256Payload)
-	if err != nil {
-		return fmt.Errorf("failed to decode P2PKH256 predicate template: %w", err)
-	}
+func (t *P2pkh256) Execute(pubKeyHash, sig, sigData []byte) error {
 	p2pkh256Signature := predicates.P2pkh256Signature{}
-	if err = cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
+	if err := cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
 		return fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
-	if len(p2pkh256Payload.PubKeyHash) != 32 {
-		return fmt.Errorf("invalid pubkey hash size: %X, expected 32", p2pkh256Payload.PubKeyHash)
+	if len(pubKeyHash) != 32 {
+		return fmt.Errorf("invalid pubkey hash size: %X, expected 32", pubKeyHash)
 	}
 	if len(p2pkh256Signature.Sig) != 65 {
 		return fmt.Errorf("invalid signature size: %X, expected 65", p2pkh256Signature.Sig)
@@ -86,7 +76,7 @@ func (t *P2pkh256) Execute(predicate, sig, sigData []byte) error {
 	if len(p2pkh256Signature.PubKey) != 33 {
 		return fmt.Errorf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey)
 	}
-	if !bytes.Equal(p2pkh256Payload.PubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
+	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
 		return errors.New("pubkey hash does not match")
 	}
 
@@ -117,8 +107,7 @@ func NewP2pkh256FromKey(pubKey []byte) predicates.Predicate {
 }
 
 func NewP2pkh256FromKeyHash(pubKeyHash []byte) predicates.Predicate {
-	body, _ := cbor.Marshal(P2pkh256Payload{PubKeyHash: pubKeyHash})
-	return predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: body}
+	return predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: pubKeyHash}
 }
 
 func NewP2pkh256BytesFromKey(pubKey []byte) predicates.PredicateBytes {
@@ -144,22 +133,10 @@ func ExtractPubKeyHashFromP2pkhPredicate(pb []byte) ([]byte, error) {
 	if predicate.Tag != TemplateStartByte {
 		return nil, fmt.Errorf("not a predicate template (tag %d)", predicate.Tag)
 	}
-	if predicate.Code[0] != P2pkh256ID {
+	if len(predicate.Code) != 1 && predicate.Code[0] != P2pkh256ID {
 		return nil, fmt.Errorf("not a p2pkh predicate (id %X)", predicate.Code)
 	}
-	p2pkh256Payload := &P2pkh256Payload{}
-	if err := cbor.Unmarshal(predicate.Params, p2pkh256Payload); err != nil {
-		return nil, fmt.Errorf("extracting payload: %w", err)
-	}
-	return p2pkh256Payload.PubKeyHash, nil
-}
-
-func ExtractP2pkhPayload(predicate *predicates.Predicate) (*P2pkh256Payload, error) {
-	p2pkh256Payload := &P2pkh256Payload{}
-	if err := cbor.Unmarshal(predicate.Params, p2pkh256Payload); err != nil {
-		return nil, err
-	}
-	return p2pkh256Payload, nil
+	return predicate.Params, nil
 }
 
 func IsP2pkhTemplate(predicate *predicates.Predicate) bool {

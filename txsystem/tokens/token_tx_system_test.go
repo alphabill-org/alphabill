@@ -180,7 +180,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, p2pkhPredicate := signTx(t, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
+	_, p2pkhPredicateSig := signTx(t, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
 
 	signedCreateParent2Tx := testtransaction.NewTransactionOrder(
 		t,
@@ -191,7 +191,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 				Symbol:                             symbol,
 				ParentTypeID:                       parent1Identifier,
 				SubTypeCreationPredicate:           parent2SubTypeCreationPredicate,
-				SubTypeCreationPredicateSignatures: [][]byte{p2pkhPredicate},
+				SubTypeCreationPredicateSignatures: [][]byte{p2pkhPredicateSig},
 			},
 		),
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),

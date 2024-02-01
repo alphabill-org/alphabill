@@ -10,8 +10,8 @@ type (
 	Predicate struct {
 		_      struct{} `cbor:",toarray"`
 		Tag    uint64
-		Code   cbor.RawMessage
-		Params cbor.RawMessage
+		Code   []byte
+		Params []byte
 	}
 
 	PredicateRunner interface {

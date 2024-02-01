@@ -175,19 +175,19 @@ func Test_P2pkh256_templateBytes(t *testing.T) {
 	*/
 
 	t.Run("always false", func(t *testing.T) {
-		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, ID: AlwaysFalseID})
+		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}})
 		require.NoError(t, err)
-		require.True(t, bytes.Equal(buf, alwaysFalseBytes), `CBOR representation of "always false" predicate template has changed`)
+		require.True(t, bytes.Equal(buf, alwaysFalseBytes), `CBOR representation of "always false" predicate template has changed (expected %X, got %X)`, alwaysFalseBytes, buf)
 	})
 
 	t.Run("always true", func(t *testing.T) {
-		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, ID: AlwaysTrueID})
+		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysTrueID}})
 		require.NoError(t, err)
-		require.True(t, bytes.Equal(buf, alwaysTrueBytes), `CBOR representation of "always true" predicate template has changed`)
+		require.True(t, bytes.Equal(buf, alwaysTrueBytes), `CBOR representation of "always true" predicate template has changed (expected %X, got %X)`, alwaysTrueBytes, buf)
 	})
 
 	t.Run("p2pkh", func(t *testing.T) {
-		require.Equal(t, uint64(2), P2pkh256ID, "p2pkh template ID")
+		require.Equal(t, byte(2), P2pkh256ID, "p2pkh template ID")
 	})
 }
 

@@ -21,17 +21,17 @@ func TestTemplateRunner(t *testing.T) {
 	})
 
 	t.Run("unknown predicate template", func(t *testing.T) {
-		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, ID: 0xAF}, nil, nil)
+		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, Code: []byte{0xAF}}, nil, nil)
 		require.ErrorContains(t, err, "unknown predicate template")
 	})
 
 	t.Run("template execution error", func(t *testing.T) {
-		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, ID: AlwaysFalseID}, nil, nil)
+		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}}, nil, nil)
 		require.ErrorContains(t, err, "always false")
 	})
 
 	t.Run("success", func(t *testing.T) {
-		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, ID: AlwaysTrueID}, nil, nil)
+		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysTrueID}}, nil, nil)
 		require.NoError(t, err)
 	})
 }

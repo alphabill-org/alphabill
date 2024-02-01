@@ -37,6 +37,8 @@ type (
 
 	RawCBOR []byte
 
+	ProofGenerator func(bytesToSign []byte) (proof []byte, err error)
+
 	SigBytesProvider interface {
 		SigBytes() ([]byte, error)
 	}
@@ -104,6 +106,37 @@ func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	}
 	hasher.Write(bytes)
 	return hasher.Sum(nil)
+}
+
+/*
+SetOwnerProof assigns the bytes returned by the function provided as argument to
+the OwnerProof field unless the function (or reading data to be signed by that
+function) returned error.
+*/
+func (t *TransactionOrder) SetOwnerProof(proofer ProofGenerator) error {
+	data, err := t.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("reading payload bytes to sign: %w", err)
+	}
+	if t.OwnerProof, err = proofer(data); err != nil {
+		return fmt.Errorf("generating owner proof: %w", err)
+	}
+	return nil
+}
+
+/*
+SetAttributes serializes "attr" and assigns the result to payload's Attributes field.
+The "attr" is expected to be one of the transaction attribute structs but there is
+no validation!
+The Payload.UnmarshalAttributes can be used to decode the attributes.
+*/
+func (p *Payload) SetAttributes(attr any) error {
+	bytes, err := cbor.Marshal(attr)
+	if err != nil {
+		return fmt.Errorf("marshaling %T as tx attributes: %w", attr, err)
+	}
+	p.Attributes = bytes
+	return nil
 }
 
 func (p *Payload) UnmarshalAttributes(v any) error {

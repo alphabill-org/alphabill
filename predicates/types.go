@@ -18,3 +18,11 @@ type (
 		Execute(p *Predicate, sig []byte, sigData []byte) error
 	}
 )
+
+func ExtractPredicate(predicateBytes []byte) (*Predicate, error) {
+	predicate := &Predicate{}
+	if err := cbor.Unmarshal(predicateBytes, predicate); err != nil {
+		return nil, err
+	}
+	return predicate, nil
+}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -17,7 +17,7 @@ import (
 
 func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
+		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 		}

@@ -68,13 +68,13 @@ func (t *P2pkh256) Execute(pubKeyHash, sig, sigData []byte) error {
 		return fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {
-		return fmt.Errorf("invalid pubkey hash size: %X, expected 32", pubKeyHash)
+		return fmt.Errorf("invalid pubkey hash size: expected 32, got %d (%X)", len(pubKeyHash), pubKeyHash)
 	}
 	if len(p2pkh256Signature.Sig) != 65 {
-		return fmt.Errorf("invalid signature size: %X, expected 65", p2pkh256Signature.Sig)
+		return fmt.Errorf("invalid signature size:expected 65, got %d (%X)", len(p2pkh256Signature.Sig), p2pkh256Signature.Sig)
 	}
 	if len(p2pkh256Signature.PubKey) != 33 {
-		return fmt.Errorf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey)
+		return fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
 	}
 	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
 		return errors.New("pubkey hash does not match")

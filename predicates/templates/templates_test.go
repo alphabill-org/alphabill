@@ -107,7 +107,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey}
 		sigBytes, err := cbor.Marshal(signature)
 		require.NoError(t, err)
-		require.ErrorContains(t, runner.Execute(test.RandomBytes(34), sigBytes, nil), "invalid pubkey hash size")
+		require.ErrorContains(t, runner.Execute(test.RandomBytes(34), sigBytes, nil), "invalid pubkey hash size: expected 32, got 34")
 	})
 
 	t.Run("P2pkh256 template wrong signature size", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := predicates.P2pkh256Signature{Sig: sig[:64], PubKey: pubKey}
 		sigBytes, err := cbor.Marshal(signature)
 		require.NoError(t, err)
-		require.ErrorContains(t, runner.Execute(hash.Sum256(pubKey), sigBytes, nil), "invalid signature size")
+		require.ErrorContains(t, runner.Execute(hash.Sum256(pubKey), sigBytes, nil), "invalid signature size:expected 65, got 64")
 	})
 
 	t.Run("P2pkh256 template wrong pubkey size", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey[:32]}
 		sigBytes, err := cbor.Marshal(signature)
 		require.NoError(t, err)
-		require.ErrorContains(t, runner.Execute(hash.Sum256(pubKey), sigBytes, nil), "invalid pubkey size")
+		require.ErrorContains(t, runner.Execute(hash.Sum256(pubKey), sigBytes, nil), "invalid pubkey size: expected 33, got 32")
 	})
 
 	t.Run("P2pkh256 bad pubkey", func(t *testing.T) {
@@ -150,7 +150,6 @@ func Test_P2pkh256_templateBytes(t *testing.T) {
 		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}})
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(buf, alwaysFalseBytes), `CBOR representation of "always false" predicate template has changed (expected %X, got %X)`, alwaysFalseBytes, buf)
-		//require.NoError(t, predicates.RunPredicate(alwaysFalseBytes, nil, nil))
 	})
 
 	t.Run("always true", func(t *testing.T) {

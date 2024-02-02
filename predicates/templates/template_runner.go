@@ -48,7 +48,7 @@ func (t *TemplateRunner) addTemplate(template PredicateTemplate) {
 
 func (t *TemplateRunner) selectTemplate(p *predicates.Predicate) (PredicateTemplate, error) {
 	if len(p.Code) != 1 {
-		return nil, fmt.Errorf("invalid predicate code: %X", p.Code)
+		return nil, fmt.Errorf("expected predicate code length to be 1, got: %d (%X)", len(p.Code), p.Code)
 	}
 	pt, found := t.templates[p.Code[0]]
 	if !found {

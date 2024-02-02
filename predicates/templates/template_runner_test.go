@@ -20,6 +20,11 @@ func TestTemplateRunner(t *testing.T) {
 		require.ErrorContains(t, err, "invalid predicate tag")
 	})
 
+	t.Run("predicate code length not 1", func(t *testing.T) {
+		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, Code: []byte{0xAF, 0xAF}}, nil, nil)
+		require.ErrorContains(t, err, "expected predicate code length to be 1, got: 2")
+	})
+
 	t.Run("unknown predicate template", func(t *testing.T) {
 		err := runner.Execute(&predicates.Predicate{Tag: TemplateStartByte, Code: []byte{0xAF}}, nil, nil)
 		require.ErrorContains(t, err, "unknown predicate template")

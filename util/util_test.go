@@ -99,13 +99,13 @@ func TestReadAndWriteJsonFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	err = os.WriteFile(invalidTempFilePath, []byte{0, 0, 0, 1}, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// try to marshal invalid data
+	require.Error(t, WriteJsonFile(invalidTempFilePath, &map[string]interface{}{"err": make(chan int)}))
 
-	// Test cases
 	tests := []struct {
 		name          string
 		filePath      string
@@ -132,7 +132,6 @@ func TestReadAndWriteJsonFile(t *testing.T) {
 		},
 	}
 
-	// Run tests
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var result TestData

@@ -161,6 +161,10 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.True(t, ContainsTransaction(block3, tx1))
 	require.True(t, ContainsTransaction(block3, tx2))
 	require.False(t, ContainsTransaction(block3, transfer))
+
+	_, err := tp.partition.GetUnitState(test.RandomBytes(33), true, true)
+	require.ErrorContains(t, err, "not found")
+	require.NotNil(t, tp.partition.GetPeer())
 }
 
 // create non-empty block #1 -> empty block #2 -> empty block #3 -> non-empty block #4

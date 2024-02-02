@@ -1,6 +1,7 @@
 package types
 
 import (
+	"crypto"
 	"encoding/hex"
 	"testing"
 
@@ -110,6 +111,23 @@ func TestUnmarshalPayload(t *testing.T) {
 	require.Equal(t, timeout, clientMetadata.Timeout)
 	require.Equal(t, maxFee, clientMetadata.MaxTransactionFee)
 	require.Equal(t, feeCreditRecordID, clientMetadata.FeeCreditRecordID)
+}
+
+func TestUnmarshalAttributes(t *testing.T) {
+	txOrder := createTxOrder(t)
+	attributes := &Attributes{}
+	require.NoError(t, txOrder.UnmarshalAttributes(attributes))
+	require.Equal(t, newBearer, attributes.NewBearer)
+	require.Equal(t, targetValue, attributes.TargetValue)
+	require.Equal(t, backlink, attributes.Backlink)
+	require.Equal(t, UnitID(unitID), txOrder.UnitID())
+	require.Equal(t, systemID, txOrder.SystemID())
+	require.Equal(t, timeout, txOrder.Timeout())
+	require.Equal(t, payloadAttributesType, txOrder.PayloadType())
+	require.Equal(t, feeCreditRecordID, txOrder.GetClientFeeCreditRecordID())
+	require.Equal(t, maxFee, txOrder.GetClientMaxTxFee())
+	require.Equal(t, maxFee, txOrder.GetClientMaxTxFee())
+	require.NotNil(t, txOrder.Hash(crypto.SHA256))
 }
 
 func createTxOrder(t *testing.T) *TransactionOrder {

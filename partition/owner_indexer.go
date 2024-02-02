@@ -143,14 +143,10 @@ func extractOwnerID(ownerPredicate []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to extract predicate: %w", err)
 	}
-	if predicate.ID != templates.P2pkh256ID || predicate.Tag != templates.TemplateStartByte {
+	if !templates.IsP2pkhTemplate(predicate) {
 		// do not index non-p2pkh predicates
 		return "", nil
 	}
-	p2pkhPayload, err := templates.ExtractP2pkhPayload(predicate)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract p2pkh predicate payload: %w", err)
-	}
 	// for p2pkh predicates use pubkey hash as the owner id
-	return string(p2pkhPayload.PubKeyHash), nil
+	return string(predicate.Params), nil
 }

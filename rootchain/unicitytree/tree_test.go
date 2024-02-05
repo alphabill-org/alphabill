@@ -29,23 +29,33 @@ func TestNewUnicityTree(t *testing.T) {
 }
 
 func TestGetCertificate_Ok(t *testing.T) {
-	key := types.SystemID(1)
+	key1 := types.SystemID(1)
+	key2 := types.SystemID(2)
 	data := []*types.UTData{
 		{
-			SystemIdentifier:            key,
+			SystemIdentifier:            key2,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: []byte{3, 4, 5, 6},
+		},
+		{
+			SystemIdentifier:            key1,
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	}
 	unicityTree, err := New(crypto.SHA256, data)
 	require.NoError(t, err)
-	cert, err := unicityTree.GetCertificate(key)
+	cert, err := unicityTree.GetCertificate(key1)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
-	require.Equal(t, key, cert.SystemIdentifier)
-	root := imt.IndexTreeOutput(cert.SiblingHashes, key.Bytes(), crypto.SHA256)
+	require.Equal(t, key1, cert.SystemIdentifier)
+	root := imt.IndexTreeOutput(cert.SiblingHashes, key1.Bytes(), crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
+	// system id 0 is illegal
+	cert, err = unicityTree.GetCertificate(types.SystemID(0))
+	require.EqualError(t, err, "partition ID is unassigned")
+	require.Nil(t, cert)
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {

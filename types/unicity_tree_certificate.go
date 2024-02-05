@@ -71,7 +71,6 @@ func (x *UnicityTreeCertificate) EvalAuthPath(hashAlgorithm gocrypto.Hash) []byt
 	return imt.IndexTreeOutput(x.SiblingHashes, x.SystemIdentifier.Bytes(), hashAlgorithm)
 }
 
-/*
 func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
 	hasher.Write(x.Bytes())
 }
@@ -79,11 +78,10 @@ func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
 func (x *UnicityTreeCertificate) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier.Bytes())
-	b.Write(x.SystemDescriptionHash)
 	for _, siblingHash := range x.SiblingHashes {
 		b.Write(siblingHash.Key)
 		b.Write(siblingHash.Hash)
 	}
+	b.Write(x.SystemDescriptionHash)
 	return b.Bytes()
 }
-*/

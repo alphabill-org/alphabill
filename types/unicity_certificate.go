@@ -39,25 +39,24 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	return nil
 }
 
-/*
-	func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
-		hasher.Write(x.Bytes())
+func (x *UnicityCertificate) Bytes() []byte {
+	var b bytes.Buffer
+	if x.InputRecord != nil {
+		b.Write(x.InputRecord.Bytes())
 	}
+	if x.UnicityTreeCertificate != nil {
+		b.Write(x.UnicityTreeCertificate.Bytes())
+	}
+	if x.UnicitySeal != nil {
+		b.Write(x.UnicitySeal.Bytes())
+		// add UC seal signature bytes
+		if len(x.UnicitySeal.Signatures) > 0 {
+			b.Write(x.UnicitySeal.Signatures.Bytes())
+		}
+	}
+	return b.Bytes()
+}
 
-	func (x *UnicityCertificate) Bytes() []byte {
-		var b bytes.Buffer
-		if x.InputRecord != nil {
-			b.Write(x.InputRecord.Bytes())
-		}
-		if x.UnicityTreeCertificate != nil {
-			b.Write(x.UnicityTreeCertificate.Bytes())
-		}
-		if x.UnicitySeal != nil {
-			b.Write(x.UnicitySeal.Bytes())
-		}
-		return b.Bytes()
-	}
-*/
 func (x *UnicityCertificate) GetStateHash() []byte {
 	if x != nil && x.InputRecord != nil {
 		return x.InputRecord.Hash

@@ -1,13 +1,17 @@
 package types
 
 import (
+	"bytes"
 	gocrypto "crypto"
+	"encoding/gob"
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/tree/imt"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,7 +139,21 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 
 func TestUnicityCertificate_UCIsNil(t *testing.T) {
 	var uc *UnicityCertificate
+	require.EqualValues(t, 0, uc.GetRoundNumber())
+	require.EqualValues(t, 0, uc.GetRootRoundNumber())
+	require.Nil(t, uc.GetStateHash())
 	require.ErrorIs(t, uc.IsValid(nil, gocrypto.SHA256, 0, nil), ErrUnicityCertificateIsNil)
+}
+
+func TestUnicityCertificate_IRNil(t *testing.T) {
+	uc := &UnicityCertificate{
+		UnicityTreeCertificate: &UnicityTreeCertificate{},
+		UnicitySeal:            &UnicitySeal{},
+	}
+	require.EqualValues(t, 0, uc.GetRoundNumber())
+	require.EqualValues(t, 0, uc.GetRootRoundNumber())
+	require.Nil(t, uc.GetStateHash())
+	require.EqualError(t, uc.IsValid(nil, gocrypto.SHA256, 0, nil), "unicity seal validation failed, root node info is missing")
 }
 
 func TestUnicityCertificate_isRepeat(t *testing.T) {
@@ -152,6 +170,7 @@ func TestUnicityCertificate_isRepeat(t *testing.T) {
 			RootChainRoundNumber: 1,
 		},
 	}
+	require.EqualValues(t, []byte{0, 0, 2}, uc.GetStateHash())
 	// everything is equal, this is the same UC and not repeat
 	require.False(t, isRepeat(uc, uc))
 	ruc := &UnicityCertificate{
@@ -160,6 +179,7 @@ func TestUnicityCertificate_isRepeat(t *testing.T) {
 			RootChainRoundNumber: uc.UnicitySeal.RootChainRoundNumber + 1,
 		},
 	}
+	require.True(t, ruc.IsRepeat(uc))
 	// now it is repeat of previous round
 	require.True(t, isRepeat(uc, ruc))
 	ruc.UnicitySeal.RootChainRoundNumber++
@@ -633,4 +653,99 @@ func TestCheckNonEquivocatingCertificates(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSerialize(t *testing.T) {
+	uc := &UnicityCertificate{
+		InputRecord: &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     6,
+			SumOfEarnedFees: 20,
+		},
+		UnicityTreeCertificate: &UnicityTreeCertificate{
+			SystemIdentifier:      identifier,
+			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: []byte{1, 2, 3}}},
+			SystemDescriptionHash: []byte{1, 2, 3, 4},
+		},
+		UnicitySeal: &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            9,
+			PreviousHash:         []byte{1, 2, 3},
+			Hash:                 []byte{2, 3, 4},
+			Signatures:           map[string][]byte{"1": {1, 1, 1}},
+		},
+	}
+	expectedBytes := []byte{
+		0, 0, 1, // IR: previous hash
+		0, 0, 2, // IR: hash
+		0, 0, 3, // IR: block hash
+		0, 0, 4, // IR: summary hash
+		0, 0, 0, 0, 0, 0, 0, 6, // IR: round
+		0, 0, 0, 0, 0, 0, 0, 20, // IR: sum of fees
+		1, 1, 1, 1, // UT: identifier
+		1, 1, 1, 1, 1, 2, 3, // UT: siblings key+hash
+		1, 2, 3, 4, // UT: system description hash
+		0, 0, 0, 0, 0, 0, 0, 1, // UC: root round
+		0, 0, 0, 0, 0, 0, 0, 9, // UC: timestamp
+		1, 2, 3, // UC: previous hash
+		2, 3, 4, // UC: hash
+		'1', 1, 1, 1, // UC: signature
+	}
+	require.EqualValues(t, expectedBytes, uc.Bytes())
+}
+
+func BenchmarkBytes(b *testing.B) {
+	uc := &UnicityCertificate{
+		InputRecord: &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     6,
+			SumOfEarnedFees: 20,
+		},
+		UnicityTreeCertificate: &UnicityTreeCertificate{
+			SystemIdentifier:      identifier,
+			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: make([]byte, 32)}},
+			SystemDescriptionHash: make([]byte, 32),
+		},
+		UnicitySeal: &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            math.MaxInt64,
+			PreviousHash:         make([]byte, 32),
+			Hash:                 make([]byte, 32),
+			Signatures:           map[string][]byte{"test": make([]byte, 65)},
+		},
+	}
+	b.ResetTimer()
+	b.Run("serialize to bytes", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			hasher := gocrypto.SHA256.New()
+			hasher.Write(uc.Bytes())
+			_ = hasher.Sum(nil)
+		}
+	})
+	b.Run("serialize to cbor", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			hasher := gocrypto.SHA256.New()
+			ucBytes, _ := cbor.Marshal(uc)
+			hasher.Write(ucBytes)
+			_ = hasher.Sum(nil)
+		}
+	})
+	b.Run("serialize to gob", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			enc := gob.NewEncoder(&buf)
+			hasher := gocrypto.SHA256.New()
+			if err := enc.Encode(uc); err != nil {
+				b.Fatal("encoding failed")
+			}
+			hasher.Write(buf.Bytes())
+			_ = hasher.Sum(nil)
+		}
+	})
 }

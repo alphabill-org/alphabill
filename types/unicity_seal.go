@@ -75,6 +75,15 @@ func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
 	return nil
 }
 
+func (s *SignatureMap) Bytes() []byte {
+	var b bytes.Buffer
+	for auth, sig := range *s {
+		b.Write([]byte(auth))
+		b.Write(sig)
+	}
+	return b.Bytes()
+}
+
 // NewTimestamp - returns timestamp in seconds from epoch
 func NewTimestamp() uint64 {
 	// Epoch in seconds

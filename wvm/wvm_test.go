@@ -13,6 +13,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
@@ -176,7 +177,7 @@ func Benchmark_runPredicate(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	p2hs := templates.P2pkh256Signature{PubKey: pubKey}
+	p2hs := predicates.P2pkh256Signature{PubKey: pubKey}
 	if p2hs.Sig, err = signer.SignBytes(buf); err != nil {
 		b.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/tetratelabs/wazero/api"
@@ -95,7 +95,7 @@ func p2pkhV1(ctx context.Context, m api.Module) int32 {
 		panic("nil runtime context")
 	}
 
-	p2pkh256Signature := &templates.P2pkh256Signature{}
+	p2pkh256Signature := &predicates.P2pkh256Signature{}
 	if err := cbor.Unmarshal(rtCtx.AbCtx.Txo.OwnerProof, p2pkh256Signature); err != nil {
 		rtCtx.Log.WarnContext(ctx, "p2pkh v1 failed to decode P2PKH256 signature:", logger.Error(err))
 		return -1
@@ -140,7 +140,7 @@ func p2pkhV2(ctx context.Context, m api.Module, pubKeyHashPtr uint64) int32 {
 		panic("nil runtime context")
 	}
 
-	p2pkh256Signature := &templates.P2pkh256Signature{}
+	p2pkh256Signature := &predicates.P2pkh256Signature{}
 	if err := cbor.Unmarshal(rtCtx.AbCtx.Txo.OwnerProof, p2pkh256Signature); err != nil {
 		rtCtx.Log.WarnContext(ctx, "p2pkh v1 failed to decode P2PKH256 signature:", logger.Error(err))
 		return -1

@@ -326,13 +326,15 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		nd.proofDB = memorydb.New()
+		if nd.proofDB, err = memorydb.New(); err != nil {
+			return fmt.Errorf("creating proof DB: %w", err)
+		}
 		// set root node as bootstrap peer
 		nd.peerConf.BootstrapPeers = bootNodes
 		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
-			partition.WithProofIndex(nd.proofDB, 0),
+			partition.WithProofIndex(nd.proofDB, 0, true),
 		)
 		if err = n.startNode(ctx, nd); err != nil {
 			return err

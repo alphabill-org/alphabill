@@ -33,8 +33,8 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 						TokenType: d.TokenType,
 						Value:     sum,
 						T:         currentBlockNr,
-						backlink:  h,
-						locked:    0,
+						Backlink:  h,
+						Locked:    0,
 					}, nil
 				})); err != nil {
 			return nil, err
@@ -83,8 +83,8 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 			return 0, fmt.Errorf("proof is not valid: %w", err)
 		}
 	}
-	if !bytes.Equal(d.backlink, attr.Backlink) {
-		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
+	if !bytes.Equal(d.Backlink, attr.Backlink) {
+		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
 	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		options.hashAlgorithm,

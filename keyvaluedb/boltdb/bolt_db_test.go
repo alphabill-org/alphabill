@@ -129,7 +129,7 @@ func TestBoltDB_TestReadAndWrite(t *testing.T) {
 	require.Equal(t, uint64(1), back)
 	// wrong type slice
 	found, err = db.Read([]byte("slice"), &back)
-	require.ErrorContains(t, err, "json: cannot unmarshal string into Go value of type uint64")
+	require.EqualError(t, err, `bolt db read failed, cbor: cannot unmarshal byte string into Go value of type uint64`)
 	require.True(t, found)
 }
 

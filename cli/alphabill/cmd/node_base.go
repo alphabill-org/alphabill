@@ -49,12 +49,13 @@ type startNodeConfiguration struct {
 	KeyFile                    string
 	DbFile                     string
 	TxIndexerDBFile            string
+	WithOwnerIndex             bool
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration,
+func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
 	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
 	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
@@ -64,19 +65,19 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initRPCServer(node, rpcServerConf, obs, log)
+		grpcServer, err := initGRPCServer(node, grpcServerConf, obs, log)
 		if err != nil {
 			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
 		}
 
-		listener, err := net.Listen("tcp", rpcServerConf.Address)
+		listener, err := net.Listen("tcp", grpcServerConf.Address)
 		if err != nil {
-			return fmt.Errorf("failed to open listener on %q for %s: %w", rpcServerConf.Address, name, err)
+			return fmt.Errorf("failed to open listener on %q for %s: %w", grpcServerConf.Address, name, err)
 		}
 
 		errch := make(chan error, 1)
 		go func() {
-			log.Info("%s gRPC server starting on %s", name, rpcServerConf.Address)
+			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server starting on %s", name, grpcServerConf.Address))
 			if err := grpcServer.Serve(listener); err != nil {
 				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
 			}
@@ -93,7 +94,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	})
 
 	g.Go(func() error {
-		if restServerConf.IsAddressEmpty() {
+		if rpcServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
@@ -101,25 +102,33 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
-		if restServerConf.router != nil {
-			routers = append(routers, restServerConf.router)
+		if rpcServerConf.Router != nil {
+			routers = append(routers, rpcServerConf.Router)
 		}
-		restServer := initRESTServer(restServerConf, obs, routers...)
+		rpcServerConf.APIs = []rpc.API{{
+			Namespace: "state",
+			Service: rpc.NewStateAPI(node),
+		}}
+
+		rpcServer, err := rpc.NewHTTPServer(rpcServerConf, obs, routers...)
+		if err != nil {
+			return err
+		}
 
 		errch := make(chan error, 1)
 		go func() {
-			log.Info("%s REST server starting on %s", name, restServer.Addr)
-			if err := restServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errch <- fmt.Errorf("%s REST server exited: %w", name, err)
+			log.InfoContext(ctx, fmt.Sprintf("%s RPC server starting on %s", name, rpcServer.Addr))
+			if err := rpcServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errch <- fmt.Errorf("%s RPC server exited: %w", name, err)
 			}
-			log.InfoContext(ctx, fmt.Sprintf("%s REST server exited", name))
+			log.InfoContext(ctx, fmt.Sprintf("%s RPC server exited", name))
 		}()
 
 		select {
 		case <-ctx.Done():
 			err := ctx.Err()
-			if e := restServer.Close(); e != nil {
-				err = errors.Join(err, fmt.Errorf("closing REST server: %w", e))
+			if e := rpcServer.Close(); e != nil {
+				err = errors.Join(err, fmt.Errorf("closing RPC server: %w", e))
 			}
 			return err
 		case err := <-errch:
@@ -130,15 +139,6 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	return g.Wait()
 }
 
-func initRESTServer(conf *restServerConfiguration, obs partition.Observability, routes ...rpc.Registrar) *http.Server {
-	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, obs, routes...)
-	rs.ReadTimeout = conf.ReadTimeout
-	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
-	rs.WriteTimeout = conf.WriteTimeout
-	rs.IdleTimeout = conf.IdleTimeout
-	rs.MaxHeaderBytes = conf.MaxHeaderBytes
-	return rs
-}
 
 func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()
@@ -176,7 +176,7 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
 }
 
-func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
+func initGRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
 		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
 		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
@@ -219,7 +219,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithProofIndex(proofStore, 20),
+		partition.WithProofIndex(proofStore, 20, cfg.WithOwnerIndex),
 		// TODO history size!
 	}
 
@@ -243,7 +243,7 @@ func initStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
 	if dbFile != "" {
 		return boltdb.New(dbFile)
 	}
-	return memorydb.New(), nil
+	return memorydb.New()
 }
 
 func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error) {
@@ -280,6 +280,28 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
+	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
+}
+
+func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {
+	cmd.Flags().StringVar(&c.Address, "rpc-server-address", "",
+		"Specifies the TCP address for the RPC server to listen on, in the form \"host:port\". RPC server isn't initialised if Address is empty. (default \"\")")
+	cmd.Flags().DurationVar(&c.ReadTimeout, "rpc-server-read-timeout", 0,
+		"The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. (default 0)")
+	cmd.Flags().DurationVar(&c.ReadHeaderTimeout, "rpc-server-read-header-timeout", 0,
+		"The amount of time allowed to read request headers. If rpc-server-read-header-timeout is zero, the value of rpc-server-read-timeout is used. If both are zero, there is no timeout. (default 0)")
+	cmd.Flags().DurationVar(&c.WriteTimeout, "rpc-server-write-timeout", 0,
+		"The maximum duration before timing out writes of the response. A zero or negative value means there will be no timeout. (default 0)")
+	cmd.Flags().DurationVar(&c.IdleTimeout, "rpc-server-idle-timeout", 0,
+		"The maximum amount of time to wait for the next request when keep-alives are enabled. If rpc-server-idle-timeout is zero, the value of rpc-server-read-timeout is used. If both are zero, there is no timeout. (default 0)")
+	cmd.Flags().IntVar(&c.MaxHeaderBytes, "rpc-server-max-header", http.DefaultMaxHeaderBytes,
+		"Controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line.")
+	cmd.Flags().Int64Var(&c.MaxBodyBytes, "rpc-server-max-body", rpc.DefaultMaxBodyBytes,
+		"Controls the maximum number of bytes the server will read parsing the request body.")
+	cmd.Flags().IntVar(&c.BatchItemLimit, "rpc-server-batch-item-limit", rpc.DefaultBatchItemLimit,
+		"The maximum number of requests in a batch.")
+	cmd.Flags().IntVar(&c.BatchResponseSizeLimit, "rpc-server-batch-response-size-limit", rpc.DefaultBatchResponseSizeLimit,
+		"The maximum number of response bytes across all requests in a batch.")
 }

@@ -155,7 +155,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         money.NewBillID(nil, []byte{2}),
+			UnitID:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}
@@ -189,7 +189,7 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsInitialBill(t *testing.T) {
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         defaultInitialBillID,
+			UnitID:         defaultInitialBillID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}
@@ -212,7 +212,7 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         money.DustCollectorMoneySupplyID,
+			UnitID:         money.DustCollectorMoneySupplyID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}

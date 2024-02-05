@@ -67,12 +67,9 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
-	require.NotNil(t, b.Qc)
-	require.NotNil(t, b.CommitQc)
 	require.NotNil(t, b.BlockData)
 	require.Equal(t, uint64(1), b.BlockData.Round)
 	require.Equal(t, "genesis", b.BlockData.Author)
-	require.NoError(t, b.CommitQc.IsValid())
 }
 
 func TestExecutedBlock(t *testing.T) {
@@ -119,8 +116,6 @@ func TestExecutedBlock(t *testing.T) {
 	require.Equal(t, genesisInputRecord, parent.CurrentIR.Find(partitionID1).IR)
 	require.Equal(t, hash, executedBlock.HashAlgo)
 	require.EqualValues(t, "A815B4DFDDAABF23FEBE0E3E4975BE8CC1DD0FDE78941935D5C502D803FC20C2", fmt.Sprintf("%X", executedBlock.RootHash))
-	require.Nil(t, executedBlock.Qc)
-	require.Nil(t, executedBlock.CommitQc)
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
@@ -159,11 +154,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		},
 		Changed:  []types.SystemID{partitionID1, partitionID2},
 		HashAlgo: gocrypto.SHA256,
-
 		RootHash: []byte{0x0A, 0x54, 0x3E, 0xC8, 0xFB, 0xBB, 0xDA, 0x18, 0x74, 0xC6, 0xAB, 0x54, 0xAC, 0x4C, 0x1B,
 			0x10, 0xF5, 0xCA, 0x72, 0x65, 0x7F, 0x6E, 0x28, 0x55, 0x5, 0x4A, 0x3A, 0xF4, 0xD4, 0xA3, 0x83, 0x66},
-		Qc:       &drctypes.QuorumCert{},
-		CommitQc: nil,
 	}
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{
@@ -197,8 +189,6 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	certs, err = block.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
-	require.NotNil(t, block.CommitQc)
-
 }
 
 func TestExecutedBlock_GetRound(t *testing.T) {

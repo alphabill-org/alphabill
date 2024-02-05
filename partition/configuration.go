@@ -53,9 +53,11 @@ type (
 	// historyLen - number of rounds/blocks to keep in indexer:
 	// - if 0, there is no clean-up and all blocks are kept in the index;
 	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
+	// withOwnerIndex - if true indexes all units by their owner
 	proofIndexConfig struct {
-		store      keyvaluedb.KeyValueDB
-		historyLen uint64
+		store          keyvaluedb.KeyValueDB
+		historyLen     uint64
+		withOwnerIndex bool
 	}
 
 	ledgerReplicationConfig struct {
@@ -95,10 +97,11 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
-func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64, withOwnerIndex bool) NodeOption {
 	return func(c *configuration) {
 		c.proofIndexConfig.store = db
 		c.proofIndexConfig.historyLen = history
+		c.proofIndexConfig.withOwnerIndex = withOwnerIndex
 	}
 }
 
@@ -136,7 +139,6 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 		genesis:       genesis,
 		hashAlgorithm: gocrypto.SHA256,
 		proofIndexConfig: proofIndexConfig{
-			store:      memorydb.New(),
 			historyLen: 20,
 		},
 	}
@@ -145,10 +147,10 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	}
 	// init default for those not specified by the user
 	if err := c.initMissingDefaults(); err != nil {
-		return nil, fmt.Errorf("failed to initiate default parameters, %w", err)
+		return nil, fmt.Errorf("initializing missing configuration to default values: %w", err)
 	}
 	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
-		return nil, fmt.Errorf("genesis error, %w", err)
+		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}
 
 	return c, nil
@@ -159,29 +161,38 @@ func (c *configuration) initMissingDefaults() error {
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
 	}
-	if c.blockStore == nil {
-		c.blockStore = memorydb.New()
+
+	var err error
+	if c.proofIndexConfig.store == nil {
+		if c.proofIndexConfig.store, err = memorydb.New(); err != nil {
+			return fmt.Errorf("creating proof index DB: %w", err)
+		}
 	}
+
+	if c.blockStore == nil {
+		if c.blockStore, err = memorydb.New(); err != nil {
+			return fmt.Errorf("creating block store DB: %w", err)
+		}
+	}
+
 	if c.leaderSelector == nil {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
 
-	var err error
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
-		return fmt.Errorf("root trust base init error, %w", err)
+		return fmt.Errorf("initializing root trust base: %w", err)
 	}
 	if c.blockProposalValidator == nil {
-
 		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
-			return fmt.Errorf("block proposal validator init error, %w", err)
+			return fmt.Errorf("initializing block proposal validator: %w", err)
 		}
 	}
 	if c.unicityCertificateValidator == nil {
 		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
-			return fmt.Errorf("unicity certificate validator init error, %w", err)
+			return fmt.Errorf("initializing unicity certificate validator: %w", err)
 		}
 	}
 	if c.txValidator == nil {

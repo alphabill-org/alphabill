@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
@@ -20,8 +21,8 @@ type (
 	evmConfiguration struct {
 		baseNodeConfiguration
 		Node       *startNodeConfiguration
-		RPCServer  *grpcServerConfiguration
-		RESTServer *restServerConfiguration
+		GRPCServer *grpcServerConfiguration
+		RPCServer  *rpc.ServerConfiguration
 	}
 )
 
@@ -31,8 +32,8 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 			Base: baseConfig,
 		},
 		Node:       &startNodeConfiguration{},
-		RPCServer:  &grpcServerConfiguration{},
-		RESTServer: &restServerConfiguration{},
+		GRPCServer: &grpcServerConfiguration{},
+		RPCServer:  &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -46,8 +47,9 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "evm")
 
-	config.RPCServer.addConfigurationFlags(nodeCmd)
-	config.RESTServer.addConfigurationFlags(nodeCmd)
+	config.GRPCServer.addConfigurationFlags(nodeCmd)
+	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
+
 	// mark the --tb-tx flag as mandatory for EVM nodes
 	if err := nodeCmd.MarkFlagRequired("tx-db"); err != nil {
 		panic(err)
@@ -126,12 +128,12 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
-	cfg.RESTServer.router = api.NewAPI(
-		txs.State(),
+	cfg.RPCServer.Router = api.NewAPI(
+		state,
 		systemIdentifier,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer, proofStore, obs)
+	return run(ctx, "evm node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
 }

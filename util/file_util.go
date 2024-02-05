@@ -17,15 +17,6 @@ func FileExists(path string) bool {
 	return true
 }
 
-func GetFileSize(filepath string) (int64, error) {
-	fi, err := os.Stat(filepath)
-	if err != nil {
-		return 0, err
-	}
-	// get the size
-	return fi.Size(), nil
-}
-
 func ReadJsonFile[T any](path string, res *T) (*T, error) {
 	// #nosec G304
 	bytes, err := os.ReadFile(path)

@@ -47,19 +47,19 @@ server-max-connection-age-grace-ms=9999
 # the max allowed block count for the GetBlocks rpc function.
 server-max-get-blocks-batch-size=9999
 # Specifies the TCP address for the REST server to listen on, in the form "host:port"
-rest-server-address=localhost:9523
+rpc-server-address=localhost:9523
 # The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout.
-rest-server-read-timeout=9999
-# The amount of time allowed to read request headers. If rest-server-read-header-timeout is zero, the value of rest-server-read-timeout is used. If both are zero, there is no timeout.
-rest-server-read-header-timeout=9999
+rpc-server-read-timeout=9999
+# The amount of time allowed to read request headers. If rpc-server-read-header-timeout is zero, the value of rpc-server-read-timeout is used. If both are zero, there is no timeout.
+rpc-server-read-header-timeout=9999
 # The maximum duration before timing out writes of the response. A zero or negative value means there will be no timeout.
-rest-server-write-timeout=9999
-# The maximum amount of time to wait for the next request when keep-alives are enabled. If rest-server-idle-timeout is zero, the value of rest-server-read-timeout is used. If both are zero, there is no timeout.
-rest-server-idle-timeout=9999
+rpc-server-write-timeout=9999
+# The maximum amount of time to wait for the next request when keep-alives are enabled. If rpc-server-idle-timeout is zero, the value of rpc-server-read-timeout is used. If both are zero, there is no timeout.
+rpc-server-idle-timeout=9999
 # Controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line.
-rest-server-max-header=9999
+rpc-server-max-header=9999
 # Controls the maximum number of bytes the server will read parsing the request body.
-rest-server-max-body=9999
+rpc-server-max-body=9999
 # symbol (short name) of the token type
 symbol=ALPHA
 # full name of the token type

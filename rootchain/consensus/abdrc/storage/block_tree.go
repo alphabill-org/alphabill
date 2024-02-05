@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -24,6 +25,10 @@ type (
 		highQc      *abdrc.QuorumCert
 		blocksDB    keyvaluedb.KeyValueDB
 	}
+)
+
+var (
+	ErrCommitFailed = errors.New("commit failed")
 )
 
 func newNode(b *ExecutedBlock) *node {
@@ -49,28 +54,12 @@ func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyVal
 	return nil
 }
 
-func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
-	rootNode := newNode(cBlock)
-	hQC := rootNode.data.Qc
-	// make sure that nodes are sorted by round
-	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].GetRound() < nodes[j].GetRound()
-	})
+func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
+	rootNode := newNode(block)
+	hQC := rootNode.data.BlockData.Qc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
-	for _, next := range nodes {
-		// if parent round does not exist then reject, parent must be recovered
-		parent, found := treeNodes[next.GetParentRound()]
-		if !found {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.GetRound(),
-				next.BlockData.Qc.VoteInfo.RoundNumber)
-		}
-		// append block and add a child to parent
-		n := newNode(next)
-		treeNodes[next.GetRound()] = n
-		parent.addChild(n)
-		if n.data.Qc != nil {
-			hQC = n.data.Qc
-		}
+	if err := bDB.Write(blockKey(block.GetRound()), block); err != nil {
+		return nil, fmt.Errorf("block write failed, %w", err)
 	}
 	return &BlockTree{
 		roundToNode: treeNodes,
@@ -106,21 +95,25 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")
 	}
+	// sort by round number
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].GetRound() < blocks[j].GetRound()
+	})
 	// find root
 	rootIdx := 0
-	for i := len(blocks) - 1; i >= 0; i-- {
-		if blocks[i].CommitQc != nil {
-			rootIdx = i
+	for commitIdx := len(blocks) - 1; commitIdx >= 0; commitIdx-- {
+		if rootRound := blocks[commitIdx].BlockData.Qc.GetCommitRound(); rootRound != 0 {
+			idx := slices.IndexFunc(blocks, func(b *ExecutedBlock) bool { return b.GetRound() == rootRound })
+			if idx == -1 {
+				return nil, fmt.Errorf("committed root block not found")
+			}
+			rootIdx = idx
 			break
 		}
 	}
 	rootNode := newNode(blocks[rootIdx])
-	// sanity check, root node must be a committed block
-	if rootNode.data.CommitQc == nil {
-		return nil, fmt.Errorf("invalid root node, not a committed block")
-	}
-	hQC = rootNode.data.Qc
-	treeNodes := map[uint64]*node{blocks[rootIdx].GetRound(): rootNode}
+	hQC = rootNode.data.BlockData.Qc
+	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	for i := rootIdx + 1; i < len(blocks); i++ {
 		block := blocks[i]
 		// if parent round does not exist then reject, parent must be recovered
@@ -133,8 +126,8 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 		n := newNode(block)
 		treeNodes[block.BlockData.Round] = n
 		parent.addChild(n)
-		if n.data.Qc != nil {
-			hQC = n.data.Qc
+		if n.data.BlockData.Qc != nil {
+			hQC = n.data.BlockData.Qc
 		}
 	}
 	// clear all blocks until new root if any
@@ -162,7 +155,6 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	if !bytes.Equal(b.RootHash, qc.VoteInfo.CurrentRootHash) {
 		return fmt.Errorf("block tree add qc failed, qc state hash is different from local computed state hash")
 	}
-	b.Qc = qc
 	// persist changes
 	if err = bt.blocksDB.Write(blockKey(b.GetRound()), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
@@ -325,7 +317,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 	commitRound := commitQc.GetParentRound()
 	commitNode, found := bt.roundToNode[commitRound]
 	if !found {
-		return nil, fmt.Errorf("commit of round %v failed, block not found", commitRound)
+		return nil, errors.Join(ErrCommitFailed, fmt.Errorf("block for round %v block not found", commitRound))
 	}
 	// Find if there are uncommitted nodes between new root and previous root
 	path := bt.FindPathToRoot(commitRound)
@@ -333,7 +325,6 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 	for _, cb := range path {
 		commitNode.data.Changed = append(commitNode.data.Changed, cb.Changed...)
 	}
-	commitNode.data.CommitQc = commitQc
 	// prune the chain, the committed block becomes new root of the chain
 	blocksToPrune, err := bt.findBlocksToPrune(commitRound)
 	if err != nil {

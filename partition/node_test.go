@@ -69,7 +69,8 @@ func TestNode_NodeStartTest(t *testing.T) {
 }
 
 func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
@@ -610,8 +611,9 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 
 func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	indexDB := memorydb.New()
-	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
+	indexDB, err := memorydb.New()
+	require.NoError(t, err)
+	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0, false))
 	require.NoError(t, tp.partition.startNewRound(context.Background(), tp.partition.luc.Load()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
 	hash := txo.Hash(tp.partition.configuration.hashAlgorithm)
@@ -639,9 +641,10 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, system, WithProofIndex(memorydb.New(), 0))
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	tp := RunSingleNodePartition(t, system, WithProofIndex(db, 0, false))
 	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
-
 	require.ErrorIs(t, err, ErrIndexNotFound)
 	require.Nil(t, record)
 	require.Nil(t, proof)

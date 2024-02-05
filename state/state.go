@@ -25,14 +25,14 @@ type (
 	// entire state. Releasing a savepoint does NOT trigger a state root hash calculation. To calculate the root hash
 	// of the state use method CalculateRoot. Calling a Commit method commits and releases all savepoints.
 	State struct {
-		mutex                    sync.RWMutex
-		hashAlgorithm            crypto.Hash
-		committedTree            *tree
-		committedTreeUC          *types.UnicityCertificate
+		mutex           sync.RWMutex
+		hashAlgorithm   crypto.Hash
+		committedTree   *tree
+		committedTreeUC *types.UnicityCertificate
 
 		// savepoint is a special marker that allows all actions that are executed after tree was established to
 		// be rolled back, restoring the state to what it was at the time of the tree.
-		savepoints               []*tree
+		savepoints []*tree
 	}
 
 	tree = avl.Tree[types.UnitID, *Unit]
@@ -49,9 +49,9 @@ func NewEmptyState(opts ...Option) *State {
 	t := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
 
 	return &State{
-		hashAlgorithm:            options.hashAlgorithm,
-		committedTree:            t,
-		savepoints:               []*tree{t.Clone()},
+		hashAlgorithm: options.hashAlgorithm,
+		committedTree: t,
+		savepoints:    []*tree{t.Clone()},
 	}
 }
 
@@ -134,9 +134,17 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 		}
 		logRoot := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
 
-		unit := &Unit{
-			logs:              []*Log{latestLog},
-			logRoot:           logRoot,
+		unit := &Unit{logRoot: logRoot}
+		if len(nodeRecord.UnitTreePath) > 0 {
+			// A non-zero UnitTreePath length means that the unit had multiple logs at serialization.
+			// Those logs must be pruned at the beginning of the next round and the summary hash must
+			// be recalculated for such units after pruning. Let's add an extra empty log for the unit,
+			// so that the pruner can find it and the summary hash is recalculated. This does not
+			// interfere with proof indexer as proofs are not calculated for the recovered round.
+			// Everything else uses just the latest log.
+			unit.logs = []*Log{{}, latestLog}
+		} else {
+			unit.logs = []*Log{latestLog}
 		}
 
 		var right, left *node
@@ -163,10 +171,10 @@ func (s *State) Clone() *State {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return &State{
-		hashAlgorithm:            s.hashAlgorithm,
-		committedTree:            s.committedTree.Clone(),
-		committedTreeUC:          s.committedTreeUC,
-		savepoints:               []*tree{s.latestSavepoint().Clone()},
+		hashAlgorithm:   s.hashAlgorithm,
+		committedTree:   s.committedTree.Clone(),
+		committedTreeUC: s.committedTreeUC,
+		savepoints:      []*tree{s.latestSavepoint().Clone()},
 	}
 }
 
@@ -413,6 +421,12 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 
 func (s *State) HashAlgorithm() crypto.Hash {
 	return s.hashAlgorithm
+}
+
+func (s *State) Traverse(traverser avl.Traverser[types.UnitID, *Unit]) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	s.committedTree.Traverse(traverser)
 }
 
 func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCert, error) {

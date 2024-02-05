@@ -1,12 +1,12 @@
 package boltdb
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -35,11 +35,15 @@ func New(dbFile string) (*BoltDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	encM, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return nil, fmt.Errorf("creating CBOR encoder: %w", err)
+	}
 	s := &BoltDB{
 		db:      db,
 		bucket:  []byte(defaultBucket),
-		encoder: json.Marshal,
-		decoder: json.Unmarshal,
+		encoder: encM.Marshal,
+		decoder: cbor.Unmarshal,
 	}
 	if err = s.createBuckets(); err != nil {
 		return nil, err

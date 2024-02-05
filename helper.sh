@@ -73,7 +73,7 @@ esac
 for i in $(seq 1 "$2")
 do
   # "-g" flags also generates keys
-  build/alphabill "$cmd" --home "${home}$i" -g "$3"
+  build/alphabill "$cmd" --home "${home}$i" -g $3
 done
 }
 
@@ -139,7 +139,7 @@ local key_files=""
 local genesis_file=""
 local aPort=0
 local grpcPort=0
-local restPort=0
+local rpcPort=0
   case $1 in
     money)
       home="testab/money"
@@ -147,7 +147,7 @@ local restPort=0
       genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
       aPort=26666
       grpcPort=26766
-      restPort=26866
+      rpcPort=26866
       ;;
     tokens)
       home="testab/tokens"
@@ -155,7 +155,7 @@ local restPort=0
       genesis_file="testab/rootchain1/rootchain/partition-genesis-2.json"
       aPort=28666
       grpcPort=28766
-      restPort=28866
+      rpcPort=28866
       ;;
     evm)
       home="testab/evm"
@@ -163,7 +163,7 @@ local restPort=0
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
       aPort=29666
       grpcPort=29766
-      restPort=29866
+      rpcPort=29866
       ;;
     *)
       echo "error: unknown partition $1" >&2
@@ -187,12 +187,12 @@ local restPort=0
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \
         --server-address "localhost:$grpcPort" \
-        --rest-server-address "localhost:$restPort" \
+        --rpc-server-address "localhost:$rpcPort" \
         >> ${home}$i/"$1"/"$1".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
-    ((restPort=restPort+1))
+    ((rpcPort=rpcPort+1))
   done
     echo "started $(($i-1)) $1 nodes"
 }

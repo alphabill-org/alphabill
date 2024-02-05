@@ -37,7 +37,7 @@ type Iterator interface {
 	Next()
 	// Prev returns previous key/value pair
 	Prev()
-	// Valid returns state of the iterator, if at the end false it returned
+	// Valid returns state of the iterator, if at the end false is returned
 	Valid() bool
 	// Key returns the key of the current key/value pair, or nil if not valid.
 	Key() []byte

@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -22,9 +21,17 @@ var (
 )
 
 type (
+	// UnitAndProof read access to state to access unit and unit proofs
+	UnitAndProof interface {
+		// GetUnit - access tx system unit state
+		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		// CreateUnitStateProof - create unit proofs
+		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
+	}
+
 	BlockAndState struct {
 		Block *types.Block
-		State txsystem.UnitAndProof
+		State UnitAndProof
 	}
 
 	TxIndex struct {
@@ -43,20 +50,22 @@ type (
 		historySize   uint64 // number of rounds for which the history of unit states is kept
 		log           *slog.Logger
 		blockCh       chan *BlockAndState
+		ownerIndexer  *OwnerIndexer
 	}
 )
 
-func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, l *slog.Logger) *ProofIndexer {
+func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, ownerIndexer *OwnerIndexer, l *slog.Logger) *ProofIndexer {
 	return &ProofIndexer{
 		hashAlgorithm: algo,
 		storage:       db,
 		historySize:   historySize,
 		log:           l,
 		blockCh:       make(chan *BlockAndState, 20),
+		ownerIndexer:  ownerIndexer,
 	}
 }
 
-func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state txsystem.UnitAndProof) {
+func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state UnitAndProof) {
 	select {
 	case <-ctx.Done():
 	case p.blockCh <- &BlockAndState{
@@ -110,48 +119,55 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 	}()
 
 	var history historyIndex
-	for i, transaction := range block.Transactions {
+	for i, tx := range block.Transactions {
 		// write down tx index for generating block proofs
-		oderHash := transaction.TransactionOrder.Hash(p.hashAlgorithm)
-		if err = dbTx.Write(oderHash, &TxIndex{
+		txoHash := tx.TransactionOrder.Hash(p.hashAlgorithm)
+		if err = dbTx.Write(txoHash, &TxIndex{
 			RoundNumber:  bas.Block.GetRoundNumber(),
 			TxOrderIndex: i,
 		}); err != nil {
 			return err
 		}
-		history.TxIndexKey = oderHash
+		history.TxIndexKey = txoHash
 		// generate and store proofs for all updated units
-		trHash := transaction.Hash(p.hashAlgorithm)
-		targets := transaction.ServerMetadata.TargetUnits
-		for _, id := range targets {
-			var u *state.Unit
-			u, err = bas.State.GetUnit(id, true)
+		txrHash := tx.Hash(p.hashAlgorithm)
+		for _, unitID := range tx.ServerMetadata.TargetUnits {
+			var unit *state.Unit
+			unit, err = bas.State.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			logs := u.Logs()
-			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(logs), id))
-			for i, l := range logs {
-				if !bytes.Equal(l.TxRecordHash, trHash) {
+			unitLogs := unit.Logs()
+			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(unitLogs), unitID))
+			for j, unitLog := range unitLogs {
+				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {
 					continue
 				}
-				usp, e := bas.State.CreateUnitStateProof(id, i)
+				usp, e := bas.State.CreateUnitStateProof(unitID, j)
 				if e != nil {
-					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", id, e))
+					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", unitID, e))
 					continue
 				}
-				res, e := state.MarshalUnitData(l.NewUnitData)
+				res, e := state.MarshalUnitData(unitLog.NewUnitData)
 				if e != nil {
-					err = errors.Join(err, fmt.Errorf("unit %X data encode failed: %w", id, e))
+					err = errors.Join(err, fmt.Errorf("unit %X data encode failed: %w", unitID, e))
 					continue
 				}
-				key := bytes.Join([][]byte{id, oderHash}, nil)
+				key := bytes.Join([][]byte{unitID, txoHash}, nil)
 				history.UnitProofIndexKeys = append(history.UnitProofIndexKeys, key)
 				if err = dbTx.Write(key, &types.UnitDataAndProof{
-					UnitData: &types.StateUnitData{Data: res, Bearer: l.NewBearer},
+					UnitData: &types.StateUnitData{Data: res, Bearer: unitLog.NewBearer},
 					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)
+				}
+			}
+
+			if p.ownerIndexer != nil {
+				// update owner index
+				p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Updating owner index for unit %X", unitID))
+				if err := p.ownerIndexer.IndexOwner(unitID, unitLogs); err != nil {
+					return fmt.Errorf("failed to update owner index: %w", err)
 				}
 			}
 		}

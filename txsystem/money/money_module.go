@@ -76,6 +76,7 @@ func (m *Module) BeginBlockFuncs() []func(blockNr uint64) error {
 func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 	return []func(blockNumber uint64) error{
 		// m.dustCollector.consolidateDust TODO AB-1133
+		// TODO AB-1133 delete bills from owner index (partition/proof_indexer.go)
 		func(blockNr uint64) error {
 			return m.feeCreditTxRecorder.consolidateFees()
 		},

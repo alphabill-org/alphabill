@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/block"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -29,7 +29,7 @@ import (
 
 const initialDustCollectorMoneyAmount uint64 = 100
 
-type InitialBill struct{
+type InitialBill struct {
 	ID    types.UnitID
 	Value uint64
 	Owner predicates.PredicateBytes
@@ -46,12 +46,12 @@ var (
 	moneySystemID = DefaultSystemIdentifier
 )
 
-func TestNewMoneyTxSystem(t *testing.T) {
+func TestNewTxSystem(t *testing.T) {
 	var (
-		sdrs          = createSDRs(newBillID(3))
-		txsState      = genesisStateWithUC(t, initialBill, sdrs)
-		_, verifier   = testsig.CreateSignerAndVerifier(t)
-		trustBase     = map[string]abcrypto.Verifier{"test": verifier}
+		sdrs        = createSDRs(newBillID(3))
+		txsState    = genesisStateWithUC(t, initialBill, sdrs)
+		_, verifier = testsig.CreateSignerAndVerifier(t)
+		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
 	)
 	txSystem, err := NewTxSystem(
 		logger.New(t),
@@ -76,6 +76,74 @@ func TestNewMoneyTxSystem(t *testing.T) {
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
 	require.Equal(t, predicates.PredicateBytes(DustCollectorPredicate), d.Bearer())
+}
+
+func TestNewTxSystem_RecoveredState(t *testing.T) {
+	sdrs := createSDRs(newBillID(2))
+	s := genesisStateWithUC(t, initialBill, sdrs)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+
+	originalTxs, err := NewTxSystem(
+		logger.New(t),
+		WithSystemIdentifier(systemIdentifier),
+		WithSystemDescriptionRecords(sdrs),
+		WithState(s),
+		WithTrustBase(trustBase),
+	)
+	require.NoError(t, err)
+
+	// Create a state with some units having multiple log entries - a prunable state
+	require.NoError(t, originalTxs.BeginBlock(1))
+	transFC := testutils.NewTransferFC(t,
+		testutils.NewTransferFCAttr(
+			testutils.WithBacklink(nil),
+			testutils.WithAmount(20),
+			testutils.WithTargetRecordID(NewFeeCreditRecordID(nil, []byte{100})),
+		),
+		testtransaction.WithUnitId(initialBill.ID),
+		testtransaction.WithOwnerProof(nil),
+	)
+	_, err = originalTxs.Execute(transFC)
+	require.NoError(t, err)
+	originalSummaryRound1, err := originalTxs.EndBlock()
+	require.NoError(t, err)
+
+	// Commit and serialize the state
+	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
+	buf := &bytes.Buffer{}
+	require.NoError(t, originalTxs.SerializeState(buf, true))
+
+	// Create a recovered state and txSystem from the serialized state
+	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
+	require.NoError(t, err)
+	recoveredTxs, err := NewTxSystem(
+		logger.New(t),
+		WithSystemIdentifier(systemIdentifier),
+		WithSystemDescriptionRecords(sdrs),
+		WithState(recoveredState),
+		WithTrustBase(trustBase),
+	)
+	require.NoError(t, err)
+
+	// Original and recovered summary hashes for round 1 must match
+	recoveredSummaryRound1, err := recoveredTxs.StateSummary()
+	require.NoError(t, err)
+	require.EqualValues(t, originalSummaryRound1.Root(), recoveredSummaryRound1.Root())
+
+	// Calculate the summary hash of a new empty round for the original txs
+	require.NoError(t, originalTxs.BeginBlock(2))
+	originalSummaryRound2, err := originalTxs.EndBlock()
+	require.NoError(t, err)
+
+	// Calculate the summary hash of a new empty round for the recovered txs
+	require.NoError(t, recoveredTxs.BeginBlock(2))
+	recoveredSummaryRound2, err := recoveredTxs.EndBlock()
+	require.NoError(t, err)
+	require.EqualValues(t, originalSummaryRound2.Root(), recoveredSummaryRound2.Root())
+
+	// Since there was pruning, summary hashes of round 1 and round 2 cannot match
+	require.NotEqualValues(t, originalSummaryRound1.Root(), originalSummaryRound2.Root())
 }
 
 func TestExecute_TransferOk(t *testing.T) {
@@ -281,7 +349,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	afterCommitValue := dustBillData.V + dcBillData.V
 	require.Equal(t, beforeCommitValue, afterCommitValue)
 
-	require.NoError(t, txSystem.BeginBlock(roundNumber + 1))
+	require.NoError(t, txSystem.BeginBlock(roundNumber+1))
 	sm, err = txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -298,7 +366,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 
-	require.NoError(t, txSystem.BeginBlock(roundNumber + 2))
+	require.NoError(t, txSystem.BeginBlock(roundNumber+2))
 	dcBill, dcBillData := getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.V)
 	// Make sure the DC bill logs are pruned
@@ -945,8 +1013,8 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*genesis.System
 	// fee credit bills
 	for _, sdr := range sdrs {
 		fcb := sdr.FeeCreditBill
-		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitId, fcb.OwnerPredicate, &BillData{})))
-		require.NoError(t, s.AddUnitLog(fcb.UnitId, zeroHash))
+		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &BillData{})))
+		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
 	}
 
 	_, _, err := s.CalculateRoot()
@@ -972,7 +1040,7 @@ func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
 		SystemIdentifier: moneySystemID,
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         fcbID,
+			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}

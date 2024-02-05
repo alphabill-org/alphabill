@@ -109,7 +109,8 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 */
 func createTestBlockTree(t *testing.T) *BlockTree {
 	treeNodes := make(map[uint64]*node)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	rootNode := &node{data: &ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B5", Round: 5}}}
 	b6 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B6", Round: 6, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 5}}}})
 	b7 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B7", Round: 7, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 6}}}})
@@ -157,7 +158,8 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	require.NoError(t, blockStoreGenesisInit(gBlock, db))
 	btree, err := NewBlockTree(db)
 	require.NoError(t, err)
@@ -298,11 +300,13 @@ func TestNewBlockTree(t *testing.T) {
 	_, err = bTree.FindBlock(2)
 	require.Error(t, err)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
-	require.Equal(t, b.CommitQc, bTree.HighQc())
+	require.NotNil(t, bTree.HighQc())
+	require.EqualValues(t, 1, bTree.HighQc().GetRound())
 }
 
 func TestNewBlockTreeFromDb(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
@@ -313,14 +317,12 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
+			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
-		Qc:        nil, // qc to genesis
-		CommitQc:  nil, // does not commit a block
+		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	bTree, err := NewBlockTree(db)
@@ -333,8 +335,8 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 }
 
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
-	db := memorydb.New()
-
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -359,14 +361,12 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
+			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
-		Qc:        qcBlock2,
-		CommitQc:  nil,
+		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	block3 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -380,7 +380,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
@@ -395,7 +395,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 }
 
 func TestNewBlockTreeFromRecovery(t *testing.T) {
-	db := memorydb.New()
+	db, err := memorydb.New()
+	require.NoError(t, err)
 	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -412,6 +413,9 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Hash:         gBlock.RootHash,
 		},
 	}
+	bTree, err := NewBlockTreeFromRecovery(gBlock, db)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
 	// create a new block
 	block2 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -420,15 +424,15 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
+			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
-		Qc:        qcBlock2,
-		CommitQc:  qcBlock2,
+		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
+	require.NoError(t, bTree.Add(block2))
+	require.NoError(t, bTree.InsertQc(block2.BlockData.Qc))
 	block3 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
@@ -441,11 +445,10 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
-	bTree, err := NewBlockTreeFromRecovery(gBlock, []*ExecutedBlock{block2, block3}, db)
-	require.NoError(t, err)
-	require.NotNil(t, bTree)
+	require.NoError(t, bTree.Add(block3))
+	require.NoError(t, bTree.InsertQc(block3.BlockData.Qc))
 	require.Len(t, bTree.roundToNode, 3)
 	hQc := bTree.HighQc()
 	require.NotNil(t, hQc)

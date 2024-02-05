@@ -68,15 +68,11 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 	return txs, nil
 }
 
-func (m *TxSystem) State() *state.State {
-	return m.state
-}
-
 func (m *TxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *TxSystem) StateStorage() txsystem.UnitAndProof {
+func (m *TxSystem) State() *state.State {
 	return m.state.Clone()
 }
 

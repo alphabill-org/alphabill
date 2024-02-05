@@ -52,6 +52,18 @@ func (uid UnitID) HasType(typePart []byte) bool {
 	return bytes.HasSuffix(uid, typePart)
 }
 
+func (uid UnitID) MarshalText() ([]byte, error) {
+	return toHex(uid), nil
+}
+
+func (uid *UnitID) UnmarshalText(src []byte) error {
+	res, err := fromHex(src)
+	if err == nil {
+		*uid = res
+	}
+	return err
+}
+
 func BytesToSystemID(b []byte) (SystemID, error) {
 	if len(b) != SystemIdentifierLength {
 		return 0, fmt.Errorf("partition ID length must be %d bytes, got %d bytes", SystemIdentifierLength, len(b))

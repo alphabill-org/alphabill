@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
@@ -13,17 +14,16 @@ type (
 		node partitionNode
 	}
 
-	UnitData struct {
-		DataAndProofCBOR cbor.RawMessage `json:"dataAndProofCbor"`
-	}
-
-	Transaction struct {
-		TxOrderCbor cbor.RawMessage `json:"txOrderCbor"`
+	Unit struct {
+		UnitID         types.UnitID          `json:"unitId"`
+		Data           state.UnitData        `json:"data"`
+		OwnerPredicate types.PredicateBytes  `json:"ownerPredicate,omitempty"`
+		StateProof     *types.UnitStateProof `json:"stateProof,omitempty"`
 	}
 
 	TransactionRecordAndProof struct {
-		TxRecordCbor cbor.RawMessage `json:"txRecordCbor"`
-		TxProofCbor  cbor.RawMessage `json:"txProofCbor"`
+		TxRecord types.Bytes `json:"txRecord"`
+		TxProof  types.Bytes `json:"txProof"`
 	}
 )
 
@@ -36,21 +36,35 @@ func (s *StateAPI) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return s.node.GetLatestRoundNumber(ctx)
 }
 
-// GetUnit returns the unit data for given unitID.
-func (s *StateAPI) GetUnit(unitID []byte, returnProof bool, returnData bool) (*UnitData, error) {
-	unitState, err := s.node.GetUnitState(unitID, returnProof, returnData)
+// GetUnit returns unit data and optionally the state proof for the given unitID.
+func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit, error) {
+	state := s.node.TransactionSystem().State()
+
+	unit, err := state.GetUnit(unitID, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load unit: %w", err)
+		return nil, err
 	}
-	unitStateCBOR, err := cbor.Marshal(unitState)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal unit state to cbor: %w", err)
+
+	resp := &Unit{
+		UnitID:         unitID,
+		Data:           unit.Data(),
+		OwnerPredicate: unit.Bearer(),
+		StateProof:     nil,
 	}
-	return &UnitData{DataAndProofCBOR: unitStateCBOR}, nil
+
+	if includeStateProof {
+		stateProof, err := state.CreateUnitStateProof(unitID, unit.LastLogIndex())
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate unit state proof: %w", err)
+		}
+		resp.StateProof = stateProof
+	}
+
+	return resp, nil
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID []byte) ([]types.UnitID, error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error) {
 	unitIds, err := s.node.GetOwnerUnits(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
@@ -59,12 +73,12 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID []byte) ([]types.UnitID, error) {
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
-func (s *StateAPI) SendTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	var txOrder *types.TransactionOrder
-	if err := cbor.Unmarshal(tx.TxOrderCbor, &txOrder); err != nil {
-		return nil, fmt.Errorf("failed to decode tx order: %w", err)
+func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) ([]byte, error) {
+	var tx *types.TransactionOrder
+	if err := cbor.Unmarshal(txBytes, &tx); err != nil {
+		return nil, fmt.Errorf("failed to decode transaction: %w", err)
 	}
-	txHash, err := s.node.SubmitTx(ctx, txOrder)
+	txHash, err := s.node.SubmitTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit transaction to the network: %w", err)
 	}
@@ -72,21 +86,21 @@ func (s *StateAPI) SendTransaction(ctx context.Context, tx *Transaction) ([]byte
 }
 
 // GetTransactionProof returns transaction record and proof for the given transaction hash.
-func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash []byte) (*TransactionRecordAndProof, error) {
+func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) (*TransactionRecordAndProof, error) {
 	txRecord, txProof, err := s.node.GetTransactionRecord(ctx, txHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordCbor, err := cbor.Marshal(txRecord)
+	txRecordBytes, err := cbor.Marshal(txRecord)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
-	txProofCbor, err := cbor.Marshal(txProof)
+	txProofBytes, err := cbor.Marshal(txProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx proof: %w", err)
 	}
 	return &TransactionRecordAndProof{
-		TxRecordCbor: txRecordCbor,
-		TxProofCbor:  txProofCbor,
+		TxRecord: txRecordBytes,
+		TxProof:  txProofBytes,
 	}, nil
 }

@@ -6,15 +6,16 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
 type BillData struct {
-	_        struct{} `cbor:",toarray"`
-	V        uint64   // The monetary value of this bill
-	T        uint64   // The round number of the last transaction with the bill
-	Backlink []byte   // Backlink (256-bit hash)
-	Locked   uint64   // locked status of the bill, non-zero value means locked
+	_        struct{}    `cbor:",toarray"`
+	V        uint64      `json:"value,string"`      // The monetary value of this bill
+	T        uint64      `json:"lastUpdate,string"` // The round number of the last transaction with the bill
+	Backlink types.Bytes `json:"backlink"`          // Backlink (256-bit hash)
+	Locked   uint64      `json:"locked,string"`     // locked status of the bill, non-zero value means locked
 }
 
 func (b *BillData) Write(hasher hash.Hash) error {

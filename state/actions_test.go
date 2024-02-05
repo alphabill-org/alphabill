@@ -56,7 +56,7 @@ func TestAdd(t *testing.T) {
 			initialState: NewEmptyState(),
 			expectedUnit: &Unit{
 				logs:                nil,
-				logRoot:             nil,
+				logsHash:            nil,
 				bearer:              templates.AlwaysTrueBytes(),
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
@@ -129,7 +129,7 @@ func TestUpdate(t *testing.T) {
 			initialState: newStateWithUnits(t),
 			expectedUnit: &Unit{
 				logs:                nil,
-				logRoot:             nil,
+				logsHash:            nil,
 				bearer:              templates.AlwaysTrueBytes(),
 				data:                &TestData{Value: 200},
 				subTreeSummaryValue: 10,
@@ -228,7 +228,7 @@ func TestSetOwner(t *testing.T) {
 			initialState: newStateWithUnits(t),
 			expectedUnit: &Unit{
 				logs:                nil,
-				logRoot:             nil,
+				logsHash:            nil,
 				bearer:              []byte{1, 2, 3, 4, 5},
 				data:                &TestData{Value: 10},
 				subTreeSummaryValue: 10,

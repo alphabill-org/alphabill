@@ -26,6 +26,7 @@ type CounterTxSystem struct {
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
 
+	FixedState  *state.State
 	blockNo     uint64
 	uncommitted bool
 	committedUC *types.UnicityCertificate
@@ -51,6 +52,9 @@ func (s *Summary) Summary() []byte {
 }
 
 func (m *CounterTxSystem) State() *state.State {
+	if m.FixedState != nil {
+		return m.FixedState
+	}
 	return state.NewEmptyState().Clone()
 }
 

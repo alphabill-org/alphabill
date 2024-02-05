@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -138,18 +139,14 @@ func (s *ownerTraverser) Traverse(n *avl.Node[types.UnitID, *state.Unit]) {
 }
 
 func extractOwnerID(ownerPredicate []byte) (string, error) {
-	predicate, err := templates.ExtractPredicate(ownerPredicate)
+	predicate, err := predicates.ExtractPredicate(ownerPredicate)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract predicate: %w", err)
 	}
-	if predicate.ID != templates.P2pkh256ID {
+	if !templates.IsP2pkhTemplate(predicate) {
 		// do not index non-p2pkh predicates
 		return "", nil
 	}
-	p2pkhPredicate, err := templates.ExtractP2pkhPredicate(predicate)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract p2pkh predicate: %w", err)
-	}
 	// for p2pkh predicates use pubkey hash as the owner id
-	return string(p2pkhPredicate.PubKeyHash), nil
+	return string(predicate.Params), nil
 }

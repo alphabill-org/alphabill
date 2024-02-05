@@ -17,12 +17,8 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
-
-//go:embed testdata/counter.wasm
-var counterWasm []byte
 
 //go:embed testdata/empty.wasm
 var emptyWasm []byte
@@ -33,31 +29,11 @@ var addWasm []byte
 //go:embed testdata/invalid_api.wasm
 var invalidAPIWasm []byte
 
-//go:embed testdata/p2pkh.wasm
+//go:embed testdata/p2pkh_v1/p2pkh.wasm
 var p2pkhV1Wasm []byte
 
-type TestExecCtx struct {
-	id     string
-	input  []byte
-	params []byte
-	txHash []byte
-}
-
-func (t TestExecCtx) GetProgramID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes([]byte(t.id))
-}
-
-func (t TestExecCtx) GetInputData() []byte {
-	return t.input
-}
-
-func (t TestExecCtx) GetParams() []byte {
-	return t.params
-}
-
-func (t TestExecCtx) GetTxHash() []byte {
-	return t.txHash
-}
+//go:embed testdata/p2pkh_v2_c/build/p2pkh_v2.wasm
+var p2pkhV2Wasm []byte
 
 func TestNewNoHostModules(t *testing.T) {
 	ctx := context.Background()
@@ -65,7 +41,7 @@ func TestNewNoHostModules(t *testing.T) {
 	wvm, err := New(ctx, addWasm, nil, obs.Logger())
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
-	fn, err := wvm.GetApiFn("add_one")
+	fn, err := wvm.getApiFn("add_one")
 	require.NoError(t, err)
 	require.NotNil(t, fn)
 	res, err := fn.Call(ctx, uint64(3))
@@ -94,7 +70,7 @@ func TestNew(t *testing.T) {
 		InitArgs: make([]byte, 8),
 	}
 	require.NoError(t, err)
-	wvm, err := New(ctx, counterWasm, abCtx, obs.Logger(), WithStorage(memDB))
+	wvm, err := New(ctx, addWasm, abCtx, obs.Logger(), WithStorage(memDB))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 }
@@ -110,7 +86,7 @@ func TestWasmVM_CheckApiCallExists_OK(t *testing.T) {
 		InitArgs: make([]byte, 8),
 	}
 	obs := observability.Default(t)
-	wvm, err := New(ctx, counterWasm, abCtx, obs.Logger(), WithStorage(memDB))
+	wvm, err := New(ctx, addWasm, abCtx, obs.Logger(), WithStorage(memDB))
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 }
@@ -122,27 +98,6 @@ func TestWasmVM_CheckApiCallExists_NOK(t *testing.T) {
 	wvm, err := New(ctx, emptyWasm, nil, obs.Logger())
 	require.NoError(t, err)
 	require.ErrorContains(t, wvm.CheckApiCallExists(), "no exported functions")
-}
-
-func TestWasmVM_GetApiFn(t *testing.T) {
-	ctx := context.Background()
-	memDB, err := memorydb.New()
-	require.NoError(t, err)
-	input := make([]byte, 8)
-	binary.LittleEndian.PutUint64(input, 1)
-	execCtx := &AbContext{
-		InitArgs: []byte{2, 0, 0, 0, 0, 0, 0, 0},
-	}
-	obs := observability.Default(t)
-	wvm, err := New(ctx, counterWasm, execCtx, obs.Logger(), WithStorage(memDB))
-	require.NoError(t, err)
-	require.NoError(t, wvm.CheckApiCallExists())
-	res, err := wvm.Exec(ctx, "count", input)
-	require.NoError(t, err)
-	require.True(t, res)
-	fn, err := wvm.GetApiFn("help")
-	require.Error(t, err)
-	require.Nil(t, fn)
 }
 
 func TestPredicate_P2PKH_V1(t *testing.T) {
@@ -166,7 +121,33 @@ func TestPredicate_P2PKH_V1(t *testing.T) {
 	wvm, err := New(ctx, p2pkhV1Wasm, execCtx, obs.Logger())
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
-	res, err := wvm.Exec(ctx, "run", nil)
+	res, err := wvm.Exec(ctx, "run")
+	require.NoError(t, err)
+	require.True(t, res)
+}
+
+func TestPredicate_P2PKH_V2(t *testing.T) {
+	ctx := context.Background()
+	payload := &types.Payload{
+		SystemID: types.SystemID(1),
+		Type:     money.PayloadTypeTransfer,
+		UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
+	}
+	bytes, err := payload.Bytes()
+	require.NoError(t, err)
+	sig, pubKey := testsig.SignBytes(t, bytes)
+	require.NoError(t, err)
+	execCtx := &AbContext{
+		Txo: &types.TransactionOrder{
+			Payload:    payload,
+			OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKey)},
+	}
+	obs := observability.Default(t)
+	wvm, err := New(ctx, p2pkhV2Wasm, execCtx, obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, wvm.CheckApiCallExists())
+	pubKeyHash := hash.Sum256(pubKey)
+	res, err := wvm.Exec(ctx, "run", pubKeyHash)
 	require.NoError(t, err)
 	require.True(t, res)
 }
@@ -215,7 +196,7 @@ func Benchmark_runPredicate(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		res, err := wvm.Exec(ctx, "run", nil)
+		res, err := wvm.Exec(ctx, "run")
 		if err != nil {
 			b.Fatal(err)
 		}

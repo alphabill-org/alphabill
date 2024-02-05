@@ -2,26 +2,39 @@ package wvm
 
 import (
 	"context"
+	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/wvm/allocator"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
+
+// envWasm was compiled using `wat2wasm --debug-names env.wat`
+//
+//go:embed ab_env.wasm
+var envWasm []byte
 
 type rtCtxKey string
 
 const runtimeContextKey = rtCtxKey("rt.Ctx")
 
 type (
+	Allocator interface {
+		Allocate(mem allocator.Memory, size uint32) (uint32, error)
+		Deallocate(mem allocator.Memory, ptr uint32) error
+	}
+
 	VmContext struct {
-		InputArgs []byte
-		Storage   keyvaluedb.KeyValueDB
-		AbCtx     *AbContext
-		Log       *slog.Logger
+		Alloc   Allocator
+		Storage keyvaluedb.KeyValueDB
+		AbCtx   *AbContext
+		Log     *slog.Logger
 	}
 
 	WasmVM struct {
@@ -50,23 +63,46 @@ func New(ctx context.Context, wasmSrc []byte, abCtx *AbContext, log *slog.Logger
 	rt := wazero.NewRuntimeWithConfig(ctx, options.cfg)
 	_, err := rt.NewHostModuleBuilder("ab").
 		NewFunctionBuilder().
-		WithFunc(getStateV1).Export("get_state").
-		NewFunctionBuilder().WithFunc(setStateV1).Export("set_state").
-		NewFunctionBuilder().WithFunc(getInitValueV1).Export("get_params").
-		NewFunctionBuilder().WithFunc(getInputData).Export("get_input_params").
+		WithFunc(storageReadV1).Export("storage_read").
+		NewFunctionBuilder().WithFunc(storageWriteV1).Export("storage_write").
 		NewFunctionBuilder().WithFunc(p2pkhV1).Export("p2pkh_v1").
+		NewFunctionBuilder().WithFunc(p2pkhV2).Export("p2pkh_v2").
+		NewFunctionBuilder().WithFunc(loggingV1).Export("log_v1").
+		NewFunctionBuilder().WithFunc(extFree).Export("ext_free").
+		NewFunctionBuilder().WithFunc(extMalloc).Export("ext_malloc").
 		Instantiate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init host module: %w", err)
+	}
+	_, err = rt.Instantiate(ctx, envWasm)
+	if err != nil {
+		return nil, errors.Join(err, rt.Close(ctx))
 	}
 	m, err := rt.Instantiate(ctx, wasmSrc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initiate VM with wasm source, %w", err)
 	}
+
+	global := m.ExportedGlobal("__heap_base")
+	if global == nil {
+		return nil, fmt.Errorf("wazero error: nil global for __heap_base")
+	}
+
+	hb := api.DecodeU32(global.Get())
+	// hb = runtime.DefaultHeapBase
+
+	mem := m.Memory()
+	if mem == nil {
+		return nil, fmt.Errorf("wazero error: nil memory for module")
+	}
+
+	allocator := allocator.NewFreeingBumpHeapAllocator(hb)
+
 	return &WasmVM{
 		runtime: rt,
 		mod:     m,
 		ctx: &VmContext{
+			Alloc:   allocator,
 			Storage: options.storage,
 			Log:     log,
 			AbCtx:   abCtx,
@@ -74,21 +110,39 @@ func New(ctx context.Context, wasmSrc []byte, abCtx *AbContext, log *slog.Logger
 	}, nil
 }
 
-func (vm *WasmVM) Exec(ctx context.Context, fName string, data []byte) (_ bool, err error) {
+func (vm *WasmVM) Exec(ctx context.Context, fName string, args ...[]byte) (_ bool, err error) {
 	// check API
-	fn, err := vm.GetApiFn(fName)
+	fn, err := vm.getApiFn(fName)
 	if err != nil {
 		return false, fmt.Errorf("program call failed, %w", err)
 	}
-	// set input data
-	vm.ctx.InputArgs = data
+	// copy inputs to linear memory
+	var argPtrs = make([]uint64, len(args))
+	for i, arg := range args {
+		dataLength := uint32(len(arg))
+		mem := vm.runtime.Module("env").Memory()
+		if mem == nil {
+			return false, fmt.Errorf("failed to access exported memory: %w", err)
+		}
+		inputPtr, err := vm.ctx.Alloc.Allocate(mem, dataLength)
+		if err != nil {
+			return false, fmt.Errorf("allocating input memory failed: %w", err)
+		}
+		//defer vm.ctx.Alloc.Clear()
+		// Store the data into memory
+		ok := mem.Write(inputPtr, arg)
+		if !ok {
+			return false, fmt.Errorf("failed write to wasm memory: %w", err)
+		}
+		argPtrs[i] = newPointerSize(inputPtr, dataLength)
+	}
 	runCtx := context.WithValue(context.Background(), runtimeContextKey, vm.ctx)
 	// API calls have no parameters, there is a host callback to get input parameters
 	// all programs must complete in 100 ms, this will later be replaced with gas cost
 	// for now just set a hard limit to make sure programs do not run forever
 	ctx, cancel := context.WithTimeout(runCtx, 100*time.Millisecond)
 	defer cancel()
-	res, err := fn.Call(ctx)
+	res, err := fn.Call(ctx, argPtrs...)
 	if err != nil {
 		return false, fmt.Errorf("program call failed, %w", err)
 	}
@@ -106,8 +160,8 @@ func (vm *WasmVM) CheckApiCallExists() error {
 	return nil
 }
 
-// GetApiFn find function "fnName" and return it
-func (vm *WasmVM) GetApiFn(fnName string) (api.Function, error) {
+// getApiFn find function "fnName" and return it
+func (vm *WasmVM) getApiFn(fnName string) (api.Function, error) {
 	fn := vm.mod.ExportedFunction(fnName)
 	if fn == nil {
 		return nil, fmt.Errorf("function %v not found", fnName)

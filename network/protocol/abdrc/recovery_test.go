@@ -252,60 +252,6 @@ func TestStateMsg_Verify(t *testing.T) {
 		verifiers := make(map[string]abcrypto.Verifier)
 		require.EqualError(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "block qc verification error: vote info hash verification failed")
 	})
-	/*
-		t.Run("commit not found", func(t *testing.T) {
-			sm := &StateMsg{
-				Certificates: nil,
-				CommittedHead: &CommittedBlock{
-					Block: &drctypes.BlockData{
-						Round:   5,
-						Payload: &drctypes.Payload{},
-						Qc: &drctypes.QuorumCert{
-							VoteInfo: r4vInfo,
-							LedgerCommitInfo: &types.UnicitySeal{
-								PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
-							},
-							Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-						},
-					},
-					Ir: []*InputData{
-						{
-							SysID: 1,
-							Ir: &types.InputRecord{
-								PreviousHash:    test.RandomBytes(32),
-								Hash:            test.RandomBytes(32),
-								BlockHash:       test.RandomBytes(32),
-								SummaryValue:    test.RandomBytes(32),
-								RoundNumber:     3,
-								SumOfEarnedFees: 10,
-							},
-							Sdrh: make([]byte, 32),
-						},
-					},
-					Qc: &drctypes.QuorumCert{
-						VoteInfo: r5vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
-							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
-						},
-						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-					},
-					CommitQc: &drctypes.QuorumCert{
-						VoteInfo: r6vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
-							PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
-							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
-						},
-						Signatures: map[string][]byte{"test": test.RandomBytes(65)},
-					},
-				},
-				BlockData: nil,
-			}
-			verifiers := make(map[string]abcrypto.Verifier)
-			verifiers["test"] = AlwaysValidVerifier{}
-			require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "commit QC for head block not found")
-		})
-	*/
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := &StateMsg{
 			Certificates: nil,

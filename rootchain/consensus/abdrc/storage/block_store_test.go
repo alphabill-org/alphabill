@@ -84,6 +84,8 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
+		Qc:        &drctypes.QuorumCert{},
+		CommitQc:  nil,
 	}
 }
 

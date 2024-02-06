@@ -73,10 +73,6 @@ func (f *FeeCredit) TxExecutors() map[string]txsystem.TxExecutor {
 	}
 }
 
-func (f *FeeCredit) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return checkFeeCreditBalance(f.state, f.feeCalculator)
-}
-
 func validConfiguration(m *FeeCredit) error {
 	if m.systemIdentifier == 0 {
 		return ErrSystemIdentifierMissing

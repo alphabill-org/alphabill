@@ -82,7 +82,3 @@ func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 		},
 	}
 }
-
-func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return txsystem.ValidateGenericTransaction
-}

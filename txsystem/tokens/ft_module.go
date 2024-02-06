@@ -24,7 +24,3 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 func (n *FungibleTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
 	return n.txExecutors
 }
-
-func (n *FungibleTokensModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return ValidateGenericTransaction
-}

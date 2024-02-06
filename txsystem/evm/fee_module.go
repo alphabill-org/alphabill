@@ -54,6 +54,6 @@ func (m FeeAccount) TxExecutors() map[string]txsystem.TxExecutor {
 	}
 }
 
-func (m FeeAccount) GenericTransactionValidator() txsystem.GenericTransactionValidator {
+func (m FeeAccount) GenericTransactionValidator() genericTransactionValidator {
 	return checkFeeAccountBalance(m.state)
 }

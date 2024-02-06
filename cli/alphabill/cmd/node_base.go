@@ -11,11 +11,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
@@ -55,6 +57,20 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
+var errNormalExit = errors.New("server closed")
+
+func waitExit(statusCh <-chan error) error {
+	select {
+	case <-time.After(time.Millisecond * 500):
+		return fmt.Errorf("exit timeout")
+	case err := <-statusCh:
+		if !errors.Is(err, errNormalExit) {
+			return err
+		}
+		return nil
+	}
+}
+
 func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
 	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
 	log := obs.Logger()
@@ -80,13 +96,18 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server starting on %s", name, grpcServerConf.Address))
 			if err := grpcServer.Serve(listener); err != nil {
 				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
+				return
 			}
-			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server exited", name))
+			errch <- errNormalExit
 		}()
 
 		select {
 		case <-ctx.Done():
 			grpcServer.GracefulStop()
+			if err := waitExit(errch); err != nil {
+				log.WarnContext(ctx, name+" gRPC server exited with error: %v", logger.Error(err))
+			}
+			log.InfoContext(ctx, name+" gRPC server exited")
 			return ctx.Err()
 		case err := <-errch:
 			return err
@@ -107,7 +128,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		}
 		rpcServerConf.APIs = []rpc.API{{
 			Namespace: "state",
-			Service: rpc.NewStateAPI(node),
+			Service:   rpc.NewStateAPI(node),
 		}}
 
 		rpcServer, err := rpc.NewHTTPServer(rpcServerConf, obs, routers...)
@@ -121,16 +142,19 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			if err := rpcServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errch <- fmt.Errorf("%s RPC server exited: %w", name, err)
 			}
-			log.InfoContext(ctx, fmt.Sprintf("%s RPC server exited", name))
+			errch <- errNormalExit
 		}()
 
 		select {
 		case <-ctx.Done():
-			err := ctx.Err()
 			if e := rpcServer.Close(); e != nil {
 				err = errors.Join(err, fmt.Errorf("closing RPC server: %w", e))
 			}
-			return err
+			if err := waitExit(errch); err != nil {
+				log.WarnContext(ctx, name+" RPC server exited with error", logger.Error(err))
+			}
+			log.InfoContext(ctx, name+" RPC server exited")
+			return ctx.Err()
 		case err := <-errch:
 			return err
 		}
@@ -138,7 +162,6 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 
 	return g.Wait()
 }
-
 
 func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()

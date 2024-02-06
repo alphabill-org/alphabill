@@ -69,6 +69,12 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.NotNil(t, b.BlockData)
 	require.Equal(t, uint64(1), b.BlockData.Round)
 	require.Equal(t, "genesis", b.BlockData.Author)
+	require.NotNil(t, b.BlockData.Qc)
+	require.NoError(t, b.BlockData.Qc.IsValid())
+	require.NotNil(t, b.Qc)
+	require.NoError(t, b.Qc.IsValid())
+	require.NotNil(t, b.CommitQc)
+	require.NoError(t, b.CommitQc.IsValid())
 }
 
 func TestExecutedBlock(t *testing.T) {
@@ -116,6 +122,10 @@ func TestExecutedBlock(t *testing.T) {
 	require.Equal(t, hash, executedBlock.HashAlgo)
 	rootHash := []byte{0xd0, 0xf7, 0xc6, 0x55, 0xcd, 0xa, 0xbc, 0x28, 0xc4, 0x26, 0x32, 0xaf, 0x6e, 0x29, 0x50, 0x69, 0x5e, 0xee, 0x55, 0x31, 0x6, 0xbd, 0xbd, 0x56, 0x7e, 0xa2, 0x77, 0xd7, 0xaa, 0x8b, 0xfc, 0x27}
 	require.Equal(t, rootHash, executedBlock.RootHash)
+	// block has not got QC nor commit QC yet
+	require.Nil(t, executedBlock.Qc)
+	require.Nil(t, executedBlock.CommitQc)
+
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
@@ -189,6 +199,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	certs, err = block.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
+	require.NotNil(t, block.CommitQc)
 }
 
 func TestExecutedBlock_GetRound(t *testing.T) {

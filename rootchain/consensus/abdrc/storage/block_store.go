@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"cmp"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -118,7 +119,7 @@ func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.Ke
 	}
 
 	// create new root node
-	rootNode, err := NewRecoveredBlock(hash, stateMsg.CommittedHead)
+	rootNode, err := NewRootBlock(hash, stateMsg.CommittedHead)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
@@ -290,11 +291,17 @@ func (x *BlockStore) GetState() *abdrc.StateMsg {
 	for i, b := range pendingBlocks {
 		pending[i] = b.BlockData
 	}
+	// sort blocks by round before sending
+	slices.SortFunc(pending, func(a, b *drctypes.BlockData) int {
+		return cmp.Compare(a.GetRound(), b.GetRound())
+	})
 	return &abdrc.StateMsg{
 		Certificates: ucs,
 		CommittedHead: &abdrc.CommittedBlock{
-			Block: committedBlock.BlockData,
-			Ir:    ToRecoveryInputData(committedBlock.CurrentIR),
+			Block:    committedBlock.BlockData,
+			Ir:       ToRecoveryInputData(committedBlock.CurrentIR),
+			Qc:       committedBlock.Qc,
+			CommitQc: committedBlock.CommitQc,
 		},
 		BlockData: pending,
 	}

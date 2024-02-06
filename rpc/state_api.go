@@ -25,10 +25,6 @@ type (
 		TxRecord types.Bytes `json:"txRecord"`
 		TxProof  types.Bytes `json:"txProof"`
 	}
-
-	Block struct {
-		BlockCbor cbor.RawMessage `json:"blockCbor"`
-	}
 )
 
 func NewStateAPI(node partitionNode) *StateAPI {
@@ -77,7 +73,7 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
-func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) ([]byte, error) {
+func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (types.Bytes, error) {
 	var tx *types.TransactionOrder
 	if err := cbor.Unmarshal(txBytes, &tx); err != nil {
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
@@ -110,7 +106,7 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) 
 }
 
 // GetBlock returns block for the given block number.
-func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (*Block, error) {
+func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (types.Bytes, error) {
 	block, err := s.node.GetBlock(ctx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
@@ -119,7 +115,7 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (*Block, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode block: %w", err)
 	}
-	return &Block{BlockCbor: blockCbor}, nil
+	return blockCbor, nil
 }
 
 func encodeCbor(v interface{}) ([]byte, error) {

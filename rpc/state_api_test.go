@@ -156,10 +156,9 @@ func TestGetBlock(t *testing.T) {
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.NotNil(t, res.BlockCbor)
 
 		var block *types.Block
-		err = cbor.Unmarshal(res.BlockCbor, &block)
+		err = cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, block.GetRoundNumber())
 	})

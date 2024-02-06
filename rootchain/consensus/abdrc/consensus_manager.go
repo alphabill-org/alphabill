@@ -2,6 +2,7 @@ package abdrc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -890,11 +891,12 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMs
 	if x.recovery != nil {
 		return fmt.Errorf("node is in recovery: %s", x.recovery.String())
 	}
-	stateMsg := x.blockStore.GetState()
 	peerID, err := peer.Decode(req.NodeId)
 	if err != nil {
 		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
+	// read state
+	stateMsg := x.blockStore.GetState()
 	if err = x.net.Send(ctx, stateMsg, peerID); err != nil {
 		return fmt.Errorf("failed to send state response message: %w", err)
 	}
@@ -915,6 +917,10 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
 		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
+	// sort blocks by round
+	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
+		return cmp.Compare(a.GetRound(), b.GetRound())
+	})
 	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB())
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)

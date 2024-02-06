@@ -301,6 +301,7 @@ func TestNewBlockTree(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
 	require.NotNil(t, bTree.HighQc())
+	require.Equal(t, b.CommitQc, bTree.HighQc())
 	require.EqualValues(t, 1, bTree.HighQc().GetRound())
 }
 

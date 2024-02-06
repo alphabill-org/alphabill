@@ -14,22 +14,24 @@ import (
 
 type (
 	InputData struct {
-		_     struct{}           `cbor:",toarray"`
-		SysID types.SystemID     `json:"systemIdentifier"`
-		IR    *types.InputRecord `json:"ir"`
-		Sdrh  []byte             `json:"sdrh"` // System Description Record Hash
+		_     struct{} `cbor:",toarray"`
+		SysID types.SystemID
+		IR    *types.InputRecord
+		Sdrh  []byte // System Description Record Hash
 	}
 
 	InputRecords []*InputData
 	SysIDList    []types.SystemID
 
 	ExecutedBlock struct {
-		_         struct{}            `cbor:",toarray"`
-		BlockData *drctypes.BlockData `json:"blockData"`     // proposed block
-		CurrentIR InputRecords        `json:"currentIR"`     // all input records in this block
-		Changed   SysIDList           `json:"changed"`       // changed partition system identifiers
-		HashAlgo  gocrypto.Hash       `json:"hashAlgorithm"` // hash algorithm for the block
-		RootHash  []byte              `json:"rootHash"`      // resulting root hash
+		_         struct{}             `cbor:",toarray"`
+		BlockData *drctypes.BlockData  // proposed block
+		CurrentIR InputRecords         // all input records in this block
+		Changed   SysIDList            // changed partition system identifiers
+		HashAlgo  gocrypto.Hash        // hash algorithm for the block
+		RootHash  []byte               // resulting root hash
+		Qc        *drctypes.QuorumCert // block's quorum certificate (from next view)
+		CommitQc  *drctypes.QuorumCert // block's commit certificate
 	}
 
 	IRChangeReqVerifier interface {
@@ -102,10 +104,12 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  hash,
 		RootHash:  qc.LedgerCommitInfo.Hash,
+		Qc:        qc, // qc to itself
+		CommitQc:  qc, // use same qc to itself for genesis block
 	}
 }
 
-func NewRecoveredBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
+func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
 	var changes SysIDList
 	if block.Block.Payload != nil {
 		changes = make([]types.SystemID, 0, len(block.Block.Payload.Requests))
@@ -142,6 +146,8 @@ func NewRecoveredBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*Execut
 		Changed:   changes,
 		HashAlgo:  hash,
 		RootHash:  bytes.Clone(ut.GetRootHash()),
+		Qc:        block.Qc,       // qc to itself
+		CommitQc:  block.CommitQc, // use same qc to itself for genesis block
 	}, nil
 }
 
@@ -250,6 +256,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map
 		}
 		ucs[sysID] = certificate
 	}
+	x.CommitQc = commitQc
 	return ucs, nil
 }
 

@@ -141,6 +141,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			log.InfoContext(ctx, fmt.Sprintf("%s RPC server starting on %s", name, rpcServer.Addr))
 			if err := rpcServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errch <- fmt.Errorf("%s RPC server exited: %w", name, err)
+				return
 			}
 			errch <- errNormalExit
 		}()

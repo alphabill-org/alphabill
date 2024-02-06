@@ -141,7 +141,7 @@ func (s *ownerTraverser) Traverse(n *avl.Node[types.UnitID, *state.Unit]) {
 func extractOwnerID(ownerPredicate []byte) (string, error) {
 	predicate, err := predicates.ExtractPredicate(ownerPredicate)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract predicate: %w", err)
+		return "", fmt.Errorf("failed to extract predicate '%X': %w", ownerPredicate, err)
 	}
 	if !templates.IsP2pkhTemplate(predicate) {
 		// do not index non-p2pkh predicates

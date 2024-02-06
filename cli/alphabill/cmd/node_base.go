@@ -80,7 +80,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		go func() {
 			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server starting on %s", name, grpcServerConf.Address))
 			if err := grpcServer.Serve(listener); err != nil {
-				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
+				errch <- err
 				return
 			}
 			errch <- nil
@@ -92,8 +92,9 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			err := <-errch
 			if err != nil {
 				log.WarnContext(ctx, name+" gRPC server exited with error: %v", logger.Error(err))
+			} else {
+				log.InfoContext(ctx, name+" gRPC server exited")
 			}
-			log.InfoContext(ctx, name+" gRPC server exited")
 			return ctx.Err()
 		case err := <-errch:
 			return err
@@ -126,7 +127,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		go func() {
 			log.InfoContext(ctx, fmt.Sprintf("%s RPC server starting on %s", name, rpcServer.Addr))
 			if err := rpcServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errch <- fmt.Errorf("%s RPC server exited: %w", name, err)
+				errch <- err
 				return
 			}
 			errch <- nil
@@ -140,8 +141,9 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			exitErr := <-errch
 			if exitErr != nil {
 				log.WarnContext(ctx, name+" RPC server exited with error: %v", logger.Error(err))
+			} else {
+				log.InfoContext(ctx, name+" RPC server exited")
 			}
-			log.InfoContext(ctx, name+" RPC server exited")
 			return ctx.Err()
 		case err := <-errch:
 			return err

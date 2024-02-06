@@ -1,17 +1,14 @@
 package types
 
 import (
-	"bytes"
 	gocrypto "crypto"
-	"encoding/gob"
-	"math"
+	"crypto/sha256"
 	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/tree/imt"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -655,7 +652,7 @@ func TestCheckNonEquivocatingCertificates(t *testing.T) {
 	}
 }
 
-func TestSerialize(t *testing.T) {
+func TestUCHash(t *testing.T) {
 	uc := &UnicityCertificate{
 		InputRecord: &InputRecord{
 			PreviousHash:    []byte{0, 0, 1},
@@ -678,6 +675,7 @@ func TestSerialize(t *testing.T) {
 			Signatures:           map[string][]byte{"1": {1, 1, 1}},
 		},
 	}
+	// serialize manually
 	expectedBytes := []byte{
 		0, 0, 1, // IR: previous hash
 		0, 0, 2, // IR: hash
@@ -694,58 +692,8 @@ func TestSerialize(t *testing.T) {
 		2, 3, 4, // UC: hash
 		'1', 1, 1, 1, // UC: signature
 	}
-	require.EqualValues(t, expectedBytes, uc.Bytes())
-}
-
-func BenchmarkBytes(b *testing.B) {
-	uc := &UnicityCertificate{
-		InputRecord: &InputRecord{
-			PreviousHash:    []byte{0, 0, 1},
-			Hash:            []byte{0, 0, 2},
-			BlockHash:       []byte{0, 0, 3},
-			SummaryValue:    []byte{0, 0, 4},
-			RoundNumber:     6,
-			SumOfEarnedFees: 20,
-		},
-		UnicityTreeCertificate: &UnicityTreeCertificate{
-			SystemIdentifier:      identifier,
-			SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: make([]byte, 32)}},
-			SystemDescriptionHash: make([]byte, 32),
-		},
-		UnicitySeal: &UnicitySeal{
-			RootChainRoundNumber: 1,
-			Timestamp:            math.MaxInt64,
-			PreviousHash:         make([]byte, 32),
-			Hash:                 make([]byte, 32),
-			Signatures:           map[string][]byte{"test": make([]byte, 65)},
-		},
-	}
-	b.ResetTimer()
-	b.Run("serialize to bytes", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			hasher := gocrypto.SHA256.New()
-			hasher.Write(uc.Bytes())
-			_ = hasher.Sum(nil)
-		}
-	})
-	b.Run("serialize to cbor", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			hasher := gocrypto.SHA256.New()
-			ucBytes, _ := cbor.Marshal(uc)
-			hasher.Write(ucBytes)
-			_ = hasher.Sum(nil)
-		}
-	})
-	b.Run("serialize to gob", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			enc := gob.NewEncoder(&buf)
-			hasher := gocrypto.SHA256.New()
-			if err := enc.Encode(uc); err != nil {
-				b.Fatal("encoding failed")
-			}
-			hasher.Write(buf.Bytes())
-			_ = hasher.Sum(nil)
-		}
-	})
+	expectedHash := sha256.Sum256(expectedBytes)
+	hasher := sha256.New()
+	uc.AddToHasher(hasher)
+	require.EqualValues(t, expectedHash[:], hasher.Sum(nil))
 }

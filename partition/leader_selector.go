@@ -61,7 +61,7 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate, validat
 	}
 	peerCount := uint64(len(validators))
 	hasher := crypto.SHA256.New()
-	hasher.Write(uc.Bytes())
+	uc.AddToHasher(hasher)
 	hash := hasher.Sum(nil)
 	x := uint256.NewInt(0).SetBytes(hash)
 	i := uint256.NewInt(0)

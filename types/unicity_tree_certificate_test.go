@@ -2,7 +2,7 @@ package types
 
 import (
 	gocrypto "crypto"
-	"fmt"
+	"crypto/sha256"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -118,14 +118,9 @@ func TestUnicityTreeCertificate_Serialize(t *testing.T) {
 		1, 1, 1, 1, 1, 2, 3, // siblings key+hash
 		1, 2, 3, 4, // system description hash
 	}
-	require.Equal(t, expectedBytes, ut.Bytes())
+	expectedHash := sha256.Sum256(expectedBytes)
 	// test add to hasher too
 	hasher := gocrypto.SHA256.New()
-	hasher.Write(ut.Bytes())
-	hash := hasher.Sum(nil)
-	// not very useful, but since we get a value then compare
-	require.EqualValues(t, "FF0C9E17E999EA6202818F8C723275068468F18DA2524B522F83D48BC2B494DD", fmt.Sprintf("%X", hash))
-	hasher.Reset()
 	ut.AddToHasher(hasher)
-	require.EqualValues(t, "FF0C9E17E999EA6202818F8C723275068468F18DA2524B522F83D48BC2B494DD", fmt.Sprintf("%X", hasher.Sum(nil)))
+	require.EqualValues(t, expectedHash[:], hasher.Sum(nil))
 }

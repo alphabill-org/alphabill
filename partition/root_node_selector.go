@@ -51,8 +51,9 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
-	hash := sha256.Sum256(luc.Bytes())
-	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hash[:]), big.NewInt(int64(nodeCnt))).Int64())
+	hahser := sha256.New()
+	luc.AddToHasher(hahser)
+	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(hahser.Sum(nil)), big.NewInt(int64(nodeCnt))).Int64())
 	// choose upToNodes from index
 	idx := index
 	for {

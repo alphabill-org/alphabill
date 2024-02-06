@@ -56,7 +56,7 @@ func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyVal
 
 func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	rootNode := newNode(block)
-	hQC := rootNode.data.BlockData.Qc
+	hQC := block.CommitQc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	if err := bDB.Write(blockKey(block.GetRound()), block); err != nil {
 		return nil, fmt.Errorf("block write failed, %w", err)
@@ -155,6 +155,7 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	if !bytes.Equal(b.RootHash, qc.VoteInfo.CurrentRootHash) {
 		return fmt.Errorf("block tree add qc failed, qc state hash is different from local computed state hash")
 	}
+	b.Qc = qc
 	// persist changes
 	if err = bt.blocksDB.Write(blockKey(b.GetRound()), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
@@ -342,6 +343,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 		}
 	}
 	// update the new root with commit QC info
+	commitNode.data.CommitQc = commitQc
 	if err = dbTx.Write(blockKey(commitRound), commitNode.data); err != nil {
 		if rollbackErr := dbTx.Rollback(); rollbackErr != nil {
 			// append also the rollback error for reference

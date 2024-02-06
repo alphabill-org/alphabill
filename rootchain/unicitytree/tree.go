@@ -19,9 +19,9 @@ type (
 )
 
 // New creates a new unicity tree with given input records.
-func New(hashAlgorithm crypto.Hash, data []*types.UTData) (*UnicityTree, error) {
+func New(hashAlgorithm crypto.Hash, data []*types.UnicityTreeData) (*UnicityTree, error) {
 	// sort by index - system id
-	slices.SortFunc(data, func(a, b *types.UTData) int {
+	slices.SortFunc(data, func(a, b *types.UnicityTreeData) int {
 		return cmp.Compare(a.SystemIdentifier, b.SystemIdentifier)
 	})
 	sdMap := make(map[types.SystemID][]byte)

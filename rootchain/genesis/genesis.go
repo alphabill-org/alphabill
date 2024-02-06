@@ -106,7 +106,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	}
 }
 
-func createUnicityCertificates(utData []*types.UTData, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID]*types.UnicityCertificate, error) {
+func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID]*types.UnicityCertificate, error) {
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
@@ -194,7 +194,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		return nil, nil, fmt.Errorf("partition genesis records not unique: %w", err)
 	}
 	// iterate over all partitions and make sure that all requests are matching and every node is represented
-	ucData := make([]*types.UTData, len(partitions))
+	ucData := make([]*types.UnicityTreeData, len(partitions))
 	// remember system description records hashes and system id for verification
 	sdrhs := make(map[types.SystemID][]byte, len(partitions))
 	for i, partition := range partitions {
@@ -207,7 +207,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		sdrhs[partition.SystemDescriptionRecord.SystemIdentifier] = sdrh
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		ucData[i] = &types.UTData{
+		ucData[i] = &types.UnicityTreeData{
 			SystemIdentifier:            partition.SystemDescriptionRecord.SystemIdentifier,
 			InputRecord:                 partition.Validators[0].BlockCertificationRequest.InputRecord,
 			SystemDescriptionRecordHash: sdrh,

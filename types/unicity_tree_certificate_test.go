@@ -63,7 +63,7 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			SumOfEarnedFees: 10,
 		}
 		sdrh := []byte{1, 2, 3, 4}
-		leaf := UTData{
+		leaf := UnicityTreeData{
 			SystemIdentifier:            identifier,
 			InputRecord:                 ir,
 			SystemDescriptionRecordHash: sdrh,
@@ -90,7 +90,7 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			SumOfEarnedFees: 10,
 		}
 		sdrh := []byte{1, 2, 3, 4}
-		leaf := UTData{
+		leaf := UnicityTreeData{
 			SystemIdentifier:            identifier,
 			InputRecord:                 ir,
 			SystemDescriptionRecordHash: sdrh,

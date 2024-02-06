@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 
 	"github.com/alphabill-org/alphabill/crypto"
 )
@@ -40,7 +39,8 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	return nil
 }
 
-func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
+func (x *UnicityCertificate) Hash(hash gocrypto.Hash) []byte {
+	hasher := hash.New()
 	if x.InputRecord != nil {
 		x.InputRecord.AddToHasher(hasher)
 	}
@@ -50,6 +50,7 @@ func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
 	if x.UnicitySeal != nil {
 		x.UnicitySeal.AddToHasher(hasher)
 	}
+	return hasher.Sum(nil)
 }
 
 func (x *UnicityCertificate) GetStateHash() []byte {

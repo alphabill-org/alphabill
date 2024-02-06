@@ -15,7 +15,7 @@ import (
 func TestUnicityCertificate_IsValid(t *testing.T) {
 	sdrh := zeroHash
 	hasher := gocrypto.SHA256.New()
-	leaf := UTData{
+	leaf := UnicityTreeData{
 		SystemIdentifier:            identifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: sdrh,
@@ -693,7 +693,5 @@ func TestUCHash(t *testing.T) {
 		'1', 1, 1, 1, // UC: signature
 	}
 	expectedHash := sha256.Sum256(expectedBytes)
-	hasher := sha256.New()
-	uc.AddToHasher(hasher)
-	require.EqualValues(t, expectedHash[:], hasher.Sum(nil))
+	require.EqualValues(t, expectedHash[:], uc.Hash(gocrypto.SHA256))
 }

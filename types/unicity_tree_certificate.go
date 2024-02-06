@@ -21,18 +21,18 @@ type UnicityTreeCertificate struct {
 	SystemDescriptionHash []byte          `json:"system_description_hash,omitempty"`
 }
 
-type UTData struct {
+type UnicityTreeData struct {
 	SystemIdentifier            SystemID
 	InputRecord                 *InputRecord
 	SystemDescriptionRecordHash []byte
 }
 
-func (t *UTData) AddToHasher(hasher hash.Hash) {
+func (t *UnicityTreeData) AddToHasher(hasher hash.Hash) {
 	t.InputRecord.AddToHasher(hasher)
 	hasher.Write(t.SystemDescriptionRecordHash)
 }
 
-func (t *UTData) Key() []byte {
+func (t *UnicityTreeData) Key() []byte {
 	return t.SystemIdentifier.Bytes()
 }
 
@@ -52,7 +52,7 @@ func (x *UnicityTreeCertificate) IsValid(ir *InputRecord, systemIdentifier Syste
 	if !bytes.Equal(x.SiblingHashes[0].Key, x.SystemIdentifier.Bytes()) {
 		return fmt.Errorf("error invalid leaf key: expected %X got %X", x.SystemIdentifier.Bytes(), x.SiblingHashes[0].Key)
 	}
-	leaf := UTData{
+	leaf := UnicityTreeData{
 		SystemIdentifier:            x.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: x.SystemDescriptionHash,

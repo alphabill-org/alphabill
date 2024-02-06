@@ -79,8 +79,16 @@ func (s *SignatureMap) AddToHasher(hasher hash.Hash) {
 	if s == nil {
 		return
 	}
-	for auth, sig := range *s {
-		hasher.Write([]byte(auth))
+	// shallow copy
+	smap := *s
+	authors := make([]string, 0, len(smap))
+	for k := range *s {
+		authors = append(authors, k)
+	}
+	sort.Strings(authors)
+	for _, author := range authors {
+		sig := smap[author]
+		hasher.Write([]byte(author))
 		hasher.Write(sig)
 	}
 }

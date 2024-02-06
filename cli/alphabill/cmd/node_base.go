@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -57,20 +56,6 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-var errNormalExit = errors.New("server closed")
-
-func waitExit(statusCh <-chan error) error {
-	select {
-	case <-time.After(time.Millisecond * 500):
-		return fmt.Errorf("exit timeout")
-	case err := <-statusCh:
-		if !errors.Is(err, errNormalExit) {
-			return err
-		}
-		return nil
-	}
-}
-
 func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
 	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
 	log := obs.Logger()
@@ -98,13 +83,14 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
 				return
 			}
-			errch <- errNormalExit
+			errch <- nil
 		}()
 
 		select {
 		case <-ctx.Done():
 			grpcServer.GracefulStop()
-			if err := waitExit(errch); err != nil {
+			err := <-errch
+			if err != nil {
 				log.WarnContext(ctx, name+" gRPC server exited with error: %v", logger.Error(err))
 			}
 			log.InfoContext(ctx, name+" gRPC server exited")
@@ -143,16 +129,17 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 				errch <- fmt.Errorf("%s RPC server exited: %w", name, err)
 				return
 			}
-			errch <- errNormalExit
+			errch <- nil
 		}()
 
 		select {
 		case <-ctx.Done():
-			if e := rpcServer.Close(); e != nil {
-				err = errors.Join(err, fmt.Errorf("closing RPC server: %w", e))
+			if err := rpcServer.Close(); err != nil {
+				log.WarnContext(ctx, name+" RPC server close error: %v", logger.Error(err))
 			}
-			if err := waitExit(errch); err != nil {
-				log.WarnContext(ctx, name+" RPC server exited with error", logger.Error(err))
+			exitErr := <-errch
+			if exitErr != nil {
+				log.WarnContext(ctx, name+" RPC server exited with error: %v", logger.Error(err))
 			}
 			log.InfoContext(ctx, name+" RPC server exited")
 			return ctx.Err()

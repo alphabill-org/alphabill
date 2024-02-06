@@ -75,6 +75,16 @@ func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
 	return nil
 }
 
+func (s *SignatureMap) AddToHasher(hasher hash.Hash) {
+	if s == nil {
+		return
+	}
+	for auth, sig := range *s {
+		hasher.Write([]byte(auth))
+		hasher.Write(sig)
+	}
+}
+
 // NewTimestamp - returns timestamp in seconds from epoch
 func NewTimestamp() uint64 {
 	// Epoch in seconds
@@ -103,6 +113,16 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	return x.Verify(verifiers)
 }
 
+// Bytes - serialize everything except signatures (used for sign and verify)
+func (x *UnicitySeal) Bytes() []byte {
+	var b bytes.Buffer
+	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
+	b.Write(util.Uint64ToBytes(x.Timestamp))
+	b.Write(x.PreviousHash)
+	b.Write(x.Hash)
+	return b.Bytes()
+}
+
 func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
@@ -117,19 +137,6 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	}
 	x.Signatures[id] = sig
 	return nil
-}
-
-func (x *UnicitySeal) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
-	b.Write(util.Uint64ToBytes(x.Timestamp))
-	b.Write(x.PreviousHash)
-	b.Write(x.Hash)
-	return b.Bytes()
-}
-
-func (x *UnicitySeal) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.Bytes())
 }
 
 func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
@@ -152,4 +159,10 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 		}
 	}
 	return nil
+}
+
+// AddToHasher - add all UC data including signature bytes for hash calculation
+func (x *UnicitySeal) AddToHasher(hasher hash.Hash) {
+	hasher.Write(x.Bytes())
+	x.Signatures.AddToHasher(hasher)
 }

@@ -169,3 +169,22 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 func Test_NewTimestamp(t *testing.T) {
 	require.NotZero(t, NewTimestamp())
 }
+
+func TestSignatureMap_Serialize(t *testing.T) {
+	t.Run("SignatureMap is empty", func(t *testing.T) {
+		smap := SignatureMap{}
+		data, err := smap.MarshalCBOR()
+		require.NoError(t, err)
+		var res SignatureMap
+		require.NoError(t, res.UnmarshalCBOR(data))
+		require.Empty(t, smap)
+	})
+	t.Run("SignatureMap normal", func(t *testing.T) {
+		smap := SignatureMap{"1": []byte{1, 2, 3}, "2": []byte{2, 3, 4}}
+		data, err := smap.MarshalCBOR()
+		require.NoError(t, err)
+		var res SignatureMap
+		require.NoError(t, res.UnmarshalCBOR(data))
+		require.EqualValues(t, smap, res)
+	})
+}

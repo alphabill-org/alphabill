@@ -128,15 +128,15 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UnicityTreeData, 0, len(irState))
 	for _, data := range irState {
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
@@ -172,17 +172,17 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UnicityTreeData, 0, len(irState))
 	for _, data := range irState {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
@@ -196,17 +196,17 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 }
 
 func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) {
-	utData := make([]*unicitytree.Data, 0, len(x.CurrentIR))
+	utData := make([]*types.UnicityTreeData, 0, len(x.CurrentIR))
 	for _, data := range x.CurrentIR {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	return unicitytree.New(x.HashAlgo.New(), utData)
+	return unicitytree.New(x.HashAlgo, utData)
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map[types.SystemID]*types.UnicityCertificate, error) {

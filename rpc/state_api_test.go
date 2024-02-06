@@ -146,6 +146,33 @@ func TestGetTransactionProof(t *testing.T) {
 	})
 }
 
+func TestGetBlock(t *testing.T) {
+	node := &MockNode{}
+	api := NewStateAPI(node)
+
+	t.Run("ok", func(t *testing.T) {
+		node.maxBlockNumber = 1
+		blockNumber := uint64(1)
+		res, err := api.GetBlock(context.Background(), blockNumber)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.NotNil(t, res.BlockCbor)
+
+		var block *types.Block
+		err = cbor.Unmarshal(res.BlockCbor, &block)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, block.GetRoundNumber())
+	})
+	t.Run("err", func(t *testing.T) {
+		blockNumber := uint64(1)
+		node.err = errors.New("some error")
+
+		res, err := api.GetBlock(context.Background(), blockNumber)
+		require.ErrorContains(t, err, "some error")
+		require.Nil(t, res)
+	})
+}
+
 func prepareState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(

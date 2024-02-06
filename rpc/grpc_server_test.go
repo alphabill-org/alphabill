@@ -59,6 +59,9 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]b
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
 	if blockNumber > mn.maxBlockNumber {
 		// empty block
 		return nil, nil

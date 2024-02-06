@@ -91,7 +91,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			grpcServer.GracefulStop()
 			err := <-errch
 			if err != nil {
-				log.WarnContext(ctx, name+" gRPC server exited with error: %v", logger.Error(err))
+				log.WarnContext(ctx, name+" gRPC server exited with error", logger.Error(err))
 			} else {
 				log.InfoContext(ctx, name+" gRPC server exited")
 			}
@@ -136,11 +136,11 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		select {
 		case <-ctx.Done():
 			if err := rpcServer.Close(); err != nil {
-				log.WarnContext(ctx, name+" RPC server close error: %v", logger.Error(err))
+				log.WarnContext(ctx, name+" RPC server close error", logger.Error(err))
 			}
 			exitErr := <-errch
 			if exitErr != nil {
-				log.WarnContext(ctx, name+" RPC server exited with error: %v", logger.Error(err))
+				log.WarnContext(ctx, name+" RPC server exited with error", logger.Error(err))
 			} else {
 				log.InfoContext(ctx, name+" RPC server exited")
 			}

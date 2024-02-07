@@ -64,7 +64,11 @@ func TestValidatorNetwork_ProcessTransactions(t *testing.T) {
 	require.NotNil(t, network)
 
 	mockTxProcessor := &MockTxProcessor{received: make([]*types.TransactionOrder, 1)}
-	go network.ProcessTransactions(context.Background(), mockTxProcessor.ProcessTransactions)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() {
+		network.ProcessTransactions(ctx, mockTxProcessor.ProcessTransactions)
+	}()
 
 	tx := &types.TransactionOrder{}
 	_, err = network.AddTransaction(context.Background(), tx)
@@ -92,7 +96,11 @@ func TestValidatorNetwork_ForwardTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, network)
 
-	go network.ForwardTransactions(context.Background(), "receiver_id")
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() {
+		go network.ForwardTransactions(ctx, "receiver_id")
+	}()
 
 	tx := &types.TransactionOrder{}
 	_, err = network.AddTransaction(context.Background(), tx)

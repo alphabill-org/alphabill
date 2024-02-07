@@ -13,10 +13,10 @@ type (
 		node partitionNode
 	}
 
-	Unit struct {
+	Unit[T any] struct {
 		UnitID         types.UnitID          `json:"unitId"`
-		Data           any                   `json:"data"`
-		OwnerPredicate types.PredicateBytes  `json:"ownerPredicate,omitempty"`
+		Data           T                     `json:"data"`
+		OwnerPredicate types.Bytes           `json:"ownerPredicate,omitempty"`
 		StateProof     *types.UnitStateProof `json:"stateProof,omitempty"`
 	}
 
@@ -36,7 +36,7 @@ func (s *StateAPI) GetRoundNumber(ctx context.Context) (uint64, error) {
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
-func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit, error) {
+func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[any], error) {
 	state := s.node.TransactionSystem().State()
 
 	unit, err := state.GetUnit(unitID, true)
@@ -44,7 +44,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit, 
 		return nil, err
 	}
 
-	resp := &Unit{
+	resp := &Unit[any]{
 		UnitID:         unitID,
 		Data:           unit.Data(),
 		OwnerPredicate: unit.Bearer(),

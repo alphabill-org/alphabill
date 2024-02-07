@@ -2,6 +2,7 @@ package txsystem
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -57,6 +58,11 @@ func NewGenericTxSystem(log *slog.Logger, feeChecker FeeCreditBalanceValidator, 
 			txs.executors[k] = executor
 		}
 	}
+
+	if txs.systemIdentifier == 0 {
+		return nil, errors.New("system ID must be assigned")
+	}
+
 	return txs, nil
 }
 

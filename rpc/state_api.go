@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
@@ -16,7 +15,7 @@ type (
 
 	Unit struct {
 		UnitID         types.UnitID          `json:"unitId"`
-		Data           state.UnitData        `json:"data"`
+		Data           any                   `json:"data"`
 		OwnerPredicate types.PredicateBytes  `json:"ownerPredicate,omitempty"`
 		StateProof     *types.UnitStateProof `json:"stateProof,omitempty"`
 	}

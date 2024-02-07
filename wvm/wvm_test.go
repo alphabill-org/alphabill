@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/binary"
+	"fmt"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
@@ -148,6 +149,7 @@ func TestPredicate_P2PKH_V2(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 	pubKeyHash := hash.Sum256(pubKey)
+	obs.Logger().InfoContext(ctx, fmt.Sprintf("Send PubKey Hash: %x", pubKeyHash))
 	res, err := wvm.Exec(ctx, "run", pubKeyHash)
 	require.NoError(t, err)
 	require.True(t, res)

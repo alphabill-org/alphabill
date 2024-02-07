@@ -184,18 +184,18 @@ func loggingV1(ctx context.Context, m api.Module, level uint32, msgData uint64) 
 	if rtCtx == nil {
 		panic("nil runtime context")
 	}
-	msg := string(read(m, msgData))
+	msg := read(m, msgData)
 	switch level {
 	case 0:
-		rtCtx.Log.ErrorContext(ctx, msg)
+		rtCtx.Log.ErrorContext(ctx, fmt.Sprintf("%s", msg))
 	case 1:
-		rtCtx.Log.WarnContext(ctx, msg)
+		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("%s", msg))
 	case 2:
-		rtCtx.Log.InfoContext(ctx, msg)
+		rtCtx.Log.InfoContext(ctx, fmt.Sprintf("%s", msg))
 	case 3:
-		rtCtx.Log.DebugContext(ctx, msg)
+		rtCtx.Log.DebugContext(ctx, fmt.Sprintf("%s", msg))
 	default:
-		rtCtx.Log.ErrorContext(ctx, fmt.Sprintf("unknown leved %v: %s", level, msg))
+		rtCtx.Log.ErrorContext(ctx, fmt.Sprintf("unknown leved %v: %s", level, fmt.Sprintf("%s", msg)))
 	}
 }
 

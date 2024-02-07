@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -76,7 +76,7 @@ func Test_getAddressFromPredicateArg(t *testing.T) {
 		{
 			name:       "error - nil",
 			args:       args{predArg: nil},
-			wantErrStr: "empty predicate signature",
+			wantErrStr: "failed to extract public key from fee credit owner proof, empty owner proof as input",
 		},
 		{
 			name: "ok",

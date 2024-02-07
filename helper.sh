@@ -39,7 +39,9 @@ function generate_boot_nodes() {
       bootNodes="$id@/ip4/127.0.0.1/tcp/$rootPort,$bootNodes"
       ((rootPort=rootPort+1))
     done
-   bootNodes=${bootNodes::-1}
+    if [ -n "$bootNodes" ]; then
+      bootNodes=${bootNodes%,}
+    fi
    echo "$bootNodes"
 }
 

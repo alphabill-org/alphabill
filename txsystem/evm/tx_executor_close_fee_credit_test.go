@@ -9,6 +9,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -21,19 +22,11 @@ import (
 )
 
 func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCreditAttributes, signer abcrypto.Signer, timeout uint64) *types.TransactionOrder {
-	payload := newTxPayload(t, transactions.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr)
-	payloadBytes, err := payload.Bytes()
-	require.NoError(t, err)
-	sig, err := signer.SignBytes(payloadBytes)
-	require.NoError(t, err)
-	ver, err := signer.Verifier()
-	require.NoError(t, err)
-	pubKeyBytes, err := ver.MarshalPublicKey()
-	require.NoError(t, err)
-	return &types.TransactionOrder{
-		Payload:    payload,
-		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKeyBytes),
+	tx := &types.TransactionOrder{
+		Payload: newTxPayload(t, transactions.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr),
 	}
+	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return tx
 }
 
 func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amount uint64) []byte {

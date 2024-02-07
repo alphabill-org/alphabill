@@ -60,10 +60,7 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate, validat
 		return UnknownLeader
 	}
 	peerCount := uint64(len(validators))
-	hasher := crypto.SHA256.New()
-	hasher.Write(uc.Bytes())
-	hash := hasher.Sum(nil)
-	x := uint256.NewInt(0).SetBytes(hash)
+	x := uint256.NewInt(0).SetBytes(uc.Hash(crypto.SHA256))
 	i := uint256.NewInt(0)
 	i.Mod(x, uint256.NewInt(peerCount))
 	index := i.Uint64()

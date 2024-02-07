@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 
 	"github.com/alphabill-org/alphabill/crypto"
 )
@@ -29,16 +28,10 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	if err := x.InputRecord.IsValid(); err != nil {
 		return fmt.Errorf("intput record validation failed, %w", err)
 	}
-	if err := x.UnicityTreeCertificate.IsValid(systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityTreeCertificate.IsValid(x.InputRecord, systemIdentifier, systemDescriptionHash, algorithm); err != nil {
 		return fmt.Errorf("unicity tree certificate validation failed, %w", err)
 	}
-	hasher := algorithm.New()
-	x.InputRecord.AddToHasher(hasher)
-	hasher.Write(x.UnicityTreeCertificate.SystemDescriptionHash)
-	treeRoot, err := x.UnicityTreeCertificate.GetAuthPath(hasher.Sum(nil), algorithm)
-	if err != nil {
-		return fmt.Errorf("failed to get authentication path from unicity tree certificate, %w", err)
-	}
+	treeRoot := x.UnicityTreeCertificate.EvalAuthPath(algorithm)
 	rootHash := x.UnicitySeal.Hash
 	if !bytes.Equal(treeRoot, rootHash) {
 		return fmt.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
@@ -46,22 +39,18 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	return nil
 }
 
-func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.Bytes())
-}
-
-func (x *UnicityCertificate) Bytes() []byte {
-	var b bytes.Buffer
+func (x *UnicityCertificate) Hash(hash gocrypto.Hash) []byte {
+	hasher := hash.New()
 	if x.InputRecord != nil {
-		b.Write(x.InputRecord.Bytes())
+		x.InputRecord.AddToHasher(hasher)
 	}
 	if x.UnicityTreeCertificate != nil {
-		b.Write(x.UnicityTreeCertificate.Bytes())
+		x.UnicityTreeCertificate.AddToHasher(hasher)
 	}
 	if x.UnicitySeal != nil {
-		b.Write(x.UnicitySeal.Bytes())
+		x.UnicitySeal.AddToHasher(hasher)
 	}
-	return b.Bytes()
+	return hasher.Sum(nil)
 }
 
 func (x *UnicityCertificate) GetStateHash() []byte {

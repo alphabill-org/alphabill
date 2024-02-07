@@ -3,12 +3,13 @@ package predicates
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
 var defaultPredicateRunner PredicateRunner
 
-func RunPredicate(pb PredicateBytes, sig []byte, sigData []byte) error {
+func RunPredicate(pb types.PredicateBytes, sig []byte, sigData []byte) error {
 	if len(pb) == 0 {
 		return fmt.Errorf("predicate is empty")
 	}

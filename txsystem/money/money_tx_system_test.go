@@ -7,12 +7,11 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/block"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -29,10 +28,10 @@ import (
 
 const initialDustCollectorMoneyAmount uint64 = 100
 
-type InitialBill struct{
+type InitialBill struct {
 	ID    types.UnitID
 	Value uint64
-	Owner predicates.PredicateBytes
+	Owner types.PredicateBytes
 }
 
 var (
@@ -48,10 +47,10 @@ var (
 
 func TestNewTxSystem(t *testing.T) {
 	var (
-		sdrs          = createSDRs(newBillID(3))
-		txsState      = genesisStateWithUC(t, initialBill, sdrs)
-		_, verifier   = testsig.CreateSignerAndVerifier(t)
-		trustBase     = map[string]abcrypto.Verifier{"test": verifier}
+		sdrs        = createSDRs(newBillID(3))
+		txsState    = genesisStateWithUC(t, initialBill, sdrs)
+		_, verifier = testsig.CreateSignerAndVerifier(t)
+		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
 	)
 	txSystem, err := NewTxSystem(
 		logger.New(t),
@@ -75,7 +74,7 @@ func TestNewTxSystem(t *testing.T) {
 	require.NotNil(t, d)
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, predicates.PredicateBytes(DustCollectorPredicate), d.Bearer())
+	require.Equal(t, types.PredicateBytes(DustCollectorPredicate), d.Bearer())
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
@@ -134,10 +133,12 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Calculate the summary hash of a new empty round for the original txs
 	require.NoError(t, originalTxs.BeginBlock(2))
 	originalSummaryRound2, err := originalTxs.EndBlock()
+	require.NoError(t, err)
 
 	// Calculate the summary hash of a new empty round for the recovered txs
 	require.NoError(t, recoveredTxs.BeginBlock(2))
 	recoveredSummaryRound2, err := recoveredTxs.EndBlock()
+	require.NoError(t, err)
 	require.EqualValues(t, originalSummaryRound2.Root(), recoveredSummaryRound2.Root())
 
 	// Since there was pruning, summary hashes of round 1 and round 2 cannot match
@@ -209,7 +210,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-	require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+	require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 	require.EqualValues(t, 0, bd.Locked)
 }
@@ -260,7 +261,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		require.NotNil(t, bd)
 		require.Equal(t, amount, bd.V)
 		require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-		require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+		require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 		require.Equal(t, roundNumber, bd.T)
 	}
 }
@@ -347,13 +348,13 @@ func TestExecute_SwapOk(t *testing.T) {
 	afterCommitValue := dustBillData.V + dcBillData.V
 	require.Equal(t, beforeCommitValue, afterCommitValue)
 
-	require.NoError(t, txSystem.BeginBlock(roundNumber + 1))
+	require.NoError(t, txSystem.BeginBlock(roundNumber+1))
 	sm, err = txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	_, billData = getBill(t, state, swapTx.UnitID())
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
-	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
+	require.EqualValues(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dcBillData = getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.V) // dust collector money supply is the same after swap
 	require.EqualValues(t, 0, billData.Locked)                      // verify bill got unlocked
@@ -364,7 +365,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 
-	require.NoError(t, txSystem.BeginBlock(roundNumber + 2))
+	require.NoError(t, txSystem.BeginBlock(roundNumber+2))
 	dcBill, dcBillData := getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.V)
 	// Make sure the DC bill logs are pruned

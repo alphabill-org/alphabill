@@ -40,10 +40,6 @@ func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Ob
 		// get latest round number
 		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log)).Methods(http.MethodGet, http.MethodOptions)
 
-		// get unit data and proof
-		r.HandleFunc(pathUnits, getUnit(node, unitProofDB, log)).Methods(http.MethodGet, http.MethodOptions)
-		// Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}") - fields are not mandatory
-
 		// get the state file
 		r.HandleFunc(pathState, getState(node, log))
 

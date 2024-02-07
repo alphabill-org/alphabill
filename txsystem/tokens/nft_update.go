@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
@@ -76,7 +75,7 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if err != nil {
 		return err
 	}
-	ps = append([]predicates.PredicateBytes{data.DataUpdatePredicate}, ps...)
+	ps = append([]types.PredicateBytes{data.DataUpdatePredicate}, ps...)
 	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err

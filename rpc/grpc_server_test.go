@@ -11,9 +11,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
@@ -33,8 +33,13 @@ type (
 		transactions   []*types.TransactionOrder
 		ownerUnits     map[string][]types.UnitID
 		err            error
+		txs            txsystem.TransactionSystem
 	}
 )
+
+func (mn *MockNode) TransactionSystem() txsystem.TransactionSystem {
+	return mn.txs
+}
 
 func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
 	if mn.err != nil {
@@ -83,16 +88,14 @@ func (mn *MockNode) GetPeer() *network.Peer {
 	return nil
 }
 
-func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
+func (mn *MockNode) GetUnit(unitID []byte, returnProof bool) (*types.UnitDataAndProof, error) {
 	if mn.err != nil {
 		return nil, mn.err
 	}
 	unitAndProof := &types.UnitDataAndProof{}
-	if returnData {
-		unitAndProof.UnitData = &types.StateUnitData{
-			Data:   cbor.RawMessage{0x81, 0x00},
-			Bearer: predicates.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
-		}
+	unitAndProof.UnitData = &types.StateUnitData{
+		Data:   cbor.RawMessage{0x81, 0x00},
+		Bearer: types.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
 	}
 	if returnProof {
 		unitAndProof.Proof = &types.UnitStateProof{

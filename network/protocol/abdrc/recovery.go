@@ -14,27 +14,29 @@ type GetStateMsg struct {
 	_ struct{} `cbor:",toarray"`
 	// ID of the node which requested the state, ie response should
 	// be sent to that node
-	NodeId string `json:"nodeId,omitempty"`
+	NodeId string
 }
 
 type InputData struct {
-	_     struct{}           `cbor:",toarray"`
-	SysID types.SystemID     `json:"sysID,omitempty"`
-	Ir    *types.InputRecord `json:"ir,omitempty"`
-	Sdrh  []byte             `json:"sdrh,omitempty"`
+	_     struct{} `cbor:",toarray"`
+	SysID types.SystemID
+	Ir    *types.InputRecord
+	Sdrh  []byte
 }
 
 type CommittedBlock struct {
-	_     struct{}            `cbor:",toarray"`
-	Block *drctypes.BlockData `json:"block,omitempty"`
-	Ir    []*InputData        `json:"ir,omitempty"`
+	_        struct{} `cbor:",toarray"`
+	Block    *drctypes.BlockData
+	Ir       []*InputData
+	Qc       *drctypes.QuorumCert // block's quorum certificate (from next view)
+	CommitQc *drctypes.QuorumCert // commit certificate
 }
 
 type StateMsg struct {
-	_             struct{}                    `cbor:",toarray"`
-	Certificates  []*types.UnicityCertificate `json:"certificates,omitempty"`
-	CommittedHead *CommittedBlock             `json:"committedHead,omitempty"`
-	BlockData     []*drctypes.BlockData       `json:"blockData,omitempty"`
+	_             struct{} `cbor:",toarray"`
+	Certificates  []*types.UnicityCertificate
+	CommittedHead *CommittedBlock
+	BlockData     []*drctypes.BlockData
 }
 
 /*
@@ -63,12 +65,17 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, quorum uint32, verifiers m
 		return fmt.Errorf("commit head is nil")
 	}
 	if err := sm.CommittedHead.IsValid(); err != nil {
-		return fmt.Errorf("invalid commit head block: %w", err)
+		return fmt.Errorf("invalid commit head: %w", err)
 	}
 	if err := sm.CommittedHead.Block.Qc.Verify(quorum, verifiers); err != nil {
-		return fmt.Errorf("commit head qc verification error: %w", err)
+		return fmt.Errorf("block qc verification error: %w", err)
 	}
-	commitQcFound := false
+	if err := sm.CommittedHead.Qc.Verify(quorum, verifiers); err != nil {
+		return fmt.Errorf("qc verification error: %w", err)
+	}
+	if err := sm.CommittedHead.CommitQc.Verify(quorum, verifiers); err != nil {
+		return fmt.Errorf("commit qc verification error: %w", err)
+	}
 	// verify node blocks
 	for _, n := range sm.BlockData {
 		if err := n.IsValid(); err != nil {
@@ -78,16 +85,7 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, quorum uint32, verifiers m
 			if err := n.Qc.Verify(quorum, verifiers); err != nil {
 				return fmt.Errorf("block node qc verification error: %w", err)
 			}
-			// check if this is the head block QC
-			if n.Qc.LedgerCommitInfo != nil {
-				if sm.CommittedHead.Block.GetRound() == n.Qc.LedgerCommitInfo.RootChainRoundNumber {
-					commitQcFound = true
-				}
-			}
 		}
-	}
-	if !commitQcFound {
-		return fmt.Errorf("commit QC for head block not found")
 	}
 	for _, c := range sm.Certificates {
 		if err := c.IsValid(verifiers, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
@@ -118,6 +116,12 @@ func (r *CommittedBlock) IsValid() error {
 	}
 	if err := r.Block.IsValid(); err != nil {
 		return fmt.Errorf("block data error: %w", err)
+	}
+	if r.Qc == nil {
+		return fmt.Errorf("commit head is missing qc certificate")
+	}
+	if r.CommitQc == nil {
+		return fmt.Errorf("commit head is missing commit qc certificate")
 	}
 	return nil
 }

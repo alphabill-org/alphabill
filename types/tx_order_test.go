@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/hex"
+	"errors"
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
@@ -110,6 +111,33 @@ func TestUnmarshalPayload(t *testing.T) {
 	require.Equal(t, timeout, clientMetadata.Timeout)
 	require.Equal(t, maxFee, clientMetadata.MaxTransactionFee)
 	require.Equal(t, feeCreditRecordID, clientMetadata.FeeCreditRecordID)
+}
+
+func Test_TransactionOrder_SetOwnerProof(t *testing.T) {
+	t.Run("proofer returns error", func(t *testing.T) {
+		expErr := errors.New("proofing failed")
+		txo := TransactionOrder{}
+		err := txo.SetOwnerProof(func(bytesToSign []byte) ([]byte, error) { return nil, expErr })
+		require.ErrorIs(t, err, expErr)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		proof := []byte{1, 2, 3, 4, 5, 6}
+		txo := TransactionOrder{}
+		err := txo.SetOwnerProof(func(bytesToSign []byte) ([]byte, error) { return proof, nil })
+		require.NoError(t, err)
+		require.Equal(t, proof, txo.OwnerProof)
+	})
+}
+
+func Test_Payload_SetAttributes(t *testing.T) {
+	attributes := &Attributes{NewBearer: []byte{9, 3, 5, 2, 6}, TargetValue: 59, Backlink: []byte{4, 2, 7, 5}}
+	pl := Payload{}
+	require.NoError(t, pl.SetAttributes(attributes))
+
+	attrData := &Attributes{}
+	require.NoError(t, pl.UnmarshalAttributes(attrData))
+	require.Equal(t, attributes, attrData, "expected to get back the same attributes")
 }
 
 func createTxOrder(t *testing.T) *TransactionOrder {

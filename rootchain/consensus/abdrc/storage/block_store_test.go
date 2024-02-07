@@ -84,6 +84,8 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 		Changed:   make([]types.SystemID, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
+		Qc:        &drctypes.QuorumCert{},
+		CommitQc:  nil,
 	}
 }
 
@@ -223,12 +225,6 @@ func TestBlockStoreAdd(t *testing.T) {
 			Hash: rBlock.RootHash,
 		},
 	}
-	// qc for round 2, does not commit a round
-	block = &drctypes.BlockData{
-		Round:   genesis.RootRound + 2,
-		Payload: &drctypes.Payload{},
-		Qc:      qc,
-	}
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)
@@ -236,6 +232,12 @@ func TestBlockStoreAdd(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, genesis.RootRound+1, b.BlockData.Round)
 	// add block 3
+	// qc for round 2, does not commit a round
+	block = &drctypes.BlockData{
+		Round:   genesis.RootRound + 2,
+		Payload: &drctypes.Payload{},
+		Qc:      qc,
+	}
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
 	require.Len(t, rh, 32)

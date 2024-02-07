@@ -104,7 +104,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
 				sc.rpcServer = &rpc.ServerConfiguration{
-					Address:           "srv:1111",
+					Address:                "srv:1111",
 					ReadTimeout:            10 * time.Second,
 					ReadHeaderTimeout:      11 * time.Second,
 					WriteTimeout:           12 * time.Second,
@@ -341,6 +341,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
+		rpcNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -351,7 +352,8 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
 				" --bootnodes=" + bootNodeStr +
-				" --server-address " + moneyNodeAddr
+				" --server-address " + moneyNodeAddr +
+				" --rpc-server-address " + rpcNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)

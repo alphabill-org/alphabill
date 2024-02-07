@@ -2,14 +2,23 @@ package rpc
 
 import (
 	"context"
+	"crypto"
 	"errors"
+	"fmt"
+	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/predicates"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
+
+var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
 
 func TestGetRoundNumber(t *testing.T) {
 	node := &MockNode{}
@@ -33,60 +42,34 @@ func TestGetRoundNumber(t *testing.T) {
 }
 
 func TestGetUnit(t *testing.T) {
-	node := &MockNode{}
+	node := &MockNode{
+		txs: &testtxsystem.CounterTxSystem{
+			FixedState: prepareState(t),
+		},
+	}
 	api := NewStateAPI(node)
 
-	t.Run("get unit (proof=false, data=false)", func(t *testing.T) {
-		unitID := []byte{1}
-
-		unitData, err := api.GetUnit(unitID, false, false)
+	t.Run("get unit (proof=false)", func(t *testing.T) {
+		unit, err := api.GetUnit(unitID, false)
 		require.NoError(t, err)
-		require.NotNil(t, unitData)
+		require.NotNil(t, unit)
 
-		var res *types.UnitDataAndProof
-		err = cbor.Unmarshal(unitData.DataAndProofCBOR, &res)
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.Nil(t, res.UnitData)
-		require.Nil(t, res.Proof)
+		require.NotNil(t, unit)
+		require.NotNil(t, unit.Data)
+		require.Nil(t, unit.StateProof)
+		require.EqualValues(t, types.PredicateBytes{0x83, 0x00, 0x41, 0x01, 0xF6}, unit.OwnerPredicate)
 	})
-	t.Run("get unit (proof=true, data=false)", func(t *testing.T) {
-		unitID := []byte{1}
-
-		unitData, err := api.GetUnit(unitID, true, false)
+	t.Run("get unit (proof=true)", func(t *testing.T) {
+		unit, err := api.GetUnit(unitID, true)
 		require.NoError(t, err)
-		require.NotNil(t, unitData)
-
-		var res *types.UnitDataAndProof
-		err = cbor.Unmarshal(unitData.DataAndProofCBOR, &res)
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.Nil(t, res.UnitData)
-		require.NotNil(t, res.Proof)
-		require.EqualValues(t, unitID, res.Proof.UnitID)
-	})
-	t.Run("get unit (proof=true, data=true)", func(t *testing.T) {
-		unitID := []byte{1}
-
-		unitData, err := api.GetUnit(unitID, true, true)
-		require.NoError(t, err)
-		require.NotNil(t, unitData)
-
-		var res *types.UnitDataAndProof
-		err = cbor.Unmarshal(unitData.DataAndProofCBOR, &res)
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.NotNil(t, res.Proof)
-		require.EqualValues(t, unitID, res.Proof.UnitID)
-		require.NotNil(t, res.UnitData)
-		require.EqualValues(t, predicates.PredicateBytes{0x83, 0x00, 0x01, 0xF6}, res.UnitData.Bearer)
+		require.NotNil(t, unit)
+		require.NotNil(t, unit.Data)
+		require.NotNil(t, unit.StateProof)
+		require.EqualValues(t, unitID, unit.StateProof.UnitID)
 	})
 	t.Run("err", func(t *testing.T) {
-		unitID := []byte{1}
-		node.err = errors.New("some error")
-
-		unitData, err := api.GetUnit(unitID, false, false)
-		require.ErrorContains(t, err, "some error")
+		unitData, err := api.GetUnit([]byte{1, 2, 3}, false)
+		require.ErrorContains(t, err, "item 010203 does not exist")
 		require.Nil(t, unitData)
 	})
 }
@@ -120,13 +103,13 @@ func TestSendTransaction(t *testing.T) {
 	api := NewStateAPI(node)
 
 	t.Run("ok", func(t *testing.T) {
-		tx := &Transaction{TxOrderCbor: createTransactionOrder(t, []byte{1})}
+		tx := createTransactionOrder(t, []byte{1})
 		txHash, err := api.SendTransaction(context.Background(), tx)
 		require.NoError(t, err)
 		require.NotNil(t, txHash)
 	})
 	t.Run("err", func(t *testing.T) {
-		tx := &Transaction{TxOrderCbor: createTransactionOrder(t, failingUnitID)}
+		tx := createTransactionOrder(t, failingUnitID)
 		txHash, err := api.SendTransaction(context.Background(), tx)
 		require.ErrorContains(t, err, "failed")
 		require.Nil(t, txHash)
@@ -142,15 +125,15 @@ func TestGetTransactionProof(t *testing.T) {
 		res, err := api.GetTransactionProof(context.Background(), txHash)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.NotNil(t, res.TxRecordCbor)
-		require.NotNil(t, res.TxProofCbor)
+		require.NotNil(t, res.TxRecord)
+		require.NotNil(t, res.TxProof)
 
 		var txRecord *types.TransactionRecord
-		err = cbor.Unmarshal(res.TxRecordCbor, &txRecord)
+		err = cbor.Unmarshal(res.TxRecord, &txRecord)
 		require.NoError(t, err)
 
 		var txProof *types.TxProof
-		err = cbor.Unmarshal(res.TxProofCbor, &txProof)
+		err = cbor.Unmarshal(res.TxProof, &txProof)
 		require.NoError(t, err)
 	})
 	t.Run("err", func(t *testing.T) {
@@ -173,10 +156,9 @@ func TestGetBlock(t *testing.T) {
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.NotNil(t, res.BlockCbor)
 
 		var block *types.Block
-		err = cbor.Unmarshal(res.BlockCbor, &block)
+		err = cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, block.GetRoundNumber())
 	})
@@ -188,4 +170,54 @@ func TestGetBlock(t *testing.T) {
 		require.ErrorContains(t, err, "some error")
 		require.Nil(t, res)
 	})
+}
+
+func prepareState(t *testing.T) *state.State {
+	s := state.NewEmptyState()
+	require.NoError(t, s.Apply(
+		state.AddUnit(unitID, templates.AlwaysTrueBytes(), &unitData{I: 10}),
+	))
+
+	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+
+	summaryValue, summaryHash, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  1,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}))
+	return s
+}
+
+type unitData struct {
+	_ struct{} `cbor:",toarray"`
+	I uint64
+}
+
+func (ud *unitData) Hash(hashAlgo crypto.Hash) []byte {
+	hasher := hashAlgo.New()
+	_ = ud.Write(hasher)
+	return hasher.Sum(nil)
+}
+
+func (ud *unitData) Write(hasher hash.Hash) error {
+	enc, err := cbor.CanonicalEncOptions().EncMode()
+	if err != nil {
+		return err
+	}
+	res, err := enc.Marshal(ud)
+	if err != nil {
+		return fmt.Errorf("unit data encode error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
+}
+
+func (ud *unitData) SummaryValueInput() uint64 {
+	return ud.I
+}
+
+func (ud *unitData) Copy() state.UnitData {
+	return &unitData{I: ud.I}
 }

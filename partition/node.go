@@ -25,7 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1392,28 +1391,8 @@ func (n *Node) SystemIdentifier() types.SystemID {
 	return n.configuration.GetSystemIdentifier()
 }
 
-func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
-	clonedState := n.transactionSystem.State()
-	unit, err := clonedState.GetUnit(unitID, true)
-	if err != nil {
-		return nil, err
-	}
-	response := &types.UnitDataAndProof{}
-	if returnData {
-		res, err := cbor.Marshal(unit.Data())
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode unit data: %w", err)
-		}
-		response.UnitData = &types.StateUnitData{Data: res, Bearer: unit.Bearer()}
-	}
-	if returnProof {
-		p, err := clonedState.CreateUnitStateProof(unitID, len(unit.Logs())-1)
-		if err != nil {
-			return nil, err
-		}
-		response.Proof = p
-	}
-	return response, nil
+func (n *Node) TransactionSystem() txsystem.TransactionSystem {
+	return n.transactionSystem
 }
 
 func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {

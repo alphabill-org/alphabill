@@ -98,11 +98,15 @@ func TestValidatorNetwork_ForwardTransaction(t *testing.T) {
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
+	tx := &types.TransactionOrder{}
+	_, err = network.AddTransaction(ctx, tx)
+	require.NoError(t, err)
+
 	go func() {
-		go network.ForwardTransactions(ctx, "receiver_id")
+		network.ForwardTransactions(ctx, "receiver_id")
 	}()
 
-	tx := &types.TransactionOrder{}
-	_, err = network.AddTransaction(context.Background(), tx)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return ctx.Err() == nil
+	}, 3*time.Second, 200*time.Millisecond)
 }

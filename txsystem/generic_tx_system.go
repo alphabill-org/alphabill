@@ -145,23 +145,36 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 
 /*
 validateGenericTransaction does the tx validation common to all tx systems.
+
+See Yellowpaper chapter 4.6 "Valid Transaction Orders".
+The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
+implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
+	// 1. P.α = S.α – transaction is sent to this system
 	if m.systemIdentifier != tx.SystemID() {
 		return ErrInvalidSystemIdentifier
 	}
+
+	// 2. fSH(P.ι)=S.σ–target unit is in this shard
+
+	// 3. n < T0 – transaction has not expired
 	if m.currentBlockNumber >= tx.Timeout() {
 		return ErrTransactionExpired
 	}
 
-	// Yellowpaper also suggests to check owner proof here. However it requires
+	// 4. N[ι] = ⊥ ∨ VerifyOwner(N[ι].φ, P, P.s) = 1 – owner proof verifies correctly.
+	// Yellowpaper currently suggests to check owner proof here. However it requires
 	// knowledge about whether it's ok that the unit is not part of current
 	// state - ie create token type or mint token transactions. So we do the
 	// owner proof verification in the tx handler.
 
+	// the checkFeeCreditBalance must verify the conditions 5 to 9 listed in the
+	// Yellowpaper "Valid Transaction Orders" chapter.
 	if err := m.checkFeeCreditBalance(tx); err != nil {
 		return fmt.Errorf("fee credit balance check: %w", err)
 	}
+
 	return nil
 }
 

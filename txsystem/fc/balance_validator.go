@@ -10,6 +10,10 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
+/*
+CheckFeeCreditBalance implements the fee credit verification steps listed in the
+Yellowpaper "Valid Transaction Orders" chapter.
+*/
 func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
 	if !transactions.IsFeeCreditTx(tx) {
 		clientMetadata := tx.Payload.ClientMetadata

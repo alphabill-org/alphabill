@@ -71,7 +71,7 @@ func TestValidatorNetwork_ProcessTransactions(t *testing.T) {
 	}()
 
 	tx := &types.TransactionOrder{}
-	_, err = network.AddTransaction(context.Background(), tx)
+	_, err = network.AddTransaction(ctx, tx)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return len(mockTxProcessor.received) > 0 }, 3*time.Second, 200*time.Millisecond)
 }

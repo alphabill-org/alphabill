@@ -40,7 +40,7 @@ build/p2pkh_v2.wasm: $(OBJECTS)
 	$(LD) -o $@ $(OBJECTS) $(LDFLAGS)
 ifneq ($(DEBUG), 1)
 ifeq (, $(shell command -v $(WASM_OPT)))
-	@echo Tip: $(WASM_OPT) was not found. Install it from binaryen for smaller builds!
+	@echo Tip: $(WASM_OPT) was not found. Install it from binaryen (https://github.com/WebAssembly/binaryen) for smaller builds!
 else
 	$(WASM_OPT) $(WASM_OPT_FLAGS) $@ -o $@
 endif

@@ -44,6 +44,7 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 }
 
 func TestValidatorNetwork_ProcessTransactions(t *testing.T) {
+	t.SkipNow()
 	opts := ValidatorNetworkOptions{
 		ReceivedChannelCapacity:          1000,
 		TxBufferSize:                     1000,

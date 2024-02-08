@@ -85,12 +85,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	t.Run("tx handler returns error", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := mockModule{
-			getExecutors: func() map[string]TxExecutor {
-				return map[string]TxExecutor{
-					"tx-type": ExecuteFunc(func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
-						return nil, expErr
-					}),
-				}
+			executors: map[string]ExecuteFunc{
+				"tx-type": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+					return nil, expErr
+				},
 			},
 		}
 		txSys := createTxSystem(t, []Module{m})
@@ -101,12 +99,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		m := mockModule{getExecutors: func() map[string]TxExecutor {
-			return map[string]TxExecutor{
-				"tx-type": ExecuteFunc(func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
-					return &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}, nil
-				}),
-			}
+		m := mockModule{executors: map[string]ExecuteFunc{
+			"tx-type": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+				return &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}, nil
+			},
 		},
 		}
 		txSys := createTxSystem(t, []Module{m})
@@ -184,9 +180,9 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 }
 
 type mockModule struct {
-	getExecutors func() map[string]TxExecutor
+	executors TxExecutors
 }
 
-func (mm mockModule) TxExecutors() map[string]TxExecutor {
-	return mm.getExecutors()
+func (mm mockModule) TxExecutors() map[string]ExecuteFunc {
+	return mm.executors
 }

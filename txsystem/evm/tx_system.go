@@ -61,19 +61,18 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
-		executors:           make(map[string]txsystem.TxExecutor),
+		executors:           make(txsystem.TxExecutors),
 		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
 		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	executors := evm.TxExecutors()
-	for k, executor := range executors {
-		txs.executors[k] = executor
+	if err := txs.executors.Add(evm.TxExecutors()); err != nil {
+		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
-	executors = fees.TxExecutors()
-	for k, executor := range executors {
-		txs.executors[k] = executor
+	if err := txs.executors.Add(fees.TxExecutors()); err != nil {
+		return nil, fmt.Errorf("registering fee executors: %w", err)
 	}
+
 	return txs, nil
 }
 

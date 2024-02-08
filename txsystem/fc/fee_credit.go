@@ -64,12 +64,12 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	return m, nil
 }
 
-func (f *FeeCredit) TxExecutors() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		transactions.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f),
-		transactions.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f),
-		transactions.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f),
-		transactions.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f),
+func (f *FeeCredit) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
+		transactions.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f).ExecuteFunc(),
+		transactions.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f).ExecuteFunc(),
+		transactions.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f).ExecuteFunc(),
+		transactions.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f).ExecuteFunc(),
 	}
 }
 

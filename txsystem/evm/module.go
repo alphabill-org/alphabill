@@ -34,9 +34,9 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 	}, nil
 }
 
-func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log),
+func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
+		PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log).ExecuteFunc(),
 	}
 }
 

@@ -46,11 +46,11 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 	}, nil
 }
 
-func (m FeeAccount) TxExecutors() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
+func (m FeeAccount) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
 		//  fee credit transaction handlers (credit transfers and reclaims only!)
-		transactions.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator),
-		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log),
+		transactions.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator).ExecuteFunc(),
+		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log).ExecuteFunc(),
 	}
 }
 

@@ -32,7 +32,10 @@ func toHex(src []byte) []byte {
 func fromHex(src []byte) ([]byte, error) {
 	src, err := checkHex(src)
 	if err != nil {
-	 	return nil, err
+		return nil, err
+	}
+	if len(src) == 0 {
+		return nil, nil
 	}
 	dst := make([]byte, len(src)/2)
 	_, err = hex.Decode(dst, src)
@@ -51,7 +54,7 @@ func checkHex(input []byte) ([]byte, error) {
 	} else {
 		return nil, fmt.Errorf("hex string without 0x prefix")
 	}
-	if len(input) % 2 != 0 {
+	if len(input)%2 != 0 {
 		return nil, fmt.Errorf("hex string of odd length")
 	}
 	return input, nil

@@ -99,12 +99,15 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 		return blocks[i].GetRound() < blocks[j].GetRound()
 	})
 	// find root
-	rootIdx := 0
+	rootIdx := -1
 	for i := len(blocks) - 1; i >= 0; i-- {
 		if blocks[i].CommitQc != nil {
 			rootIdx = i
 			break
 		}
+	}
+	if rootIdx == -1 {
+		return nil, fmt.Errorf("root block not found")
 	}
 	rootNode := newNode(blocks[rootIdx])
 	hQC = rootNode.data.CommitQc

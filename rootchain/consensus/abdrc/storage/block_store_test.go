@@ -165,6 +165,25 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	require.Nil(t, bStore)
 }
 
+func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	// create a chain that has not got a root block
+	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
+	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
+	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
+	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
+	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
+	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
+	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
+	b8.CommitQc = nil
+	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
+	// load from DB
+	bStore, err := New(gocrypto.SHA256, pg, db)
+	require.ErrorContains(t, err, "init failed, root block not found")
+	require.Nil(t, bStore)
+}
+
 func TestHandleTcError(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	require.ErrorContains(t, bStore.ProcessTc(nil), "tc is nil")

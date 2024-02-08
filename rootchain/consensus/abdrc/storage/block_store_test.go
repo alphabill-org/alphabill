@@ -111,6 +111,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 			Hash:                 test.RandomBytes(32),
 		},
 	})
+	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
 	b8 := fakeBlock(8, &drctypes.QuorumCert{
@@ -121,6 +122,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 			Hash:                 test.RandomBytes(32),
 		},
 	})
+	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
+	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
 	bStore, err := New(gocrypto.SHA256, pg, db)

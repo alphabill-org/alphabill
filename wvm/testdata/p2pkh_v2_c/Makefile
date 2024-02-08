@@ -1,6 +1,6 @@
 CC = clang
 CXX = clang++
-LD = wasm-ld-15
+LD = wasm-ld
 
 # Optional dependency from binaryen for smaller builds
 WASM_OPT = wasm-opt

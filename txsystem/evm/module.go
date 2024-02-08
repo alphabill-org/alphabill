@@ -40,8 +40,22 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 	}
 }
 
-func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return txsystem.ValidateGenericTransaction
+func (m *Module) GenericTransactionValidator() genericTransactionValidator {
+	return func(ctx *TxValidationContext) error {
+		if ctx.Tx.SystemID() != ctx.SystemIdentifier {
+			return txsystem.ErrInvalidSystemIdentifier
+		}
+
+		if ctx.BlockNumber >= ctx.Tx.Timeout() {
+			return txsystem.ErrTransactionExpired
+		}
+
+		if ctx.Unit != nil {
+			return txsystem.VerifyUnitOwnerProof(ctx.Tx, ctx.Unit.Bearer())
+		}
+
+		return nil
+	}
 }
 
 func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) error {

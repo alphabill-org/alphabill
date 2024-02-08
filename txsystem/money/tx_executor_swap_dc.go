@@ -116,6 +116,9 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if unitData == nil {
 		return fmt.Errorf("target unit is nil id=%X", c.tx.UnitID())
 	}
+	if err := txsystem.VerifyUnitOwnerProof(c.tx, unitData.Bearer()); err != nil {
+		return err
+	}
 	billData, ok := unitData.Data().(*BillData)
 	if !ok {
 		return fmt.Errorf("target unit invalid data type")

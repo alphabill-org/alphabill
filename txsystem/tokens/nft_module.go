@@ -22,7 +22,3 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
 	return n.txExecutors
 }
-
-func (n *NonFungibleTokensModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return ValidateGenericTransaction
-}

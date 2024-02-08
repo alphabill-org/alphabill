@@ -10,7 +10,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -314,7 +314,7 @@ func TestSwap(t *testing.T) {
 		},
 		{
 			name: "InvalidTargetValue",
-			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetValueSwap(t)),
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetValueSwap(t, signer)),
 			err:  "target value must be equal to the sum of dust transfer values",
 		},
 		{
@@ -344,17 +344,17 @@ func TestSwap(t *testing.T) {
 		},
 		{
 			name: "InvalidProofsNil",
-			ctx:  newSwapValidationContext(t, verifier, newDcProofsNilSwap(t)),
+			ctx:  newSwapValidationContext(t, verifier, newDcProofsNilSwap(t, signer)),
 			err:  "invalid count of proofs",
 		},
 		{
 			name: "InvalidEmptyDcProof",
-			ctx:  newSwapValidationContext(t, verifier, newEmptyDcProofsSwap(t)),
+			ctx:  newSwapValidationContext(t, verifier, newEmptyDcProofsSwap(t, signer)),
 			err:  "unicity certificate is nil",
 		},
 		{
 			name: "InvalidDcProofInvalid",
-			ctx:  newSwapValidationContext(t, verifier, newInvalidDcProofsSwap(t)),
+			ctx:  newSwapValidationContext(t, verifier, newInvalidDcProofsSwap(t, signer)),
 			err:  "invalid unicity seal signature",
 		},
 	}
@@ -689,7 +689,7 @@ func TestUnlockTx(t *testing.T) {
 	}
 }
 
-func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
+func newInvalidTargetValueSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	transferId := newBillID(1)
 	swapId := newBillID(255)
 
@@ -698,7 +698,7 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 		Value:        90,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -714,8 +714,9 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
@@ -727,7 +728,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 		Value:        100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -743,8 +744,9 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
@@ -775,7 +777,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
 
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -791,8 +793,9 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
@@ -811,7 +814,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -827,8 +830,9 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
@@ -853,17 +857,16 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 	return createSwapDCTransactionOrder(t, signer, swapId, transferDCRecord)
 }
 
-func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
+func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	transferId := newBillID(1)
 	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
-
-		Value:    100,
-		Backlink: []byte{6},
+		Value:        100,
+		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -879,11 +882,12 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
-func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
+func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	transferId := newBillID(1)
 	swapId := newBillID(255)
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
@@ -891,7 +895,7 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 		Value:        100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -907,13 +911,18 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
-func newInvalidDcProofsSwap(t *testing.T) *types.TransactionOrder {
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	return newSwapDC(t, signer)
+func newInvalidDcProofsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+	UCSigner, _ := testsig.CreateSignerAndVerifier(t)
+	txo := newSwapDC(t, UCSigner)
+	// newSwapDC uses passed in signer for both trustbase and txo
+	// so we need to reset owner proof to the correct tx signer
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
@@ -932,7 +941,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 	for _, dcTx := range transferDCRecords {
 		proofs = append(proofs, testblock.CreateProof(t, dcTx, signer))
 	}
-	return testtransaction.NewTransactionOrder(
+	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -948,8 +957,9 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(nil),
 	)
+	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	return txo
 }
 
 func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *TransferDCAttributes) *types.TransactionRecord {
@@ -1008,7 +1018,10 @@ func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *
 	attr := &SwapDCAttributes{}
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 
-	unit := state.NewUnit(nil, &BillData{
+	// NB! using the same pubkey for trustbase and unit bearer! TODO: use different keys...
+	pubKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	unit := state.NewUnit(templates.NewP2pkh256BytesFromKey(pubKey), &BillData{
 		V:        0,
 		T:        0,
 		Backlink: nil,

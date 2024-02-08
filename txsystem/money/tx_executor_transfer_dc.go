@@ -57,19 +57,22 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 		// record dust bills for later deletion TODO AB-1133
 		// dustCollector.AddDustBill(unitID, currentBlockNumber)
 		return &types.ServerMetadata{
-			ActualFee: fee,
-			TargetUnits: []types.UnitID{unitID, DustCollectorMoneySupplyID},
+			ActualFee:        fee,
+			TargetUnits:      []types.UnitID{unitID, DustCollectorMoneySupplyID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		}, nil
 	}
 }
 
 func validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes, s *state.State) error {
-	data, err := s.GetUnit(tx.UnitID(), false)
+	unit, err := s.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	return validateTransferDC(data.Data(), attr)
+	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		return err
+	}
+	return validateTransferDC(unit.Data(), attr)
 }
 
 func validateTransferDC(data state.UnitData, tx *TransferDCAttributes) error {

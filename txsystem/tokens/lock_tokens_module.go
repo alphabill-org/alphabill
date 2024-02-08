@@ -20,7 +20,3 @@ func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
 func (n *LockTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
 	return n.txExecutors
 }
-
-func (n *LockTokensModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return ValidateGenericTransaction
-}

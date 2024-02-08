@@ -5,18 +5,16 @@ import "github.com/alphabill-org/alphabill/txsystem"
 var _ txsystem.Module = (*LockTokensModule)(nil)
 
 type LockTokensModule struct {
-	txExecutors map[string]txsystem.TxExecutor
+	options *Options
 }
 
 func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
-	return &LockTokensModule{
-		txExecutors: map[string]txsystem.TxExecutor{
-			PayloadTypeLockToken:   handleLockTokenTx(options),
-			PayloadTypeUnlockToken: handleUnlockTokenTx(options),
-		},
-	}, nil
+	return &LockTokensModule{options: options}, nil
 }
 
-func (n *LockTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
-	return n.txExecutors
+func (n *LockTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
+		PayloadTypeLockToken:   handleLockTokenTx(n.options).ExecuteFunc(),
+		PayloadTypeUnlockToken: handleUnlockTokenTx(n.options).ExecuteFunc(),
+	}
 }

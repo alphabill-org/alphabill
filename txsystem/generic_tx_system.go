@@ -18,7 +18,7 @@ import (
 var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 type Module interface {
-	TxExecutors() map[string]TxExecutor
+	TxExecutors() map[string]ExecuteFunc
 }
 
 type GenericTxSystem struct {
@@ -47,15 +47,15 @@ func NewGenericTxSystem(log *slog.Logger, feeChecker FeeCreditBalanceValidator, 
 		state:                 options.state,
 		beginBlockFunctions:   options.beginBlockFunctions,
 		endBlockFunctions:     options.endBlockFunctions,
-		executors:             make(map[string]TxExecutor),
+		executors:             make(TxExecutors),
 		checkFeeCreditBalance: feeChecker,
 		log:                   log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+
 	for _, module := range modules {
-		executors := module.TxExecutors()
-		for k, executor := range executors {
-			txs.executors[k] = executor
+		if err := txs.executors.Add(module.TxExecutors()); err != nil {
+			return nil, fmt.Errorf("registering tx executors: %w", err)
 		}
 	}
 

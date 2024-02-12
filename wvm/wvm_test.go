@@ -22,13 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed testdata/empty.wasm
+//go:embed testdata/empty/target/wasm32-unknown-unknown/release/empty.wasm
 var emptyWasm []byte
 
-//go:embed testdata/add_one.wasm
+//go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
 var addWasm []byte
 
-//go:embed testdata/invalid_api.wasm
+//go:embed testdata/missingHostAPI/target/wasm32-unknown-unknown/release/invalid_api.wasm
 var invalidAPIWasm []byte
 
 //go:embed testdata/p2pkh_v1/p2pkh.wasm

@@ -66,11 +66,14 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 }
 
 func validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, s *state.State) error {
-	data, err := s.GetUnit(tx.UnitID(), false)
+	unit, err := s.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	return validateSplit(data.Data(), attr)
+	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		return err
+	}
+	return validateSplit(unit.Data(), attr)
 }
 
 func validateSplit(data state.UnitData, attr *SplitAttributes) error {

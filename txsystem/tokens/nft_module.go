@@ -5,24 +5,18 @@ import "github.com/alphabill-org/alphabill/txsystem"
 var _ txsystem.Module = &NonFungibleTokensModule{}
 
 type NonFungibleTokensModule struct {
-	txExecutors map[string]txsystem.TxExecutor
+	options *Options
 }
 
 func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, error) {
-	return &NonFungibleTokensModule{
-		txExecutors: map[string]txsystem.TxExecutor{
-			PayloadTypeCreateNFTType: handleCreateNoneFungibleTokenTx(options),
-			PayloadTypeMintNFT:       handleMintNonFungibleTokenTx(options),
-			PayloadTypeTransferNFT:   handleTransferNonFungibleTokenTx(options),
-			PayloadTypeUpdateNFT:     handleUpdateNonFungibleTokenTx(options),
-		},
-	}, nil
+	return &NonFungibleTokensModule{options: options}, nil
 }
 
-func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
-	return n.txExecutors
-}
-
-func (n *NonFungibleTokensModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return ValidateGenericTransaction
+func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
+		PayloadTypeCreateNFTType: handleCreateNoneFungibleTokenTx(n.options).ExecuteFunc(),
+		PayloadTypeMintNFT:       handleMintNonFungibleTokenTx(n.options).ExecuteFunc(),
+		PayloadTypeTransferNFT:   handleTransferNonFungibleTokenTx(n.options).ExecuteFunc(),
+		PayloadTypeUpdateNFT:     handleUpdateNonFungibleTokenTx(n.options).ExecuteFunc(),
+	}
 }

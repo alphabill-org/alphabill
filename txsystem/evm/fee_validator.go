@@ -5,7 +5,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
 )
@@ -16,8 +15,8 @@ func isFeeCreditTx(tx *types.TransactionOrder) bool {
 		typeUrl == transactions.PayloadTypeCloseFeeCredit
 }
 
-func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValidator {
-	return func(ctx *txsystem.TxValidationContext) error {
+func checkFeeAccountBalance(state *state.State) genericTransactionValidator {
+	return func(ctx *TxValidationContext) error {
 		if isFeeCreditTx(ctx.Tx) {
 			addr, err := getAddressFromPredicateArg(ctx.Tx.OwnerProof)
 			if err != nil {

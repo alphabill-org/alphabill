@@ -111,6 +111,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 			Hash:                 test.RandomBytes(32),
 		},
 	})
+	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
 	b8 := fakeBlock(8, &drctypes.QuorumCert{
@@ -121,6 +122,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 			Hash:                 test.RandomBytes(32),
 		},
 	})
+	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
+	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
 	bStore, err := New(gocrypto.SHA256, pg, db)
@@ -150,12 +153,34 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
+	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
+	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
+	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
 	bStore, err := New(gocrypto.SHA256, pg, db)
 	require.ErrorContains(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
+	require.Nil(t, bStore)
+}
+
+func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	// create a chain that has not got a root block
+	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
+	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
+	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
+	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
+	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
+	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
+	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
+	b8.CommitQc = nil
+	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
+	// load from DB
+	bStore, err := New(gocrypto.SHA256, pg, db)
+	require.ErrorContains(t, err, "init failed, root block not found")
 	require.Nil(t, bStore)
 }
 

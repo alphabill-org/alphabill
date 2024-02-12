@@ -88,23 +88,6 @@ func (mn *MockNode) GetPeer() *network.Peer {
 	return nil
 }
 
-func (mn *MockNode) GetUnit(unitID []byte, returnProof bool) (*types.UnitDataAndProof, error) {
-	if mn.err != nil {
-		return nil, mn.err
-	}
-	unitAndProof := &types.UnitDataAndProof{}
-	unitAndProof.UnitData = &types.StateUnitData{
-		Data:   cbor.RawMessage{0x81, 0x00},
-		Bearer: types.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
-	}
-	if returnProof {
-		unitAndProof.Proof = &types.UnitStateProof{
-			UnitID: unitID,
-		}
-	}
-	return unitAndProof, nil
-}
-
 func (mn *MockNode) SerializeState(writer io.Writer) error {
 	return nil
 }

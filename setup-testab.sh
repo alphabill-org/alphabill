@@ -66,14 +66,14 @@ tokensSdr='{"system_identifier": 2, "t2timeout": 2500, "fee_credit_bill": {"unit
 fi
 # Generate evm nodes genesis files.
 if [ "$evm_nodes" -ne 0 ]; then
-  evmSdr='{"system_identifier": 3, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  evmSdr='{"system_identifier": 3, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$evmSdr" >testab/evm-sdr.json
   moneySdrFlags+=" -c testab/evm-sdr.json"
   generate_partition_node_genesis "evm" "$evm_nodes"
 fi
 # Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
-  moneySdr='{"system_identifier": 1, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  moneySdr='{"system_identifier": 1, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$moneySdr" >testab/money-sdr.json
   moneySdrFlags+=" -c testab/money-sdr.json"
   generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"

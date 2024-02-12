@@ -23,6 +23,9 @@ func handleUnlockTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCal
 		if unit == nil {
 			return nil, fmt.Errorf("unlock tx: unit not found %X", tx.UnitID())
 		}
+		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+			return nil, err
+		}
 		billData, ok := unit.Data().(*BillData)
 		if !ok {
 			return nil, errors.New("unlock tx: invalid unit type")

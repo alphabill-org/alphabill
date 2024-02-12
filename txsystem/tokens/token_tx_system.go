@@ -67,6 +67,7 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	}
 	return txsystem.NewGenericTxSystem(
 		log,
+		feeCreditModule.CheckFeeCreditBalance,
 		[]txsystem.Module{nft, fungible, lockTokens, feeCreditModule},
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

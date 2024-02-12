@@ -39,11 +39,14 @@ func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeC
 }
 
 func validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes, s *state.State) error {
-	data, err := s.GetUnit(tx.UnitID(), false)
+	unit, err := s.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	return validateTransfer(data.Data(), attr)
+	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		return err
+	}
+	return validateTransfer(unit.Data(), attr)
 }
 
 func validateTransfer(data state.UnitData, attr *TransferAttributes) error {

@@ -13,6 +13,7 @@ fn panic(_panic: &core::panic::PanicInfo<'_>) -> ! {
 
 
 // not public and also not marked #[no_mangle]
+// since it is not marked public the compiler will optimize and remove this method
 fn add(x: i32) -> i32 {
     x + 1
 }

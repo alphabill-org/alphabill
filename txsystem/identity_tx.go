@@ -44,7 +44,7 @@ func validateIdentityTx(tx *types.TransactionOrder, s *state.State) error {
 		return fmt.Errorf("identity tx: %w", err)
 	}
 
-	// depending whether the unit has the state lock or not, the order of the checks is different
+	// depending on whether the unit has the state lock or not, the order of the checks is different
 	// that is, if the lock is present, bearer check must be performed only after the unit is unlocked, yielding new state
 	if u.IsStateLocked() {
 		if err := validateUnitStateLock(tx, s, u); err != nil {

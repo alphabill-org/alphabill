@@ -202,3 +202,5 @@ func (r *RawCBOR) UnmarshalCBOR(data []byte) error {
 	copy(*r, data)
 	return nil
 }
+
+type PredicateBytes []byte

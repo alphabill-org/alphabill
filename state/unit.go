@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -14,13 +14,13 @@ type (
 
 	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
 	Unit struct {
-		logs                logs                      // state changes of the unit.
-		logRoot             []byte                    // root value of the hash tree built on the state log.
-		bearer              predicates.PredicateBytes // current bearer condition
-		data                UnitData                  // current data of the unit
-		stateLockTx         []byte                    // bytes of transaction that locked the unit
-		subTreeSummaryValue uint64                    // current summary value of the sub-tree rooted at this node
-		subTreeSummaryHash  []byte                    // summary hash of the sub-tree rooted at this node
+		logs                logs                 // state changes of the unit.
+		logRoot             []byte               // root value of the hash tree built on the state log.
+		bearer              types.PredicateBytes // current bearer condition
+		data                UnitData             // current data of the unit
+		stateLockTx         []byte               // bytes of transaction that locked the unit
+		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
+		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
 	}
 
@@ -35,7 +35,7 @@ type (
 	Log struct {
 		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
-		NewBearer          predicates.PredicateBytes
+		NewBearer          types.PredicateBytes
 		NewUnitData        UnitData
 		NewStateLockTx     []byte
 	}
@@ -44,7 +44,7 @@ type (
 	logs []*Log
 )
 
-func NewUnit(bearer predicates.PredicateBytes, data UnitData) *Unit {
+func NewUnit(bearer types.PredicateBytes, data UnitData) *Unit {
 	return &Unit{
 		bearer: bearer,
 		data:   data,
@@ -68,7 +68,7 @@ func (u *Unit) String() string {
 	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
 }
 
-func (u *Unit) Bearer() predicates.PredicateBytes {
+func (u *Unit) Bearer() types.PredicateBytes {
 	return bytes.Clone(u.bearer)
 }
 

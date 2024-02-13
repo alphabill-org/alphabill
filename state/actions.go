@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -26,7 +25,7 @@ type (
 )
 
 // AddUnit adds a new unit with given identifier, owner condition, unit data.
-func AddUnit(id types.UnitID, bearer predicates.PredicateBytes, data UnitData) Action {
+func AddUnit(id types.UnitID, bearer types.PredicateBytes, data UnitData) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
@@ -82,7 +81,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 }
 
 // SetOwner changes the owner of the item, leaves data as is
-func SetOwner(id types.UnitID, bearer predicates.PredicateBytes) Action {
+func SetOwner(id types.UnitID, bearer types.PredicateBytes) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")

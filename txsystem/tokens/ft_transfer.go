@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -81,7 +80,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.PredicateBytes, *FungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateBytes, *FungibleTokenData, error) {
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}

@@ -11,7 +11,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/money"
@@ -85,7 +84,7 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 	if returnData {
 		unitAndProof.UnitData = &types.StateUnitData{
 			Data:   cbor.RawMessage{0x81, 0x00},
-			Bearer: predicates.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
+			Bearer: types.PredicateBytes{0x83, 0x00, 0x01, 0xF6},
 		}
 	}
 	if returnProof {

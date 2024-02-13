@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -32,7 +31,7 @@ const initialDustCollectorMoneyAmount uint64 = 100
 type InitialBill struct {
 	ID    types.UnitID
 	Value uint64
-	Owner predicates.PredicateBytes
+	Owner types.PredicateBytes
 }
 
 var (
@@ -75,7 +74,7 @@ func TestNewTxSystem(t *testing.T) {
 	require.NotNil(t, d)
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, predicates.PredicateBytes(DustCollectorPredicate), d.Bearer())
+	require.Equal(t, types.PredicateBytes(DustCollectorPredicate), d.Bearer())
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
@@ -211,7 +210,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-	require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+	require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 	require.EqualValues(t, 0, bd.Locked)
 }
@@ -262,7 +261,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		require.NotNil(t, bd)
 		require.Equal(t, amount, bd.V)
 		require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-		require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+		require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 		require.Equal(t, roundNumber, bd.T)
 	}
 }

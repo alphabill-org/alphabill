@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -166,7 +165,7 @@ type tokenData interface {
 	IsLocked() uint64
 }
 
-func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []predicates.PredicateBytes, d tokenData) error {
+func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []types.PredicateBytes, d tokenData) error {
 	// token is not locked
 	if d.IsLocked() != 0 {
 		return errors.New("token is already locked")

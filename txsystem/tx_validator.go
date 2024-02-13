@@ -13,7 +13,7 @@ var (
 	ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")
 )
 
-func VerifyUnitOwnerProof(tx *types.TransactionOrder, bearer predicates.PredicateBytes) error {
+func VerifyUnitOwnerProof(tx *types.TransactionOrder, bearer types.PredicateBytes) error {
 	payloadBytes, err := tx.PayloadBytes()
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)

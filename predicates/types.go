@@ -1,12 +1,13 @@
 package predicates
 
-import "github.com/fxamacker/cbor/v2"
+import (
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+)
 
 const MaxBearerBytes = 65536
 
 type (
-	PredicateBytes []byte
-
 	Predicate struct {
 		_      struct{} `cbor:",toarray"`
 		Tag    uint64

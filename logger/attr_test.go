@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,6 +133,102 @@ func Test_dataName(t *testing.T) {
 			t.Errorf("[%d] expected %q got %q for %#v", n, tc.name, name, tc.value.Any())
 		}
 	}
+}
+
+func Test_formatPeerIDAttr(t *testing.T) {
+	lineKey := "peerId"
+	peerId, err := p2ptest.RandPeerID()
+	require.NoError(t, err)
+
+	noFmt := formatPeerIDAttr("none")
+	lineFmt := noFmt(nil, slog.Any(lineKey, peerId))
+	require.Equal(t, slog.Attr{}, lineFmt)
+
+	shortFmt := formatPeerIDAttr("short")
+	lineFmt = shortFmt(nil, slog.Any(lineKey, peerId))
+	require.Equal(t, lineKey, lineFmt.Key)
+	require.NotEmpty(t, lineFmt.Value)
+
+	invalidFmt := formatPeerIDAttr("invalid")
+	require.Nil(t, invalidFmt)
+}
+
+func Test_formatDataAttrAsJSON(t *testing.T) {
+	type SampleData struct {
+		Name  string
+		Value string
+	}
+
+	jsonFmt := formatDataAttrAsJSON(nil, slog.Any(DataKey, &SampleData{Name: "Test", Value: "JSON"}))
+	require.Equal(t, DataKey, jsonFmt.Key)
+	require.Equal(t, `{"Name":"Test","Value":"JSON"}`, jsonFmt.Value.String())
+}
+
+func Test_formatAttrWallet(t *testing.T) {
+	sampleData := "sample data"
+	walletFmt := formatAttrWallet(nil, slog.Any(slog.LevelKey, sampleData))
+	require.Equal(t, slog.LevelKey, walletFmt.Key)
+	require.Equal(t, sampleData, walletFmt.Value.String())
+
+	walletFmt = formatAttrWallet(nil, slog.Any(slog.MessageKey, sampleData))
+	require.Equal(t, slog.MessageKey, walletFmt.Key)
+	require.Equal(t, sampleData, walletFmt.Value.String())
+
+	walletFmt = formatAttrWallet(nil, slog.Any(ErrorKey, sampleData))
+	require.Equal(t, ErrorKey, walletFmt.Key)
+	require.Equal(t, sampleData, walletFmt.Value.String())
+
+	emptyFmt := formatAttrWallet(nil, slog.Any(slog.TimeKey, sampleData))
+	require.Equal(t, slog.Attr{}, emptyFmt)
+}
+
+func Test_formatAttrECS(t *testing.T) {
+	sampleData := "sample data"
+	testFmt := formatAttrECS(nil, slog.Any(slog.MessageKey, sampleData))
+	require.Equal(t, "message", testFmt.Key)
+	require.Equal(t, sampleData, testFmt.Value.String())
+
+	source := &slog.Source{
+		Function: "sample function",
+		File:     "sample.spl",
+		Line:     10,
+	}
+	testFmt = formatAttrECS(nil, slog.Any(slog.SourceKey, source))
+	require.Equal(t, "log", testFmt.Key)
+	require.Equal(t, "origin", testFmt.Value.Group()[0].Key)
+	require.Equal(t, "function", testFmt.Value.Group()[0].Value.Group()[0].Key)
+	require.Equal(t, source.Function, testFmt.Value.Group()[0].Value.Group()[0].Value.String())
+	require.Equal(t, "file", testFmt.Value.Group()[0].Value.Group()[1].Key)
+	require.Equal(t, "name", testFmt.Value.Group()[0].Value.Group()[1].Value.Group()[0].Key)
+	require.Equal(t, source.File, testFmt.Value.Group()[0].Value.Group()[1].Value.Group()[0].Value.String())
+	require.Equal(t, "line", testFmt.Value.Group()[0].Value.Group()[1].Value.Group()[1].Key)
+	require.Equal(t, int64(source.Line), testFmt.Value.Group()[0].Value.Group()[1].Value.Group()[1].Value.Int64())
+
+	testFmt = formatAttrECS(nil, slog.Any(NodeIDKey, sampleData))
+	require.Equal(t, "service", testFmt.Key)
+	require.Equal(t, "node", testFmt.Value.Group()[0].Key)
+	require.Equal(t, "name", testFmt.Value.Group()[0].Value.Group()[0].Key)
+	require.Equal(t, sampleData, testFmt.Value.Group()[0].Value.Group()[0].Value.String())
+
+	testFmt = formatAttrECS(nil, slog.Any(ErrorKey, sampleData))
+	require.Equal(t, "error", testFmt.Key)
+	require.Equal(t, "message", testFmt.Value.Group()[0].Key)
+	require.Equal(t, sampleData, testFmt.Value.Group()[0].Value.String())
+
+	testFmt = formatAttrECS(nil, slog.Any(DataKey, sampleData))
+	require.Equal(t, DataKey, testFmt.Key)
+	require.Equal(t, "String", testFmt.Value.Group()[0].Key)
+	require.Equal(t, sampleData, testFmt.Value.Group()[0].Value.String())
+
+	testFmt = formatAttrECS(nil, slog.Any(traceID, sampleData))
+	require.Equal(t, "trace", testFmt.Key)
+	require.Equal(t, "id", testFmt.Value.Group()[0].Key)
+	require.Equal(t, sampleData, testFmt.Value.Group()[0].Value.String())
+
+	testFmt = formatAttrECS(nil, slog.Any(spanID, sampleData))
+	require.Equal(t, "span", testFmt.Key)
+	require.Equal(t, "id", testFmt.Value.Group()[0].Key)
+	require.Equal(t, sampleData, testFmt.Value.Group()[0].Value.String())
 }
 
 type customLogValuer int

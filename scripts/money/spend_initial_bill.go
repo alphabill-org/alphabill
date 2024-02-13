@@ -75,11 +75,18 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
+	err = execInitialBill(ctx, txClient, *timeout, billID, *billValue, pubKey)
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := res.RoundNumber + *timeout
+}
+
+func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClient, timeout uint64, billID types.UnitID, billValue uint64, pubKey []byte) error {
+	res, err := client.GetRoundNumber(ctx, &emptypb.Empty{})
+	if err != nil {
+		return err
+	}
+	absoluteTimeout := res.RoundNumber + timeout
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
@@ -91,25 +98,25 @@ func main() {
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	transferFCBytes, err := cbor.Marshal(transferFC)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	protoTransferFC := &alphabill.Transaction{Order: transferFCBytes}
 
 	// send transferFC
-	_, err = txClient.ProcessTransaction(ctx, protoTransferFC)
+	_, err = client.ProcessTransaction(ctx, protoTransferFC)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	log.Println("sent transferFC transaction")
 
 	// wait for transferFC proof
-	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, res.RoundNumber, absoluteTimeout)
+	transferFCProof, err := waitForConfirmation(ctx, client, transferFC, res.RoundNumber, absoluteTimeout)
 	if err != nil {
-		log.Fatalf("failed to confirm transferFC transaction %v", err)
+		return fmt.Errorf("failed to confirm transferFC transaction %v", err)
 	} else {
 		log.Println("confirmed transferFC transaction")
 	}
@@ -117,45 +124,47 @@ func main() {
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCProof.TxRecord, transferFCProof.TxProof, absoluteTimeout, feeAmount)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	addFCBytes, err := cbor.Marshal(addFC)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	protoAddFC := &alphabill.Transaction{Order: addFCBytes}
 
 	// send addFC
-	_, err = txClient.ProcessTransaction(ctx, protoAddFC)
+	_, err = client.ProcessTransaction(ctx, protoAddFC)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	log.Println("sent addFC transaction")
 
 	// wait for addFC confirmation
-	_, err = waitForConfirmation(ctx, txClient, addFC, res.RoundNumber, absoluteTimeout)
+	_, err = waitForConfirmation(ctx, client, addFC, res.RoundNumber, absoluteTimeout)
 	if err != nil {
-		log.Fatalf("failed to confirm addFC transaction %v", err)
+		return fmt.Errorf("failed to confirm addFC transaction %v", err)
 	} else {
 		log.Println("confirmed addFC transaction")
 	}
 
 	// create transfer tx
-	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubKey, billID, billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	txBytes, err := cbor.Marshal(tx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// send transfer tx
 	protoTransferTx := &alphabill.Transaction{Order: txBytes}
-	if _, err := txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
-		log.Fatal(err)
+	if _, err := client.ProcessTransaction(ctx, protoTransferTx); err != nil {
+		return err
 	}
 	log.Println("successfully sent initial bill transfer transaction")
+
+	return nil
 }
 
 func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {

@@ -6,6 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -22,7 +23,7 @@ type feeCreditTxRecorder struct {
 
 type transferFeeCreditTx struct {
 	tx   *types.TransactionOrder
-	fee  uint64
+	fee  fct.Fee
 	attr *transactions.TransferFeeCreditAttributes
 }
 
@@ -30,8 +31,8 @@ type reclaimFeeCreditTx struct {
 	tx                  *types.TransactionOrder
 	attr                *transactions.ReclaimFeeCreditAttributes
 	closeFCTransferAttr *transactions.CloseFeeCreditAttributes
-	reclaimFee          uint64
-	closeFee            uint64
+	reclaimFee          fct.Fee
+	closeFee            fct.Fee
 }
 
 func newFeeCreditTxRecorder(s *state.State, systemIdentifier types.SystemID, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
@@ -58,24 +59,24 @@ func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
 }
 
-func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) uint64 {
-	var sum uint64
+func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) fct.Fee {
+	var sum fct.Fee
 	for _, transferFC := range f.transferFeeCredits[sid] {
 		sum += transferFC.attr.Amount - transferFC.fee
 	}
 	return sum
 }
 
-func (f *feeCreditTxRecorder) getReclaimedCredit(sid types.SystemID) uint64 {
-	var sum uint64
+func (f *feeCreditTxRecorder) getReclaimedCredit(sid types.SystemID) fct.Fee {
+	var sum fct.Fee
 	for _, reclaimFC := range f.reclaimFeeCredits[sid] {
 		sum += reclaimFC.closeFCTransferAttr.Amount - reclaimFC.closeFee
 	}
 	return sum
 }
 
-func (f *feeCreditTxRecorder) getSpentFeeSum() uint64 {
-	var sum uint64
+func (f *feeCreditTxRecorder) getSpentFeeSum() fct.Fee {
+	var sum fct.Fee
 	for _, transferFCs := range f.transferFeeCredits {
 		for _, transferFC := range transferFCs {
 			sum += transferFC.fee
@@ -113,7 +114,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
-				bd.V = bd.V + addedCredit - reclaimedCredit
+				bd.V = bd.V + uint64(addedCredit-reclaimedCredit)
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)
@@ -141,7 +142,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}
-				bd.V = bd.V + spentFeeSum
+				bd.V = bd.V + uint64(spentFeeSum)
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)

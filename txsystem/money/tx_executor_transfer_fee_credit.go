@@ -52,7 +52,7 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
-			newBillData.V -= attr.Amount
+			newBillData.V -= uint64(attr.Amount)
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
 			return newBillData, nil
@@ -92,7 +92,7 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if attr.Amount > bd.V {
+	if uint64(attr.Amount) > bd.V {
 		return ErrInvalidFCValue
 	}
 	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -25,11 +26,11 @@ type (
 		log              *slog.Logger
 	}
 
-	FeeCalculator func() uint64
+	FeeCalculator func() fct.Fee
 )
 
-func FixedFee(fee uint64) FeeCalculator {
-	return func() uint64 {
+func FixedFee(fee fct.Fee) FeeCalculator {
+	return func() fct.Fee {
 		return fee
 	}
 }

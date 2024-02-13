@@ -6,6 +6,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -13,11 +14,11 @@ import (
 // Holds fee credit balance for individual users,
 // not to be confused with fee credit bills which contain aggregate fees for a given partition.
 type FeeCreditRecord struct {
-	_        struct{} `cbor:",toarray"`
-	Balance  uint64   // current balance
-	Backlink []byte   // hash of the last “addFC”, "closeFC", "lockFC" or "unlockFC" transaction
-	Timeout  uint64   // the earliest round number when this record may be “garbage collected” if the balance goes to zero
-	Locked   uint64   // locked status of the fee credit record, non-zero value means locked
+	_        struct{}  `cbor:",toarray"`
+	Balance  types.Fee // current balance
+	Backlink []byte    // hash of the last “addFC”, "closeFC", "lockFC" or "unlockFC" transaction
+	Timeout  uint64    // the earliest round number when this record may be “garbage collected” if the balance goes to zero
+	Locked   uint64    // locked status of the fee credit record, non-zero value means locked
 }
 
 func (b *FeeCreditRecord) Write(hasher hash.Hash) error {

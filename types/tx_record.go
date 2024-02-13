@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"errors"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -27,7 +28,7 @@ type (
 
 	ServerMetadata struct {
 		_                 struct{} `cbor:",toarray"`
-		ActualFee         uint64
+		ActualFee         types.Fee
 		TargetUnits       []UnitID
 		SuccessIndicator  TxStatus
 		ProcessingDetails RawCBOR
@@ -56,14 +57,14 @@ func (t *TransactionRecord) UnmarshalProcessingDetails(v any) error {
 	return t.ServerMetadata.UnmarshalDetails(v)
 }
 
-func (t *TransactionRecord) GetActualFee() uint64 {
+func (t *TransactionRecord) GetActualFee() types.Fee {
 	if t == nil {
 		return 0
 	}
 	return t.ServerMetadata.GetActualFee()
 }
 
-func (sm *ServerMetadata) GetActualFee() uint64 {
+func (sm *ServerMetadata) GetActualFee() types.Fee {
 	if sm == nil {
 		return 0
 	}

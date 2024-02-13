@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -23,7 +24,7 @@ type (
 
 	TransferFeeCreditAttributes struct {
 		_                      struct{}       `cbor:",toarray"`
-		Amount                 uint64         // amount to transfer
+		Amount                 fct.Fee        // amount to transfer
 		TargetSystemIdentifier types.SystemID // system_identifier of the target partition
 		TargetRecordID         []byte         // unit id of the corresponding “add fee credit” transaction
 		EarliestAdditionTime   uint64         // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
@@ -35,9 +36,9 @@ type (
 	CloseFeeCreditAttributes struct {
 		_ struct{} `cbor:",toarray"`
 
-		Amount             uint64 // current balance of the fee credit record
-		TargetUnitID       []byte // target unit id in money partition
-		TargetUnitBacklink []byte // the current state hash of the target unit in money partition
+		Amount             fct.Fee // current balance of the fee credit record
+		TargetUnitID       []byte  // target unit id in money partition
+		TargetUnitBacklink []byte  // the current state hash of the target unit in money partition
 	}
 
 	ReclaimFeeCreditAttributes struct {

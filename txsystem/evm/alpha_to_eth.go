@@ -7,6 +7,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/predicates"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
@@ -44,12 +45,12 @@ func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
 
 // alphaToWei - converts from alpha to wei, assuming 1:1 exchange
 // 1 wei = 1 tema / 10^10
-func alphaToWei(alpha uint64) *big.Int {
-	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
+func alphaToWei(alpha fct.Fee) *big.Int {
+	return new(big.Int).Mul(new(big.Int).SetUint64(uint64(alpha)), alpha2Wei)
 }
 
 // weiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
-func weiToAlpha(wei *big.Int) uint64 {
-	return new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
+func weiToAlpha(wei *big.Int) fct.Fee {
+	return fct.Fee(new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64())
 }

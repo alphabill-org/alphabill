@@ -23,6 +23,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
@@ -92,7 +93,7 @@ type (
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		proposedTransactions        []*types.TransactionRecord
-		sumOfEarnedFees             uint64
+		sumOfEarnedFees             fct.Fee
 		pendingBlockProposal        *pendingBlockProposal
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
@@ -315,7 +316,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 				luc.GetRoundNumber(), luc.InputRecord.BlockHash, bl.GetRoundNumber(), bl.Header.PreviousBlockHash)
 		}
 		var state txsystem.StateSummary
-		var sumOfEarnedFees uint64
+		var sumOfEarnedFees fct.Fee
 		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
@@ -401,7 +402,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 }
 
-func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
+func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees fct.Fee, ucIR *types.InputRecord) error {
 	if ucIR == nil {
 		return errors.New("unicity certificate input record is nil")
 	}
@@ -409,17 +410,17 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
-	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
+	} else if ucIR.SumOfEarnedFees != uint64(sumOfEarnedFees) {
 		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
 }
 
-func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, uint64, error) {
+func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, fct.Fee, error) {
 	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(attribute.Int64("round", int64(round))))
 	defer span.End()
 
-	var sumOfEarnedFees uint64
+	var sumOfEarnedFees fct.Fee
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
 	}
@@ -476,7 +477,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if pr.SumOfEarnedFees != sumOfEarnedFees {
+	if pr.SumOfEarnedFees != uint64(sumOfEarnedFees) {
 		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.SumOfEarnedFees, sumOfEarnedFees))
 		n.revertState()
 		return
@@ -1127,7 +1128,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStateHash) {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("received block does not extend last unicity certificate"))
 		}
-		var sumOfEarnedFees uint64
+		var sumOfEarnedFees fct.Fee
 		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, latestProcessedRoundNumber+1, b.Transactions)
 		if err != nil {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err))
@@ -1261,7 +1262,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		StateHash:       stateHash,
 		StateSummary:    summary,
 		Transactions:    n.proposedTransactions,
-		SumOfEarnedFees: n.sumOfEarnedFees,
+		SumOfEarnedFees: uint64(n.sumOfEarnedFees),
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		n.transactionSystem.Revert()

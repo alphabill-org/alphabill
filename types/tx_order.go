@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -13,11 +14,19 @@ var cborNil = []byte{0xf6}
 
 type (
 	TransactionOrder struct {
-		_          struct{} `cbor:",toarray"`
-		Payload    *Payload
-		OwnerProof []byte
-		FeeProof   []byte
+		_           struct{} `cbor:",toarray"`
+		Payload     *Payload
+		OwnerProof  []byte
+		FeeProof    []byte
+		StateUnlock []byte // two CBOR data items: [0|1]+[<state lock/rollback predicate input>]
 	}
+
+	//TransactionProofs struct { // TODO
+	//	_           struct{} `cbor:",toarray"`
+	//	Owner       []byte
+	//	Fee         []byte
+	//	StateUnlock []byte
+	//}
 
 	Payload struct {
 		_              struct{} `cbor:",toarray"`
@@ -25,13 +34,20 @@ type (
 		Type           string
 		UnitID         UnitID
 		Attributes     RawCBOR
+		StateLock      *StateLock
 		ClientMetadata *ClientMetadata
+	}
+
+	StateLock struct {
+		_                  struct{} `cbor:",toarray"`
+		ExecutionPredicate []byte   // this predicate has to be either nil or evaluate to true in order to execute the transaction
+		RollbackPredicate  []byte   // if this predicate evaluates to true, the lock is released and the "on hold" transaction is discarded
 	}
 
 	ClientMetadata struct {
 		_                 struct{} `cbor:",toarray"`
 		Timeout           uint64
-		MaxTransactionFee uint64
+		MaxTransactionFee fct.Fee
 		FeeCreditRecordID []byte
 	}
 
@@ -90,7 +106,7 @@ func (t *TransactionOrder) GetClientFeeCreditRecordID() []byte {
 	return t.Payload.ClientMetadata.FeeCreditRecordID
 }
 
-func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
+func (t *TransactionOrder) GetClientMaxTxFee() fct.Fee {
 	if t.Payload == nil || t.Payload.ClientMetadata == nil {
 		return 0
 	}

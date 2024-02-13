@@ -2,7 +2,7 @@ package tokens
 
 import "github.com/alphabill-org/alphabill/txsystem"
 
-var _ txsystem.Module = &NonFungibleTokensModule{}
+var _ txsystem.Module = (*NonFungibleTokensModule)(nil)
 
 type NonFungibleTokensModule struct {
 	options *Options

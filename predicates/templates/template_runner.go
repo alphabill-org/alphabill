@@ -24,7 +24,7 @@ func init() {
 	predicates.RegisterDefaultRunner(runner)
 }
 
-func (t *TemplateRunner) Execute(p *predicates.Predicate, sig []byte, sigData []byte) error {
+func (t *TemplateRunner) Execute(p *predicates.Predicate, ctx *predicates.PredicateContext) error {
 	if p == nil {
 		return fmt.Errorf("predicate is nil")
 	}
@@ -35,7 +35,7 @@ func (t *TemplateRunner) Execute(p *predicates.Predicate, sig []byte, sigData []
 	if err != nil {
 		return err
 	}
-	return tp.Execute(p.Params, sig, sigData)
+	return tp.Execute(p.Params, ctx.Input, ctx.PayloadBytes)
 }
 
 func newTemplateRunner() *TemplateRunner {

@@ -15,8 +15,14 @@ type (
 		Params []byte
 	}
 
+	PredicateContext struct {
+		Input        []byte
+		PayloadBytes []byte
+		Tx           *types.TransactionOrder
+	}
+
 	PredicateRunner interface {
-		Execute(p *Predicate, sig []byte, sigData []byte) error
+		Execute(p *Predicate, ctx *PredicateContext) error
 	}
 )
 

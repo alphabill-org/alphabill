@@ -43,40 +43,6 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 	require.NotNil(t, network)
 }
 
-func TestValidatorNetwork_ProcessTransactions(t *testing.T) {
-	t.SkipNow()
-	opts := ValidatorNetworkOptions{
-		ReceivedChannelCapacity:          1000,
-		TxBufferSize:                     1000,
-		TxBufferHashAlgorithm:            crypto.SHA256,
-		BlockCertificationTimeout:        300 * time.Millisecond,
-		BlockProposalTimeout:             300 * time.Millisecond,
-		LedgerReplicationRequestTimeout:  300 * time.Millisecond,
-		LedgerReplicationResponseTimeout: 300 * time.Millisecond,
-		HandshakeTimeout:                 300 * time.Millisecond,
-	}
-
-	h, err := libp2p.New([]config.Option{
-		libp2p.ListenAddrStrings(defaultAddress),
-	}...)
-	require.NoError(t, err)
-	network, err := NewLibP2PValidatorNetwork(&Peer{host: h}, opts, observability.Default(t))
-	require.NoError(t, err)
-	require.NotNil(t, network)
-
-	mockTxProcessor := &MockTxProcessor{received: make([]*types.TransactionOrder, 1)}
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-	go func() {
-		network.ProcessTransactions(ctx, mockTxProcessor.ProcessTransactions)
-	}()
-
-	tx := &types.TransactionOrder{}
-	_, err = network.AddTransaction(context.Background(), tx)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { return len(mockTxProcessor.received) > 0 }, 3*time.Second, 200*time.Millisecond)
-}
-
 func TestValidatorNetwork_ForwardTransaction(t *testing.T) {
 	opts := ValidatorNetworkOptions{
 		ReceivedChannelCapacity:          1000,

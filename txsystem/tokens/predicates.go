@@ -32,7 +32,7 @@ type (
 	}
 )
 
-func verifyPredicates(pbs []types.PredicateBytes, signatures [][]byte, sigData []byte) error {
+func verifyPredicates(pbs []predicates.PredicateBytes, signatures [][]byte, sigData []byte) error {
 	if len(pbs) != 0 {
 		if len(pbs) != len(signatures) {
 			return fmt.Errorf("number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(pbs))
@@ -48,8 +48,8 @@ func verifyPredicates(pbs []types.PredicateBytes, signatures [][]byte, sigData [
 	return nil
 }
 
-func getChainedPredicates[T state.UnitData](hashAlgorithm crypto.Hash, s *state.State, unitID types.UnitID, predicateFn func(d T) []byte, parentIDFn func(d T) types.UnitID) ([]types.PredicateBytes, error) {
-	predicates := make([]types.PredicateBytes, 0)
+func getChainedPredicates[T state.UnitData](hashAlgorithm crypto.Hash, s *state.State, unitID types.UnitID, predicateFn func(d T) []byte, parentIDFn func(d T) types.UnitID) ([]predicates.PredicateBytes, error) {
+	predicates := make([]predicates.PredicateBytes, 0)
 	var parentID = unitID
 	for {
 		if parentID == nil {
@@ -80,8 +80,8 @@ func getUnit[T state.UnitData](s *state.State, unitID types.UnitID) (*state.Unit
 	return u, d, nil
 }
 
-func verifyOwnership(bearer types.PredicateBytes, invariants []types.PredicateBytes, prover TokenOwnershipProver) error {
-	predicates := append([]types.PredicateBytes{bearer}, invariants...)
+func verifyOwnership(bearer predicates.PredicateBytes, invariants []predicates.PredicateBytes, prover TokenOwnershipProver) error {
+	predicates := append([]predicates.PredicateBytes{bearer}, invariants...)
 	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
 	sigBytes, err := prover.SigBytes()
 	if err != nil {

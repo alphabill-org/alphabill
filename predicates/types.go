@@ -1,6 +1,7 @@
 package predicates
 
 import (
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -17,6 +18,8 @@ type (
 	PredicateRunner interface {
 		Execute(p *Predicate, sig []byte, sigData []byte) error
 	}
+
+	PredicateBytes = types.Bytes
 )
 
 func ExtractPredicate(predicateBytes []byte) (*Predicate, error) {

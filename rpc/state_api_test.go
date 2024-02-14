@@ -57,7 +57,7 @@ func TestGetUnit(t *testing.T) {
 		require.NotNil(t, unit)
 		require.NotNil(t, unit.Data)
 		require.Nil(t, unit.StateProof)
-		require.EqualValues(t, types.PredicateBytes{0x83, 0x00, 0x41, 0x01, 0xF6}, unit.OwnerPredicate)
+		require.EqualValues(t, types.Bytes{0x83, 0x00, 0x41, 0x01, 0xF6}, unit.OwnerPredicate)
 	})
 	t.Run("get unit (proof=true)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, true)

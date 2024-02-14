@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	id    = []byte{4}
-	owner = types.PredicateBytes{1, 2, 3}
+	owner = predicates.PredicateBytes{1, 2, 3}
 )
 
 func TestAddCredit_OK(t *testing.T) {

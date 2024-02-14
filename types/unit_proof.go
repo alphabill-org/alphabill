@@ -50,7 +50,7 @@ type (
 
 	StateUnitData struct {
 		Data   cbor.RawMessage
-		Bearer PredicateBytes
+		Bearer Bytes
 	}
 
 	UnitDataAndProof struct {
@@ -62,8 +62,6 @@ type (
 	UnicityCertificateValidator interface {
 		Validate(uc *UnicityCertificate) error
 	}
-
-	PredicateBytes = Bytes
 )
 
 func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, unitData *StateUnitData, ucv UnicityCertificateValidator) error {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -159,7 +160,7 @@ func (l *UnlockTokenAttributes) SigBytes() ([]byte, error) {
 	return cbor.Marshal(signatureAttr)
 }
 
-func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, predicates []types.PredicateBytes, d tokenData) error {
+func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, predicates []predicates.PredicateBytes, d tokenData) error {
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")

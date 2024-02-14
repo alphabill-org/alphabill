@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -23,9 +24,9 @@ type SystemDescriptionRecord struct {
 }
 
 type FeeCreditBill struct {
-	_              struct{}             `cbor:",toarray"`
-	UnitID         types.UnitID         `json:"unit_id,omitempty"`
-	OwnerPredicate types.PredicateBytes `json:"owner_predicate,omitempty"`
+	_              struct{}                  `cbor:",toarray"`
+	UnitID         types.UnitID              `json:"unit_id,omitempty"`
+	OwnerPredicate predicates.PredicateBytes `json:"owner_predicate,omitempty"`
 }
 
 func (x *SystemDescriptionRecord) IsValid() error {

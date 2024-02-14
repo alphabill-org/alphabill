@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -91,7 +90,7 @@ func (t *P2pkh256) Execute(pubKeyHash, sig, sigData []byte) error {
 	return nil
 }
 
-func AlwaysFalseBytes() types.PredicateBytes {
+func AlwaysFalseBytes() predicates.PredicateBytes {
 	return alwaysFalseBytes
 }
 
@@ -99,7 +98,7 @@ func AlwaysTrueArgBytes() []byte {
 	return cborNull
 }
 
-func AlwaysTrueBytes() types.PredicateBytes {
+func AlwaysTrueBytes() predicates.PredicateBytes {
 	return alwaysTrueBytes
 }
 
@@ -111,12 +110,12 @@ func NewP2pkh256FromKeyHash(pubKeyHash []byte) predicates.Predicate {
 	return predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: pubKeyHash}
 }
 
-func NewP2pkh256BytesFromKey(pubKey []byte) types.PredicateBytes {
+func NewP2pkh256BytesFromKey(pubKey []byte) predicates.PredicateBytes {
 	pb, _ := cbor.Marshal(NewP2pkh256FromKey(pubKey))
 	return pb
 }
 
-func NewP2pkh256BytesFromKeyHash(pubKeyHash []byte) types.PredicateBytes {
+func NewP2pkh256BytesFromKeyHash(pubKeyHash []byte) predicates.PredicateBytes {
 	pb, _ := cbor.Marshal(NewP2pkh256FromKeyHash(pubKeyHash))
 	return pb
 }

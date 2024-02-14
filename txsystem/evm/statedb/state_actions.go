@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // CreateAccountAndAddCredit - creates EMV account from add fee credit
-func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *big.Int, timeout uint64, transactionRecordHash []byte) state.Action {
+func CreateAccountAndAddCredit(addr common.Address, owner predicates.PredicateBytes, balance *big.Int, timeout uint64, transactionRecordHash []byte) state.Action {
 	id := addr.Bytes()
 	stateObj := &StateObject{
 		Address: addr,

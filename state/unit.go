@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -16,7 +16,7 @@ type (
 	Unit struct {
 		logs                []*Log                    // state changes of the unit during the current round
 		logsHash            []byte                    // root value of the hash tree built on the logs
-		bearer              types.PredicateBytes      // current bearer condition
+		bearer              predicates.PredicateBytes // current bearer condition
 		data                UnitData                  // current data of the unit
 		subTreeSummaryValue uint64                    // current summary value of the sub-tree rooted at this node
 		subTreeSummaryHash  []byte                    // summary hash of the sub-tree rooted at this node
@@ -34,12 +34,12 @@ type (
 	Log struct {
 		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
-		NewBearer          types.PredicateBytes
+		NewBearer          predicates.PredicateBytes
 		NewUnitData        UnitData
 	}
 )
 
-func NewUnit(bearer types.PredicateBytes, data UnitData) *Unit {
+func NewUnit(bearer predicates.PredicateBytes, data UnitData) *Unit {
 	return &Unit{
 		bearer: bearer,
 		data:   data,
@@ -63,7 +63,7 @@ func (u *Unit) String() string {
 	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
 }
 
-func (u *Unit) Bearer() types.PredicateBytes {
+func (u *Unit) Bearer() predicates.PredicateBytes {
 	return bytes.Clone(u.bearer)
 }
 

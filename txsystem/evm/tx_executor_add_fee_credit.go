@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
@@ -27,7 +27,7 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transacti
 
 func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
+		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 		}

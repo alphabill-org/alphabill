@@ -31,6 +31,7 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	}
 	return txsystem.NewGenericTxSystem(
 		log,
+		feeCreditModule.CheckFeeCreditBalance,
 		[]txsystem.Module{money, feeCreditModule},
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),

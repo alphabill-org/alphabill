@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	abt "github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -17,7 +18,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 
 	t.Run("invalid input: qc.ParentRound + 1 != qc.Round", func(t *testing.T) {
 		rl := &ReputationBased{}
-		loadBlock := func(round uint64) (*types.BlockData, error) { return nil, fmt.Errorf("should not get this far") }
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, fmt.Errorf("should not get this far") }
 		slotIdx := rl.curIdx
 
 		err := rl.Update(&types.QuorumCert{VoteInfo: &types.RoundInfo{RoundNumber: 5, ParentRoundNumber: 3}}, 6, loadBlock)
@@ -35,7 +36,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 
 	t.Run("invalid input: qc.Round + 1 != currentRound", func(t *testing.T) {
 		rl := &ReputationBased{}
-		loadBlock := func(round uint64) (*types.BlockData, error) { return nil, fmt.Errorf("should not get this far") }
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, fmt.Errorf("should not get this far") }
 		slotIdx := rl.curIdx
 
 		err := rl.Update(&types.QuorumCert{VoteInfo: &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1}}, 1, loadBlock)
@@ -53,7 +54,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 
 	t.Run("failing to elect leader because block loader fails", func(t *testing.T) {
 		expErr := fmt.Errorf("no blocks for you")
-		loadBlock := func(round uint64) (*types.BlockData, error) { return nil, expErr }
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, expErr }
 		rl := &ReputationBased{
 			windowSize: 1,
 		}
@@ -74,11 +75,11 @@ func Test_ReputationBased_Update(t *testing.T) {
 	signerBid, signerBkey := peerIDs[1], peerIDs[1].String()
 
 	t.Run("successfully electing leader", func(t *testing.T) {
-		loadBlock := func(round uint64) (*types.BlockData, error) {
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
 			if round != 1 {
 				return nil, fmt.Errorf("expected that round 1 block is requested, got request for round %d", round)
 			}
-			return &types.BlockData{Author: signerAkey}, nil
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		}
 		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
 		require.NoError(t, err)
@@ -98,11 +99,11 @@ func Test_ReputationBased_Update(t *testing.T) {
 	})
 
 	t.Run("same input twice in a row", func(t *testing.T) {
-		loadBlock := func(round uint64) (*types.BlockData, error) {
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
 			if round != 1 {
 				return nil, fmt.Errorf("expected that round 1 block is requested, got request for round %d", round)
 			}
-			return &types.BlockData{Author: signerAkey}, nil
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		}
 		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
 		require.NoError(t, err)
@@ -206,7 +207,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 
 	t.Run("loading block fails with error", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to load the block")
-		loadBlock := func(round uint64) (*types.BlockData, error) { return nil, expErr }
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, expErr }
 		rl := &ReputationBased{
 			windowSize:  1,
 			excludeSize: 1,
@@ -222,7 +223,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		// block and nil error. current implementation survives this (ie doesn't crash)
 		// and because it wasn't able to get any info about block signers we get error
 		// about no active validators
-		loadBlock := func(round uint64) (*types.BlockData, error) { return nil, nil }
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, nil }
 		rl := &ReputationBased{
 			windowSize:  3,
 			excludeSize: 1,
@@ -233,8 +234,8 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 	})
 
 	t.Run("single signer will be excluded and thus empty set to select from", func(t *testing.T) {
-		loadBlock := func(round uint64) (*types.BlockData, error) {
-			return &types.BlockData{Author: "signer"}, nil
+		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: "signer"}}, nil
 		}
 		rl := &ReputationBased{
 			windowSize:  1,
@@ -262,8 +263,8 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}},
-		}, func(round uint64) (*types.BlockData, error) {
-			return &types.BlockData{Author: signerAkey}, nil
+		}, func(round uint64) (*storage.ExecutedBlock, error) {
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, signerAid, id)
@@ -279,8 +280,8 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, "oh deer": {4, 5, 6}},
-		}, func(round uint64) (*types.BlockData, error) {
-			return &types.BlockData{Author: signerAkey}, nil
+		}, func(round uint64) (*storage.ExecutedBlock, error) {
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
 		// signer A is the author of the previous block so the other signer must have been elected
 		// to be the leader but it has invalid ID
@@ -299,8 +300,8 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
-		}, func(round uint64) (*types.BlockData, error) {
-			return &types.BlockData{Author: signerAkey}, nil
+		}, func(round uint64) (*storage.ExecutedBlock, error) {
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
 		// "signer A" is the author of the previous block so "signer B" must have been elected to be the leader
 		require.NoError(t, err)
@@ -319,15 +320,17 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 5, ParentRoundNumber: 4},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}, signerCkey: {7, 8, 9}},
-		}, func(round uint64) (*types.BlockData, error) {
+		}, func(round uint64) (*storage.ExecutedBlock, error) {
 			switch round {
 			case 3:
-				return &types.BlockData{Author: signerAkey}, nil
+				return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 			case 4:
-				return &types.BlockData{
-					Author: signerBkey,
-					Qc: &types.QuorumCert{
-						VoteInfo: &types.RoundInfo{RoundNumber: 3},
+				return &storage.ExecutedBlock{
+					BlockData: &types.BlockData{
+						Author: signerBkey,
+						Qc: &types.QuorumCert{
+							VoteInfo: &types.RoundInfo{RoundNumber: 3},
+						},
 					},
 				}, nil
 			}
@@ -433,17 +436,17 @@ func Test_ReputationBased(t *testing.T) {
 	}
 
 	// mock block store, maps roundNumber to block of the round
-	blockStore := map[uint64]*types.BlockData{}
+	blockStore := map[uint64]*storage.ExecutedBlock{}
 	// to save the block to blockStore
-	storeBlock := func(bd *types.BlockData) error {
-		if _, ok := blockStore[bd.Round]; ok {
-			return fmt.Errorf("round %d block already stored", bd.Round)
+	storeBlock := func(bd *storage.ExecutedBlock) error {
+		if _, ok := blockStore[bd.BlockData.Round]; ok {
+			return fmt.Errorf("round %d block already stored", bd.BlockData.Round)
 		}
-		blockStore[bd.Round] = bd
+		blockStore[bd.BlockData.Round] = bd
 		return nil
 	}
 	// load block of given round from blockStore
-	loadBlock := func(round uint64) (*types.BlockData, error) {
+	loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
 		if b, ok := blockStore[round]; ok {
 			return b, nil
 		}
@@ -457,10 +460,10 @@ func Test_ReputationBased(t *testing.T) {
 			return
 		}
 		sign := []string{}
-		for k := range b.Qc.Signatures {
+		for k := range b.BlockData.Qc.Signatures {
 			sign = append(sign, k)
 		}
-		t.Logf("block[%d] Author: %s Signed (%d): %v", round, b.Author, len(sign), sign)
+		t.Logf("block[%d] Author: %s Signed (%d): %v", round, b.BlockData.Author, len(sign), sign)
 	}
 
 	// processRound generates block for the given round and adds it to block store.
@@ -483,11 +486,11 @@ func Test_ReputationBased(t *testing.T) {
 		}
 		// leader for this round has been elected by previous round
 		leaderID := rl.GetLeaderForRound(round)
-		storeBlock(&types.BlockData{
+		require.NoError(t, storeBlock(&storage.ExecutedBlock{BlockData: &types.BlockData{
 			Round:  round,
 			Author: leaderID.String(),
 			Qc:     qc,
-		})
+		}}))
 		// elect leader for round "round+1"
 		return rl.Update(qc, round, loadBlock)
 	}
@@ -512,17 +515,17 @@ func Test_ReputationBased(t *testing.T) {
 	for k := range peerIDstr {
 		round := uint64(k + 2)
 		idx := round % uint64(len(peerIDstr)) // round-robin index
-		require.Equal(t, peerIDstr[idx], blockStore[round].Author, "unexpected author for round %d, index %d", round, idx)
+		require.Equal(t, peerIDstr[idx], blockStore[round].BlockData.Author, "unexpected author for round %d, index %d", round, idx)
 	}
 
 	// when processing round R (ie we create block for that round) we will
 	// elect leader for round R+1 excluding authors of the blocks [R-2 .. R-2-ExS]
 	// so the block author may not be the same in that range.
 	checkAuthor := func(rl *ReputationBased, round uint64) {
-		a := blockStore[round].Author
+		a := blockStore[round].BlockData.Author
 		for i := 0; i < rl.excludeSize; i++ {
 			r := round - 3 - uint64(i)
-			if a == blockStore[r].Author {
+			if a == blockStore[r].BlockData.Author {
 				t.Errorf("rounds %d and %d have same author %s, author shouldn't repeat in the range [%d .. %d]", round, r, a, round-3, round-2-uint64(rl.excludeSize))
 				for i := 0; i < rl.excludeSize; i++ {
 					r := round - 3 - uint64(i)

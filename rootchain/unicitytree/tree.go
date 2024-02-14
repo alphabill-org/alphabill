@@ -1,47 +1,47 @@
 package unicitytree
 
 import (
+	"cmp"
+	"crypto"
 	"errors"
 	"fmt"
-	"hash"
+	"slices"
 
-	"github.com/alphabill-org/alphabill/tree/smt"
+	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/alphabill-org/alphabill/types"
 )
 
-var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
-
 type (
-	Data struct {
-		SystemIdentifier            types.SystemID
-		InputRecord                 *types.InputRecord
-		SystemDescriptionRecordHash []byte
-	}
-
 	UnicityTree struct {
-		smt    *smt.SMT
-		hasher hash.Hash
+		imt     *imt.Tree
+		sdrhMap map[types.SystemID][]byte
 	}
 )
 
 // New creates a new unicity tree with given input records.
-func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
-	data := make([]smt.Data, len(d))
-	for i, id := range d {
-		data[i] = id
+func New(hashAlgorithm crypto.Hash, data []*types.UnicityTreeData) (*UnicityTree, error) {
+	// sort by index - system id
+	slices.SortFunc(data, func(a, b *types.UnicityTreeData) int {
+		return cmp.Compare(a.SystemIdentifier, b.SystemIdentifier)
+	})
+	sdMap := make(map[types.SystemID][]byte)
+	leaves := make([]imt.LeafData, len(data))
+	for i, d := range data {
+		leaves[i] = d
+		sdMap[d.SystemIdentifier] = d.SystemDescriptionRecordHash
 	}
-	s, err := smt.New(hasher, types.SystemIdentifierLength, data)
+	t, err := imt.New(hashAlgorithm, leaves)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index tree construction failed: %w", err)
 	}
 	return &UnicityTree{
-		smt:    s,
-		hasher: hasher,
+		imt:     t,
+		sdrhMap: sdMap,
 	}, nil
 }
 
 func (u *UnicityTree) GetRootHash() []byte {
-	return u.smt.GetRootHash()
+	return u.imt.GetRootHash()
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
@@ -49,50 +49,17 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 	if sysID == 0 {
 		return nil, errors.New("partition ID is unassigned")
 	}
-	path, data, err := u.smt.GetAuthPath(sysID.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	if data == nil {
+	sdrh, found := u.sdrhMap[sysID]
+	if !found {
 		return nil, fmt.Errorf("certificate for system id %s not found", sysID)
 	}
-	leafData, ok := data.(*Data)
-	if !ok {
-		return nil, errors.New("invalid data type, unicity tree leaf node is not of type *Data")
-	}
-	dhash := leafData.SystemDescriptionRecordHash
-
-	return &types.UnicityTreeCertificate{
-		SystemIdentifier:      sysID,
-		SystemDescriptionHash: dhash,
-		SiblingHashes:         path,
-	}, nil
-}
-
-// GetIR returns Input Record for system identifier.
-func (u *UnicityTree) GetIR(systemIdentifier types.SystemID) (*types.InputRecord, error) {
-	if systemIdentifier == 0 {
-		return nil, errors.New("partition ID is unassigned")
-	}
-	_, data, err := u.smt.GetAuthPath(systemIdentifier.Bytes())
+	path, err := u.imt.GetMerklePath(sysID.Bytes())
 	if err != nil {
 		return nil, err
 	}
-	if data == nil {
-		return nil, fmt.Errorf("ir for system id %s not found", systemIdentifier)
-	}
-	leafData, ok := data.(*Data)
-	if !ok {
-		return nil, errors.New("invalid data type, unicity tree leaf node is not of type *Data")
-	}
-	return leafData.InputRecord, nil
-}
-
-func (d *Data) Key() []byte {
-	return d.SystemIdentifier.Bytes()
-}
-
-func (d *Data) AddToHasher(hasher hash.Hash) {
-	d.InputRecord.AddToHasher(hasher)
-	hasher.Write(d.SystemDescriptionRecordHash)
+	return &types.UnicityTreeCertificate{
+		SystemIdentifier:      sysID,
+		SystemDescriptionHash: sdrh,
+		SiblingHashes:         path,
+	}, nil
 }

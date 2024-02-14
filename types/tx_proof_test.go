@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ func TestTxProofFunctions(t *testing.T) {
 
 	uc := &UnicityCertificate{InputRecord: ir, UnicitySeal: seal, UnicityTreeCertificate: &UnicityTreeCertificate{
 		SystemIdentifier:      systemID,
-		SiblingHashes:         make([][]byte, 32),
+		SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: []byte{1, 2, 3}}},
 		SystemDescriptionHash: zeroHash,
 	}}
 	block := &Block{

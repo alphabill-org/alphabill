@@ -35,6 +35,9 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 		if unit == nil {
 			return nil, fmt.Errorf("transferFC: unit not found %X", tx.UnitID())
 		}
+		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+			return nil, fmt.Errorf("verify owner proof: %w", err)
+		}
 		billData, ok := unit.Data().(*BillData)
 		if !ok {
 			return nil, errors.New("transferFC: invalid unit type")

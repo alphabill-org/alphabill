@@ -33,9 +33,9 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	// generate node genesis
 	cmd := New(logF)
 	args := "evm-genesis --home " + homeDir +
-			" -o " + nodeGenesisFileLocation +
-			" --output-state " + nodeGenesisStateFileLocation +
-			" -g -k " + keysFileLocation
+		" -o " + nodeGenesisFileLocation +
+		" --output-state " + nodeGenesisStateFileLocation +
+		" -g -k " + keysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 	require.NoError(t, err)
 
-	listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+	listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 	// start the node in background
 	appStoppedWg.Add(1)
 	go func() {
@@ -72,7 +72,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 			" -s " + nodeGenesisStateFileLocation +
 			" -k " + keysFileLocation +
 			" --bootnodes=" + bootNodeStr +
-			" --rest-server-address " + listenAddr
+			" --rpc-server-address " + listenAddr
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		err = cmd.Execute(ctx)

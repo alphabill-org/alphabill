@@ -35,8 +35,8 @@ func TestUnlockFT_Ok(t *testing.T) {
 
 	// verify token is unlocked, backlink and round number is updated
 	require.Equal(t, roundNo, unitData.T)
-	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), unitData.backlink)
-	require.EqualValues(t, 0, unitData.locked)
+	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), unitData.Backlink)
+	require.EqualValues(t, 0, unitData.Locked)
 }
 
 func TestUnlockFT_NotOk(t *testing.T) {

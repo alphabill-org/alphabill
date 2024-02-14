@@ -164,6 +164,15 @@ func NewNode(
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
 	}
+
+	// load owner indexer
+	var ownerIndexer *OwnerIndexer
+	if conf.proofIndexConfig.withOwnerIndex {
+		ownerIndexer = NewOwnerIndexer(observe.Logger())
+		if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
+			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
+		}
+	}
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -172,7 +181,7 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, ownerIndexer, observe.Logger()),
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -320,7 +329,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		}
 		// node must have exited before block was indexed
 		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
-			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.StateStorage())
+			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.State())
 		}
 
 		luc = bl.UnicityCertificate
@@ -919,7 +928,7 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 		return err
 	}
 	n.sendEvent(event.BlockFinalized, b)
-	n.proofIndexer.Handle(ctx, b, n.transactionSystem.StateStorage())
+	n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
 	return nil
 }
 
@@ -1132,6 +1141,16 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 		latestProcessedRoundNumber = recoveringRoundNo
 		latestStateHash = b.UnicityCertificate.InputRecord.Hash
+	}
+	// check if a newer UC was received compared to the one we last saw from root node
+	if len(lr.Blocks) > 0 {
+		lastBlock := lr.Blocks[len(lr.Blocks)-1]
+		if n.luc.Load().GetRoundNumber() < lastBlock.UnicityCertificate.GetRoundNumber() {
+			if err = n.updateLUC(lastBlock.UnicityCertificate); err != nil {
+				// log the error, node will issue a new request below if state does not match
+				n.log.WarnContext(ctx, fmt.Sprintf("Failed to update LUC: %v", err))
+			}
+		}
 	}
 
 	// check if recovery is complete
@@ -1374,7 +1393,7 @@ func (n *Node) SystemIdentifier() types.SystemID {
 }
 
 func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error) {
-	clonedState := n.transactionSystem.StateStorage()
+	clonedState := n.transactionSystem.State()
 	unit, err := clonedState.GetUnit(unitID, true)
 	if err != nil {
 		return nil, err
@@ -1395,6 +1414,13 @@ func (n *Node) GetUnitState(unitID []byte, returnProof bool, returnData bool) (*
 		response.Proof = p
 	}
 	return response, nil
+}
+
+func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	if n.proofIndexer.ownerIndexer == nil {
+		return nil, errors.New("owner indexer is disabled")
+	}
+	return n.proofIndexer.ownerIndexer.GetOwnerUnits(ownerID)
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

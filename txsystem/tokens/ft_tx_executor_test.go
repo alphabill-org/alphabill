@@ -431,7 +431,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	d := u.Data().(*FungibleTokenData)
 	require.Equal(t, types.UnitID(attributes.TypeID), d.TokenType)
 	require.Equal(t, attributes.Value, d.Value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
 	require.Equal(t, uint64(10), d.T)
 	require.Equal(t, attributes.Bearer, []byte(u.Bearer()))
 }
@@ -571,7 +571,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer()))
 	require.Equal(t, transferAttributes.Value, d.Value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
 	require.Equal(t, roundNr, d.T)
 }
 
@@ -760,7 +760,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Bearer()))
 	require.Equal(t, remainingBillValue, d.Value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
 	require.Equal(t, roundNr, d.T)
 
 	newUnitID := NewFungibleTokenID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
@@ -773,7 +773,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer()))
 	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.Value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.Backlink)
 	require.Equal(t, roundNr, newUnitData.T)
 }
 
@@ -930,7 +930,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	// verify locked target unit was unlocked
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, u.Data().(*FungibleTokenData).locked)
+	require.EqualValues(t, 0, u.Data().(*FungibleTokenData).Locked)
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -1135,22 +1135,22 @@ func initState(t *testing.T) *state.State {
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		backlink:  make([]byte, 32),
+		Backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(existingTokenUnitID2, templates.AlwaysTrueBytes(), &FungibleTokenData{
 		TokenType: existingTokenTypeUnitID2,
 		Value:     existingTokenValue,
 		T:         0,
-		backlink:  make([]byte, 32),
+		Backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &FungibleTokenData{
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		backlink:  make([]byte, 32),
-		locked:    1,
+		Backlink:  make([]byte, 32),
+		Locked:    1,
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &unit.FeeCreditRecord{

@@ -10,7 +10,7 @@ const TemplateStartByte = 0x00
 
 type (
 	TemplateRunner struct {
-		templates map[uint64]PredicateTemplate
+		templates map[byte]PredicateTemplate
 	}
 )
 
@@ -35,11 +35,11 @@ func (t *TemplateRunner) Execute(p *predicates.Predicate, sig []byte, sigData []
 	if err != nil {
 		return err
 	}
-	return tp.Execute(p.Body, sig, sigData)
+	return tp.Execute(p.Params, sig, sigData)
 }
 
 func newTemplateRunner() *TemplateRunner {
-	return &TemplateRunner{templates: make(map[uint64]PredicateTemplate)}
+	return &TemplateRunner{templates: make(map[byte]PredicateTemplate)}
 }
 
 func (t *TemplateRunner) addTemplate(template PredicateTemplate) {
@@ -47,9 +47,12 @@ func (t *TemplateRunner) addTemplate(template PredicateTemplate) {
 }
 
 func (t *TemplateRunner) selectTemplate(p *predicates.Predicate) (PredicateTemplate, error) {
-	pt, found := t.templates[p.ID]
+	if len(p.Code) != 1 {
+		return nil, fmt.Errorf("expected predicate code length to be 1, got: %d (%X)", len(p.Code), p.Code)
+	}
+	pt, found := t.templates[p.Code[0]]
 	if !found {
-		return nil, fmt.Errorf("unknown predicate template: %d", p.ID)
+		return nil, fmt.Errorf("unknown predicate template: %X", p.Code)
 	}
 	return pt, nil
 }

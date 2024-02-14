@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
@@ -87,7 +88,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-send-msg-size=65 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.RPCServer = &grpcServerConfiguration{
+				sc.grpcServer = &grpcServerConfiguration{
 					Address:                 "srv:1234",
 					MaxGetBlocksBatchSize:   55,
 					MaxSendMsgSize:          65,
@@ -99,17 +100,19 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			}(),
 		},
 		{
-			args: "money --rest-server-address=srv:1111 --rest-server-read-timeout=10s --rest-server-read-header-timeout=11s --rest-server-write-timeout=12s --rest-server-idle-timeout=13s --rest-server-max-header=14 --rest-server-max-body=15",
+			args: "money --rpc-server-address=srv:1111 --rpc-server-read-timeout=10s --rpc-server-read-header-timeout=11s --rpc-server-write-timeout=12s --rpc-server-idle-timeout=13s --rpc-server-max-header=14 --rpc-server-max-body=15 --rpc-server-batch-item-limit=16 --rpc-server-batch-response-size-limit=17",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.RESTServer = &restServerConfiguration{
-					Address:           "srv:1111",
-					ReadTimeout:       10 * time.Second,
-					ReadHeaderTimeout: 11 * time.Second,
-					WriteTimeout:      12 * time.Second,
-					IdleTimeout:       13 * time.Second,
-					MaxHeaderBytes:    14,
-					MaxBodyBytes:      15,
+				sc.rpcServer = &rpc.ServerConfiguration{
+					Address:                "srv:1111",
+					ReadTimeout:            10 * time.Second,
+					ReadHeaderTimeout:      11 * time.Second,
+					WriteTimeout:           12 * time.Second,
+					IdleTimeout:            13 * time.Second,
+					MaxHeaderBytes:         14,
+					MaxBodyBytes:           15,
+					BatchItemLimit:         16,
+					BatchResponseSizeLimit: 17,
 				}
 				return sc
 			}(),
@@ -122,7 +125,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.RPCServer.Address = "srv:1234"
+				sc.grpcServer.Address = "srv:1234"
 				return sc
 			}(),
 		}, {
@@ -132,7 +135,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.RPCServer.Address = "srv:666"
+				sc.grpcServer.Address = "srv:666"
 				return sc
 			}(),
 		}, {
@@ -226,8 +229,8 @@ logger-config: "` + logCfgFilename + `"
 	expectedConfig := defaultMoneyNodeConfiguration()
 	expectedConfig.Base.CfgFile = cfgFilename
 	expectedConfig.Base.LogCfgFile = logCfgFilename
-	expectedConfig.RPCServer.Address = "srv:1234"
-	expectedConfig.RPCServer.MaxRecvMsgSize = 9999
+	expectedConfig.grpcServer.Address = "srv:1234"
+	expectedConfig.grpcServer.MaxRecvMsgSize = 9999
 
 	// Set up runner mock
 	var actualConfig *moneyNodeConfiguration
@@ -259,21 +262,24 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			Address:                    "/ip4/127.0.0.1/tcp/26652",
 			LedgerReplicationMaxBlocks: 1000,
 			LedgerReplicationMaxTx:     10000,
+			WithOwnerIndex:             true,
 		},
-		RPCServer: &grpcServerConfiguration{
+		grpcServer: &grpcServerConfiguration{
 			Address:               defaultServerAddr,
 			MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 			MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 			MaxSendMsgSize:        defaultMaxSendMsgSize,
 		},
-		RESTServer: &restServerConfiguration{
-			Address:           "",
-			ReadTimeout:       0,
-			ReadHeaderTimeout: 0,
-			WriteTimeout:      0,
-			IdleTimeout:       0,
-			MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
-			MaxBodyBytes:      MaxBodyBytes,
+		rpcServer: &rpc.ServerConfiguration{
+			Address:                "",
+			ReadTimeout:            0,
+			ReadHeaderTimeout:      0,
+			WriteTimeout:           0,
+			IdleTimeout:            0,
+			MaxHeaderBytes:         http.DefaultMaxHeaderBytes,
+			MaxBodyBytes:           rpc.DefaultMaxBodyBytes,
+			BatchItemLimit:         rpc.DefaultBatchItemLimit,
+			BatchResponseSizeLimit: rpc.DefaultBatchResponseSizeLimit,
 		},
 	}
 }
@@ -300,7 +306,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
-		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		moneyNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 		logF := testobserve.NewFactory(t)
 
 		appStoppedWg := sync.WaitGroup{}
@@ -335,6 +341,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
+		rpcNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -345,7 +352,8 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
 				" --bootnodes=" + bootNodeStr +
-				" --server-address " + moneyNodeAddr
+				" --server-address " + moneyNodeAddr +
+				" --rpc-server-address " + rpcNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)

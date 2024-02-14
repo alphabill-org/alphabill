@@ -56,8 +56,8 @@ func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.backlink = tx.Hash(options.hashAlgorithm)
-	d.locked = attr.LockStatus
+	d.Backlink = tx.Hash(options.hashAlgorithm)
+	d.Locked = attr.LockStatus
 	return d, nil
 }
 

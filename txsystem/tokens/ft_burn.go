@@ -33,7 +33,7 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 	if err != nil {
 		return err
 	}
-	if d.locked != 0 {
+	if d.Locked != 0 {
 		return errors.New("token is locked")
 	}
 	if !bytes.Equal(d.TokenType, attr.TypeID) {
@@ -42,8 +42,8 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 	if attr.Value != d.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
-	if !bytes.Equal(d.backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
+	if !bytes.Equal(d.Backlink, attr.Backlink) {
+		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
 	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
 		hashAlgorithm,

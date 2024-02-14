@@ -44,8 +44,8 @@ type (
 		// CommittedUC returns the unicity certificate of the latest commit.
 		CommittedUC() *types.UnicityCertificate
 
-		// StateStorage returns clone of transaction system state
-		StateStorage() UnitAndProof
+		// State returns clone of transaction system state
+		State() *state.State
 
 		// SerializeState writes the serialized state of the transaction system to the given writer.
 		SerializeState(writer io.Writer, committed bool) error
@@ -57,14 +57,6 @@ type (
 		Root() []byte
 		// Summary returns the summary value of the state.
 		Summary() []byte
-	}
-
-	// UnitAndProof read access to state to access unit and unit proofs
-	UnitAndProof interface {
-		// GetUnit - access tx system unit state
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
-		// CreateUnitStateProof - create unit proofs
-		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
 	}
 
 	// stateSummary is the default implementation of StateSummary interface.

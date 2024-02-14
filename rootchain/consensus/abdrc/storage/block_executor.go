@@ -14,10 +14,10 @@ import (
 
 type (
 	InputData struct {
-		_     struct{}           `cbor:",toarray"`
-		SysID types.SystemID     `json:"systemIdentifier"`
-		IR    *types.InputRecord `json:"ir"`
-		Sdrh  []byte             `json:"sdrh"` // System Description Record Hash
+		_     struct{} `cbor:",toarray"`
+		SysID types.SystemID
+		IR    *types.InputRecord
+		Sdrh  []byte // System Description Record Hash
 	}
 
 	InputRecords []*InputData
@@ -25,13 +25,13 @@ type (
 
 	ExecutedBlock struct {
 		_         struct{}             `cbor:",toarray"`
-		BlockData *drctypes.BlockData  `json:"block"`         // proposed block
-		CurrentIR InputRecords         `json:"inputData"`     // all input records in this block
-		Changed   SysIDList            `json:"changed"`       // changed partition system identifiers
-		HashAlgo  gocrypto.Hash        `json:"hashAlgorithm"` // hash algorithm for the block
-		RootHash  []byte               `json:"rootHash"`      // resulting root hash
-		Qc        *drctypes.QuorumCert `json:"Qc"`            // block's quorum certificate (from next view)
-		CommitQc  *drctypes.QuorumCert `json:"commitQc"`      // commit certificate
+		BlockData *drctypes.BlockData  // proposed block
+		CurrentIR InputRecords         // all input records in this block
+		Changed   SysIDList            // changed partition system identifiers
+		HashAlgo  gocrypto.Hash        // hash algorithm for the block
+		RootHash  []byte               // resulting root hash
+		Qc        *drctypes.QuorumCert // block's quorum certificate (from next view)
+		CommitQc  *drctypes.QuorumCert // block's commit certificate
 	}
 
 	IRChangeReqVerifier interface {
@@ -98,7 +98,7 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 			Epoch:     0,
 			Timestamp: genesis.Timestamp,
 			Payload:   nil,
-			Qc:        nil,
+			Qc:        qc, // qc to itself
 		},
 		CurrentIR: data,
 		Changed:   make([]types.SystemID, 0),
@@ -109,18 +109,18 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 	}
 }
 
-func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock) (*ExecutedBlock, error) {
+func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
 	var changes SysIDList
-	if recoverBlock.Block.Payload != nil {
-		changes = make([]types.SystemID, 0, len(recoverBlock.Block.Payload.Requests))
+	if block.Block.Payload != nil {
+		changes = make([]types.SystemID, 0, len(block.Block.Payload.Requests))
 		// verify requests for IR change and proof of consensus
-		for _, irChReq := range recoverBlock.Block.Payload.Requests {
+		for _, irChReq := range block.Block.Payload.Requests {
 			changes = append(changes, irChReq.SystemIdentifier)
 		}
 	}
 	// recover input records
-	irState := make(InputRecords, len(recoverBlock.Ir))
-	for i, d := range recoverBlock.Ir {
+	irState := make(InputRecords, len(block.Ir))
+	for i, d := range block.Ir {
 		irState[i] = &InputData{
 			SysID: d.SysID,
 			IR:    d.Ir,
@@ -128,38 +128,26 @@ func NewRootBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBl
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UnicityTreeData, 0, len(irState))
 	for _, data := range irState {
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
-	root := ut.GetRootHash()
-	// check against qc and commit qc
-	if recoverBlock.Qc != nil {
-		if !bytes.Equal(root, recoverBlock.Qc.VoteInfo.CurrentRootHash) {
-			return nil, fmt.Errorf("invalid recovery data, qc state hash does not match input records")
-		}
-	}
-	if recoverBlock.CommitQc != nil {
-		if !bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.Hash) {
-			return nil, fmt.Errorf("invalid recovery data, commit qc state hash does not match input records")
-		}
-	}
 	return &ExecutedBlock{
-		BlockData: recoverBlock.Block,
+		BlockData: block.Block,
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
 		RootHash:  bytes.Clone(ut.GetRootHash()),
-		Qc:        recoverBlock.Qc,
-		CommitQc:  recoverBlock.CommitQc,
+		Qc:        block.Qc,       // qc to itself
+		CommitQc:  block.CommitQc, // use same qc to itself for genesis block
 	}, nil
 }
 
@@ -184,17 +172,17 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		}
 	}
 	// calculate root hash
-	utData := make([]*unicitytree.Data, 0, len(irState))
+	utData := make([]*types.UnicityTreeData, 0, len(irState))
 	for _, data := range irState {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	ut, err := unicitytree.New(hash.New(), utData)
+	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
 		return nil, err
 	}
@@ -208,17 +196,17 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 }
 
 func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) {
-	utData := make([]*unicitytree.Data, 0, len(x.CurrentIR))
+	utData := make([]*types.UnicityTreeData, 0, len(x.CurrentIR))
 	for _, data := range x.CurrentIR {
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
-		utData = append(utData, &unicitytree.Data{
+		utData = append(utData, &types.UnicityTreeData{
 			SystemIdentifier:            data.SysID,
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
 	}
-	return unicitytree.New(x.HashAlgo.New(), utData)
+	return unicitytree.New(x.HashAlgo, utData)
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map[types.SystemID]*types.UnicityCertificate, error) {

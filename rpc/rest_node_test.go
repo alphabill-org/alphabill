@@ -278,3 +278,50 @@ func TestRESTServer_GetState_Error(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
 	require.Contains(t, recorder.Body.String(), "state error")
 }
+
+func TestRESTServer_GetOwnerUnits(t *testing.T) {
+	t.Run("get owner units - server error", func(t *testing.T) {
+		var hash [32]byte
+		obs := observability.Default(t)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
+		recorder := httptest.NewRecorder()
+		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: fmt.Errorf("something is wrong")}, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+		require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+		require.Contains(t, recorder.Body.String(), "something is wrong")
+		require.Equal(t, int64(-1), recorder.Result().ContentLength)
+	})
+	t.Run("get owner units - empty", func(t *testing.T) {
+		var hash [32]byte
+		ownerID := hex.EncodeToString(hash[:])
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", ownerID), bytes.NewReader([]byte{}))
+		recorder := httptest.NewRecorder()
+		obs := observability.Default(t)
+		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{ownerUnits: map[string][]types.UnitID{}}, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
+		var response []types.UnitID
+		require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+		require.Nil(t, response, "expected response body to be cbor nil (f6)")
+	})
+	t.Run("get owner units - ok", func(t *testing.T) {
+		var hash [32]byte
+		obs := observability.Default(t)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
+		recorder := httptest.NewRecorder()
+		mockNode := &MockNode{
+			ownerUnits: map[string][]types.UnitID{string(hash[:]): {types.UnitID{0}, types.UnitID{1}}},
+		}
+		NewRESTServer("", 10, obs, NodeEndpoints(mockNode, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
+		var response []types.UnitID
+		require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+		require.NotNil(t, response)
+		require.Len(t, response, 2)
+		require.Equal(t, types.UnitID{0}, response[0])
+		require.Equal(t, types.UnitID{1}, response[1])
+	})
+}

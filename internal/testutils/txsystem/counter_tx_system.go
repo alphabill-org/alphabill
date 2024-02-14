@@ -51,7 +51,7 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) State() *state.State {
+func (m *CounterTxSystem) State() txsystem.StateReader {
 	if m.FixedState != nil {
 		return m.FixedState
 	}

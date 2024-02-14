@@ -37,7 +37,7 @@ func (s *StateAPI) GetRoundNumber(ctx context.Context) (uint64, error) {
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
 func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[any], error) {
-	state := s.node.TransactionSystem().State()
+	state := s.node.TransactionSystemState()
 
 	unit, err := state.GetUnit(unitID, true)
 	if err != nil {

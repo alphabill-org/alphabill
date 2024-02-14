@@ -111,7 +111,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Commit and serialize the state
 	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
 	buf := &bytes.Buffer{}
-	require.NoError(t, originalTxs.SerializeState(buf, true))
+	require.NoError(t, originalTxs.State().Serialize(buf, true))
 
 	// Create a recovered state and txSystem from the serialized state
 	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))

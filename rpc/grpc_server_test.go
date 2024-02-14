@@ -37,8 +37,8 @@ type (
 	}
 )
 
-func (mn *MockNode) TransactionSystem() txsystem.TransactionSystem {
-	return mn.txs
+func (mn *MockNode) TransactionSystemState() txsystem.StateReader {
+	return mn.txs.State()
 }
 
 func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {

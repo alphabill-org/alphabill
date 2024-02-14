@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"time"
 
@@ -30,7 +29,6 @@ type (
 	}
 
 	partitionNode interface {
-		TransactionSystem() txsystem.TransactionSystem
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
@@ -38,7 +36,7 @@ type (
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() types.SystemID
 		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
-		SerializeState(writer io.Writer) error
+		TransactionSystemState() txsystem.StateReader
 	}
 )
 

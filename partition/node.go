@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -138,7 +137,6 @@ Functions implementing the NodeOption interface can be used to override default 
 
 The following restrictions apply to the inputs:
   - the network peer and signer must use the same keys that were used to generate node genesis file;
-  - the state of the transaction system must be equal to the state that was used to generate genesis file.
 */
 func NewNode(
 	ctx context.Context,
@@ -1379,20 +1377,12 @@ func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 	return n.luc.Load().GetRoundNumber(), nil
 }
 
-func (n *Node) SerializeState(writer io.Writer) error {
-	if status := n.status.Load(); status != normal {
-		return fmt.Errorf("node not ready: %s", status)
-	}
-
-	return n.transactionSystem.SerializeState(writer, true)
-}
-
 func (n *Node) SystemIdentifier() types.SystemID {
 	return n.configuration.GetSystemIdentifier()
 }
 
-func (n *Node) TransactionSystem() txsystem.TransactionSystem {
-	return n.transactionSystem
+func (n *Node) TransactionSystemState() txsystem.StateReader {
+	return n.transactionSystem.State()
 }
 
 func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {

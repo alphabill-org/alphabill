@@ -142,7 +142,7 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/cbor")
 		w.WriteHeader(http.StatusOK)
 
-		if err := node.SerializeState(w); err != nil {
+		if err := node.TransactionSystemState().Serialize(w, true); err != nil {
 			log.Error("writing state file", logger.Error(err))
 		}
 	}

@@ -114,42 +114,40 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, args ...[]byte) (_ boo
 	// check API
 	fn, err := vm.getApiFn(fName)
 	if err != nil {
-		return false, fmt.Errorf("program call failed, %w", err)
+		return false, fmt.Errorf("find program entry point (%s): %w", fName, err)
 	}
+
 	// copy inputs to linear memory
+	mem := vm.runtime.Module("env").Memory()
+	if mem == nil {
+		return false, fmt.Errorf("failed to access memory exported by env module: %w", err)
+	}
 	var argPtrs = make([]uint64, len(args))
 	for i, arg := range args {
 		dataLength := uint32(len(arg))
-		mem := vm.runtime.Module("env").Memory()
-		if mem == nil {
-			return false, fmt.Errorf("failed to access exported memory: %w", err)
-		}
 		inputPtr, err := vm.ctx.Alloc.Allocate(mem, dataLength)
 		if err != nil {
 			return false, fmt.Errorf("allocating input memory failed: %w", err)
 		}
-		//defer vm.ctx.Alloc.Clear()
 		// Store the data into memory
-		ok := mem.Write(inputPtr, arg)
-		if !ok {
-			return false, fmt.Errorf("failed write to wasm memory: %w", err)
+		if ok := mem.Write(inputPtr, arg); !ok {
+			return false, fmt.Errorf("failed write argument to wasm memory: %w", err)
 		}
 		argPtrs[i] = newPointerSize(inputPtr, dataLength)
 	}
-	runCtx := context.WithValue(context.Background(), runtimeContextKey, vm.ctx)
 	// API calls have no parameters, there is a host callback to get input parameters
 	// all programs must complete in 100 ms, this will later be replaced with gas cost
 	// for now just set a hard limit to make sure programs do not run forever
-	ctx, cancel := context.WithTimeout(runCtx, 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
-	res, err := fn.Call(ctx, argPtrs...)
+	res, err := fn.Call(context.WithValue(ctx, runtimeContextKey, vm.ctx), argPtrs...)
 	if err != nil {
-		return false, fmt.Errorf("program call failed, %w", err)
+		return false, fmt.Errorf("calling %s returned error: %w", fName, err)
 	}
-	if len(res) > 1 {
+	if len(res) != 1 {
 		return false, fmt.Errorf("unexpected return value length %v", len(res))
 	}
-	return res[0] >= 0, nil
+	return res[0] > 0, nil
 }
 
 // CheckApiCallExists check if wasm module exports any function calls

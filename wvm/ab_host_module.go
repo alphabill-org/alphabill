@@ -34,7 +34,7 @@ func splitPointerSize(pointerSize uint64) (ptr, size uint32) {
 // read will read from 64 bit pointer size and return a byte slice
 func read(m api.Module, pointerSize uint64) (data []byte) {
 	ptr, size := splitPointerSize(pointerSize)
-	fmt.Println("ptr", ptr, "size", size)
+	fmt.Printf("%s.read(%x) => %d @ %d\n", m.Name(), pointerSize, size, ptr)
 	data, ok := m.Memory().Read(ptr, size)
 	if !ok {
 		panic("write overflow")
@@ -200,6 +200,7 @@ func loggingV1(ctx context.Context, m api.Module, level uint32, msgData uint64) 
 }
 
 func extFree(ctx context.Context, m api.Module, addr uint32) {
+	fmt.Printf("%s.Free(%d)\n", m.Name(), addr)
 	allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
 
 	// Deallocate memory
@@ -217,6 +218,7 @@ func extMalloc(ctx context.Context, m api.Module, size uint32) uint32 {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("%s.Alloc(%d) => %d\n", m.Name(), size, res)
 
 	return res
 }

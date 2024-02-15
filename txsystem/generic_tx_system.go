@@ -52,7 +52,7 @@ func NewGenericTxSystem(log *slog.Logger, feeChecker FeeCreditBalanceValidator, 
 		log:                   log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	modules = append(modules, NewIdentityModule(txs.state))
+	modules = append(modules, NewIdentityModule(txs, txs.state))
 
 	for _, module := range modules {
 		if err := txs.executors.Add(module.TxExecutors()); err != nil {

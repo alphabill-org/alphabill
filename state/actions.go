@@ -100,6 +100,29 @@ func SetOwner(id types.UnitID, bearer types.PredicateBytes) Action {
 	}
 }
 
+// SetStateLock sets new state lock or removes the existing one.
+func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
+	return func(s ShardState, hashAlgorithm crypto.Hash) error {
+		if id == nil {
+			return errors.New("id is nil")
+		}
+		u, err := s.Get(id)
+		if err != nil {
+			return fmt.Errorf("failed to find unit: %w", err)
+		}
+
+		cloned := u.Clone()
+		cloned.stateLockTx = stateLockTx
+		if stateLockTx == nil {
+			cloned.stateLockReleased = true
+		}
+		if err = s.Update(id, cloned); err != nil {
+			return fmt.Errorf("unable to update unit: %w", err)
+		}
+		return nil
+	}
+}
+
 // DeleteUnit removes the unit from the state with given identifier.
 func DeleteUnit(id types.UnitID) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {

@@ -67,7 +67,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
 	decoder := cbor.NewDecoder(crc32Reader)
 
-	var header Header
+	var header header
 	err := decoder.Decode(&header)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode header: %w", err)
@@ -132,9 +132,9 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			NewBearer:          nodeRecord.OwnerCondition,
 			NewUnitData:        unitData,
 		}
-		logRoot := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
+		logsHash := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
 
-		unit := &Unit{logRoot: logRoot}
+		unit := &Unit{logsHash: logsHash}
 		if len(nodeRecord.UnitTreePath) > 0 {
 			// A non-zero UnitTreePath length means that the unit had multiple logs at serialization.
 			// Those logs must be pruned at the beginning of the next round and the summary hash must
@@ -339,9 +339,11 @@ func (s *State) Prune() error {
 
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) Serialize(writer io.Writer, header *Header, committed bool) error {
+func (s *State) Serialize(writer io.Writer, committed bool) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder := cbor.NewEncoder(crc32Writer)
+
+	header := &header{}
 
 	var tree *tree
 	if committed {
@@ -411,9 +413,9 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 	// TODO verify proof before returning
 	return &types.UnitStateProof{
 		UnitID:             id,
-		PreviousStateHash:  unitLedgerHeadHash,
+		UnitLedgerHash:     unitLedgerHeadHash,
 		UnitTreeCert:       unitTreeCert,
-		DataSummary:        summaryValueInput,
+		UnitValue:          summaryValueInput,
 		StateTreeCert:      stateTreeCert,
 		UnicityCertificate: s.committedTreeUC,
 	}, nil
@@ -458,21 +460,21 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 		if id.Compare(nodeKey) == -1 {
 			nodeRight := node.Right()
 			item = &types.StateTreePathItem{
-				ID:                  nodeKey,
-				Hash:                getSubTreeLogRootHash(node),
-				NodeSummaryInput:    v,
-				SiblingHash:         getSubTreeSummaryHash(nodeRight),
-				SubTreeSummaryValue: getSubTreeSummaryValue(nodeRight),
+				UnitID:              nodeKey,
+				LogsHash:            getSubTreeLogsHash(node),
+				Value:               v,
+				SiblingSummaryHash:  getSubTreeSummaryHash(nodeRight),
+				SiblingSummaryValue: getSubTreeSummaryValue(nodeRight),
 			}
 			node = node.Left()
 		} else {
 			nodeLeft := node.Left()
 			item = &types.StateTreePathItem{
-				ID:                  nodeKey,
-				Hash:                getSubTreeLogRootHash(node),
-				NodeSummaryInput:    v,
-				SiblingHash:         getSubTreeSummaryHash(nodeLeft),
-				SubTreeSummaryValue: getSubTreeSummaryValue(nodeLeft),
+				UnitID:              nodeKey,
+				LogsHash:            getSubTreeLogsHash(node),
+				Value:               v,
+				SiblingSummaryHash:  getSubTreeSummaryHash(nodeLeft),
+				SiblingSummaryValue: getSubTreeSummaryValue(nodeLeft),
 			}
 			node = node.Right()
 		}
@@ -482,9 +484,9 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 		nodeLeft := node.Left()
 		nodeRight := node.Right()
 		return &types.StateTreeCert{
-			LeftHash:          getSubTreeSummaryHash(nodeLeft),
+			LeftSummaryHash:          getSubTreeSummaryHash(nodeLeft),
 			LeftSummaryValue:  getSubTreeSummaryValue(nodeLeft),
-			RightHash:         getSubTreeSummaryHash(nodeRight),
+			RightSummaryHash:         getSubTreeSummaryHash(nodeRight),
 			RightSummaryValue: getSubTreeSummaryValue(nodeRight),
 			Path:              path,
 		}, nil
@@ -554,11 +556,11 @@ func getSubTreeSummaryValue(n *node) uint64 {
 	return n.Value().subTreeSummaryValue
 }
 
-func getSubTreeLogRootHash(n *node) []byte {
+func getSubTreeLogsHash(n *node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return n.Value().logRoot
+	return n.Value().logsHash
 }
 
 func getSubTreeSummaryHash(n *node) []byte {

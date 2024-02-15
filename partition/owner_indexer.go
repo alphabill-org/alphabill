@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -66,7 +66,7 @@ func (p *OwnerIndexer) IndexOwner(unitID types.UnitID, logs []*state.Log) error 
 }
 
 func (p *OwnerIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := extractOwnerID(ownerPredicate)
+	ownerID, err := extractOwnerIDFromPredicate(ownerPredicate)
 	if err != nil {
 		return fmt.Errorf("failed to extract owner id: %w", err)
 	}
@@ -77,7 +77,7 @@ func (p *OwnerIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 }
 
 func (p *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := extractOwnerID(ownerPredicate)
+	ownerID, err := extractOwnerIDFromPredicate(ownerPredicate)
 	if err != nil {
 		return fmt.Errorf("failed to extract owner id: %w", err)
 	}
@@ -102,47 +102,27 @@ func (p *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 }
 
 // LoadState fills the index from state.
-func (p *OwnerIndexer) LoadState(s *state.State) error {
-	t := &ownerTraverser{ownerUnits: map[string][]types.UnitID{}}
-	s.Traverse(t)
-	if t.err != nil {
-		return fmt.Errorf("failed to traverse state tree: %w", t.err)
+func (p *OwnerIndexer) LoadState(s txsystem.StateReader) error {
+	index, err := s.CreateIndex(extractOwnerID)
+	if err != nil {
+		return fmt.Errorf("failed to create ownerID index: %w", err)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.ownerUnits = t.ownerUnits
+	p.ownerUnits = index
 	return nil
 }
 
-// ownerTraverser traverses state tree and records all nodes into ownerUnits map
-type ownerTraverser struct {
-	ownerUnits map[string][]types.UnitID
-	err        error
+func extractOwnerID(unit *state.Unit) (string, error) {
+	return extractOwnerIDFromPredicate(unit.Bearer())
 }
 
-func (s *ownerTraverser) Traverse(n *avl.Node[types.UnitID, *state.Unit]) {
-	if n == nil || s.err != nil {
-		return
-	}
-	s.Traverse(n.Left())
-	s.Traverse(n.Right())
-
-	unit := n.Value()
-	ownerID, err := extractOwnerID(unit.Bearer())
+func extractOwnerIDFromPredicate(predicateBytes []byte) (string, error) {
+	predicate, err := predicates.ExtractPredicate(predicateBytes)
 	if err != nil {
-		s.err = fmt.Errorf("failed to extract owner id: %w", err)
-		return
+		return "", fmt.Errorf("failed to extract predicate '%X': %w", predicateBytes, err)
 	}
-	if ownerID != "" {
-		s.ownerUnits[ownerID] = append(s.ownerUnits[ownerID], n.Key())
-	}
-}
 
-func extractOwnerID(ownerPredicate []byte) (string, error) {
-	predicate, err := predicates.ExtractPredicate(ownerPredicate)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract predicate '%X': %w", ownerPredicate, err)
-	}
 	if !templates.IsP2pkhTemplate(predicate) {
 		// do not index non-p2pkh predicates
 		return "", nil

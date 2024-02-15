@@ -112,7 +112,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Commit and serialize the state
 	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
 	buf := &bytes.Buffer{}
-	require.NoError(t, originalTxs.SerializeState(buf, true))
+	require.NoError(t, originalTxs.State().Serialize(buf, true))
 
 	// Create a recovered state and txSystem from the serialized state
 	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
@@ -355,7 +355,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 	_, billData = getBill(t, state, swapTx.UnitID())
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
-	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
+	require.EqualValues(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dcBillData = getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.V) // dust collector money supply is the same after swap
 	require.EqualValues(t, 0, billData.Locked)                      // verify bill got unlocked

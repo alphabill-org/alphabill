@@ -10,6 +10,7 @@ import (
 	"log"
 	"time"
 
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
@@ -81,8 +82,8 @@ func main() {
 	}
 	absoluteTimeout := res.RoundNumber + *timeout
 
-	txFee := uint64(1)
-	feeAmount := uint64(2)
+	txFee := fct.Fee(1)
+	feeAmount := fct.Fee(2)
 	// Make the initial fcrID different from the default
 	// sha256(pubKey), so that wallet can later create it's own
 	// fcrID for the same account with a different owner condition
@@ -141,7 +142,7 @@ func main() {
 	}
 
 	// create transfer tx
-	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubKey, billID, *billValue-uint64(feeAmount-txFee), fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -158,7 +159,7 @@ func main() {
 	log.Println("successfully sent initial bill transfer transaction")
 }
 
-func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {
+func createTransferFC(feeAmount fct.Fee, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
 		&transactions.TransferFeeCreditAttributes{
 			Amount:                 feeAmount,
@@ -184,7 +185,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 	return tx, nil
 }
 
-func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.TransactionRecord, transferFCProof *types.TxProof, timeout uint64, maxFee uint64) (*types.TransactionOrder, error) {
+func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.TransactionRecord, transferFCProof *types.TxProof, timeout uint64, maxFee fct.Fee) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
 		&transactions.AddFeeCreditAttributes{
 			FeeCreditTransfer:       transferFC,

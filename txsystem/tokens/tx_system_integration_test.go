@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/partition"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -388,7 +389,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	u, err = state0.GetUnit(feeCreditID, true)
 	require.NoError(t, err)
-	require.Equal(t, uint64(92), u.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fct.Fee(92), u.Data().(*unit.FeeCreditRecord).Balance)
 }
 
 type fungibleTokenUnitData struct {

@@ -35,7 +35,13 @@ func (t *TemplateRunner) Execute(p *predicates.Predicate, ctx *predicates.Predic
 	if err != nil {
 		return err
 	}
-	return tp.Execute(p.Params, ctx.Input, ctx.PayloadBytes)
+	var input []byte
+	var payload []byte
+	if ctx != nil {
+		input = ctx.Input
+		payload = ctx.PayloadBytes
+	}
+	return tp.Execute(p.Params, input, payload)
 }
 
 func newTemplateRunner() *TemplateRunner {

@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
@@ -41,7 +42,7 @@ var (
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	fcrID         = NewFeeCreditRecordID(nil, []byte{88})
-	fcrAmount     = uint64(1e8)
+	fcrAmount     = fct.Fee(1e8)
 	moneySystemID = DefaultSystemIdentifier
 )
 
@@ -656,7 +657,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	transferFC := testutils.NewTransferFC(t,
 		testutils.NewTransferFCAttr(
 			testutils.WithBacklink(nil),
-			testutils.WithAmount(txAmount),
+			testutils.WithAmount(fct.Fee(txAmount)),
 			testutils.WithTargetRecordID(fcrUnitID),
 		),
 		testtransaction.WithUnitId(initialBillID),
@@ -691,7 +692,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NotNil(t, sm)
 
 	// verify user fee credit is 18 (transfer 20 minus fee 2 * fee)
-	remainingValue := txAmount - (2 * txFee) // 18
+	remainingValue := txAmount - (2 * uint64(txFee)) // 18
 	fcrUnit, err := rmaTree.GetUnit(fcrUnitID, false)
 	require.NoError(t, err)
 	fcrUnitData, ok := fcrUnit.Data().(*unit.FeeCreditRecord)
@@ -717,7 +718,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	targetBacklink = lockTx.Hash(crypto.SHA256)
 	closeFC := testutils.NewCloseFC(t,
 		testutils.NewCloseFCAttr(
-			testutils.WithCloseFCAmount(remainingValue),
+			testutils.WithCloseFCAmount(fct.Fee(remainingValue)),
 			testutils.WithCloseFCTargetUnitID(initialBillID),
 			testutils.WithCloseFCTargetUnitBacklink(targetBacklink),
 		),
@@ -759,7 +760,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	ib, err = rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data().SummaryValueInput())
+	require.EqualValues(t, initialBill.Value-4*uint64(txFee), ib.Data().SummaryValueInput())
 
 	// and initial bill got unlocked
 	bd, ok = ib.Data().(*BillData)

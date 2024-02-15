@@ -6,6 +6,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -16,8 +17,8 @@ var (
 	systemID             types.SystemID = 1
 	targetUnitBacklink                  = []byte{3}
 	backlink                            = []byte{4}
-	amount                              = uint64(50)
-	maxFee                              = uint64(2)
+	amount                              = fct.Fee(50)
+	maxFee                              = fct.Fee(2)
 	earliestAdditionTime                = uint64(0)
 	latestAdditionTime                  = uint64(10)
 )

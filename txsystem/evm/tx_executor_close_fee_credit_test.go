@@ -16,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		privKeyHash,
 		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 			&types.TransactionRecord{
-				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(amount), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(fct.Fee(amount)), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 					testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
@@ -99,7 +100,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 			name: "err - no unit (no credit has been added)",
 			args: args{order: newCloseFCTx(t,
 				test.RandomBytes(32),
-				testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(uint64(97)),
+				testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(97),
 					testutils.WithCloseFCTargetUnitID(privKeyHash), testutils.WithCloseFCTargetUnitBacklink(backlink)),
 				signer,
 				7,

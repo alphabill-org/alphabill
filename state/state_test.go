@@ -586,12 +586,9 @@ func TestSerialize_OK(t *testing.T) {
 	uc := createUC(s, summaryValue, summaryHash)
 	require.NoError(t, s.Commit(uc))
 
-	header := &Header{
-		SystemIdentifier: 0x01020304,
-	}
 	buf := &bytes.Buffer{}
 	// Writes the pruned state
-	require.NoError(t, s.Serialize(buf, header, true))
+	require.NoError(t, s.Serialize(buf, true))
 
 	recoveredState, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
@@ -607,12 +604,9 @@ func TestSerialize_OK(t *testing.T) {
 func TestSerialize_InvalidHeader(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier: 0x01020304,
-	}
 	buf := &bytes.Buffer{}
 	// Writes the pruned state
-	require.NoError(t, s.Serialize(buf, header, true))
+	require.NoError(t, s.Serialize(buf, true))
 
 	_, err := buf.ReadByte()
 	require.NoError(t, err)
@@ -624,12 +618,11 @@ func TestSerialize_InvalidHeader(t *testing.T) {
 func TestSerialize_InvalidNodeRecords(t *testing.T) {
 	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    1,
 		UnicityCertificate: nil,
 	}
-	buf := createSerializedState(t, s, header, 0)
+	buf := createSerializedState(t, s, h, 0)
 
 	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to decode node record")
@@ -638,12 +631,11 @@ func TestSerialize_InvalidNodeRecords(t *testing.T) {
 func TestSerialize_TooManyNodeRecords(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    10,
 		UnicityCertificate: nil,
 	}
-	buf := createSerializedState(t, s, header, 0)
+	buf := createSerializedState(t, s, h, 0)
 
 	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unexpected node record")
@@ -652,12 +644,11 @@ func TestSerialize_TooManyNodeRecords(t *testing.T) {
 func TestSerialize_UnitDataConstructorError(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
-	buf := createSerializedState(t, s, header, 0)
+	buf := createSerializedState(t, s, h, 0)
 
 	udc := func(_ types.UnitID) (UnitData, error) {
 		return nil, fmt.Errorf("something happened")
@@ -669,12 +660,11 @@ func TestSerialize_UnitDataConstructorError(t *testing.T) {
 func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
-	buf := createSerializedState(t, s, header, 0)
+	buf := createSerializedState(t, s, h, 0)
 
 	udc := func(_ types.UnitID) (UnitData, error) {
 		return struct{ *pruneUnitData }{}, nil
@@ -686,12 +676,11 @@ func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
 func TestSerialize_InvalidChecksum(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
-	buf := createSerializedState(t, s, header, 1)
+	buf := createSerializedState(t, s, h, 1)
 
 	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "checksum mismatch")
@@ -700,12 +689,11 @@ func TestSerialize_InvalidChecksum(t *testing.T) {
 func TestSerialize_InvalidUC(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	header := &Header{
-		SystemIdentifier:   0x01020304,
+	h := &header{
 		NodeRecordCount:    11,
 		UnicityCertificate: createUC(s, 0, nil),
 	}
-	buf := createSerializedState(t, s, header, 0)
+	buf := createSerializedState(t, s, h, 0)
 
 	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to commit recovered state")
@@ -714,11 +702,8 @@ func TestSerialize_InvalidUC(t *testing.T) {
 func TestSerialize_EmptyStateUncommitted(t *testing.T) {
 	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
 
-	header := &Header{
-		SystemIdentifier: 0x01020304,
-	}
 	buf := &bytes.Buffer{}
-	require.NoError(t, s.Serialize(buf, header, true))
+	require.NoError(t, s.Serialize(buf, true))
 
 	udc := func(_ types.UnitID) (UnitData, error) {
 		return &pruneUnitData{}, nil
@@ -738,11 +723,8 @@ func TestSerialize_EmptyStateCommitted(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.Commit(createUC(s, summaryValue, summaryHash)))
 
-	header := &Header{
-		SystemIdentifier: 0x01020304,
-	}
 	buf := &bytes.Buffer{}
-	require.NoError(t, s.Serialize(buf, header, true))
+	require.NoError(t, s.Serialize(buf, true))
 
 	udc := func(_ types.UnitID) (UnitData, error) {
 		return &pruneUnitData{}, nil
@@ -881,12 +863,12 @@ func unitDataConstructor(_ types.UnitID) (UnitData, error) {
 	return &pruneUnitData{}, nil
 }
 
-func createSerializedState(t *testing.T, s *State, header *Header, checksum uint32) *bytes.Buffer {
+func createSerializedState(t *testing.T, s *State, h *header, checksum uint32) *bytes.Buffer {
 	buf := &bytes.Buffer{}
 	crc32Writer := NewCRC32Writer(buf)
 	encoder := cbor.NewEncoder(crc32Writer)
 
-	require.NoError(t, encoder.Encode(header))
+	require.NoError(t, encoder.Encode(h))
 
 	ss := newStateSerializer(encoder, s.hashAlgorithm)
 	s.committedTree.Traverse(ss)

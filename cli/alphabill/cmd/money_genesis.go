@@ -281,7 +281,5 @@ func writeStateFile(path string, s *state.State, systemID types.SystemID) error 
 	if err != nil {
 		return err
 	}
-	return s.Serialize(stateFile, &state.Header{
-		SystemIdentifier: systemID,
-	}, false)
+	return s.Serialize(stateFile, false)
 }

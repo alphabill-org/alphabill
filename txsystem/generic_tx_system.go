@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -184,7 +183,7 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	return nil
 }
 
-func (m *GenericTxSystem) State() *state.State {
+func (m *GenericTxSystem) State() StateReader {
 	return m.state.Clone()
 }
 
@@ -214,11 +213,4 @@ func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
 
 func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
-}
-
-func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
-	header := &state.Header{
-		SystemIdentifier: m.systemIdentifier,
-	}
-	return m.state.Serialize(writer, header, committed)
 }

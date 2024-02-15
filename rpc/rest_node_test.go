@@ -9,14 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/partition"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
@@ -129,6 +129,27 @@ func TestRESTServer_GetTransactionRecord_Error(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
 	require.Contains(t, recorder.Body.String(), "invalid tx order hash: INVALID")
+}
+
+func TestRESTServer_GetState_Ok(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+}
+
+func TestRESTServer_GetState_Error(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{MockState: &testtxsystem.MockState{Err: errors.New("state error")}}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "state error")
 }
 
 func TestRESTServer_GetOwnerUnits(t *testing.T) {

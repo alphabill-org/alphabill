@@ -1,4 +1,5 @@
 .idea
+.genesis
 *.iml
 .DS_Store
 build/

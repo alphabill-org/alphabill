@@ -1,0 +1,237 @@
+services:
+  alphabill-root1:
+    extends:
+      file: docker-services.yml
+      service: alphabill-root
+    volumes:
+      - ./.genesis/root1:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - combine-root-genesis1
+    networks:
+      - default
+  alphabill-root2:
+    extends:
+      file: docker-services.yml
+      service: alphabill-root
+    volumes:
+      - ./.genesis/root2:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - combine-root-genesis2
+    networks:
+      - default
+  alphabill-root3:
+    extends:
+      file: docker-services.yml
+      service: alphabill-root
+    volumes:
+      - ./.genesis/root3:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - combine-root-genesis3
+    networks:
+      - default
+  alphabill-money1:
+    extends:
+      file: docker-services.yml
+      service: alphabill-money
+    volumes:
+      - ./.genesis/money1:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-money-genesis1
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 8001:8001
+    networks:
+      - default
+  alphabill-money2:
+    extends:
+      file: docker-services.yml
+      service: alphabill-money
+    volumes:
+      - ./.genesis/money2:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-money-genesis2
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 8002:8001
+    networks:
+      - default
+  alphabill-money3:
+    extends:
+      file: docker-services.yml
+      service: alphabill-money
+    volumes:
+      - ./.genesis/money3:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-money-genesis3
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 8003:8001
+    networks:
+      - default
+  alphabill-tokens1:
+    extends:
+      file: docker-services.yml
+      service: alphabill-tokens
+    volumes:
+      - ./.genesis/tokens1:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-tokens-genesis1
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 9001:8001
+    networks:
+      - default
+  alphabill-tokens2:
+    extends:
+      file: docker-services.yml
+      service: alphabill-tokens
+    volumes:
+      - ./.genesis/tokens2:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-tokens-genesis2
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 9002:8001
+    networks:
+      - default
+  alphabill-tokens3:
+    extends:
+      file: docker-services.yml
+      service: alphabill-tokens
+    volumes:
+      - ./.genesis/tokens3:/genesis
+      - ./.genesis:/genesis-nodes
+    depends_on:
+      - generate-tokens-genesis3
+      - alphabill-root1
+      - alphabill-root2
+      - alphabill-root3
+    ports:
+      - 9003:8001
+    networks:
+      - default
+  generate-root-genesis1:
+    extends:
+      file: docker-services.yml
+      service: generate-root-genesis
+    volumes:
+      - ./.genesis/root1:/genesis
+    depends_on:
+      - generate-money-genesis1
+      - generate-money-genesis2
+      - generate-money-genesis3
+      - generate-tokens-genesis1
+      - generate-tokens-genesis2
+      - generate-tokens-genesis3
+  generate-root-genesis2:
+    extends:
+      file: docker-services.yml
+      service: generate-root-genesis
+    volumes:
+      - ./.genesis/root2:/genesis
+    depends_on:
+      - generate-money-genesis1
+      - generate-money-genesis2
+      - generate-money-genesis3
+      - generate-tokens-genesis1
+      - generate-tokens-genesis2
+      - generate-tokens-genesis3
+  generate-root-genesis3:
+    extends:
+      file: docker-services.yml
+      service: generate-root-genesis
+    volumes:
+      - ./.genesis/root3:/genesis
+    depends_on:
+      - generate-money-genesis1
+      - generate-money-genesis2
+      - generate-money-genesis3
+      - generate-tokens-genesis1
+      - generate-tokens-genesis2
+      - generate-tokens-genesis3
+  combine-root-genesis1:
+    extends:
+      file: docker-services.yml
+      service: combine-root-genesis
+    volumes:
+      - ./.genesis/root1:/genesis/root
+    depends_on:
+      - generate-root-genesis1
+      - generate-root-genesis2
+      - generate-root-genesis3
+  combine-root-genesis2:
+    extends:
+      file: docker-services.yml
+      service: combine-root-genesis
+    volumes:
+      - ./.genesis/root2:/genesis/root
+    depends_on:
+      - generate-root-genesis1
+      - generate-root-genesis2
+      - generate-root-genesis3
+  combine-root-genesis3:
+    extends:
+      file: docker-services.yml
+      service: combine-root-genesis
+    volumes:
+      - ./.genesis/root3:/genesis/root
+    depends_on:
+      - generate-root-genesis1
+      - generate-root-genesis2
+      - generate-root-genesis3
+  generate-tokens-genesis1:
+    extends:
+      file: docker-services.yml
+      service: generate-tokens-genesis
+    volumes:
+      - ./.genesis/tokens1:/genesis
+  generate-tokens-genesis2:
+    extends:
+      file: docker-services.yml
+      service: generate-tokens-genesis
+    volumes:
+      - ./.genesis/tokens2:/genesis
+  generate-tokens-genesis3:
+    extends:
+      file: docker-services.yml
+      service: generate-tokens-genesis
+    volumes:
+      - ./.genesis/tokens3:/genesis
+  generate-money-genesis1:
+    extends:
+      file: docker-services.yml
+      service: generate-money-genesis
+    volumes:
+      - ./.genesis/money1:/genesis
+  generate-money-genesis2:
+    extends:
+      file: docker-services.yml
+      service: generate-money-genesis
+    volumes:
+      - ./.genesis/money2:/genesis
+  generate-money-genesis3:
+    extends:
+      file: docker-services.yml
+      service: generate-money-genesis
+    volumes:
+      - ./.genesis/money3:/genesis
+networks:
+  default:

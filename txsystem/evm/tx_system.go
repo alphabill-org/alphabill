@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -14,13 +13,22 @@ import (
 	"github.com/alphabill-org/alphabill/util"
 )
 
+type genericTransactionValidator func(ctx *TxValidationContext) error
+
+type TxValidationContext struct {
+	Tx               *types.TransactionOrder
+	Unit             *state.Unit
+	SystemIdentifier types.SystemID
+	BlockNumber      uint64
+}
+
 type TxSystem struct {
 	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentBlockNumber  uint64
 	executors           txsystem.TxExecutors
-	genericTxValidators []txsystem.GenericTransactionValidator
+	genericTxValidators []genericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	roundCommitted      bool
@@ -52,19 +60,18 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
-		executors:           make(map[string]txsystem.TxExecutor),
-		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
+		executors:           make(txsystem.TxExecutors),
+		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
 		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	executors := evm.TxExecutors()
-	for k, executor := range executors {
-		txs.executors[k] = executor
+	if err := txs.executors.Add(evm.TxExecutors()); err != nil {
+		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
-	executors = fees.TxExecutors()
-	for k, executor := range executors {
-		txs.executors[k] = executor
+	if err := txs.executors.Add(fees.TxExecutors()); err != nil {
+		return nil, fmt.Errorf("registering fee executors: %w", err)
 	}
+
 	return txs, nil
 }
 
@@ -72,7 +79,7 @@ func (m *TxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *TxSystem) State() *state.State {
+func (m *TxSystem) State() txsystem.StateReader {
 	return m.state.Clone()
 }
 
@@ -111,7 +118,7 @@ func (m *TxSystem) pruneState(blockNr uint64) error {
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
 	u, _ := m.state.GetUnit(tx.UnitID(), false)
-	ctx := &txsystem.TxValidationContext{
+	ctx := &TxValidationContext{
 		Tx:               tx,
 		Unit:             u,
 		SystemIdentifier: m.systemIdentifier,
@@ -182,11 +189,4 @@ func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
 
 func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
-}
-
-func (m *TxSystem) SerializeState(writer io.Writer, committed bool) error {
-	header := &state.Header{
-		SystemIdentifier: m.systemIdentifier,
-	}
-	return m.state.Serialize(writer, header, committed)
 }

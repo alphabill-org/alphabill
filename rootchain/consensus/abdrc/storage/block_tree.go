@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 
@@ -56,7 +55,7 @@ func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyVal
 
 func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	rootNode := newNode(block)
-	hQC := rootNode.data.BlockData.Qc
+	hQC := block.CommitQc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	if err := bDB.Write(blockKey(block.GetRound()), block); err != nil {
 		return nil, fmt.Errorf("block write failed, %w", err)
@@ -100,19 +99,18 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 		return blocks[i].GetRound() < blocks[j].GetRound()
 	})
 	// find root
-	rootIdx := 0
-	for commitIdx := len(blocks) - 1; commitIdx >= 0; commitIdx-- {
-		if rootRound := blocks[commitIdx].BlockData.Qc.GetCommitRound(); rootRound != 0 {
-			idx := slices.IndexFunc(blocks, func(b *ExecutedBlock) bool { return b.GetRound() == rootRound })
-			if idx == -1 {
-				return nil, fmt.Errorf("committed root block not found")
-			}
-			rootIdx = idx
+	rootIdx := -1
+	for i := len(blocks) - 1; i >= 0; i-- {
+		if blocks[i].CommitQc != nil {
+			rootIdx = i
 			break
 		}
 	}
+	if rootIdx == -1 {
+		return nil, fmt.Errorf("root block not found")
+	}
 	rootNode := newNode(blocks[rootIdx])
-	hQC = rootNode.data.BlockData.Qc
+	hQC = rootNode.data.CommitQc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	for i := rootIdx + 1; i < len(blocks); i++ {
 		block := blocks[i]
@@ -126,7 +124,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 		n := newNode(block)
 		treeNodes[block.BlockData.Round] = n
 		parent.addChild(n)
-		if n.data.BlockData.Qc != nil {
+		if n.data.BlockData.Qc.GetRound() > hQC.GetRound() {
 			hQC = n.data.BlockData.Qc
 		}
 	}
@@ -155,6 +153,7 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	if !bytes.Equal(b.RootHash, qc.VoteInfo.CurrentRootHash) {
 		return fmt.Errorf("block tree add qc failed, qc state hash is different from local computed state hash")
 	}
+	b.Qc = qc
 	// persist changes
 	if err = bt.blocksDB.Write(blockKey(b.GetRound()), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
@@ -342,6 +341,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 		}
 	}
 	// update the new root with commit QC info
+	commitNode.data.CommitQc = commitQc
 	if err = dbTx.Write(blockKey(commitRound), commitNode.data); err != nil {
 		if rollbackErr := dbTx.Rollback(); rollbackErr != nil {
 			// append also the rollback error for reference

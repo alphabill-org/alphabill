@@ -23,11 +23,14 @@ var (
 func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
-		bd, _ := s.GetUnit(unitID, false)
-		if bd == nil {
+		unit, _ := s.GetUnit(unitID, false)
+		if unit == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}
-		bdd, ok := bd.Data().(*BillData)
+		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+			return nil, err
+		}
+		bdd, ok := unit.Data().(*BillData)
 		if !ok {
 			return nil, errors.New("reclaimFC: invalid unit type")
 		}

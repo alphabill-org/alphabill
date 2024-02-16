@@ -20,12 +20,12 @@ func CreateUnicityCertificate(
 
 ) *types.UnicityCertificate {
 	t.Helper()
-	data := []*unicitytree.Data{{
+	data := []*types.UnicityTreeData{{
 		SystemIdentifier:            systemDescription.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: systemDescription.Hash(gocrypto.SHA256),
 	}}
-	ut, err := unicitytree.New(gocrypto.SHA256.New(), data)
+	ut, err := unicitytree.New(gocrypto.SHA256, data)
 	if err != nil {
 		t.Error(err)
 	}

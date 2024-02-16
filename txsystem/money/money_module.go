@@ -48,19 +48,19 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 	return
 }
 
-func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
+func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
+	return map[string]txsystem.ExecuteFunc{
 		// money partition tx handlers
-		PayloadTypeTransfer: handleTransferTx(m.state, m.hashAlgorithm, m.feeCalculator),
-		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
-		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
-		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.systemID, m.hashAlgorithm, m.trustBase, m.feeCalculator),
-		PayloadTypeLock:     handleLockTx(m.state, m.hashAlgorithm, m.feeCalculator),
-		PayloadTypeUnlock:   handleUnlockTx(m.state, m.hashAlgorithm, m.feeCalculator),
+		PayloadTypeTransfer: handleTransferTx(m.state, m.hashAlgorithm, m.feeCalculator).ExecuteFunc(),
+		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator).ExecuteFunc(),
+		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator).ExecuteFunc(),
+		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.systemID, m.hashAlgorithm, m.trustBase, m.feeCalculator).ExecuteFunc(),
+		PayloadTypeLock:     handleLockTx(m.state, m.hashAlgorithm, m.feeCalculator).ExecuteFunc(),
+		PayloadTypeUnlock:   handleUnlockTx(m.state, m.hashAlgorithm, m.feeCalculator).ExecuteFunc(),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),
-		transactions.PayloadTypeReclaimFeeCredit:  handleReclaimFeeCreditTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCreditTxRecorder, m.feeCalculator),
+		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator).ExecuteFunc(),
+		transactions.PayloadTypeReclaimFeeCredit:  handleReclaimFeeCreditTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCreditTxRecorder, m.feeCalculator).ExecuteFunc(),
 	}
 }
 
@@ -81,8 +81,4 @@ func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 			return m.feeCreditTxRecorder.consolidateFees()
 		},
 	}
-}
-
-func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return txsystem.ValidateGenericTransaction
 }

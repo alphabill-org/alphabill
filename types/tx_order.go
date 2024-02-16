@@ -159,6 +159,9 @@ func (p *Payload) UnmarshalAttributes(v any) error {
 	if p == nil {
 		return errors.New("payload is nil")
 	}
+	if p.Attributes == nil {
+		return nil
+	}
 	return cbor.Unmarshal(p.Attributes, v)
 }
 

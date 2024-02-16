@@ -155,6 +155,112 @@ func TestPartition_Ok(t *testing.T) {
 	}
 }
 
+func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
+	const moneyInvariant = uint64(10000 * 1e8)
+	total := moneyInvariant
+	initialBill := &InitialBill{
+		ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+		Value: moneyInvariant,
+		Owner: templates.AlwaysTrueBytes(),
+	}
+	sdrs := createSDRs(newBillID(2))
+	s := genesisState(t, initialBill, sdrs)
+	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+		s = s.Clone()
+		system, err := NewTxSystem(
+			logger.New(t),
+			WithState(s),
+			WithSystemIdentifier(systemIdentifier),
+			WithHashAlgorithm(crypto.SHA256),
+			WithSystemDescriptionRecords(sdrs),
+			WithTrustBase(tb),
+			WithFeeCalculator(fc.FixedFee(1)),
+		)
+		require.NoError(t, err)
+		return system
+	}, systemIdentifier, s)
+	require.NoError(t, err)
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start(t))
+	defer abNet.WaitClose(t)
+
+	// create fee credit for initial bill transfer
+	transferFC := testutils.NewTransferFC(t,
+		testutils.NewTransferFCAttr(
+			testutils.WithBacklink(nil),
+			testutils.WithAmount(fcrAmount),
+			testutils.WithTargetRecordID(fcrID),
+		),
+		testtransaction.WithUnitId(initialBill.ID),
+		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(transferFC))
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
+	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, initialBill.ID, transferFC)
+	require.NoError(t, err)
+	var billState BillData
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&billState))
+	require.Equal(t, moneyInvariant-uint64(fcrAmount), billState.V)
+	// verify proof
+	ucv, err := abNet.GetValidator(systemIdentifier)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	// send addFC
+	addFC := testutils.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
+		testutils.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
+			testutils.WithTransferFCTx(transferFCRecord),
+			testutils.WithTransferFCProof(transferFCProof),
+			testutils.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
+		),
+		testtransaction.WithUnitId(fcrID),
+		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(addFC))
+	// before reading state make sure that node 2 has executed the transfer
+	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
+	require.NoError(t, err, "add fee credit tx failed")
+	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
+	var feeBillState unit.FeeCreditRecord
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
+	remainingFeeBalance := fcrAmount - transferFCRecord.ServerMetadata.ActualFee - addTxRecord.ServerMetadata.ActualFee
+	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
+	// transfer initial bill to pubKey1
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-uint64(fcrAmount), templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
+	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
+	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
+	require.NoError(t, err, "transfer initial bill failed")
+	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
+	require.NoError(t, err)
+	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
+	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
+	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
+	transferInitialBillTxRecord := txRecord
+
+	// TODO: okay, preparations done, now we need to create an identity tx and check if it is accepted
+	// 1) identity tx without a state lock/unlock does nothing, even does not change the backlink
+	idTx := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
+	require.NoError(t, moneyPrt.SubmitTx(idTx))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx)
+	require.NoError(t, err, "identity tx failed")
+	// let's lock the unit of pubKey1 and then try to transfer it to pubKey2, it should fail
+	// TODO backlink must be ignored by identity tx?
+	/*backlink*/
+	_ = transferInitialBillTxRecord.TransactionOrder.Hash(crypto.SHA256)
+
+	// TODO ...
+}
+
 func TestPartition_SwapDCOk(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
 	const nofDustToSwap = 3

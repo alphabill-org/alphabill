@@ -11,6 +11,8 @@ import (
 
 var _ Module = (*IdentityModule)(nil)
 
+const TxIdentity = "identity"
+
 type IdentityModule struct {
 	txExecutor TransactionExecutor
 	state      *state.State
@@ -24,7 +26,7 @@ func NewIdentityModule(txExecutor TransactionExecutor, state *state.State) Modul
 
 func (i IdentityModule) TxExecutors() map[string]ExecuteFunc {
 	return map[string]ExecuteFunc{
-		"identity": handleIdentityTx(i.txExecutor, i.state).ExecuteFunc(),
+		TxIdentity: handleIdentityTx(i.txExecutor, i.state).ExecuteFunc(),
 	}
 }
 

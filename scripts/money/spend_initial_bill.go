@@ -80,7 +80,9 @@ func main() {
 		log.Fatal(err)
 	}
 	absoluteTimeout := res.RoundNumber + *timeout
-
+	if res.RoundNumber == 0 {
+		res.RoundNumber = 1
+	}
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	// Make the initial fcrID different from the default

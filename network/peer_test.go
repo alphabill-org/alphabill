@@ -7,20 +7,12 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
-	swarmt "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
 )
 
 const randomTestAddressStr = "/ip4/127.0.0.1/tcp/0"
-
-type blankValidator struct{}
-
-func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
-func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 func TestNewPeer_PeerConfigurationIsNil(t *testing.T) {
 	p, err := NewPeer(context.Background(), nil, nil, nil)
@@ -85,13 +77,16 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 func TestBootstrapNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
-	bootstrapNode := createDHT(ctx, t, false, dht.DisableAutoRefresh())
-	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.Host().ID(), Addrs: bootstrapNode.Host().Addrs()}}
+	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+
+	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
+	require.NoError(t, err)
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.ID(), Addrs: bootstrapNode.MultiAddresses()}}
 
 	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
 
-	peer1, err := NewPeer(context.Background(), peerConf1, log, nil)
+	peer1, err := NewPeer(ctx, peerConf1, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
@@ -99,7 +94,7 @@ func TestBootstrapNodes(t *testing.T) {
 	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
 
-	peer2, err := NewPeer(context.Background(), peerConf2, log, nil)
+	peer2, err := NewPeer(ctx, peerConf2, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
@@ -121,35 +116,6 @@ func createPeer(t *testing.T) *Peer {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, p.Close()) })
 	return p
-}
-
-func createDHT(ctx context.Context, t *testing.T, client bool, options ...dht.Option) *dht.IpfsDHT {
-	baseOpts := []dht.Option{
-		dht.DisableAutoRefresh(),
-		dht.Validator(&blankValidator{}),
-		dht.ProtocolPrefix(dhtProtocolPrefix),
-	}
-
-	if client {
-		baseOpts = append(baseOpts, dht.Mode(dht.ModeClient))
-	} else {
-		baseOpts = append(baseOpts, dht.Mode(dht.ModeServer))
-	}
-
-	host := createHost(t)
-
-	d, err := dht.New(ctx, host, append(baseOpts, options...)...)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, d.Close()) })
-	return d
-}
-
-func createHost(t *testing.T) *basichost.BasicHost {
-	host, err := basichost.NewHost(swarmt.GenSwarm(t, swarmt.OptDisableReuseport), new(basichost.HostOpts))
-	require.NoError(t, err)
-	host.Start()
-	t.Cleanup(func() { require.NoError(t, host.Close()) })
-	return host
 }
 
 func generateKeyPair(t *testing.T) *PeerKeyPair {

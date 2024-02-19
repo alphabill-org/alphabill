@@ -188,11 +188,6 @@ func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {
 	return validatorIdentifiers
 }
 
-// PublicKey returns the public key of the peer.
-func (p *Peer) PublicKey() (crypto.PubKey, error) {
-	return p.ID().ExtractPublicKey()
-}
-
 // MultiAddresses the address associated with this Peer.
 func (p *Peer) MultiAddresses() []ma.Multiaddr {
 	return p.host.Addrs()

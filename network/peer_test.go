@@ -77,6 +77,9 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	// test stringer
 	idStr := peer.ID().String()
 	require.EqualValues(t, fmt.Sprintf("NodeID:%s*%s", idStr[:2], idStr[len(idStr)-6:]), peer.String())
+	pubKeyFromID, err := peer.ID().ExtractPublicKey()
+	require.NoError(t, err)
+	require.Equal(t, pubKey, pubKeyFromID)
 }
 
 func TestBootstrapNodes(t *testing.T) {

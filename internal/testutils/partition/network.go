@@ -206,10 +206,7 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo) er
 	for i, rNode := range r.Nodes {
 		bootStrapInfo := bootNodes
 		isBootNode := slices.ContainsFunc(bootNodes, func(addrInfo peer.AddrInfo) bool {
-			if addrInfo.ID == rNode.id {
-				return true
-			}
-			return false
+			return addrInfo.ID == rNode.id
 		})
 		// if the node itself is set as bootstrap node, then clear bootstrap info (no sense in bootstrapping self)
 		if isBootNode {
@@ -406,7 +403,6 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
 		NodePartitions: nodeParts,
-		BootStrapInfo:  make([]peer.AddrInfo, 0),
 	}, nil
 }
 
@@ -426,7 +422,6 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
 		NodePartitions: nodeParts,
-		BootStrapInfo:  make([]peer.AddrInfo, 0),
 	}, nil
 }
 
@@ -435,21 +430,15 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	require.NoError(t, err)
 	bootNodes := make([]*network.Peer, nofBootNodes)
 	for i := 0; i < int(nofBootNodes); i++ {
-		port, err := net.GetFreePort()
-		require.NoError(t, err)
-		peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), encKeyPairs[i], nil, nil)
+		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", encKeyPairs[i], nil, nil)
 		require.NoError(t, err)
 		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
 		require.NoError(t, err)
 	}
 	a.BootNodes = bootNodes
-	return
 }
 
 func (a *AlphabillNetwork) getBootstrapNodeInfo() []peer.AddrInfo {
-	if a.BootNodes == nil {
-		return make([]peer.AddrInfo, 0)
-	}
 	bootNodes := make([]peer.AddrInfo, len(a.BootNodes))
 	for i, n := range a.BootNodes {
 		bootNodes[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}

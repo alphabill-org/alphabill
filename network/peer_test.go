@@ -86,6 +86,7 @@ func TestBootstrapNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
 	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
 
 	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
 	require.NoError(t, err)
@@ -116,10 +117,12 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
 	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
 	bootstrap1NodeAddr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
 	require.NoError(t, err)
 
 	bootStrapPeer2Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
 	bootstrapNode2, err := NewPeer(ctx, bootStrapPeer2Conf, log, nil)
 	require.NoError(t, err)
 	// set bootstrap info
@@ -153,6 +156,7 @@ func TestBootstrap_AllConnectionsFail(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
 	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
 	addr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
 	require.NoError(t, err)
 
@@ -170,7 +174,7 @@ func TestProvidesAndDiscoverNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
 	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
-
+	require.NoError(t, err)
 	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
 	require.NoError(t, err)
 	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.ID(), Addrs: bootstrapNode.MultiAddresses()}}

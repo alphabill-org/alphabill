@@ -2,7 +2,6 @@ package testpartition
 
 import (
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -35,7 +34,6 @@ func TestNewNetwork_Ok(t *testing.T) {
 	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
-	time.Sleep(time.Second * 5)
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
@@ -67,7 +65,6 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
-	time.Sleep(time.Second * 5)
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)

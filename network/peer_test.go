@@ -3,12 +3,14 @@ package network
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,6 +74,9 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	pub, _ := p.ExtractPublicKey()
 	raw, _ := pub.Raw()
 	require.Equal(t, pubKeyBytes, raw)
+	// test stringer
+	idStr := peer.ID().String()
+	require.EqualValues(t, fmt.Sprintf("NodeID:%s*%s", idStr[:2], idStr[len(idStr)-6:]), peer.String())
 }
 
 func TestBootstrapNodes(t *testing.T) {
@@ -102,6 +107,106 @@ func TestBootstrapNodes(t *testing.T) {
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+}
+
+func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
+	log := logger.New(t)
+	ctx := context.Background()
+	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	bootstrap1NodeAddr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
+	require.NoError(t, err)
+
+	bootStrapPeer2Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	bootstrapNode2, err := NewPeer(ctx, bootStrapPeer2Conf, log, nil)
+	require.NoError(t, err)
+	// set bootstrap info
+	bootstrapNodeAddrInfo := []peer.AddrInfo{
+		{ID: bootStrapPeer1Conf.ID, Addrs: []ma.Multiaddr{bootstrap1NodeAddr}},
+		{ID: bootstrapNode2.ID(), Addrs: bootstrapNode2.MultiAddresses()},
+	}
+
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+
+	peer1, err := NewPeer(ctx, peerConf1, log, nil)
+	require.NoError(t, err)
+	defer func() { _ = peer1.Close() }()
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
+
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+
+	peer2, err := NewPeer(ctx, peerConf2, log, nil)
+	require.NoError(t, err)
+	defer func() { _ = peer2.Close() }()
+
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+}
+
+func TestBootstrap_AllConnectionsFail(t *testing.T) {
+	log := logger.New(t)
+	ctx := context.Background()
+	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+	addr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
+	require.NoError(t, err)
+
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootStrapPeer1Conf.ID, Addrs: []ma.Multiaddr{addr}}}
+
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+
+	peer1, err := NewPeer(ctx, peerConf1, log, nil)
+	require.Nil(t, peer1)
+	require.ErrorContains(t, err, fmt.Sprintf("bootstrap error: failed to bootstrap: failed to dial: failed to dial %s: all dials failed", bootStrapPeer1Conf.ID))
+}
+
+func TestProvidesAndDiscoverNodes(t *testing.T) {
+	log := logger.New(t)
+	ctx := context.Background()
+	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+
+	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
+	require.NoError(t, err)
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.ID(), Addrs: bootstrapNode.MultiAddresses()}}
+
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+	peer1, err := NewPeer(ctx, peerConf1, log, nil)
+	require.NoError(t, err)
+	defer func() { _ = peer1.Close() }()
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
+
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+	peer2, err := NewPeer(ctx, peerConf2, log, nil)
+	require.NoError(t, err)
+	defer func() { _ = peer2.Close() }()
+
+	peerConf3, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+	peer3, err := NewPeer(ctx, peerConf3, log, nil)
+	require.NoError(t, err)
+	defer func() { _ = peer3.Close() }()
+
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
+	testTopic := "ab/test/test_topic"
+	require.NoError(t, peer2.Advertise(ctx, testTopic))
+	require.NoError(t, peer1.Advertise(ctx, testTopic))
+
+	// discover peers with the topic
+	peerChan, err := peer3.Discover(ctx, testTopic)
+	require.NoError(t, err)
+	peers := make([]peer.AddrInfo, 0, 2)
+	for p := range peerChan {
+		peers = append(peers, p)
+	}
+	require.Contains(t, peers, peer.AddrInfo{ID: peer1.ID(), Addrs: peer1.MultiAddresses()})
+	require.Contains(t, peers, peer.AddrInfo{ID: peer2.ID(), Addrs: peer2.MultiAddresses()})
+	require.Len(t, peers, 2)
 }
 
 /*

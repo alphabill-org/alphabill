@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	mrand "math/rand"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -19,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/routing"
+	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,14 +60,9 @@ type (
 
 // This code is borrowed from the go-ipfs bootstrap process
 func bootstrapConnect(ctx context.Context, ph host.Host, peers []peer.AddrInfo, log *slog.Logger) error {
-	if len(peers) < 1 {
-		return errors.New("not enough bootstrap peers")
-	}
-
 	errs := make(chan error, len(peers))
 	var wg sync.WaitGroup
 	for _, p := range peers {
-
 		// performed asynchronously because when performed synchronously, if
 		// one `Connect` call hangs, subsequent calls are more likely to
 		// fail/abort due to an expiring context.
@@ -208,10 +203,6 @@ func (p *Peer) Network() network.Network {
 	return p.host.Network()
 }
 
-func (p *Peer) BootstrapNodes() []peer.AddrInfo {
-	return p.Configuration().BootstrapPeers
-}
-
 // RegisterProtocolHandler sets the protocol stream handler for given protocol.
 func (p *Peer) RegisterProtocolHandler(protocolID string, handler network.StreamHandler) {
 	p.host.SetStreamHandler(libp2pprotocol.ID(protocolID), handler)
@@ -245,20 +236,15 @@ func (p *Peer) Close() error {
 	return err
 }
 
-// GetRandomPeerID returns a random peer.ID from the peerstore.
-func (p *Peer) GetRandomPeerID() peer.ID {
-	networkPeers := p.Network().Peerstore().Peers()
+func (p *Peer) Advertise(ctx context.Context, topic string) error {
+	routingDiscovery := drouting.NewRoutingDiscovery(p.dht)
+	_, err := routingDiscovery.Advertise(ctx, topic)
+	return err
+}
 
-	var peers []peer.ID
-	for _, id := range networkPeers {
-		if id != p.ID() {
-			peers = append(peers, id)
-		}
-	}
-
-	// #nosec G404
-	index := mrand.Intn(len(peers))
-	return peers[index]
+func (p *Peer) Discover(ctx context.Context, topic string) (<-chan peer.AddrInfo, error) {
+	routingDiscovery := drouting.NewRoutingDiscovery(p.dht)
+	return routingDiscovery.FindPeers(ctx, topic)
 }
 
 func NewPeerConfiguration(

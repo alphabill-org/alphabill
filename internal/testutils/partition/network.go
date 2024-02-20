@@ -596,6 +596,20 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
+// PartitionInitReady - all nodes are in normal state and return a latest block number
+func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
+	t.Helper()
+	return func() bool {
+		for _, n := range part.Nodes {
+			_, err := n.LatestBlockNumber()
+			if err != nil {
+				return false
+			}
+		}
+		return true
+	}
+}
+
 // WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
 // the UC. Returns both transaction record and proof when tx has been executed and added to block
 func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {

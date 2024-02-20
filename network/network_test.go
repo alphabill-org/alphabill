@@ -222,7 +222,7 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 
 		msg := []byte{3, 2, 1}
 		err = nw1.sendMsg(context.Background(), msg, "test/p", 100*time.Millisecond, peer2.ID())
-		require.EqualError(t, err, fmt.Sprintf("open p2p stream: failed to dial: failed to dial %s: no addresses", peer2.ID()))
+		require.EqualError(t, err, "open p2p stream: failed to find any peer in table")
 	})
 
 	t.Run("connection refused", func(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	mrand "math/rand"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p"
@@ -17,6 +17,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
+	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,6 +58,47 @@ type (
 	}
 )
 
+// This code is borrowed from the go-ipfs bootstrap process
+func bootstrapConnect(ctx context.Context, ph host.Host, peers []peer.AddrInfo, log *slog.Logger) error {
+	errs := make(chan error, len(peers))
+	var wg sync.WaitGroup
+	for _, p := range peers {
+		// performed asynchronously because when performed synchronously, if
+		// one `Connect` call hangs, subsequent calls are more likely to
+		// fail/abort due to an expiring context.
+		// Also, performed asynchronously for dial speed.
+		wg.Add(1)
+		go func(p peer.AddrInfo) {
+			defer wg.Done()
+
+			ph.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.PermanentAddrTTL)
+			if err := ph.Connect(ctx, p); err != nil {
+				log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", ph.ID(), p.ID, err))
+				errs <- err
+				return
+			}
+			log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", ph.ID(), p.ID))
+		}(p)
+	}
+	wg.Wait()
+
+	// our failure condition is when no connection attempt succeeded.
+	// So drain the errs channel, counting the results.
+	close(errs)
+	count := 0
+	var allErr error
+	for err := range errs {
+		if err != nil {
+			count++
+			allErr = errors.Join(allErr, err)
+		}
+	}
+	if count == len(peers) {
+		return fmt.Errorf("failed to bootstrap: %w", allErr)
+	}
+	return nil
+}
+
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
@@ -81,10 +124,18 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, err
 	}
 
+	var kademliaDHT *dht.IpfsDHT
+
 	opts := []config.Option{
 		libp2p.ListenAddrStrings(address),
 		libp2p.Identity(privateKey),
 		libp2p.Peerstore(peerStore),
+		// Let this host use the DHT to find other hosts
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeAutoServer, log)
+			return kademliaDHT, err
+		}),
+
 		libp2p.Ping(true), // make sure ping service is enabled
 	}
 	if prom != nil {
@@ -94,16 +145,17 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	if err != nil {
 		return nil, err
 	}
-
-	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
-	if err != nil {
-		if e := h.Close(); e != nil {
-			err = errors.Join(err, fmt.Errorf("closing libp2p host: %w", err))
+	// Open a connection to the bootstrap nodes.
+	// This is the only way to discover other peers, so let's do this as soon as possible.
+	if len(conf.BootstrapPeers) > 0 {
+		if err = bootstrapConnect(ctx, h, conf.BootstrapPeers, log); err != nil {
+			return nil, fmt.Errorf("bootstrap error: %w", err)
 		}
-		return nil, err
+	}
+	if err = kademliaDHT.Bootstrap(ctx); err != nil {
+		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
 	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
-
 	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
 	return p, nil
 }
@@ -136,11 +188,6 @@ func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {
 	return validatorIdentifiers
 }
 
-// PublicKey returns the public key of the peer.
-func (p *Peer) PublicKey() (crypto.PubKey, error) {
-	return p.ID().ExtractPublicKey()
-}
-
 // MultiAddresses the address associated with this Peer.
 func (p *Peer) MultiAddresses() []ma.Multiaddr {
 	return p.host.Addrs()
@@ -149,10 +196,6 @@ func (p *Peer) MultiAddresses() []ma.Multiaddr {
 // Network returns the Network of the Peer.
 func (p *Peer) Network() network.Network {
 	return p.host.Network()
-}
-
-func (p *Peer) BootstrapNodes() []peer.AddrInfo {
-	return p.Configuration().BootstrapPeers
 }
 
 // RegisterProtocolHandler sets the protocol stream handler for given protocol.
@@ -188,20 +231,15 @@ func (p *Peer) Close() error {
 	return err
 }
 
-// GetRandomPeerID returns a random peer.ID from the peerstore.
-func (p *Peer) GetRandomPeerID() peer.ID {
-	networkPeers := p.Network().Peerstore().Peers()
+func (p *Peer) Advertise(ctx context.Context, topic string) error {
+	routingDiscovery := drouting.NewRoutingDiscovery(p.dht)
+	_, err := routingDiscovery.Advertise(ctx, topic)
+	return err
+}
 
-	var peers []peer.ID
-	for _, id := range networkPeers {
-		if id != p.ID() {
-			peers = append(peers, id)
-		}
-	}
-
-	// #nosec G404
-	index := mrand.Intn(len(peers))
-	return peers[index]
+func (p *Peer) Discover(ctx context.Context, topic string) (<-chan peer.AddrInfo, error) {
+	routingDiscovery := drouting.NewRoutingDiscovery(p.dht)
+	return routingDiscovery.FindPeers(ctx, topic)
 }
 
 func NewPeerConfiguration(
@@ -240,13 +278,23 @@ func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
 	return id, nil
 }
 
-func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt) (*dht.IpfsDHT, error) {
+func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt, log *slog.Logger) (*dht.IpfsDHT, error) {
 	kdht, err := dht.New(ctx, h, dht.ProtocolPrefix(dhtProtocolPrefix), dht.BootstrapPeers(bootstrapPeers...), dht.Mode(opt))
 	if err != nil {
 		return nil, fmt.Errorf("creating DHT: %w", err)
 	}
-	if err = kdht.Bootstrap(ctx); err != nil {
-		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
+	routingTable := kdht.RoutingTable()
+	peerRemovedCb := routingTable.PeerRemoved
+	peerAddedCb := routingTable.PeerAdded
+	routingTable.PeerRemoved = func(pid peer.ID) {
+		peerRemovedCb(pid)
+		log.DebugContext(ctx, fmt.Sprintf("peer %s removed from routing table", pid.String()))
+		// meter routing table size? -> decrease
+	}
+	routingTable.PeerAdded = func(pid peer.ID) {
+		peerAddedCb(pid)
+		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()))
+		// meter routing table size? -> increase?
 	}
 	return kdht, nil
 }

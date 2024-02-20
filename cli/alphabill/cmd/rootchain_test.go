@@ -152,8 +152,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
-			Address:            "/ip4/127.0.0.1/tcp/26652",
-			BootStrapAddresses: rootID.String() + "@" + address,
+			Address: "/ip4/127.0.0.1/tcp/26652",
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)
@@ -279,8 +278,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
-			Address:            "/ip4/127.0.0.1/tcp/26652",
-			BootStrapAddresses: rootID.String() + "@" + address,
+			Address: "/ip4/127.0.0.1/tcp/26652",
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)

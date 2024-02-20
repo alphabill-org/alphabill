@@ -180,8 +180,6 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	}
 	sort.Sort(validatorIdentifiers)
 
-	// Assume monolithic root chain for now and only extract the id of the first root node.
-	// Assume monolithic root chain is also a bootstrap node.
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)

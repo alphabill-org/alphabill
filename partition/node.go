@@ -25,7 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -347,15 +346,6 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	if err != nil {
 		return err
 	}
-	// add bootstrap address to the peer store
-	if peerConf.BootstrapPeers != nil {
-		for _, info := range peerConf.BootstrapPeers {
-			for _, addr := range info.Addrs {
-				n.peer.Network().Peerstore().AddAddr(info.ID, addr, peerstore.PermanentAddrTTL)
-			}
-		}
-	}
-
 	if n.network != nil {
 		return nil
 	}
@@ -1370,7 +1360,6 @@ It's part of the public API exposed by node.
 func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 	_, span := n.tracer.Start(ctx, "node.GetLatestRoundNumber")
 	defer span.End()
-
 	if status := n.status.Load(); status != normal {
 		return 0, fmt.Errorf("node not ready: %s", status)
 	}

@@ -527,6 +527,10 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.NoError(t, err)
 	txHash := tx.Hash(gocrypto.SHA256)
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
+
+	// verify unit log was added
+	require.Len(t, u.Logs(), 1)
+
 	d := u.Data().(*NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
 	require.Equal(t, nftTypeID2, d.NftType)

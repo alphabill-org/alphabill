@@ -18,7 +18,7 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill money --home /genesis/money --address="/ip4/$(hostname -i)/tcp/8000" --rpc-server-address=$(hostname -i):8001 --key-file /genesis/money/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-1.json --state /genesis/money/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
+      - 'alphabill money --home /genesis/money --address="/ip4/$(hostname -i)/tcp/8000" --rpc-server-address=$(hostname -i):8001 --server-address $(hostname -i):8002 --key-file /genesis/money/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-1.json --state /genesis/money/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
     expose:
       - 8000
   alphabill-tokens:
@@ -27,7 +27,7 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill tokens --home /genesis/tokens --address="/ip4/$(hostname -i)/tcp/8000" --rpc-server-address=$(hostname -i):8001 --key-file /genesis/tokens/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-2.json --state /genesis/tokens/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
+      - 'alphabill tokens --home /genesis/tokens --address="/ip4/$(hostname -i)/tcp/8000" --rpc-server-address=$(hostname -i):8001 --server-address $(hostname -i):8002 --key-file /genesis/tokens/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-2.json --state /genesis/tokens/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
     expose:
       - 8000
   generate-tokens-genesis:

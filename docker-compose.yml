@@ -46,6 +46,7 @@ services:
       - alphabill-root3
     ports:
       - 8001:8001
+      - 8011:8002
     networks:
       - default
   alphabill-money2:

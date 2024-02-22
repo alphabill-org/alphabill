@@ -6,25 +6,49 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
+)
+
+var (
+	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
 )
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
 		if err := validateBurnFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
 		fee := options.feeCalculator()
-
-		// update state
 		unitID := tx.UnitID()
-		if err := options.state.Apply(state.DeleteUnit(unitID)); err != nil {
-			return nil, err
+		txHash := tx.Hash(options.hashAlgorithm)
+
+		// 1. SetOwner(ι, DC)
+		setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
+
+		// 2. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
+		updateUnitFn := state.UpdateUnitData(unitID,
+			func(data state.UnitData) (state.UnitData, error) {
+				ftData, ok := data.(*FungibleTokenData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
+				}
+				ftData.Value = 0
+				ftData.T = currentBlockNo
+				ftData.Backlink = txHash
+				return ftData, nil
+			},
+		)
+
+		if err := options.state.Apply(setOwnerFn, updateUnitFn); err != nil {
+			return nil, fmt.Errorf("burnFToken: failed to update state: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

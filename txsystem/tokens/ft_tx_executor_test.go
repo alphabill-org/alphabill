@@ -886,14 +886,29 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenUnitID
 	tx := createTransactionOrder(t, burnAttributes, PayloadTypeBurnFungibleToken, uID)
-	var roundNr uint64 = 10
-	sm, err := handleBurnFungibleTokenTx(opts)(tx, burnAttributes, roundNr)
+	roundNo := uint64(10)
+
+	// handle tx
+	sm, err := handleBurnFungibleTokenTx(opts)(tx, burnAttributes, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
+	// get unit
 	u, err := opts.state.GetUnit(uID, false)
-	require.Nil(t, u)
-	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", uID))
+	require.NoError(t, err)
+	require.NotNil(t, u)
+
+	// verify owner is dc predicate
+	require.Equal(t, DustCollectorPredicate, u.Bearer())
+
+	// verify unit data
+	unitData, ok := u.Data().(*FungibleTokenData)
+	require.True(t, ok)
+	require.Equal(t, existingTokenTypeUnitID, unitData.TokenType)
+	require.Equal(t, uint64(0), unitData.Value)
+	require.Equal(t, roundNo, unitData.T)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), unitData.Backlink)
+	require.Equal(t, uint64(0), unitData.Locked)
 }
 
 func TestJoinFungibleToken_Ok(t *testing.T) {

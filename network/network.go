@@ -1,12 +1,15 @@
 package network
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"reflect"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -18,6 +21,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
+
+const LargeMessageTimeout = 1 * time.Second
 
 type (
 	sendProtocolDescription struct {
@@ -86,6 +91,7 @@ func (n *LibP2PNetwork) ReceivedChannel() <-chan any {
 	return n.receivedMsgs
 }
 
+// Send - send single message to one or more peers
 func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID) error {
 	if len(receivers) == 0 {
 		return nil // no one to send message in single-node partition
@@ -104,6 +110,48 @@ func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID)
 	return nil
 }
 
+// SendMessages - send multiple messages at once to one recipient
+func (n *LibP2PNetwork) SendMessages(ctx context.Context, messages []any, receiverID peer.ID) (err error) {
+	ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.sendmessages")
+	defer span.End()
+	var stream libp2pNetwork.Stream
+	for _, msg := range messages {
+		p, f := n.sendProtocols[reflect.TypeOf(msg)]
+		if !f {
+			return fmt.Errorf("no protocol registered for messages of type %T", msg)
+		}
+		if stream == nil {
+			stream, err = n.self.CreateStream(ctx, receiverID, p.protocolID)
+			if err != nil {
+				return fmt.Errorf("open p2p stream: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					if resErr := stream.Reset(); resErr != nil {
+						err = errors.Join(err, resErr)
+					}
+				} else {
+					if closeErr := stream.Close(); closeErr != nil {
+						err = errors.Join(err, closeErr)
+					}
+				}
+			}()
+		}
+		deadline, _ := ctx.Deadline()
+		err = stream.SetWriteDeadline(deadline)
+		data, err := serializeMsg(msg)
+		if err != nil {
+			// skip this and still try to send others
+			n.log.WarnContext(ctx, "serializing %q message", p.protocolID, logger.Error(err))
+			continue
+		}
+		if _, err = stream.Write(data); err != nil {
+
+		}
+	}
+	return nil
+}
+
 func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, msg any, receivers []peer.ID) error {
 	ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send")
 	defer span.End()
@@ -113,30 +161,48 @@ func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, ms
 		return fmt.Errorf("serializing message: %w", err)
 	}
 
-	// as of now we send messages for all the receivers in the single goroutine... consider
-	// sending each message in a separate goroutine (or if there is single receiver then do
-	// it in "sync mode"?)
-	go func() {
-		ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send.func", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(ctx)), trace.WithAttributes(attribute.String("protocol", protocol.protocolID)))
-		defer span.End()
-		for _, receiver := range receivers {
-			// loop-back for self messages as libp2p would otherwise error:
+	var wg sync.WaitGroup
+	errs := make(chan error, len(receivers))
+	for _, receiver := range receivers {
+		wg.Add(1)
+		go func(id peer.ID) {
+			defer wg.Done()
+			ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send.func", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(ctx)), trace.WithAttributes(attribute.String("protocol", protocol.protocolID)))
+			defer span.End()
+			// loop-back for self-messages as libp2p would otherwise error:
 			// open stream error: failed to dial: dial to self attempted
-			if receiver == n.self.ID() {
+			if id == n.self.ID() {
 				n.receivedMsg(n.self.ID(), protocol.protocolID, msg)
-				continue
+				return
 			}
+			// network nodes
+			ctx, cancel := context.WithTimeout(ctx, protocol.timeout)
+			defer cancel()
+			if err = n.sendMsg(ctx, data, protocol.protocolID, id); err != nil {
+				n.log.WarnContext(ctx, fmt.Sprintf("sending %s to %v", protocol.protocolID, id), logger.Error(err))
+				errs <- err
+				return
+			}
+		}(receiver)
+	}
+	wg.Wait()
 
-			if err := n.sendMsg(ctx, data, protocol.protocolID, protocol.timeout, receiver); err != nil {
-				n.log.WarnContext(ctx, fmt.Sprintf("sending %s to %v", protocol.protocolID, receiver), logger.Error(err))
-			}
+	close(errs)
+	count := 0
+	var allErr error
+	for err := range errs {
+		if err != nil {
+			count++
+			allErr = errors.Join(allErr, err)
 		}
-	}()
-
+	}
+	if count == len(receivers) {
+		return fmt.Errorf("send failed: %w", allErr)
+	}
 	return nil
 }
 
-func (n *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID string, timeout time.Duration, receiverID peer.ID) (rErr error) {
+func (n *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID string, receiverID peer.ID) (rErr error) {
 	ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.sendMsg", trace.WithAttributes(attribute.Stringer("receiver", receiverID)))
 	defer func() {
 		if rErr != nil {
@@ -146,23 +212,23 @@ func (n *LibP2PNetwork) sendMsg(ctx context.Context, data []byte, protocolID str
 		span.End()
 	}()
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	s, err := n.self.CreateStream(ctx, receiverID, protocolID)
 	if err != nil {
 		return fmt.Errorf("open p2p stream: %w", err)
 	}
-	defer func() {
-		if err := s.Close(); err != nil {
-			rErr = errors.Join(rErr, fmt.Errorf("closing p2p stream: %w", err))
+	deadline, _ := ctx.Deadline()
+	err = s.SetWriteDeadline(deadline)
+	if _, err = s.Write(data); err != nil {
+		// on error reset to make sure that the next stream is not affected by the same error
+		// reset forces close of both ends of the stream
+		if resetErr := s.Reset(); resetErr != nil {
+			return errors.Join(fmt.Errorf("writing data to p2p stream: %w", err), resetErr)
 		}
-	}()
-
-	if _, err := s.Write(data); err != nil {
 		return fmt.Errorf("writing data to p2p stream: %w", err)
 	}
-
+	if err = s.Close(); err != nil {
+		return fmt.Errorf("closing p2p stream: %w", err)
+	}
 	return nil
 }
 
@@ -173,18 +239,37 @@ incoming message can be stored.
 */
 func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any) libp2pNetwork.StreamHandler {
 	return func(s libp2pNetwork.Stream) {
+		success := false
 		defer func() {
-			if err := s.Close(); err != nil {
-				n.log.Warn(fmt.Sprintf("closing p2p stream %q", protocolID), logger.Error(err))
+			if success {
+				if err := s.Close(); err != nil {
+					n.log.Warn(fmt.Sprintf("closing p2p stream %q", protocolID), logger.Error(err))
+				}
+			} else {
+				if err := s.Reset(); err != nil {
+					n.log.Warn(fmt.Sprintf("reset p2p stream %q", protocolID), logger.Error(err))
+				}
 			}
 		}()
-
-		msg := ctor()
-		if err := deserializeMsg(s, msg); err != nil {
-			n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))
+		// set reader timeout - node should not wait here forever
+		err := s.SetReadDeadline(time.Now().Add(1000 * time.Millisecond))
+		if err != nil {
+			n.log.Warn(fmt.Sprintf("failed to set read deadline for stream %q", protocolID))
 			return
 		}
-		n.receivedMsg(s.Conn().RemotePeer(), protocolID, msg)
+		reader := bufio.NewReader(s)
+		for {
+			msg := ctor()
+			if err = deserializeMsg(reader, msg); err != nil {
+				if err == io.EOF {
+					break
+				}
+				n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))
+				return
+			}
+			n.receivedMsg(s.Conn().RemotePeer(), protocolID, msg)
+		}
+		success = true
 	}
 }
 

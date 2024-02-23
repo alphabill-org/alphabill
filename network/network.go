@@ -261,7 +261,7 @@ func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() 
 		for {
 			msg := ctor()
 			if err = deserializeMsg(reader, msg); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))

@@ -164,26 +164,41 @@ func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, ms
 	var wg sync.WaitGroup
 	errs := make(chan error, len(receivers))
 	for _, receiver := range receivers {
+		// loop-back for self-messages as libp2p would otherwise error:
+		// open stream error: failed to dial: dial to self attempted
+		if receiver == n.self.ID() {
+			n.receivedMsg(n.self.ID(), protocol.protocolID, msg)
+			continue
+		}
 		wg.Add(1)
-		go func(id peer.ID) {
+		go func(host *Peer, receiverID peer.ID) {
 			defer wg.Done()
 			ctx, span := n.tracer.Start(ctx, "LibP2PNetwork.send.func", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(ctx)), trace.WithAttributes(attribute.String("protocol", protocol.protocolID)))
 			defer span.End()
-			// loop-back for self-messages as libp2p would otherwise error:
-			// open stream error: failed to dial: dial to self attempted
-			if id == n.self.ID() {
-				n.receivedMsg(n.self.ID(), protocol.protocolID, msg)
-				return
-			}
 			// network nodes
-			ctx, cancel := context.WithTimeout(ctx, protocol.timeout)
+			sendCtx, cancel := context.WithTimeout(ctx, protocol.timeout)
 			defer cancel()
-			if err = n.sendMsg(ctx, data, protocol.protocolID, id); err != nil {
-				n.log.WarnContext(ctx, fmt.Sprintf("sending %s to %v", protocol.protocolID, id), logger.Error(err))
-				errs <- err
+			s, err := host.CreateStream(sendCtx, receiverID, protocol.protocolID)
+			if err != nil {
+				errs <- fmt.Errorf("open p2p stream: %w", err)
 				return
 			}
-		}(receiver)
+			deadline, _ := sendCtx.Deadline()
+			err = s.SetWriteDeadline(deadline)
+			if _, err = s.Write(data); err != nil {
+				// on error reset to make sure that the next stream is not affected by the same error
+				// reset forces close of both ends of the stream
+				if resetErr := s.Reset(); resetErr != nil {
+					errs <- errors.Join(fmt.Errorf("writing data to p2p stream: %w", err), fmt.Errorf("stream reset: %w", resetErr))
+					return
+				}
+				errs <- fmt.Errorf("writing data to p2p stream: %w", err)
+				return
+			}
+			if err = s.Close(); err != nil {
+				errs <- fmt.Errorf("closing p2p stream: %w", err)
+			}
+		}(n.self, receiver)
 	}
 	wg.Wait()
 

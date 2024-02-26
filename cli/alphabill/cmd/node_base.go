@@ -108,15 +108,20 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		routers := []rpc.Registrar{
 			rpc.NodeEndpoints(node, proofStore, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
-			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if rpcServerConf.Router != nil {
 			routers = append(routers, rpcServerConf.Router)
 		}
-		rpcServerConf.APIs = []rpc.API{{
-			Namespace: "state",
-			Service:   rpc.NewStateAPI(node),
-		}}
+		rpcServerConf.APIs = []rpc.API{
+			{
+				Namespace: "state",
+				Service:   rpc.NewStateAPI(node),
+			},
+			{
+				Namespace: "admin",
+				Service:   rpc.NewAdminAPI(node, name, node.GetPeer(), log),
+			},
+		}
 
 		rpcServer, err := rpc.NewHTTPServer(rpcServerConf, obs, routers...)
 		if err != nil {

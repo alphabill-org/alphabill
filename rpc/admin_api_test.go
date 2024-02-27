@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
-func TestGetInfo_OK(t *testing.T) {
+func TestGetNodeInfo_OK(t *testing.T) {
 	node := &MockNode{}
 	peerConf := peer.CreatePeerConfiguration(t)
 	selfPeer := peer.CreatePeer(t, peerConf)
@@ -18,7 +18,7 @@ func TestGetInfo_OK(t *testing.T) {
 	api := NewAdminAPI(node, "money node", selfPeer, log)
 
 	t.Run("ok", func(t *testing.T) {
-		r, err := api.GetInfo()
+		r, err := api.GetNodeInfo()
 		require.NoError(t, err)
 		require.Equal(t, "money node", r.Name)
 		require.Equal(t, types.SystemID(65536), r.SystemID)

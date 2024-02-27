@@ -24,7 +24,7 @@ type (
 		SystemIdentifier() types.SystemID
 	}
 
-	InfoResponse struct {
+	NodeInfoResponse struct {
 		SystemID            types.SystemID `json:"systemId"` // hex encoded system identifier
 		Name                string         `json:"name"`     // one of [money node | tokens node | evm node]
 		Self                PeerInfo       `json:"self"`     // information about this peer
@@ -45,9 +45,9 @@ func NewAdminAPI(node AdminNode, name string, self *network.Peer, log *slog.Logg
 	return &AdminAPI{node: node, name: name, self: self, log: log}
 }
 
-// GetInfo returns status information about the node.
-func (s *AdminAPI) GetInfo() (*InfoResponse, error) {
-	return &InfoResponse{
+// GetNodeInfo returns status information about the node.
+func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
+	return &NodeInfoResponse{
 		SystemID: s.node.SystemIdentifier(),
 		Name:     s.name,
 		Self: PeerInfo{

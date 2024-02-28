@@ -5,6 +5,7 @@ Run `make build` to build the application. Executable will be built to `build/al
 ### Build dependencies
 
 * `golang` version 1.21. (https://go.dev/doc/install)
+* `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
 * in order to rebuild everything including protobuf definitions (`make` or `make all`):
   * `protoc` version 3.21.9+ (https://grpc.io/docs/protoc-installation)
   * `protoc-gen-go` (https://grpc.io/docs/languages/go/quickstart/)

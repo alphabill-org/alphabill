@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
@@ -161,9 +161,12 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("item %s does not exist", unitID),
 		},
 	}
+
+	m, err := NewFungibleTokensModule(defaultOpts(t))
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handleCreateFungibleTokenTypeTx(tt.options)(tt.tx, tt.attr, 10)
+			sm, err := m.handleCreateFungibleTokenTypeTx()(tt.tx, tt.attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -182,9 +185,11 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
 		InvariantPredicate:       templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
-
 	unitID := NewFungibleTokenTypeID(nil, []byte{7})
-	sm, err := handleCreateFungibleTokenTypeTx(opts)(
+
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
+	sm, err := m.handleCreateFungibleTokenTypeTx()(
 		createTransactionOrder(t, attributes, PayloadTypeCreateFungibleTokenType, unitID),
 		attributes,
 		10,
@@ -240,10 +245,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 
 	childTx := createTransactionOrder(t, childAttributes, PayloadTypeCreateFungibleTokenType, childID)
 
-	sm, err := handleCreateFungibleTokenTypeTx(opts)(parentTx, parentAttributes, 10)
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
+
+	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, 10)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	sm, err = handleCreateFungibleTokenTypeTx(opts)(childTx, childAttributes, 11)
+	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, 11)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(childID, false)
@@ -288,13 +296,15 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 		SubTypeCreationPredicateSignatures: [][]byte{[]byte("invalid")},
 	}
 	childTx := createTransactionOrder(t, childAttributes, PayloadTypeCreateFungibleTokenType, childID)
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
 
-	sm, err := handleCreateFungibleTokenTypeTx(opts)(parentTx, parentAttributes, 10)
+	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, 10)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	sm, err = handleCreateFungibleTokenTypeTx(opts)(childTx, childAttributes, 11)
-	require.ErrorContains(t, err, "invalid predicate")
+	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, 11)
+	require.EqualError(t, err, `invalid create fungible token type tx: SubTypeCreationPredicate: executing predicate [0] in the chain: executing predicate: failed to decode P2PKH256 signature: unexpected EOF`)
 	require.Nil(t, sm)
 }
 
@@ -400,9 +410,12 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
+	m, err := NewFungibleTokensModule(defaultOpts(t))
+	require.NoError(t, err)
+	handler := m.handleMintFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handleMintFungibleTokenTx(defaultOpts(t))(tt.tx, tt.attr, 10)
+			sm, err := handler(tt.tx, tt.attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -419,8 +432,11 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	}
 	tokenID := validUnitID
 	tx := createTransactionOrder(t, attributes, PayloadTypeMintFungibleToken, tokenID)
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
+	handler := m.handleMintFungibleTokenTx()
 
-	sm, err := handleMintFungibleTokenTx(opts)(tx, attributes, 10)
+	sm, err := handler(tx, attributes, 10)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(tokenID, false)
@@ -537,9 +553,13 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		//	wantErrStr: "invalid predicate",
 		//},
 	}
+
+	m, err := NewFungibleTokensModule(defaultOpts(t))
+	require.NoError(t, err)
+	handler := m.handleTransferFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handleTransferFungibleTokenTx(defaultOpts(t))(tt.tx, tt.attr, 10)
+			sm, err := handler(tt.tx, tt.attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -558,9 +578,12 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenUnitID
 	tx := createTransactionOrder(t, transferAttributes, PayloadTypeTransferFungibleToken, uID)
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
+	handler := m.handleTransferFungibleTokenTx()
 
 	var roundNr uint64 = 10
-	sm, err := handleTransferFungibleTokenTx(opts)(tx, transferAttributes, roundNr)
+	sm, err := handler(tx, transferAttributes, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -704,7 +727,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 				RemainingValue:               1,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			},
 			wantErrStr: "invalid type identifier",
 		},
@@ -724,9 +747,12 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		//},
 	}
 
+	m, err := NewFungibleTokensModule(defaultOpts(t))
+	require.NoError(t, err)
+	handler := m.handleSplitFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handleSplitFungibleTokenTx(defaultOpts(t))(tt.tx, tt.attr, 10)
+			sm, err := handler(tt.tx, tt.attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -749,7 +775,9 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	uID := existingTokenUnitID
 	tx := createTransactionOrder(t, attr, PayloadTypeSplitFungibleToken, uID)
 	var roundNr uint64 = 10
-	sm, err := handleSplitFungibleTokenTx(opts)(tx, attr, roundNr)
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
+	sm, err := m.handleSplitFungibleTokenTx()(tx, attr, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -861,14 +889,18 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 				Value:                        existingTokenValue,
 				TargetTokenBacklink:          test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			},
 			wantErrStr: "type of token to burn does not matches the actual type of the token",
 		},
 	}
+
+	m, err := NewFungibleTokensModule(defaultOpts(t))
+	require.NoError(t, err)
+	handler := m.handleBurnFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handleBurnFungibleTokenTx(defaultOpts(t))(tt.tx, tt.attr, 10)
+			sm, err := handler(tt.tx, tt.attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -888,8 +920,10 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	tx := createTransactionOrder(t, burnAttributes, PayloadTypeBurnFungibleToken, uID)
 	roundNo := uint64(10)
 
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
 	// handle tx
-	sm, err := handleBurnFungibleTokenTx(opts)(tx, burnAttributes, roundNo)
+	sm, err := m.handleBurnFungibleTokenTx()(tx, burnAttributes, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -915,6 +949,8 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
 
 	burnAttributes := &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
@@ -922,11 +958,11 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		TargetTokenID:                existingLockedTokenUnitID,
 		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
 	roundNumber := uint64(10)
-	sm, err := handleBurnFungibleTokenTx(opts)(burnTx.TransactionOrder, burnAttributes, roundNumber)
+	sm, err := m.handleBurnFungibleTokenTx()(burnTx.TransactionOrder, burnAttributes, roundNumber)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -935,10 +971,10 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		BurnTransactions:             []*types.TransactionRecord{burnTx},
 		Proofs:                       []*types.TxProof{burnTxProof},
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
-	sm, err = handleJoinFungibleTokenTx(opts)(joinTx, joinAttr, roundNumber)
+	sm, err = m.handleJoinFungibleTokenTx()(joinTx, joinAttr, roundNumber)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -1104,12 +1140,15 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid sum of tokens: uint64 overflow",
 		},
 	}
+
+	m, err := NewFungibleTokensModule(opts)
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &JoinFungibleTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := handleJoinFungibleTokenTx(opts)(tt.tx, attr, 10)
+			sm, err := m.handleJoinFungibleTokenTx()(tt.tx, attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -1117,7 +1156,8 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 }
 
 func defaultOpts(t *testing.T) *Options {
-	o := defaultOptions()
+	o, err := defaultOptions()
+	require.NoError(t, err)
 	o.state = initState(t)
 	return o
 }

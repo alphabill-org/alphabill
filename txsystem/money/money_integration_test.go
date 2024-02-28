@@ -304,7 +304,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   templates.AlwaysTrueArgBytes(),
+		FeeProof:   templates.EmptyArgument(),
 	}
 	require.NoError(t, swapTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
 

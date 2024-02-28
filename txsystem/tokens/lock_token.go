@@ -2,10 +2,10 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -13,67 +13,64 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleLockTokenTx(options *Options) txsystem.GenericExecuteFunc[LockTokenAttributes] {
+func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (*types.ServerMetadata, error) {
-		if err := validateLockTokenTx(tx, attr, options); err != nil {
+		if err := m.validateLockTokenTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid lock token tx: %w", err)
 		}
 		updateFn := state.UpdateUnitData(tx.UnitID(),
 			func(data state.UnitData) (state.UnitData, error) {
-				return updateLockTokenData(data, tx, attr, roundNumber, options)
+				return m.updateLockTokenData(data, tx, attr, roundNumber)
 			})
-		if err := options.state.Apply(updateFn); err != nil {
+		if err := m.state.Apply(updateFn); err != nil {
 			return nil, fmt.Errorf("failed to update state: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: options.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 
-func updateLockTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, options *Options) (state.UnitData, error) {
+func (m *LockTokensModule) updateLockTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (state.UnitData, error) {
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
-		return updateLockFungibleTokenData(data, tx, attr, roundNumber, options)
+		return updateLockFungibleTokenData(data, tx, attr, roundNumber, m.hashAlgorithm)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return updateLockNonFungibleTokenData(data, tx, attr, roundNumber, options)
+		return updateLockNonFungibleTokenData(data, tx, attr, roundNumber, m.hashAlgorithm)
 	} else {
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func updateLockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, options *Options) (state.UnitData, error) {
+func updateLockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, hashAlgorithm crypto.Hash) (state.UnitData, error) {
 	d, ok := data.(*NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(options.hashAlgorithm)
+	d.Backlink = tx.Hash(hashAlgorithm)
 	d.Locked = attr.LockStatus
 	return d, nil
 }
 
-func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, options *Options) (state.UnitData, error) {
+func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, hashAlgorithm crypto.Hash) (state.UnitData, error) {
 	d, ok := data.(*FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(options.hashAlgorithm)
+	d.Backlink = tx.Hash(hashAlgorithm)
 	d.Locked = attr.LockStatus
 	return d, nil
 }
 
-func validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options) error {
+func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes) error {
 	if tx == nil {
 		return errors.New("tx is nil")
 	}
 	if attr == nil {
 		return errors.New("attributes is nil")
 	}
-	if options == nil {
-		return errors.New("options is nil")
-	}
 
 	// unit id identifies an existing fungible or non-fungible token
-	u, err := options.state.GetUnit(tx.UnitID(), false)
+	u, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
 			return fmt.Errorf("unit '%v' does not exist: %w", tx.UnitID(), err)
@@ -82,73 +79,68 @@ func validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes, 
 	}
 
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
-		return validateFungibleLockToken(tx, attr, options, u)
+		return m.validateFungibleLockToken(tx, attr, u)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return validateNonFungibleLockToken(tx, attr, options, u)
+		return m.validateNonFungibleLockToken(tx, attr, u)
 	} else {
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options, u *state.Unit) error {
+func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit) error {
 	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		options.hashAlgorithm,
-		options.state,
+	if err := m.validateTokenLock(u, tx, attr, d); err != nil {
+		return err
+	}
+
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	}
+	err := runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		d.TokenType,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to load token type predicate chain: %w", err)
+		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return validateTokenLock(u, tx, attr, predicates, d)
+	return nil
 }
 
-func validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options, u *state.Unit) error {
+func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit) error {
 	d, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
 	}
-	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
-		options.hashAlgorithm,
-		options.state,
+	if err := m.validateTokenLock(u, tx, attr, d); err != nil {
+		return err
+	}
+
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	}
+	err := runChainedPredicates[*NonFungibleTokenTypeData](
+		tx,
 		d.NftType,
-		func(d *NonFungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *NonFungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to load token type predicate chain: %w", err)
+		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return validateTokenLock(u, tx, attr, predicates, d)
-}
-
-type lockTokenOwnershipProver struct {
-	tx   *types.TransactionOrder
-	attr *LockTokenAttributes
-}
-
-func (t *lockTokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t *lockTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.attr.InvariantPredicateSignatures
-}
-
-func (t *lockTokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+	return nil
 }
 
 func (l *LockTokenAttributes) SigBytes() ([]byte, error) {
@@ -166,7 +158,7 @@ type tokenData interface {
 	IsLocked() uint64
 }
 
-func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []predicates.PredicateBytes, d tokenData) error {
+func (m *LockTokensModule) validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, d tokenData) error {
 	// token is not locked
 	if d.IsLocked() != 0 {
 		return errors.New("token is already locked")
@@ -180,5 +172,5 @@ func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockToke
 		return fmt.Errorf("the transaction backlink is not equal to the token backlink: tx.backlink='%x' token.backlink='%x'",
 			attr.Backlink, d.GetBacklink())
 	}
-	return verifyOwnership(u.Bearer(), predicates, &lockTokenOwnershipProver{tx: tx, attr: attr})
+	return nil
 }

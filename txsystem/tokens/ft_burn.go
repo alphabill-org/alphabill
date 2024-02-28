@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -19,14 +18,14 @@ var (
 	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
 )
 
-func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
+func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
-		if err := validateBurnFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := m.feeCalculator()
 		unitID := tx.UnitID()
-		txHash := tx.Hash(options.hashAlgorithm)
+		txHash := tx.Hash(m.hashAlgorithm)
 
 		// 1. SetOwner(ι, DC)
 		setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
@@ -45,15 +44,15 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Bur
 			},
 		)
 
-		if err := options.state.Apply(setOwnerFn, updateUnitFn); err != nil {
+		if err := m.state.Apply(setOwnerFn, updateUnitFn); err != nil {
 			return nil, fmt.Errorf("burnFToken: failed to update state: %w", err)
 		}
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
+func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
@@ -69,38 +68,24 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 	if !bytes.Equal(d.Backlink, attr.Backlink) {
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("bearer predicate: %w", err)
+	}
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		d.TokenType,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return verifyOwnership(bearer, predicates, &burnFungibleTokenOwnershipProver{tx: tx, attr: attr})
-}
-
-type burnFungibleTokenOwnershipProver struct {
-	tx   *types.TransactionOrder
-	attr *BurnFungibleTokenAttributes
-}
-
-func (t *burnFungibleTokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t *burnFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.attr.InvariantPredicateSignatures
-}
-
-func (t *burnFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+	return nil
 }
 
 func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {

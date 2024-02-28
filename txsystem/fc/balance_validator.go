@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
@@ -37,15 +36,8 @@ func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
 		//    it must satisfy the owner_bytes condition of the fee credit record
 		// 7. if the transaction does not have a separate fee authorization proof,
 		//    the owner_bytes proof of the whole transaction must also satisfy the owner_bytes condition of the fee credit record
-		feeProof := getFeeProof(tx)
-
-		sigBytes, err := tx.PayloadBytes()
-		if err != nil {
-			return fmt.Errorf("failed to get payload bytes: %w", err)
-		}
-		if err := predicates.RunPredicate(unit.Bearer(), feeProof, sigBytes); err != nil {
-			return fmt.Errorf("invalid fee proof: %w [txFeeProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
-				err, feeProof, unit.Bearer(), sigBytes)
+		if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx); err != nil {
+			return fmt.Errorf("evaluating fee proof: %w", err)
 		}
 
 		// 8. the maximum permitted transaction cost does not exceed the fee credit balance

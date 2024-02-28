@@ -31,7 +31,10 @@ const (
 )
 
 func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options := defaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, fmt.Errorf("tokens tx system default config: %w", err)
+	}
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -41,6 +44,7 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	if options.state == nil {
 		return nil, errors.New(ErrStrStateIsNil)
 	}
+
 	nft, err := NewNonFungibleTokensModule(options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load NFT module: %w", err)

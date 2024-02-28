@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,17 +12,17 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
+func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateMintNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := n.validateMintNonFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := n.feeCalculator()
 		unitID := tx.UnitID()
-		h := tx.Hash(options.hashAlgorithm)
+		h := tx.Hash(n.hashAlgorithm)
 
 		// update state
-		if err := options.state.Apply(
+		if err := n.state.Apply(
 			state.AddUnit(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, currentBlockNr))); err != nil {
 			return nil, err
 		}
@@ -32,7 +31,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 	}
 }
 
-func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -52,7 +51,7 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	u, err := s.GetUnit(unitID, false)
+	u, err := n.state.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit %v exists", unitID)
 	}
@@ -63,27 +62,20 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 		return fmt.Errorf(ErrStrInvalidTypeID)
 	}
 
-	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
-	// the type inheritance chain.
-	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		tx,
 		attr.NFTTypeID,
-		func(d *NonFungibleTokenTypeData) []byte {
-			return d.TokenCreationPredicate
+		attr.TokenCreationPredicateSignatures,
+		n.execPredicate,
+		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.TokenCreationPredicate
 		},
-		func(d *NonFungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		n.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf(`executing NFT type's "TokenCreationPredicate": %w`, err)
 	}
-	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return err
-	}
-	return verifyPredicates(predicates, attr.TokenCreationPredicateSignatures, sigBytes)
+	return nil
 }
 
 func (m *MintNonFungibleTokenAttributes) GetBearer() []byte {

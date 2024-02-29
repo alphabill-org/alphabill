@@ -9,10 +9,14 @@ import (
 )
 
 func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options := DefaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, fmt.Errorf("money tx system default configuration: %w", err)
+	}
 	for _, option := range opts {
 		option(options)
 	}
+
 	money, err := NewMoneyModule(options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)

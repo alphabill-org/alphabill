@@ -331,9 +331,10 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 		testtransaction.WithUnitId(nftTypeID1),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
-			Symbol:                   symbol,
-			ParentTypeID:             parent1Identifier,
-			SubTypeCreationPredicate: subTypeCreationPredicate,
+			Symbol:                             symbol,
+			ParentTypeID:                       parent1Identifier,
+			SubTypeCreationPredicate:           subTypeCreationPredicate,
+			SubTypeCreationPredicateSignatures: [][]byte{templates.EmptyArgument()},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
@@ -352,15 +353,16 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 		testtransaction.WithUnitId(nftTypeID1),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
-			Symbol:                   symbol,
-			ParentTypeID:             parent1Identifier,
-			SubTypeCreationPredicate: subTypeCreationPredicate,
+			Symbol:                             symbol,
+			ParentTypeID:                       parent1Identifier,
+			SubTypeCreationPredicate:           subTypeCreationPredicate,
+			SubTypeCreationPredicateSignatures: [][]byte{{0}},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("unit %s data is not of type %T", parent1Identifier, &NonFungibleTokenTypeData{}))
+	require.EqualError(t, err, fmt.Sprintf("tx order execution failed: invalid create non-fungible token tx: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
@@ -733,9 +735,10 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			URI:       validNFTURI,
-			Data:      []byte{0, 0, 0, 0},
-			NFTTypeID: typeID,
+			URI:                              validNFTURI,
+			Data:                             []byte{0, 0, 0, 0},
+			NFTTypeID:                        typeID,
+			TokenCreationPredicateSignatures: [][]byte{{0}},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
@@ -897,10 +900,10 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 			NewBearer:                    test.RandomBytes(32), // invalid bearer
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     txr.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+			InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(templates.AlwaysTrueArgBytes()),
+		testtransaction.WithFeeProof(templates.EmptyArgument()),
 	)
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
@@ -915,13 +918,13 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+			InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(templates.AlwaysTrueArgBytes()),
+		testtransaction.WithFeeProof(templates.EmptyArgument()),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid predicate: failed to decode predicate")
+	require.ErrorContains(t, err, "tx order execution failed: invalid transfer non-fungible token tx: executing bearer predicate: decoding predicate:")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -936,19 +939,20 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTTypeID:                    nftTypeID2,
-			NewBearer:                    templates.AlwaysTrueBytes(),
-			Nonce:                        test.RandomBytes(32),
-			Backlink:                     txr.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+			NFTTypeID: nftTypeID2,
+			NewBearer: templates.AlwaysTrueBytes(),
+			Nonce:     test.RandomBytes(32),
+			Backlink:  txr.Hash(gocrypto.SHA256),
+			// the NFT we transfer has "always true" bearer predicate so providing
+			// arguments for it makes it fail
+			InvariantPredicateSignatures: [][]byte{{0x0B, 0x0A, 0x0D}},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(templates.AlwaysTrueArgBytes()),
-		testtransaction.WithOwnerProof(test.RandomBytes(2)), // invalid signature
+		testtransaction.WithFeeProof(templates.EmptyArgument()),
+		testtransaction.WithOwnerProof(test.RandomBytes(12)),
 	)
 	_, err := txs.Execute(tx)
-
-	require.ErrorContains(t, err, "invalid predicate")
+	require.EqualError(t, err, `tx order execution failed: invalid transfer non-fungible token tx: executing bearer predicate: executing predicate: "always true" predicate arguments must be empty`)
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -1035,7 +1039,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "always false")
+	require.ErrorContains(t, err, "executing bearer predicate: predicate evaluated to false")
 }
 
 func TestTransferNFT_LockedToken(t *testing.T) {
@@ -1273,15 +1277,17 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Data:                 test.RandomBytes(10),
-			Backlink:             tx.Hash(gocrypto.SHA256),
-			DataUpdateSignatures: [][]byte{templates.AlwaysTrueBytes(), templates.AlwaysFalseBytes()},
+			Data:     test.RandomBytes(10),
+			Backlink: tx.Hash(gocrypto.SHA256),
+			// the previous mint tx did set the DataUpdatePredicate to p2pkh so (for the tx
+			// to be valid) the first argument here should be CBOR of pubkey and signature pair
+			DataUpdateSignatures: [][]byte{{0}, templates.EmptyArgument()},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid predicate")
+	require.EqualError(t, err, `tx order execution failed: invalid update non-fungible token tx: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type predicates.P2pkh256Signature`)
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {
@@ -1426,7 +1432,7 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 }
 
 func (m mockUnitData) Copy() state.UnitData {
-	return mockUnitData{}
+	return &mockUnitData{}
 }
 
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
@@ -749,17 +748,17 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	//			└───┤ key=00000001
 	//				└───┤ key=00000000
 	require.NoError(t, s.Apply(
-		AddUnit([]byte{0, 0, 0, 1}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 10}),
-		AddUnit([]byte{0, 0, 0, 6}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 60}),
-		AddUnit([]byte{0, 0, 0, 2}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 20}),
-		AddUnit([]byte{0, 0, 0, 3}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 30}),
-		AddUnit([]byte{0, 0, 0, 7}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 70}),
-		AddUnit([]byte{0, 0, 0, 4}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 40}),
-		AddUnit([]byte{0, 0, 1, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 100}),
-		AddUnit([]byte{0, 0, 0, 8}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 80}),
-		AddUnit([]byte{0, 0, 0, 5}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 50}),
-		AddUnit([]byte{0, 0, 0, 9}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 90}),
-		AddUnit([]byte{0, 0, 0, 0}, templates.AlwaysTrueBytes(), &pruneUnitData{I: 1}),
+		AddUnit([]byte{0, 0, 0, 1}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 10}),
+		AddUnit([]byte{0, 0, 0, 6}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 60}),
+		AddUnit([]byte{0, 0, 0, 2}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 20}),
+		AddUnit([]byte{0, 0, 0, 3}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 30}),
+		AddUnit([]byte{0, 0, 0, 7}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 70}),
+		AddUnit([]byte{0, 0, 0, 4}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 40}),
+		AddUnit([]byte{0, 0, 1, 0}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 100}),
+		AddUnit([]byte{0, 0, 0, 8}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 80}),
+		AddUnit([]byte{0, 0, 0, 5}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 50}),
+		AddUnit([]byte{0, 0, 0, 9}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 90}),
+		AddUnit([]byte{0, 0, 0, 0}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 1}),
 	))
 	txrHash := test.RandomBytes(32)
 

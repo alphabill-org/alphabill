@@ -3,7 +3,6 @@ package evm
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
@@ -15,7 +14,7 @@ func isFeeCreditTx(tx *types.TransactionOrder) bool {
 		typeUrl == transactions.PayloadTypeCloseFeeCredit
 }
 
-func checkFeeAccountBalance(state *state.State) genericTransactionValidator {
+func checkFeeAccountBalance(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error) genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
 		if isFeeCreditTx(ctx.Tx) {
 			addr, err := getAddressFromPredicateArg(ctx.Tx.OwnerProof)
@@ -31,14 +30,9 @@ func checkFeeAccountBalance(state *state.State) genericTransactionValidator {
 				return nil
 			}
 			// owner proof verifies correctly
-			payloadBytes, err := ctx.Tx.PayloadBytes()
-			if err != nil {
-				return fmt.Errorf("failed to marshal payload bytes: %w", err)
-			}
-
-			if err = predicates.RunPredicate(u.Bearer(), ctx.Tx.OwnerProof, payloadBytes); err != nil {
-				return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
-					err, ctx.Tx.OwnerProof, u.Bearer(), payloadBytes)
+			if err = execPredicate(u.Bearer(), ctx.Tx.OwnerProof, ctx.Tx); err != nil {
+				return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x]",
+					err, ctx.Tx.OwnerProof, u.Bearer())
 			}
 		}
 		return nil

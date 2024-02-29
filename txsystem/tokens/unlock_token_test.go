@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
@@ -16,15 +16,17 @@ import (
 
 func TestUnlockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 
 	// create unlock tx
 	unlockAttr := &UnlockTokenAttributes{
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedTokenUnitID)
 	roundNo := uint64(11)
-	sm, err := handleUnlockTokenTx(opts)(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
@@ -43,6 +45,8 @@ func TestUnlockFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -90,15 +94,16 @@ func TestUnlockFT_NotOk(t *testing.T) {
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeUnlockToken),
-			wantErrStr: "invalid predicate",
+			wantErrStr: `invalid unlock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := handleUnlockTokenTx(opts)(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -107,15 +112,17 @@ func TestUnlockFT_NotOk(t *testing.T) {
 
 func TestUnlockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 
 	// create unlock tx
 	unlockAttr := &UnlockTokenAttributes{
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
-	sm, err := handleUnlockTokenTx(opts)(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
@@ -207,15 +214,18 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeUnlockToken),
-			wantErrStr: "invalid predicate",
+			wantErrStr: `invalid unlock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
+
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := handleUnlockTokenTx(opts)(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})

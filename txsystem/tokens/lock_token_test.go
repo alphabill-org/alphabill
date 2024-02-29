@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
@@ -23,14 +23,16 @@ var (
 
 func TestLockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingTokenUnitID)
 	var roundNo uint64 = 10
-	sm, err := handleLockTokenTx(opts)(tx, attr, roundNo)
+	sm, err := m.handleLockTokenTx()(tx, attr, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenUnitID, false)
@@ -53,6 +55,8 @@ func TestLockFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -83,7 +87,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingLockedTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
 		},
@@ -92,7 +96,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
@@ -101,7 +105,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -110,9 +114,9 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+				InvariantPredicateSignatures: [][]byte{{8, 4, 0}},
 			}, PayloadTypeLockToken),
-			wantErrStr: "invalid predicate",
+			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
@@ -120,7 +124,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			attr := &LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := handleLockTokenTx(opts)(tt.tx, attr, 10)
+			sm, err := m.handleLockTokenTx()(tt.tx, attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -129,14 +133,16 @@ func TestLockFT_NotOk(t *testing.T) {
 
 func TestLockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
-	sm, err := handleLockTokenTx(opts)(tx, attr, roundNo)
+	sm, err := m.handleLockTokenTx()(tx, attr, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -156,6 +162,8 @@ func TestLockNFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	m, err := NewLockTokensModule(opts)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -186,7 +194,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingLockedNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
 		},
@@ -195,7 +203,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
@@ -204,7 +212,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -213,9 +221,9 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+				InvariantPredicateSignatures: [][]byte{{1, 2, 3}},
 			}, PayloadTypeLockToken),
-			wantErrStr: "invalid predicate",
+			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
@@ -223,7 +231,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			attr := &LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := handleLockTokenTx(opts)(tt.tx, attr, 10)
+			sm, err := m.handleLockTokenTx()(tt.tx, attr, 10)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -231,7 +239,8 @@ func TestLockNFT_NotOk(t *testing.T) {
 }
 
 func defaultLockOpts(t *testing.T) *Options {
-	o := defaultOptions()
+	o, err := defaultOptions()
+	require.NoError(t, err)
 	o.state = initStateForLockTxTests(t)
 	return o
 }

@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
@@ -38,7 +37,7 @@ func TestAdd(t *testing.T) {
 			name: "unit ID exists",
 			args: args{
 				id:     []byte{1, 1, 1, 1},
-				bearer: templates.AlwaysTrueBytes(),
+				bearer: []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data: &TestData{
 					Value: 100,
 				},
@@ -50,14 +49,14 @@ func TestAdd(t *testing.T) {
 			name: "ok",
 			args: args{
 				id:     []byte{1},
-				bearer: templates.AlwaysTrueBytes(),
+				bearer: []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:   &TestData{Value: 123},
 			},
 			initialState: NewEmptyState(),
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				bearer:              templates.AlwaysTrueBytes(),
+				bearer:              []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
 				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
@@ -130,7 +129,7 @@ func TestUpdate(t *testing.T) {
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				bearer:              templates.AlwaysTrueBytes(),
+				bearer:              []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:                &TestData{Value: 200},
 				subTreeSummaryValue: 10,
 			},
@@ -254,7 +253,7 @@ func newStateWithUnits(t *testing.T) *State {
 		s.Apply(
 			AddUnit(
 				[]byte{1, 1, 1, 1},
-				templates.AlwaysTrueBytes(),
+				[]byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				&TestData{Value: 10},
 			),
 		),

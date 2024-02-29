@@ -36,7 +36,10 @@ type TxSystem struct {
 }
 
 func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
-	options := DefaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, fmt.Errorf("default configuration: %w", err)
+	}
 	for _, option := range opts {
 		option(options)
 	}

@@ -11,7 +11,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -1473,7 +1473,7 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 	}}))
 
 	txs, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithTrustBase(map[string]abcrypto.Verifier{"test": verifier}),
 		WithState(s),
 	)

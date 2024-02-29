@@ -9,7 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -53,7 +53,7 @@ func TestNewTxSystem(t *testing.T) {
 		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
 	)
 	txSystem, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithSystemDescriptionRecords(sdrs),
@@ -82,9 +82,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),
@@ -117,7 +118,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(recoveredState),
@@ -968,7 +969,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
 
 	mss, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),

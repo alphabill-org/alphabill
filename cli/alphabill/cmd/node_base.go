@@ -304,6 +304,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {
 	cmd.Flags().StringVar(&c.Address, "rpc-server-address", "",
 		"Specifies the TCP address for the RPC server to listen on, in the form \"host:port\". RPC server isn't initialised if Address is empty. (default \"\")")
+
 	cmd.Flags().DurationVar(&c.ReadTimeout, "rpc-server-read-timeout", 0,
 		"The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. (default 0)")
 	cmd.Flags().DurationVar(&c.ReadHeaderTimeout, "rpc-server-read-header-timeout", 0,
@@ -320,4 +321,23 @@ func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfigurati
 		"The maximum number of requests in a batch.")
 	cmd.Flags().IntVar(&c.BatchResponseSizeLimit, "rpc-server-batch-response-size-limit", rpc.DefaultBatchResponseSizeLimit,
 		"The maximum number of response bytes across all requests in a batch.")
+
+	hideFlags(cmd,
+		"rpc-server-read-timeout",
+		"rpc-server-read-header-timeout",
+		"rpc-server-write-timeout",
+		"rpc-server-idle-timeout",
+		"rpc-server-max-header",
+		"rpc-server-max-body",
+		"rpc-server-batch-item-limit",
+		"rpc-server-batch-response-size-limit",
+	)
+}
+
+func hideFlags(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.Flags().MarkHidden(flag); err != nil {
+			panic(err)
+		}
+	}
 }

@@ -2,13 +2,12 @@ package money
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
-func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("money tx system default configuration: %w", err)
@@ -34,12 +33,12 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
-		log,
+		options.systemIdentifier,
 		feeCreditModule.CheckFeeCreditBalance,
 		[]txsystem.Module{money, feeCreditModule},
+		observe,
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),
-		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
 	)

@@ -1255,9 +1255,19 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to store pending block proposal: %w", err)
 	}
 	n.pendingBlockProposal = pendingProposal
-
-	latestBlockHash := n.committedUC().InputRecord.BlockHash
-	blockHash, err := n.hashProposedBlock(latestBlockHash, blockAuthor)
+	// set fields for calculating block hash (only PreviousHash and Hash are needed)
+	pendingUC := &types.UnicityCertificate{
+		InputRecord: &types.InputRecord{
+			RoundNumber:     n.currentRoundNumber(),
+			PreviousHash:    prevStateHash,
+			Hash:            stateHash,
+			SummaryValue:    summary,
+			SumOfEarnedFees: n.sumOfEarnedFees,
+		},
+	}
+	// calculate block hash
+	_, blockHash, err := n.proposalHash(pendingProposal, pendingUC)
+	pendingUC.InputRecord.BlockHash = blockHash
 	if err != nil {
 		return fmt.Errorf("calculating block hash: %w", err)
 	}
@@ -1267,16 +1277,8 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   n.peer.ID().String(),
-		InputRecord: &types.InputRecord{
-			PreviousHash: pendingProposal.PrevHash,
-			Hash:         pendingProposal.StateHash,
-			BlockHash:    blockHash,
-			SummaryValue: pendingProposal.StateSummary,
-			// latest UC might have certified an empty block and has the latest round number
-			RoundNumber:     pendingProposal.RoundNumber,
-			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,
-		},
-		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
+		InputRecord:      pendingUC.InputRecord,
+		RootRoundNumber:  luc.UnicitySeal.RootChainRoundNumber,
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {
 		return fmt.Errorf("failed to sign certification req, %w", err)
@@ -1433,18 +1435,6 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 		case <-txCtx.Done():
 		}
 	}()
-}
-
-func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {
-	b := &types.Block{
-		Header: &types.Header{
-			SystemID:          n.configuration.GetSystemIdentifier(),
-			ProposerID:        author,
-			PreviousBlockHash: prevBlockHash,
-		},
-		Transactions: n.pendingBlockProposal.Transactions,
-	}
-	return b.Hash(n.configuration.hashAlgorithm)
 }
 
 func (n *Node) attrRound() attribute.KeyValue {

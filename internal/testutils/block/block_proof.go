@@ -44,6 +44,15 @@ func WithSystemIdentifier(systemID types.SystemID) Option {
 	}
 }
 
+func CalculateBlockHash(t *testing.T, block *types.Block, ir *types.InputRecord) []byte {
+	block.UnicityCertificate = &types.UnicityCertificate{
+		InputRecord: ir,
+	}
+	blockHash, err := block.Hash(crypto.SHA256)
+	require.NoError(t, err)
+	return blockHash
+}
+
 func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Signer, opts ...Option) *types.TxProof {
 	options := DefaultOptions()
 	for _, option := range opts {
@@ -81,15 +90,18 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 }
 
 func CreateUC(t *testing.T, b *types.Block, roundNumber uint64, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.UnicityCertificate {
-	blockHash, err := b.Hash(crypto.SHA256)
-	require.NoError(t, err)
 	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
-		BlockHash:    blockHash,
 		RoundNumber:  roundNumber,
 		SummaryValue: make([]byte, 32),
 	}
+	// simulate state hash change if there are transactions in the block
+	if len(b.Transactions) > 0 {
+		ir.Hash[0] += 1
+	}
+	blockHash := CalculateBlockHash(t, b, ir)
+	ir.BlockHash = blockHash
 	return testcertificates.CreateUnicityCertificate(
 		t,
 		signer,

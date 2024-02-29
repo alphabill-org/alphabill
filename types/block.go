@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -37,19 +38,24 @@ type (
 // Hash returns the hash of the block. Hash of a block is computed as hash of block header fields and tree hash
 // of transactions.
 func (b *Block) Hash(algorithm crypto.Hash) ([]byte, error) {
-	if len(b.Transactions) == 0 {
+	// 0H - if there are no transactions and state does not change
+	if len(b.Transactions) == 0 && bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, b.UnicityCertificate.InputRecord.Hash) {
 		return make([]byte, algorithm.Size()), nil
 	}
-	// calculate merkle tree root hash from transactions
-	tree := mt.New(algorithm, b.Transactions)
-	merkleRoot := tree.GetRootHash()
-
-	// header hash
+	// init transactions merkle root to 0H
+	var merkleRoot = make([]byte, algorithm.Size())
+	// calculate Merkle tree of transactions if any
+	if len(b.Transactions) > 0 {
+		// calculate merkle tree root hash from transactions
+		tree := mt.New(algorithm, b.Transactions)
+		merkleRoot = tree.GetRootHash()
+	}
+	// header hash || UC.IR.h′ || UC.IR.h || 0H - block Merkle tree root 0H
 	headerHash := b.HeaderHash(algorithm)
-
-	// header || merkle_root hash
 	hasher := algorithm.New()
 	hasher.Write(headerHash)
+	hasher.Write(b.UnicityCertificate.InputRecord.PreviousHash)
+	hasher.Write(b.UnicityCertificate.InputRecord.Hash)
 	hasher.Write(merkleRoot)
 	return hasher.Sum(nil), nil
 }

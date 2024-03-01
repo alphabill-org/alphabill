@@ -151,7 +151,7 @@ func attrType(payloadType string) (types.SigBytesProvider, error) {
 	case PayloadTypeMintFungibleToken:
 		return &MintFungibleTokenAttributes{}, nil
 	case PayloadTypeTransferFungibleToken:
-		return &MintFungibleTokenAttributes{}, nil
+		return &TransferFungibleTokenAttributes{}, nil
 	case PayloadTypeSplitFungibleToken:
 		return &SplitFungibleTokenAttributes{}, nil
 	case PayloadTypeBurnFungibleToken:

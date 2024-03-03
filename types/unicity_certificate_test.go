@@ -695,3 +695,60 @@ func TestUCHash(t *testing.T) {
 	expectedHash := sha256.Sum256(expectedBytes)
 	require.EqualValues(t, expectedHash[:], uc.Hash(gocrypto.SHA256))
 }
+
+func TestUnicityCertificate_GetPreviousStateHash(t *testing.T) {
+	t.Run("UC is nil", func(t *testing.T) {
+		var x *UnicityCertificate = nil
+		require.Nil(t, x.GetPreviousStateHash())
+	})
+	t.Run("IR is nil", func(t *testing.T) {
+		x := &UnicityCertificate{}
+		require.Nil(t, x.GetPreviousStateHash())
+	})
+	t.Run("hash value", func(t *testing.T) {
+		x := &UnicityCertificate{
+			InputRecord: &InputRecord{
+				PreviousHash: []byte{1, 2, 3},
+			},
+		}
+		require.Equal(t, []byte{1, 2, 3}, x.GetPreviousStateHash())
+	})
+}
+
+func TestUnicityCertificate_GetFeeSum(t *testing.T) {
+	t.Run("UC is nil", func(t *testing.T) {
+		var x *UnicityCertificate = nil
+		require.EqualValues(t, 0, x.GetFeeSum())
+	})
+	t.Run("IR is nil", func(t *testing.T) {
+		x := &UnicityCertificate{}
+		require.EqualValues(t, 0, x.GetFeeSum())
+	})
+	t.Run("hash value", func(t *testing.T) {
+		x := &UnicityCertificate{
+			InputRecord: &InputRecord{
+				SumOfEarnedFees: 10,
+			},
+		}
+		require.EqualValues(t, 10, x.GetFeeSum())
+	})
+}
+
+func TestUnicityCertificate_GetSummaryValue(t *testing.T) {
+	t.Run("UC is nil", func(t *testing.T) {
+		var x *UnicityCertificate = nil
+		require.Nil(t, x.GetSummaryValue())
+	})
+	t.Run("IR is nil", func(t *testing.T) {
+		x := &UnicityCertificate{}
+		require.Nil(t, x.GetSummaryValue())
+	})
+	t.Run("hash value", func(t *testing.T) {
+		x := &UnicityCertificate{
+			InputRecord: &InputRecord{
+				SummaryValue: []byte{1, 2, 3},
+			},
+		}
+		require.EqualValues(t, []byte{1, 2, 3}, x.GetSummaryValue())
+	})
+}

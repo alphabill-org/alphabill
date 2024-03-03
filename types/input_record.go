@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/util"
@@ -36,13 +37,26 @@ func isZeroHash(hash []byte) bool {
 	return true
 }
 
-func (x *InputRecord) Equal(b *InputRecord) bool {
-	return x.RoundNumber == b.RoundNumber &&
-		x.SumOfEarnedFees == b.SumOfEarnedFees &&
-		bytes.Equal(x.PreviousHash, b.PreviousHash) &&
-		bytes.Equal(x.Hash, b.Hash) &&
-		bytes.Equal(x.BlockHash, b.BlockHash) &&
-		bytes.Equal(x.SummaryValue, b.SummaryValue)
+func (x *InputRecord) AssertEqual(b *InputRecord) error {
+	if x.RoundNumber != b.RoundNumber {
+		return fmt.Errorf("round number is different: %v vs %v", x.RoundNumber, b.RoundNumber)
+	}
+	if x.SumOfEarnedFees != b.SumOfEarnedFees {
+		return fmt.Errorf("sum of fees is different: %v vs %v", x.SumOfEarnedFees, b.SumOfEarnedFees)
+	}
+	if !bytes.Equal(x.SummaryValue, b.SummaryValue) {
+		return fmt.Errorf("summary value is different: %v vs %v", x.SummaryValue, b.SummaryValue)
+	}
+	if !bytes.Equal(x.PreviousHash, b.PreviousHash) {
+		return fmt.Errorf("previous state hash is different: %X vs %X", x.PreviousHash, b.PreviousHash)
+	}
+	if !bytes.Equal(x.Hash, b.Hash) {
+		return fmt.Errorf("state hash is different: %X vs %X", x.Hash, b.Hash)
+	}
+	if !bytes.Equal(x.BlockHash, b.BlockHash) {
+		return fmt.Errorf("block hash is different: %X vs %X", x.BlockHash, b.BlockHash)
+	}
+	return nil
 }
 
 func (x *InputRecord) IsValid() error {
@@ -89,4 +103,12 @@ func (x *InputRecord) NewRepeatIR() *InputRecord {
 		RoundNumber:     x.RoundNumber,
 		SumOfEarnedFees: x.SumOfEarnedFees,
 	}
+}
+
+func (x *InputRecord) String() string {
+	if x == nil {
+		return "input record is nil"
+	}
+	return fmt.Sprintf("H: %X H': %X Bh: %X round: %v fees: %d summary: %d",
+		x.Hash, x.PreviousHash, x.BlockHash, x.RoundNumber, x.SumOfEarnedFees, x.SumOfEarnedFees)
 }

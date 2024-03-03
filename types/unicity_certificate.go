@@ -60,6 +60,13 @@ func (x *UnicityCertificate) GetStateHash() []byte {
 	return nil
 }
 
+func (x *UnicityCertificate) GetPreviousStateHash() []byte {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.PreviousHash
+	}
+	return nil
+}
+
 func (x *UnicityCertificate) GetRoundNumber() uint64 {
 	if x != nil && x.InputRecord != nil {
 		return x.InputRecord.RoundNumber
@@ -72,6 +79,20 @@ func (x *UnicityCertificate) GetRootRoundNumber() uint64 {
 		return x.UnicitySeal.RootChainRoundNumber
 	}
 	return 0
+}
+
+func (x *UnicityCertificate) GetFeeSum() uint64 {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.SumOfEarnedFees
+	}
+	return 0
+}
+
+func (x *UnicityCertificate) GetSummaryValue() []byte {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.SummaryValue
+	}
+	return nil
 }
 
 // CheckNonEquivocatingCertificates checks if provided certificates are equivocating
@@ -117,12 +138,13 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 		// done, nothing more to check
 		return nil
 	}
-	// AB-1002: allow state changes without transaction due to housekeeping (state tree pruning, dust removal, etc.)
 	//// 4. uc.IR.h' != uc.IR.h - state changes, new UC with new state
 	//// a. block hash must not be empty and thus block hash must not be 0h
-	//if isZeroHash(newUC.InputRecord.BlockHash) {
-	//	return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
-	//}
+	if isZeroHash(newUC.InputRecord.BlockHash) {
+		if !bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
+			return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
+		}
+	}
 	// b. block hash must not repeat
 	if !isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
 		return fmt.Errorf("new certificate repeats previous block hash")
@@ -136,11 +158,6 @@ func (x *UnicityCertificate) IsRepeat(prevUC *UnicityCertificate) bool {
 
 // isRepeat - check if newUC is repeat of previous UC, everything else is the same but round number is bigger
 func isRepeat(prevUC, newUC *UnicityCertificate) bool {
-	return bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.Hash) &&
-		bytes.Equal(prevUC.InputRecord.PreviousHash, newUC.InputRecord.PreviousHash) &&
-		bytes.Equal(prevUC.InputRecord.BlockHash, newUC.InputRecord.BlockHash) &&
-		bytes.Equal(prevUC.InputRecord.SummaryValue, newUC.InputRecord.SummaryValue) &&
-		prevUC.InputRecord.SumOfEarnedFees == newUC.InputRecord.SumOfEarnedFees &&
-		prevUC.InputRecord.RoundNumber == newUC.InputRecord.RoundNumber &&
+	return bytes.Equal(prevUC.InputRecord.Bytes(), newUC.InputRecord.Bytes()) &&
 		prevUC.UnicitySeal.RootChainRoundNumber < newUC.UnicitySeal.RootChainRoundNumber
 }

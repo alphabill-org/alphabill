@@ -38,6 +38,15 @@ type (
 // Hash returns the hash of the block. Hash of a block is computed as hash of block header fields and tree hash
 // of transactions.
 func (b *Block) Hash(algorithm crypto.Hash) ([]byte, error) {
+	if err := b.Header.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid block: %w", err)
+	}
+	if b.UnicityCertificate.GetStateHash() == nil {
+		return nil, fmt.Errorf("invalid block: state hash is nil")
+	}
+	if b.UnicityCertificate.GetPreviousStateHash() == nil {
+		return nil, fmt.Errorf("invalid block: previous state hash is nil")
+	}
 	// 0H - if there are no transactions and state does not change
 	if len(b.Transactions) == 0 && bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, b.UnicityCertificate.InputRecord.Hash) {
 		return make([]byte, algorithm.Size()), nil
@@ -71,31 +80,28 @@ func (b *Block) GetRoundNumber() uint64 {
 	return 0
 }
 
+func (b *Block) GetBlockFees() uint64 {
+	if b != nil {
+		return b.UnicityCertificate.GetFeeSum()
+	}
+	return 0
+}
+
 func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 	if b == nil {
 		return errBlockIsNil
 	}
-	if b.Header == nil {
-		return errBlockHeaderIsNil
-	}
-	if b.Header.SystemID == 0 {
-		return errSystemIDIsNil
-	}
-	// skip shard identifier for now, it is not used
-	if b.Header.PreviousBlockHash == nil {
-		return errPrevBlockHashIsNil
-	}
-	if len(b.Header.ProposerID) == 0 {
-		return errBlockProposerIDMissing
+	if err := b.Header.IsValid(); err != nil {
+		return fmt.Errorf("block error: %w", err)
 	}
 	if b.Transactions == nil {
 		return errTransactionsIsNil
 	}
 	if b.UnicityCertificate == nil {
-		return errUCIsNil
+		return fmt.Errorf("unicity certificate is nil")
 	}
 	if err := v(b.UnicityCertificate); err != nil {
-		return fmt.Errorf("unicity certificate validation failed, %w", err)
+		return fmt.Errorf("unicity certificate validation failed: %w", err)
 	}
 	return nil
 }
@@ -124,4 +130,21 @@ func (h *Header) Hash(algorithm crypto.Hash) []byte {
 	hasher.Write(h.PreviousBlockHash)
 	hasher.Write([]byte(h.ProposerID))
 	return hasher.Sum(nil)
+}
+
+func (h *Header) IsValid() error {
+	if h == nil {
+		return errBlockHeaderIsNil
+	}
+	if h.SystemID == 0 {
+		return errSystemIDIsNil
+	}
+	// skip shard identifier for now, it is not used
+	if h.PreviousBlockHash == nil {
+		return errPrevBlockHashIsNil
+	}
+	if len(h.ProposerID) == 0 {
+		return errBlockProposerIDMissing
+	}
+	return nil
 }

@@ -752,3 +752,21 @@ func TestUnicityCertificate_GetSummaryValue(t *testing.T) {
 		require.EqualValues(t, []byte{1, 2, 3}, x.GetSummaryValue())
 	})
 }
+
+func TestUnicityCertificate_GetRootRoundNumber(t *testing.T) {
+	t.Run("UC is nil", func(t *testing.T) {
+		var x *UnicityCertificate = nil
+		require.EqualValues(t, 0, x.GetRootRoundNumber())
+	})
+	t.Run("UC seal is nil", func(t *testing.T) {
+		x := &UnicityCertificate{}
+		require.EqualValues(t, 0, x.GetRootRoundNumber())
+	})
+	t.Run("returns round", func(t *testing.T) {
+		x := &UnicityCertificate{
+			UnicitySeal: &UnicitySeal{
+				RootChainRoundNumber: 1,
+			}}
+		require.EqualValues(t, 1, x.GetRootRoundNumber())
+	})
+}

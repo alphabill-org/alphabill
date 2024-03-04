@@ -20,72 +20,74 @@ var ir = &InputRecord{
 }
 
 func TestInputRecord_IsValid(t *testing.T) {
-	tests := []struct {
-		name        string
-		inputRecord *InputRecord
-		wantErr     error
-	}{
-		{
-			name: "previous hash is nil",
-			inputRecord: &InputRecord{
-				PreviousHash: nil,
-				Hash:         zeroHash,
-				BlockHash:    zeroHash,
-				SummaryValue: zeroHash,
-			},
-			wantErr: ErrPreviousHashIsNil,
-		},
-		{
-			name: "hash is nil",
-			inputRecord: &InputRecord{
-				PreviousHash: zeroHash,
-				Hash:         nil,
-				BlockHash:    zeroHash,
-				SummaryValue: zeroHash,
-			},
-			wantErr: ErrHashIsNil,
-		},
-		{
-			name: "block hash is nil",
-			inputRecord: &InputRecord{
-				PreviousHash: zeroHash,
-				Hash:         zeroHash,
-				BlockHash:    nil,
-				SummaryValue: zeroHash,
-			},
-			wantErr: ErrBlockHashIsNil,
-		},
-		{
-			name: "summary value hash is nil",
-			inputRecord: &InputRecord{
-				PreviousHash: zeroHash,
-				Hash:         zeroHash,
-				BlockHash:    zeroHash,
-				SummaryValue: nil,
-			},
-			wantErr: ErrSummaryValueIsNil,
-		},
-		{
-			name: "valid input record",
-			inputRecord: &InputRecord{
-				PreviousHash: zeroHash,
-				Hash:         zeroHash,
-				BlockHash:    zeroHash,
-				SummaryValue: zeroHash,
-				RoundNumber:  1,
-			},
-			wantErr: nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, tt.inputRecord.IsValid())
-			} else {
-				require.NoError(t, tt.inputRecord.IsValid())
-			}
-		})
-	}
+	t.Run("previous hash is nil", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash: nil,
+			Hash:         zeroHash,
+			BlockHash:    zeroHash,
+			SummaryValue: zeroHash,
+		}
+		require.ErrorIs(t, ErrPreviousHashIsNil, testIR.IsValid())
+	})
+	t.Run("hash is nil", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash: zeroHash,
+			Hash:         nil,
+			BlockHash:    zeroHash,
+			SummaryValue: zeroHash,
+		}
+		require.ErrorIs(t, ErrHashIsNil, testIR.IsValid())
+	})
+	t.Run("block hash is nil", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash: zeroHash,
+			Hash:         zeroHash,
+			BlockHash:    nil,
+			SummaryValue: zeroHash,
+		}
+		require.ErrorIs(t, ErrBlockHashIsNil, testIR.IsValid())
+	})
+	t.Run("summary value hash is nil", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash: zeroHash,
+			Hash:         zeroHash,
+			BlockHash:    zeroHash,
+			SummaryValue: nil,
+		}
+		require.ErrorIs(t, ErrSummaryValueIsNil, testIR.IsValid())
+	})
+	t.Run("state changes, but block hash is nil", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash:    zeroHash,
+			Hash:            []byte{1, 2, 3},
+			BlockHash:       zeroHash,
+			SummaryValue:    []byte{2, 3, 4},
+			SumOfEarnedFees: 1,
+			RoundNumber:     1,
+		}
+		require.EqualError(t, testIR.IsValid(), "block hash is 0H, but state hash changes")
+	})
+	t.Run("state does not change, but block hash is not 0H", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash:    zeroHash,
+			Hash:            zeroHash,
+			BlockHash:       []byte{1, 2, 3},
+			SummaryValue:    []byte{2, 3, 4},
+			SumOfEarnedFees: 1,
+			RoundNumber:     1,
+		}
+		require.EqualError(t, testIR.IsValid(), "state hash does not change, but block hash is 0H")
+	})
+	t.Run("valid input record", func(t *testing.T) {
+		testIR := &InputRecord{
+			PreviousHash: zeroHash,
+			Hash:         zeroHash,
+			BlockHash:    zeroHash,
+			SummaryValue: zeroHash,
+			RoundNumber:  1,
+		}
+		require.NoError(t, testIR.IsValid())
+	})
 }
 
 func TestInputRecord_IsNil(t *testing.T) {
@@ -101,7 +103,7 @@ func TestInputRecord_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, hash)
 }
 
-func Test_InputRecord_Equal(t *testing.T) {
+func Test_InputRecord_AssertEqual(t *testing.T) {
 	var irA = &InputRecord{
 		PreviousHash:    []byte{1, 1, 1},
 		Hash:            []byte{2, 2, 2},
@@ -198,7 +200,9 @@ func TestInputRecord_NewRepeatUC(t *testing.T) {
 }
 
 func TestStringer(t *testing.T) {
-	var testIR = &InputRecord{
+	var testIR *InputRecord = nil
+	require.Equal(t, "input record is nil", testIR.String())
+	testIR = &InputRecord{
 		PreviousHash:    []byte{1, 1, 1},
 		Hash:            []byte{2, 2, 2},
 		BlockHash:       []byte{3, 3, 3},

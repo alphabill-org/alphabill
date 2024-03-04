@@ -3,6 +3,7 @@ package partition
 import (
 	gocrypto "crypto"
 	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -128,20 +129,38 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 	if hash == nil {
 		hash = zeroHash
 	}
-
-	// Protocol request
+	// calculate block hash
+	gIR := &types.InputRecord{
+		PreviousHash: zeroHash, // extend zero hash
+		Hash:         hash,
+		RoundNumber:  pg.PartitionRoundNumber,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}
+	// create genesis block
+	gBlock := &types.Block{
+		Header: &types.Header{
+			SystemID:          c.systemIdentifier,
+			ProposerID:        "genesis",
+			PreviousBlockHash: zeroHash,
+		},
+		Transactions: make([]*types.TransactionRecord, 0),
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: gIR,
+		},
+	}
+	// calculate first block hash
+	blockHash, err := gBlock.Hash(c.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("geneis block hash calculation failed")
+	}
+	gIR.BlockHash = blockHash
 	id := c.peerID.String()
+	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
 		SystemIdentifier: c.systemIdentifier,
 		NodeIdentifier:   id,
-		InputRecord: &types.InputRecord{
-			PreviousHash: zeroHash, // extend zero hash
-			Hash:         hash,
-			BlockHash:    zeroHash, // first block's hash is zero
-			RoundNumber:  pg.PartitionRoundNumber,
-			SummaryValue: util.Uint64ToBytes(summaryValue),
-		},
-		RootRoundNumber: pg.RootRoundNumber,
+		InputRecord:      gIR,
+		RootRoundNumber:  pg.RootRoundNumber,
 	}
 	err = blockCertificationRequest.Sign(c.signer)
 	if err != nil {

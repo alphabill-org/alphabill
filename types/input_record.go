@@ -75,6 +75,16 @@ func (x *InputRecord) IsValid() error {
 	if x.SummaryValue == nil {
 		return ErrSummaryValueIsNil
 	}
+	if isZeroHash(x.BlockHash) {
+		if !bytes.Equal(x.PreviousHash, x.Hash) {
+			return fmt.Errorf("block hash is 0H, but state hash changes")
+		}
+	}
+	if bytes.Equal(x.PreviousHash, x.Hash) {
+		if !isZeroHash(x.BlockHash) {
+			return fmt.Errorf("state hash does not change, but block hash is 0H")
+		}
+	}
 	return nil
 }
 

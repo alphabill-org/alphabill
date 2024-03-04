@@ -45,15 +45,6 @@ func WithSystemIdentifier(systemID types.SystemID) Option {
 	}
 }
 
-func CalculateBlockHash(t *testing.T, block *types.Block, ir *types.InputRecord) []byte {
-	block.UnicityCertificate = &types.UnicityCertificate{
-		InputRecord: ir,
-	}
-	blockHash, err := block.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	return blockHash
-}
-
 func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Signer, opts ...Option) *types.TxProof {
 	options := DefaultOptions()
 	for _, option := range opts {
@@ -66,7 +57,6 @@ func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Sign
 		SummaryValue: make([]byte, 32),
 	}
 	b := CreateBlock(t, []*types.TransactionRecord{tx}, ir, options.sdr, signer)
-
 	p, _, err := types.NewTxProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p

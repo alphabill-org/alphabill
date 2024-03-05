@@ -60,6 +60,13 @@ func (x *UnicityCertificate) GetStateHash() []byte {
 	return nil
 }
 
+func (x *UnicityCertificate) GetPreviousStateHash() []byte {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.PreviousHash
+	}
+	return nil
+}
+
 func (x *UnicityCertificate) GetRoundNumber() uint64 {
 	if x != nil && x.InputRecord != nil {
 		return x.InputRecord.RoundNumber
@@ -72,6 +79,20 @@ func (x *UnicityCertificate) GetRootRoundNumber() uint64 {
 		return x.UnicitySeal.RootChainRoundNumber
 	}
 	return 0
+}
+
+func (x *UnicityCertificate) GetFeeSum() uint64 {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.SumOfEarnedFees
+	}
+	return 0
+}
+
+func (x *UnicityCertificate) GetSummaryValue() []byte {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.SummaryValue
+	}
+	return nil
 }
 
 // CheckNonEquivocatingCertificates checks if provided certificates are equivocating
@@ -101,29 +122,32 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 		// it's a Repeat UC
 		return nil
 	}
-
 	// 2. not a repeat UC, then it must extend from previous state if certificates are from consecutive rounds,
 	// if it is not from consecutive rounds then it is simply not possible to make any conclusions
 	if newUC.GetRoundNumber() == prevUC.GetRoundNumber()+1 &&
 		!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
 		return fmt.Errorf("new certificate does not extend previous state hash")
 	}
-	// 3. uc.IR.h′ = uc.IR.h -> new cert state does not change, the new certificate is for empty block
-	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
-		// then block must be empty and thus hash of block is 0H
+	// bridge 0H blocks
+	// 5. uc.IR.h′ = uc.IR.h and uc.IR.h = uc.IR.h' -> extends last known state and new state does not change,
+	// then new block must be empty
+	if bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) &&
+		bytes.Equal(newUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) {
+		// then new block must not be empty
 		if !isZeroHash(newUC.InputRecord.BlockHash) {
-			return fmt.Errorf("invalid new certificate, non-empty block, but state hash does not change")
+			return fmt.Errorf("new UC extends state hash, new state hash does not change, but block is not empty")
 		}
-		// done, nothing more to check
-		return nil
 	}
-	// AB-1002: allow state changes without transaction due to housekeeping (state tree pruning, dust removal, etc.)
-	//// 4. uc.IR.h' != uc.IR.h - state changes, new UC with new state
-	//// a. block hash must not be empty and thus block hash must not be 0h
-	//if isZeroHash(newUC.InputRecord.BlockHash) {
-	//	return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
-	//}
-	// b. block hash must not repeat
+	// 6. uc.IR.h′ = uc'.IR.h and uc.IR.h = uc'.IR.h -> previous state hash is equal and new state is not equal,
+	// then new block must be empty
+	if bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) &&
+		!bytes.Equal(newUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) {
+		// then new block must be empty
+		if isZeroHash(newUC.InputRecord.BlockHash) {
+			return fmt.Errorf("new UC extends state hash, new state hash changes, but block is empty")
+		}
+	}
+	// 7. non-empty block hash can only repeat in repeat UC
 	if !isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
 		return fmt.Errorf("new certificate repeats previous block hash")
 	}
@@ -134,13 +158,9 @@ func (x *UnicityCertificate) IsRepeat(prevUC *UnicityCertificate) bool {
 	return isRepeat(prevUC, x)
 }
 
-// isRepeat - check if newUC is repeat of previous UC, everything else is the same but round number is bigger
+// isRepeat - check if newUC is a repeat of previous UC.
+// Everything else is the same except root round number may be bigger
 func isRepeat(prevUC, newUC *UnicityCertificate) bool {
-	return bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.Hash) &&
-		bytes.Equal(prevUC.InputRecord.PreviousHash, newUC.InputRecord.PreviousHash) &&
-		bytes.Equal(prevUC.InputRecord.BlockHash, newUC.InputRecord.BlockHash) &&
-		bytes.Equal(prevUC.InputRecord.SummaryValue, newUC.InputRecord.SummaryValue) &&
-		prevUC.InputRecord.SumOfEarnedFees == newUC.InputRecord.SumOfEarnedFees &&
-		prevUC.InputRecord.RoundNumber == newUC.InputRecord.RoundNumber &&
+	return EqualIR(prevUC.InputRecord, newUC.InputRecord) &&
 		prevUC.UnicitySeal.RootChainRoundNumber < newUC.UnicitySeal.RootChainRoundNumber
 }

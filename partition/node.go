@@ -90,7 +90,7 @@ type (
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		proposedTransactions        []*types.TransactionRecord
 		sumOfEarnedFees             uint64
-		pendingBlockProposal        *pendingBlockProposal
+		pendingBlockProposal        *types.Block
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
@@ -115,16 +115,6 @@ type (
 		blockSize  metric.Int64Counter
 		execMsgCnt metric.Int64Counter
 		execMsgDur metric.Float64Histogram
-	}
-
-	pendingBlockProposal struct {
-		RoundNumber     uint64
-		ProposerNodeId  string
-		PrevHash        []byte
-		StateHash       []byte
-		StateSummary    []byte
-		Transactions    []*types.TransactionRecord
-		SumOfEarnedFees uint64
 	}
 
 	status int
@@ -429,7 +419,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.restoreBlockProposal")
 	defer span.End()
 
-	pr := &pendingBlockProposal{}
+	pr := &types.Block{}
 	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), pr)
 	if err != nil {
 		n.log.ErrorContext(ctx, "Error fetching block proposal", logger.Error(err))
@@ -440,7 +430,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		return
 	}
 	// make sure proposal extends the committed state
-	if !bytes.Equal(n.committedUC().InputRecord.Hash, pr.PrevHash) {
+	if !bytes.Equal(n.committedUC().GetStateHash(), pr.UnicityCertificate.GetPreviousStateHash()) {
 		n.log.DebugContext(ctx, "Stored block proposal does not extend previous state, stale proposal")
 		return
 	}
@@ -453,18 +443,18 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if !bytes.Equal(pr.StateHash, state.Root()) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.StateHash, state.Root()))
+	if !bytes.Equal(pr.UnicityCertificate.GetStateHash(), state.Root()) {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.UnicityCertificate.InputRecord.Hash, state.Root()))
 		n.revertState()
 		return
 	}
-	if !bytes.Equal(pr.StateSummary, state.Summary()) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.StateSummary, state.Summary()))
+	if !bytes.Equal(pr.UnicityCertificate.GetSummaryValue(), state.Summary()) {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.UnicityCertificate.InputRecord.SummaryValue, state.Summary()))
 		n.revertState()
 		return
 	}
-	if pr.SumOfEarnedFees != sumOfEarnedFees {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.SumOfEarnedFees, sumOfEarnedFees))
+	if pr.GetBlockFees() != sumOfEarnedFees {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.GetBlockFees(), sumOfEarnedFees))
 		n.revertState()
 		return
 	}
@@ -805,7 +795,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 
 	if uc.IsRepeat(luc) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		n.log.WarnContext(ctx, fmt.Sprintf("Reverting state tree on repeat certificate. UC IR hash: %X; %s", uc.InputRecord.Hash, n.pendingBlockProposal.pretty()))
+		n.log.WarnContext(ctx, fmt.Sprintf("Reverting state tree on repeat certificate. UC IR hash: %X", uc.InputRecord.Hash))
 		n.revertState()
 		return n.startNewRound(ctx, uc)
 	}
@@ -839,33 +829,29 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.log.DebugContext(ctx, "No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		return n.startNewRound(ctx, uc)
 	}
-	// Check pending block proposal
-	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal, uc)
-	n.log.DebugContext(ctx, fmt.Sprintf("%s\nHb:\t%X", n.pendingBlockProposal.pretty(), blockHash))
+	proposedIR, err := n.pendingBlockProposal.InputRecord()
 	if err != nil {
+		n.log.WarnContext(ctx, fmt.Sprintf("Invalid block proposal: %v", err))
 		n.startRecovery(ctx, uc)
-		return fmt.Errorf("recovery needed, block proposal hash calculation failed: %w", err)
+		return ErrNodeDoesNotHaveLatestBlock
 	}
-
-	if !bytes.Equal(uc.GetStateHash(), n.pendingBlockProposal.StateHash) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, proposal's state hash is different (UC: '%X', actual '%X')", uc.GetStateHash(), n.pendingBlockProposal.StateHash))
-	} else if !bytes.Equal(uc.InputRecord.SummaryValue, n.pendingBlockProposal.StateSummary) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, proposal's state summary is different (UC: '%X', actual '%X')", uc.InputRecord.SummaryValue, n.pendingBlockProposal.StateSummary))
-	} else if uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees {
-		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, proposal's sum of earned fees is different (UC: %d, actual %d)", uc.InputRecord.SumOfEarnedFees, n.pendingBlockProposal.SumOfEarnedFees))
-	} else {
-		// UC certifies pending block proposal
-		if err = n.finalizeBlock(ctx, bl); err != nil {
-			n.startRecovery(ctx, uc)
-			return fmt.Errorf("block %v finalize failed: %w", bl.GetRoundNumber(), err)
-		}
-		return n.startNewRound(ctx, uc)
+	// Check pending block proposal
+	n.log.DebugContext(ctx, fmt.Sprintf("Proposed record: %s", proposedIR))
+	if err := types.AssertEqualIR(proposedIR, uc.InputRecord); err != nil {
+		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, received UC does match proposed: %v", err))
+		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
+		// revertState is called from startRecovery()
+		n.startRecovery(ctx, uc)
+		return ErrNodeDoesNotHaveLatestBlock
 	}
-
-	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
-	// revertState is called from startRecovery()
-	n.startRecovery(ctx, uc)
-	return ErrNodeDoesNotHaveLatestBlock
+	// replace UC
+	n.pendingBlockProposal.UnicityCertificate = uc
+	// UC certifies pending block proposal
+	if err := n.finalizeBlock(ctx, n.pendingBlockProposal); err != nil {
+		n.startRecovery(ctx, uc)
+		return fmt.Errorf("block %v finalize failed: %w", n.pendingBlockProposal.GetRoundNumber(), err)
+	}
+	return n.startNewRound(ctx, uc)
 }
 
 func (n *Node) revertState() {
@@ -873,24 +859,6 @@ func (n *Node) revertState() {
 	n.sendEvent(event.StateReverted, nil)
 	n.transactionSystem.Revert()
 	n.sumOfEarnedFees = 0
-}
-
-func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertificate) (*types.Block, []byte, error) {
-	b := &types.Block{
-		Header: &types.Header{
-			SystemID:          n.configuration.GetSystemIdentifier(),
-			ShardID:           nil,
-			ProposerID:        prop.ProposerNodeId,
-			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
-		},
-		Transactions:       prop.Transactions,
-		UnicityCertificate: uc,
-	}
-	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
-	if err != nil {
-		return nil, nil, fmt.Errorf("block hash calculation failed, %w", err)
-	}
-	return b, blockHash, nil
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
@@ -1221,7 +1189,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
 }
 
-func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
+func (n *Node) persistBlockProposal(pr *types.Block) error {
 	if err := n.blockStore.Write(util.Uint32ToBytes(proposalKey), pr); err != nil {
 		return fmt.Errorf("persist error, %w", err)
 	}
@@ -1241,48 +1209,49 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	}
 	stateHash := state.Root()
 	summary := state.Summary()
-	pendingProposal := &pendingBlockProposal{
-		ProposerNodeId:  blockAuthor,
-		RoundNumber:     n.currentRoundNumber(),
-		PrevHash:        prevStateHash,
-		StateHash:       stateHash,
-		StateSummary:    summary,
-		Transactions:    n.proposedTransactions,
-		SumOfEarnedFees: n.sumOfEarnedFees,
+	pendingProposal := &types.Block{
+		Header: &types.Header{
+			SystemID:          n.configuration.GetSystemIdentifier(),
+			ShardID:           nil,
+			ProposerID:        blockAuthor,
+			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
+		},
+		Transactions: n.proposedTransactions,
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
+				RoundNumber:     n.currentRoundNumber(),
+				PreviousHash:    prevStateHash,
+				Hash:            stateHash,
+				SummaryValue:    summary,
+				SumOfEarnedFees: n.sumOfEarnedFees,
+			},
+		},
+	}
+	blockHash, err := pendingProposal.Hash(n.configuration.hashAlgorithm)
+	// assign block hash
+	pendingProposal.UnicityCertificate.InputRecord.BlockHash = blockHash
+	if err != nil {
+		return fmt.Errorf("block hash calculation error, %w", err)
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		n.transactionSystem.Revert()
 		return fmt.Errorf("failed to store pending block proposal: %w", err)
 	}
 	n.pendingBlockProposal = pendingProposal
-
-	latestBlockHash := n.committedUC().InputRecord.BlockHash
-	blockHash, err := n.hashProposedBlock(latestBlockHash, blockAuthor)
-	if err != nil {
-		return fmt.Errorf("calculating block hash: %w", err)
-	}
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.sumOfEarnedFees = 0
-
+	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   n.peer.ID().String(),
-		InputRecord: &types.InputRecord{
-			PreviousHash: pendingProposal.PrevHash,
-			Hash:         pendingProposal.StateHash,
-			BlockHash:    blockHash,
-			SummaryValue: pendingProposal.StateSummary,
-			// latest UC might have certified an empty block and has the latest round number
-			RoundNumber:     pendingProposal.RoundNumber,
-			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,
-		},
-		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
+		InputRecord:      pendingProposal.UnicityCertificate.InputRecord,
+		RootRoundNumber:  luc.UnicitySeal.RootChainRoundNumber,
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {
 		return fmt.Errorf("failed to sign certification req, %w", err)
 	}
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
-		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees))
+		pendingProposal.GetRoundNumber(), stateHash, blockHash, pendingProposal.GetBlockFees()))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
 	rootIDs, err := rootNodesSelector(luc, n.rootNodes, defaultNofRootNodes)
 	if err != nil {
@@ -1435,26 +1404,6 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	}()
 }
 
-func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {
-	b := &types.Block{
-		Header: &types.Header{
-			SystemID:          n.configuration.GetSystemIdentifier(),
-			ProposerID:        author,
-			PreviousBlockHash: prevBlockHash,
-		},
-		Transactions: n.pendingBlockProposal.Transactions,
-	}
-	return b.Hash(n.configuration.hashAlgorithm)
-}
-
 func (n *Node) attrRound() attribute.KeyValue {
 	return observability.Round(n.currentRoundNumber())
-}
-
-func (p *pendingBlockProposal) pretty() string {
-	if p == nil {
-		return ""
-	}
-	return fmt.Sprintf("Pending proposal: \nH:\t%X\nH':\t%X\nround:\t%v\nfees:\t%d",
-		p.StateHash, p.PrevHash, p.RoundNumber, p.SumOfEarnedFees)
 }

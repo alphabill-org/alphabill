@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/types"
@@ -49,12 +50,13 @@ func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Sign
 	for _, option := range opts {
 		option(options)
 	}
-	b := &types.Block{
-		Header:       &types.Header{},
-		Transactions: []*types.TransactionRecord{tx},
+	ir := &types.InputRecord{
+		PreviousHash: make([]byte, 32),
+		Hash:         test.RandomBytes(32),
+		RoundNumber:  DefaultRoundNumber,
+		SummaryValue: make([]byte, 32),
 	}
-	b.UnicityCertificate = CreateUC(t, b, DefaultRoundNumber, options.sdr, signer)
-
+	b := CreateBlock(t, []*types.TransactionRecord{tx}, ir, options.sdr, signer)
 	p, _, err := types.NewTxProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
@@ -65,11 +67,13 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	for _, option := range opts {
 		option(options)
 	}
-	b := &types.Block{
-		Header:       &types.Header{},
-		Transactions: txs,
+	ir := &types.InputRecord{
+		PreviousHash: make([]byte, 32),
+		Hash:         test.RandomBytes(32),
+		RoundNumber:  DefaultRoundNumber,
+		SummaryValue: make([]byte, 32),
 	}
-	b.UnicityCertificate = CreateUC(t, b, DefaultRoundNumber, options.sdr, signer)
+	b := CreateBlock(t, txs, ir, options.sdr, signer)
 
 	var proofs []*types.TxProof
 	for i := range txs {
@@ -80,17 +84,23 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	return proofs
 }
 
-func CreateUC(t *testing.T, b *types.Block, roundNumber uint64, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.UnicityCertificate {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
+	b := &types.Block{
+		Header: &types.Header{
+			SystemID:          types.SystemID(1),
+			ProposerID:        "test",
+			PreviousBlockHash: make([]byte, 32),
+		},
+		Transactions: txs,
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: ir,
+		},
+	}
+	// calculate block hash
 	blockHash, err := b.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{
-		PreviousHash: make([]byte, 32),
-		Hash:         make([]byte, 32),
-		BlockHash:    blockHash,
-		RoundNumber:  roundNumber,
-		SummaryValue: make([]byte, 32),
-	}
-	return testcertificates.CreateUnicityCertificate(
+	ir.BlockHash = blockHash
+	b.UnicityCertificate = testcertificates.CreateUnicityCertificate(
 		t,
 		signer,
 		ir,
@@ -98,4 +108,5 @@ func CreateUC(t *testing.T, b *types.Block, roundNumber uint64, sdr *genesis.Sys
 		1,
 		make([]byte, 32),
 	)
+	return b
 }

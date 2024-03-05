@@ -27,7 +27,7 @@ type CounterTxSystem struct {
 	EndBlockChangesState bool
 
 	FixedState  *state.State
-	MockState   *MockState
+	ErrorState  *ErrorState
 	blockNo     uint64
 	uncommitted bool
 	committedUC *types.UnicityCertificate
@@ -44,7 +44,7 @@ type Summary struct {
 	summary []byte
 }
 
-type MockState struct {
+type ErrorState struct {
 	txsystem.StateReader
 	Err error
 }
@@ -61,8 +61,8 @@ func (m *CounterTxSystem) State() txsystem.StateReader {
 	if m.FixedState != nil {
 		return m.FixedState
 	}
-	if m.MockState != nil {
-		return m.MockState
+	if m.ErrorState != nil {
+		return m.ErrorState
 	}
 	return state.NewEmptyState().Clone()
 }
@@ -155,6 +155,6 @@ func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetad
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil
 }
 
-func (m *MockState) Serialize(writer io.Writer, committed bool) error {
+func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {
 	return m.Err
 }

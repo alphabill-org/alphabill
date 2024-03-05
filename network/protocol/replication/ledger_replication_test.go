@@ -63,6 +63,16 @@ func TestLedgerReplicationRequestValidation(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name:    "ZeroBlockNumbers",
+			request: &LedgerReplicationRequest{SystemIdentifier: 1, NodeIdentifier: "node1"},
+			wantErr: nil,
+		},
+		{
+			name:    "EqualBlockNumbers",
+			request: &LedgerReplicationRequest{SystemIdentifier: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 1},
+			wantErr: nil,
+		},
+		{
 			name:    "NilRequest",
 			request: nil,
 			wantErr: ErrLedgerReplicationReqIsNil,

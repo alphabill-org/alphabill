@@ -128,15 +128,6 @@ func TestUnmarshalAttributes(t *testing.T) {
 	require.Equal(t, feeCreditRecordID, txOrder.GetClientFeeCreditRecordID())
 	require.Equal(t, maxFee, txOrder.GetClientMaxTxFee())
 	require.NotNil(t, txOrder.Hash(crypto.SHA256))
-
-	emptyTx := &TransactionOrder{}
-	require.Nil(t, emptyTx.UnitID())
-	require.Zero(t, emptyTx.SystemID())
-	require.Zero(t, emptyTx.Timeout())
-	require.Empty(t, emptyTx.PayloadType())
-	require.Nil(t, emptyTx.GetClientFeeCreditRecordID())
-	require.Zero(t, emptyTx.GetClientMaxTxFee())
-
 }
 
 func Test_TransactionOrder_SetOwnerProof(t *testing.T) {

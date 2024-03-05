@@ -142,7 +142,7 @@ func TestRESTServer_GetState_Ok(t *testing.T) {
 }
 
 func TestRESTServer_GetState_Error(t *testing.T) {
-	node := &MockNode{txs: &testtxsystem.CounterTxSystem{MockState: &testtxsystem.MockState{Err: errors.New("state error")}}}
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{ErrorState: &testtxsystem.ErrorState{Err: errors.New("state error")}}}
 	obs := observability.Default(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))

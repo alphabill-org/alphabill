@@ -151,7 +151,7 @@ func Test_templateBytes(t *testing.T) {
 		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}})
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(buf, alwaysFalseBytes), `CBOR representation of "always false" predicate template has changed (expected %X, got %X)`, alwaysFalseBytes, buf)
-		require.True(t, bytes.Equal(buf, AlwaysFalseBytes()), `CBOR representation of "always false" predicate template has changed (expected %X, got %X)`, AlwaysFalseBytes(), buf)
+		require.True(t, bytes.Equal(alwaysFalseBytes, AlwaysFalseBytes()))
 		pred := &predicates.Predicate{}
 		require.NoError(t, cbor.Unmarshal(buf, pred))
 		require.Equal(t, pred.Code[0], AlwaysFalseID, "always false predicate ID")
@@ -161,7 +161,7 @@ func Test_templateBytes(t *testing.T) {
 		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysTrueID}})
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(buf, alwaysTrueBytes), `CBOR representation of "always true" predicate template has changed (expected %X, got %X)`, alwaysTrueBytes, buf)
-		require.True(t, bytes.Equal(buf, AlwaysTrueBytes()), `CBOR representation of "always true" predicate template has changed (expected %X, got %X)`, AlwaysTrueBytes(), buf)
+		require.True(t, bytes.Equal(alwaysTrueBytes, AlwaysTrueBytes()))
 		pred := &predicates.Predicate{}
 		require.NoError(t, cbor.Unmarshal(buf, pred))
 		require.Equal(t, pred.Code[0], AlwaysTrueID, "always true predicate ID")

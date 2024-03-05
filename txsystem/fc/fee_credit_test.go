@@ -3,6 +3,8 @@ package fc
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
@@ -17,7 +19,8 @@ func TestFC_Validation(t *testing.T) {
 	s := state.NewEmptyState()
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
-		_, err := NewFeeCreditModule()
+		fcModule, err := NewFeeCreditModule()
+		require.Nil(t, fcModule)
 		require.ErrorIs(t, err, ErrSystemIdentifierMissing)
 
 		_, err = NewFeeCreditModule(WithSystemIdentifier(moneySystemID))
@@ -53,6 +56,12 @@ func TestFC_Validation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, fc.TxExecutors(), 4)
+		require.Contains(t, fc.TxExecutors(), transactions.PayloadTypeAddFeeCredit)
+		require.Contains(t, fc.TxExecutors(), transactions.PayloadTypeCloseFeeCredit)
+		require.Contains(t, fc.TxExecutors(), transactions.PayloadTypeLockFeeCredit)
+		require.Contains(t, fc.TxExecutors(), transactions.PayloadTypeUnlockFeeCredit)
+		require.NotContains(t, fc.TxExecutors(), transactions.PayloadTypeTransferFeeCredit)
+		require.NotContains(t, fc.TxExecutors(), transactions.PayloadTypeReclaimFeeCredit)
 	})
 
 }

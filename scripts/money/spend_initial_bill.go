@@ -84,7 +84,7 @@ func main() {
 func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClient, timeout uint64, billID types.UnitID, billValue uint64, pubKey []byte) error {
 	res, err := client.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
-		return err
+		return fmt.Errorf("getting round number: %w", err)
 	}
 	absoluteTimeout := res.RoundNumber + timeout
 
@@ -98,18 +98,18 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating transfer FC transaction: %w", err)
 	}
 	transferFCBytes, err := cbor.Marshal(transferFC)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshalling transfer FC transaction: %w", err)
 	}
 	protoTransferFC := &alphabill.Transaction{Order: transferFCBytes}
 
 	// send transferFC
 	_, err = client.ProcessTransaction(ctx, protoTransferFC)
 	if err != nil {
-		return err
+		return fmt.Errorf("processing transfer FC transaction: %w", err)
 	}
 	log.Println("sent transferFC transaction")
 
@@ -124,18 +124,18 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	// create addFC
 	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCProof.TxRecord, transferFCProof.TxProof, absoluteTimeout, feeAmount)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating add FC transaction: %w", err)
 	}
 	addFCBytes, err := cbor.Marshal(addFC)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshalling add FC transaction: %w", err)
 	}
 	protoAddFC := &alphabill.Transaction{Order: addFCBytes}
 
 	// send addFC
 	_, err = client.ProcessTransaction(ctx, protoAddFC)
 	if err != nil {
-		return err
+		return fmt.Errorf("processing add FC transaction: %w", err)
 	}
 	log.Println("sent addFC transaction")
 
@@ -150,17 +150,17 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	// create transfer tx
 	tx, err := createTransferTx(pubKey, billID, billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	if err != nil {
-		return err
+		return fmt.Errorf("creating transfer transaction: %w", err)
 	}
 	txBytes, err := cbor.Marshal(tx)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshalling transfer transaction: %w", err)
 	}
 
 	// send transfer tx
 	protoTransferTx := &alphabill.Transaction{Order: txBytes}
 	if _, err := client.ProcessTransaction(ctx, protoTransferTx); err != nil {
-		return err
+		return fmt.Errorf("processing transfer transaction: %w", err)
 	}
 	log.Println("successfully sent initial bill transfer transaction")
 

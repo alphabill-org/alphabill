@@ -45,6 +45,7 @@ func TestTxProofFunctions(t *testing.T) {
 		require.Equal(t, block.HeaderHash(crypto.SHA256), proof.BlockHeaderHash)
 		require.Empty(t, proof.Chain)
 		require.Equal(t, uc, proof.UnicityCertificate)
+		require.Len(t, block.Transactions, 1)
 		require.Equal(t, block.Transactions[0], record)
 	})
 

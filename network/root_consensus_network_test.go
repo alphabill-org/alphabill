@@ -15,6 +15,12 @@ func TestNewLibP2RootConsensusNetwork(t *testing.T) {
 		libp2p.ListenAddrStrings(defaultAddress),
 	}...)
 	require.NoError(t, err)
+	defer func() {
+		err := h.Close()
+		if err != nil {
+			t.Fatalf("error closing node %v", err)
+		}
+	}()
 	peer := &Peer{host: h}
 
 	capacity := uint(1000)

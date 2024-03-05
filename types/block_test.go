@@ -2,6 +2,7 @@ package types
 
 import (
 	"crypto"
+	"errors"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -56,6 +57,12 @@ func TestBlockFunctions(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
+
+		expectedError := errors.New("validation error")
+		err = block.IsValid(func(uc *UnicityCertificate) error {
+			return expectedError
+		})
+		require.ErrorIs(t, err, expectedError)
 	})
 
 	t.Run("Test GetProposerID", func(t *testing.T) {

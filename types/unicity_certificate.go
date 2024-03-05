@@ -158,8 +158,9 @@ func (x *UnicityCertificate) IsRepeat(prevUC *UnicityCertificate) bool {
 	return isRepeat(prevUC, x)
 }
 
-// isRepeat - check if newUC is repeat of previous UC, everything else is the same but round number is bigger
+// isRepeat - check if newUC is a repeat of previous UC.
+// Everything else is the same except root round number may be bigger
 func isRepeat(prevUC, newUC *UnicityCertificate) bool {
-	return bytes.Equal(prevUC.InputRecord.Bytes(), newUC.InputRecord.Bytes()) &&
+	return EqualIR(prevUC.InputRecord, newUC.InputRecord) &&
 		prevUC.UnicitySeal.RootChainRoundNumber < newUC.UnicitySeal.RootChainRoundNumber
 }

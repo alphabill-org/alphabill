@@ -829,10 +829,15 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.log.DebugContext(ctx, "No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		return n.startNewRound(ctx, uc)
 	}
+	proposedIR, err := n.pendingBlockProposal.InputRecord()
+	if err != nil {
+		n.log.WarnContext(ctx, fmt.Sprintf("Invalid block proposal: %v", err))
+		n.startRecovery(ctx, uc)
+		return ErrNodeDoesNotHaveLatestBlock
+	}
 	// Check pending block proposal
-	n.log.DebugContext(ctx, fmt.Sprintf("Proposed record: %s", n.pendingBlockProposal.UnicityCertificate.InputRecord))
-
-	if err := n.pendingBlockProposal.UnicityCertificate.InputRecord.AssertEqual(uc.InputRecord); err != nil {
+	n.log.DebugContext(ctx, fmt.Sprintf("Proposed record: %s", proposedIR))
+	if err := types.AssertEqualIR(proposedIR, uc.InputRecord); err != nil {
 		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, received UC does match proposed: %v", err))
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 		// revertState is called from startRecovery()

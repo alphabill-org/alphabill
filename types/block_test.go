@@ -282,3 +282,36 @@ func TestHeader_Hash(t *testing.T) {
 	hasher.Write(serilized)
 	require.Equal(t, headerHash, hasher.Sum(nil))
 }
+
+func TestBlock_InputRecord(t *testing.T) {
+	t.Run("err: block is nil", func(t *testing.T) {
+		var b *Block = nil
+		got, err := b.InputRecord()
+		require.ErrorIs(t, err, errBlockIsNil)
+		require.Nil(t, got)
+	})
+	t.Run("err: UC is nil", func(t *testing.T) {
+		b := &Block{}
+		got, err := b.InputRecord()
+		require.ErrorIs(t, err, errUCIsNil)
+		require.Nil(t, got)
+	})
+	t.Run("err: IR is nil", func(t *testing.T) {
+		b := &Block{
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		got, err := b.InputRecord()
+		require.ErrorIs(t, err, ErrInputRecordIsNil)
+		require.Nil(t, got)
+	})
+	t.Run("ok", func(t *testing.T) {
+		b := &Block{
+			UnicityCertificate: &UnicityCertificate{
+				InputRecord: &InputRecord{},
+			},
+		}
+		got, err := b.InputRecord()
+		require.NoError(t, err)
+		require.NotNil(t, got)
+	})
+}

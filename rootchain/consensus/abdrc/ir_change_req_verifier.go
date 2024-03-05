@@ -1,7 +1,6 @@
 package abdrc
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -80,7 +79,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	if ir := x.state.IsChangeInProgress(sysID); ir != nil {
 		// If the same change is already in progress then report duplicate error
-		if bytes.Equal(inputRecord.Bytes(), ir.Bytes()) {
+		if types.EqualIR(inputRecord, ir) {
 			return nil, ErrDuplicateChangeReq
 		}
 		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)

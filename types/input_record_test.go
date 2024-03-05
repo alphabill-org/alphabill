@@ -103,7 +103,7 @@ func TestInputRecord_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, hash)
 }
 
-func Test_InputRecord_AssertEqual(t *testing.T) {
+func Test_EqualIR(t *testing.T) {
 	var irA = &InputRecord{
 		PreviousHash:    []byte{1, 1, 1},
 		Hash:            []byte{2, 2, 2},
@@ -113,17 +113,18 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 		SumOfEarnedFees: 33,
 	}
 	t.Run("equal", func(t *testing.T) {
-		require.NoError(t, irA.AssertEqual(&InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       []byte{3, 3, 3},
 			SummaryValue:    []byte{4, 4, 4},
 			RoundNumber:     2,
 			SumOfEarnedFees: 33,
-		}))
+		}
+		require.True(t, EqualIR(irA, irB))
 	})
 	t.Run("Previous hash not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       []byte{3, 3, 3},
@@ -131,10 +132,10 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     2,
 			SumOfEarnedFees: 33,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "previous state hash is different: 010101 vs 0101")
+		require.False(t, EqualIR(irA, irB))
 	})
 	t.Run("Hash not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2, 3},
 			BlockHash:       []byte{3, 3, 3},
@@ -142,10 +143,10 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     2,
 			SumOfEarnedFees: 33,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "state hash is different: 020202 vs 02020203")
+		require.False(t, EqualIR(irA, irB))
 	})
 	t.Run("Block hash not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       nil,
@@ -153,10 +154,10 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     2,
 			SumOfEarnedFees: 33,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "block hash is different: 030303 vs ")
+		require.False(t, EqualIR(irA, irB))
 	})
 	t.Run("Summary value not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       []byte{3, 3, 3},
@@ -164,10 +165,10 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     2,
 			SumOfEarnedFees: 33,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "summary value is different: [4 4 4] vs []")
+		require.False(t, EqualIR(irA, irB))
 	})
 	t.Run("RoundNumber not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       []byte{3, 3, 3},
@@ -175,10 +176,10 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     1,
 			SumOfEarnedFees: 33,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "round number is different: 2 vs 1")
+		require.False(t, EqualIR(irA, irB))
 	})
 	t.Run("SumOfEarnedFees not equal", func(t *testing.T) {
-		cmpIR := &InputRecord{
+		irB := &InputRecord{
 			PreviousHash:    []byte{1, 1, 1},
 			Hash:            []byte{2, 2, 2},
 			BlockHash:       []byte{3, 3, 3},
@@ -186,7 +187,95 @@ func Test_InputRecord_AssertEqual(t *testing.T) {
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
 		}
-		require.EqualError(t, irA.AssertEqual(cmpIR), "sum of fees is different: 33 vs 1")
+		require.False(t, EqualIR(irA, irB))
+	})
+}
+
+func Test_AssertEqualIR(t *testing.T) {
+	var irA = &InputRecord{
+		PreviousHash:    []byte{1, 1, 1},
+		Hash:            []byte{2, 2, 2},
+		BlockHash:       []byte{3, 3, 3},
+		SummaryValue:    []byte{4, 4, 4},
+		RoundNumber:     2,
+		SumOfEarnedFees: 33,
+	}
+	t.Run("equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     2,
+			SumOfEarnedFees: 33,
+		}
+		require.NoError(t, AssertEqualIR(irA, irB))
+	})
+	t.Run("Previous hash not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     2,
+			SumOfEarnedFees: 33,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "previous state hash is different: 010101 vs 0101")
+	})
+	t.Run("Hash not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2, 3},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     2,
+			SumOfEarnedFees: 33,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "state hash is different: 020202 vs 02020203")
+	})
+	t.Run("Block hash not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       nil,
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     2,
+			SumOfEarnedFees: 33,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "block hash is different: 030303 vs ")
+	})
+	t.Run("Summary value not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{},
+			RoundNumber:     2,
+			SumOfEarnedFees: 33,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "summary value is different: [4 4 4] vs []")
+	})
+	t.Run("RoundNumber not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     1,
+			SumOfEarnedFees: 33,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "round number is different: 2 vs 1")
+	})
+	t.Run("SumOfEarnedFees not equal", func(t *testing.T) {
+		irB := &InputRecord{
+			PreviousHash:    []byte{1, 1, 1},
+			Hash:            []byte{2, 2, 2},
+			BlockHash:       []byte{3, 3, 3},
+			SummaryValue:    []byte{4, 4, 4},
+			RoundNumber:     2,
+			SumOfEarnedFees: 1,
+		}
+		require.EqualError(t, AssertEqualIR(irA, irB), "sum of fees is different: 33 vs 1")
 	})
 }
 

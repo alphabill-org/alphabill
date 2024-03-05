@@ -1,7 +1,6 @@
 package abdrc
 
 import (
-	"bytes"
 	"fmt"
 	"log/slog"
 
@@ -60,7 +59,7 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", systemID)
 		}
-		if bytes.Equal(irChangeReq.InputRecord.Bytes(), newIrChReq.InputRecord.Bytes()) {
+		if types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord) {
 			// duplicate already stored
 			x.log.Debug("Duplicate IR change request, ignored", logger.Round(round))
 			return nil

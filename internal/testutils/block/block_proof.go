@@ -96,9 +96,10 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 			InputRecord: ir,
 		},
 	}
+	// calculate block hash
 	blockHash, err := b.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	b.UnicityCertificate.InputRecord.BlockHash = blockHash
+	ir.BlockHash = blockHash
 	b.UnicityCertificate = testcertificates.CreateUnicityCertificate(
 		t,
 		signer,

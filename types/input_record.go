@@ -37,24 +37,28 @@ func isZeroHash(hash []byte) bool {
 	return true
 }
 
-func (x *InputRecord) AssertEqual(b *InputRecord) error {
-	if x.RoundNumber != b.RoundNumber {
-		return fmt.Errorf("round number is different: %v vs %v", x.RoundNumber, b.RoundNumber)
+func EqualIR(a, b *InputRecord) bool {
+	return bytes.Equal(a.Bytes(), b.Bytes())
+}
+
+func AssertEqualIR(a, b *InputRecord) error {
+	if a.RoundNumber != b.RoundNumber {
+		return fmt.Errorf("round number is different: %v vs %v", a.RoundNumber, b.RoundNumber)
 	}
-	if x.SumOfEarnedFees != b.SumOfEarnedFees {
-		return fmt.Errorf("sum of fees is different: %v vs %v", x.SumOfEarnedFees, b.SumOfEarnedFees)
+	if a.SumOfEarnedFees != b.SumOfEarnedFees {
+		return fmt.Errorf("sum of fees is different: %v vs %v", a.SumOfEarnedFees, b.SumOfEarnedFees)
 	}
-	if !bytes.Equal(x.SummaryValue, b.SummaryValue) {
-		return fmt.Errorf("summary value is different: %v vs %v", x.SummaryValue, b.SummaryValue)
+	if !bytes.Equal(a.SummaryValue, b.SummaryValue) {
+		return fmt.Errorf("summary value is different: %v vs %v", a.SummaryValue, b.SummaryValue)
 	}
-	if !bytes.Equal(x.PreviousHash, b.PreviousHash) {
-		return fmt.Errorf("previous state hash is different: %X vs %X", x.PreviousHash, b.PreviousHash)
+	if !bytes.Equal(a.PreviousHash, b.PreviousHash) {
+		return fmt.Errorf("previous state hash is different: %X vs %X", a.PreviousHash, b.PreviousHash)
 	}
-	if !bytes.Equal(x.Hash, b.Hash) {
-		return fmt.Errorf("state hash is different: %X vs %X", x.Hash, b.Hash)
+	if !bytes.Equal(a.Hash, b.Hash) {
+		return fmt.Errorf("state hash is different: %X vs %X", a.Hash, b.Hash)
 	}
-	if !bytes.Equal(x.BlockHash, b.BlockHash) {
-		return fmt.Errorf("block hash is different: %X vs %X", x.BlockHash, b.BlockHash)
+	if !bytes.Equal(a.BlockHash, b.BlockHash) {
+		return fmt.Errorf("block hash is different: %X vs %X", a.BlockHash, b.BlockHash)
 	}
 	return nil
 }

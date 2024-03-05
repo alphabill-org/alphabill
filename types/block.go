@@ -87,6 +87,19 @@ func (b *Block) GetBlockFees() uint64 {
 	return 0
 }
 
+func (b *Block) InputRecord() (*InputRecord, error) {
+	if b == nil {
+		return nil, errBlockIsNil
+	}
+	if b.UnicityCertificate == nil {
+		return nil, errUCIsNil
+	}
+	if b.UnicityCertificate.InputRecord == nil {
+		return nil, ErrInputRecordIsNil
+	}
+	return b.UnicityCertificate.InputRecord, nil
+}
+
 func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 	if b == nil {
 		return errBlockIsNil

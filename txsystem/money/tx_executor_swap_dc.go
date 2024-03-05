@@ -9,7 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -26,29 +25,29 @@ type (
 		systemID      types.SystemID
 		hashAlgorithm crypto.Hash
 		trustBase     map[string]abcrypto.Verifier
+		execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 	}
 	stateProvider interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 	}
 )
 
-func handleSwapDCTx(s *state.State, systemID types.SystemID, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
+func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		c := &swapValidationContext{
 			tx:            tx,
 			attr:          attr,
-			state:         s,
-			systemID:      systemID,
-			hashAlgorithm: hashAlgorithm,
-			trustBase:     trustBase,
+			state:         m.state,
+			systemID:      m.systemID,
+			hashAlgorithm: m.hashAlgorithm,
+			trustBase:     m.trustBase,
+			execPredicate: m.execPredicate,
 		}
 		if err := c.validateSwapTx(); err != nil {
 			return nil, fmt.Errorf("invalid swap transaction: %w", err)
 		}
-		// calculate actual tx fee cost
-		fee := feeCalc()
 
-		h := tx.Hash(hashAlgorithm)
+		h := tx.Hash(m.hashAlgorithm)
 
 		// reduce dc-money supply by target value and update timeout and backlink
 		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
@@ -76,11 +75,11 @@ func handleSwapDCTx(s *state.State, systemID types.SystemID, hashAlgorithm crypt
 				bd.Locked = 0
 				return bd, nil
 			})
-		if err := s.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
+		if err := m.state.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
 		return &types.ServerMetadata{
-			ActualFee:        fee,
+			ActualFee:        m.feeCalculator(),
 			TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		}, nil
@@ -116,7 +115,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if unitData == nil {
 		return fmt.Errorf("target unit is nil id=%X", c.tx.UnitID())
 	}
-	if err := txsystem.VerifyUnitOwnerProof(c.tx, unitData.Bearer()); err != nil {
+	if err := c.execPredicate(unitData.Bearer(), c.tx.OwnerProof, c.tx); err != nil {
 		return err
 	}
 	billData, ok := unitData.Data().(*BillData)

@@ -1042,6 +1042,7 @@ func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *
 		systemID:      1,
 		hashAlgorithm: crypto.SHA256,
 		trustBase:     trustBase,
+		execPredicate: func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error { return nil },
 	}
 }
 

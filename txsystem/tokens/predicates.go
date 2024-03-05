@@ -1,91 +1,65 @@
 package tokens
 
 import (
-	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 )
 
-type (
-	TokenOwnershipProver interface {
-		types.SigBytesProvider
-		OwnerProof() []byte
-		InvariantPredicateSignatures() [][]byte
-	}
+/*
+runChainedPredicates recursively executes predicates returned by callback functions.
+Typically these are predicates of the token type chain.
 
-	TokenSubtypeCreationProver interface {
-		types.SigBytesProvider
-		GetSubTypeCreationPredicateSignatures() [][]byte
-	}
-
-	TokenCreationProver interface {
-		types.SigBytesProvider
-		GetTokenCreationPredicateSignatures() [][]byte
-	}
-
-	NFTDataUpdateProver interface {
-		types.SigBytesProvider
-		GetDataUpdateSignatures() [][]byte
-	}
-)
-
-func verifyPredicates(pbs []types.PredicateBytes, signatures [][]byte, sigData []byte) error {
-	if len(pbs) != 0 {
-		if len(pbs) != len(signatures) {
-			return fmt.Errorf("number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(pbs))
+Parameters:
+  - "txo": transaction order against which predicates are run, passed on as argument to the
+    exec callback;
+  - "parentID": ID of the first unit in the chain, typically token's type ID;
+  - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the
+    TokenCreationPredicateSignatures field of the mint tx;
+  - "exec": function which evaluates the predicate;
+  - "iter": function which returns "parent ID" and perdicate for given unit (the "chain iterator");
+  - "getUnit": function which returns unit with given ID;
+*/
+func runChainedPredicates[T state.UnitData](
+	txo *types.TransactionOrder,
+	parentID types.UnitID,
+	args [][]byte,
+	exec func(pred, arg []byte, txo *types.TransactionOrder) error,
+	iter func(d T) (types.UnitID, []byte),
+	getUnit func(id types.UnitID, committed bool) (*state.Unit, error),
+) error {
+	var predicate []byte
+	idx := 0
+	for ; parentID != nil; idx++ {
+		if idx >= len(args) {
+			return fmt.Errorf("got arguments for %d predicates but chain is longer, no argument for unit %q predicate", len(args), parentID)
 		}
-		for i := 0; i < len(pbs); i++ {
-			err := predicates.RunPredicate(pbs[i], signatures[i], sigData)
-			if err != nil {
-				return fmt.Errorf("invalid predicate: %w [signature=0x%x predicate=0x%x sigData=0x%x]",
-					err, signatures[i], pbs[i], sigData)
-			}
+		parentData, err := getUnitData[T](getUnit, parentID)
+		if err != nil {
+			return fmt.Errorf("read [%d] unit ID %q data: %w", idx, parentID, err)
 		}
+		if parentID, predicate = iter(parentData); predicate == nil {
+			return fmt.Errorf("unexpected nil predicate")
+		}
+		if err := exec(predicate, args[idx], txo); err != nil {
+			return fmt.Errorf("executing predicate [%d] in the chain: %w", idx, err)
+		}
+	}
+	if idx != len(args) {
+		return fmt.Errorf("got arguments for %d predicates, executed %d predicates", len(args), idx)
 	}
 	return nil
 }
 
-func getChainedPredicates[T state.UnitData](hashAlgorithm crypto.Hash, s *state.State, unitID types.UnitID, predicateFn func(d T) []byte, parentIDFn func(d T) types.UnitID) ([]types.PredicateBytes, error) {
-	predicates := make([]types.PredicateBytes, 0)
-	var parentID = unitID
-	for {
-		if parentID == nil {
-			// type has no parent.
-			break
-		}
-		_, parentData, err := getUnit[T](s, parentID)
-		if err != nil {
-			return nil, err
-		}
-
-		predicate := predicateFn(parentData)
-		predicates = append(predicates, predicate)
-		parentID = parentIDFn(parentData)
-	}
-	return predicates, nil
-}
-
-func getUnit[T state.UnitData](s *state.State, unitID types.UnitID) (*state.Unit, T, error) {
-	u, err := s.GetUnit(unitID, false)
+func getUnitData[T state.UnitData](getUnit func(id types.UnitID, committed bool) (*state.Unit, error), unitID types.UnitID) (T, error) {
+	u, err := getUnit(unitID, false)
 	if err != nil {
-		return nil, *new(T), err
+		return *new(T), err
 	}
 	d, ok := u.Data().(T)
 	if !ok {
-		return nil, *new(T), fmt.Errorf("unit %v data is not of type %T", unitID, *new(T))
+		return *new(T), fmt.Errorf("expected unit %v data to be %T got %T", unitID, *new(T), u.Data())
 	}
-	return u, d, nil
-}
-
-func verifyOwnership(bearer types.PredicateBytes, invariants []types.PredicateBytes, prover TokenOwnershipProver) error {
-	predicates := append([]types.PredicateBytes{bearer}, invariants...)
-	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
-	sigBytes, err := prover.SigBytes()
-	if err != nil {
-		return err
-	}
-	return verifyPredicates(predicates, proofs, sigBytes)
+	return d, nil
 }

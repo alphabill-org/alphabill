@@ -42,10 +42,18 @@ type (
 		CommittedUC() *types.UnicityCertificate
 
 		// State returns clone of transaction system state
-		State() *state.State
+		State() StateReader
+	}
 
-		// SerializeState writes the serialized state of the transaction system to the given writer.
-		SerializeState(writer io.Writer, committed bool) error
+	StateReader interface {
+		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+
+		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
+
+		CreateIndex(state.KeyExtractor[string]) (state.Index[string], error)
+
+		// Serialize writes the serialized state to the given writer.
+		Serialize(writer io.Writer, committed bool) error
 	}
 
 	TransactionExecutor interface {

@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,16 +12,16 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
+func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateTransferFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := m.validateTransferFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := m.feeCalculator()
 		unitID := tx.UnitID()
 
 		// update state
-		if err := options.state.Apply(
+		if err := m.state.Apply(
 			state.SetOwner(unitID, attr.NewBearer),
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
@@ -31,7 +30,7 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					d.T = currentBlockNr
-					d.Backlink = tx.Hash(options.hashAlgorithm)
+					d.Backlink = tx.Hash(m.hashAlgorithm)
 					return d, nil
 				})); err != nil {
 			return nil, err
@@ -41,8 +40,8 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 	}
 }
 
-func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
+func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
@@ -63,21 +62,23 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	}
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		d.TokenType,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
+	return nil
 }
 
 func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateBytes, *FungibleTokenData, error) {
@@ -97,23 +98,6 @@ func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateB
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
 	return u.Bearer(), d, nil
-}
-
-type transferFungibleTokenOwnershipProver struct {
-	tx   *types.TransactionOrder
-	attr *TransferFungibleTokenAttributes
-}
-
-func (t *transferFungibleTokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t *transferFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.attr.InvariantPredicateSignatures
-}
-
-func (t *transferFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
 }
 
 func (t *TransferFungibleTokenAttributes) GetNewBearer() []byte {

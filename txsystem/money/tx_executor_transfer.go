@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -17,17 +16,17 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferAttributes] {
+func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := validateTransferTx(tx, attr, s); err != nil {
+		if err := m.validateTransferTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer tx: %w", err)
 		}
 		// calculate actual tx fee cost
-		fee := feeCalc()
+		fee := m.feeCalculator()
 		// update state
-		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
+		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, m.hashAlgorithm)
 		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
-		if err := s.Apply(
+		if err := m.state.Apply(
 			setOwnerFunc,
 			updateDataFunc,
 		); err != nil {
@@ -38,15 +37,15 @@ func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeC
 	}
 }
 
-func validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes, s *state.State) error {
-	unit, err := s.GetUnit(tx.UnitID(), false)
+func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes) error {
+	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
-		return err
+	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	return validateTransfer(unit.Data(), attr)
+	return validateAnyTransfer(unit.Data(), attr.Backlink, attr.TargetValue)
 }
 
 func validateTransfer(data state.UnitData, attr *TransferAttributes) error {

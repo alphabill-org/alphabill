@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/partition/event"
@@ -50,7 +50,7 @@ func TestPartition_Ok(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
-			logger.New(t),
+			observability.Default(t),
 			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
@@ -277,11 +277,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	sdrs := createSDRs(newBillID(99))
 	txsState = genesisState(t, initialBill, sdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		var err error
-		// trustBase = tb
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
-			logger.New(t),
+			observability.Default(t),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithSystemDescriptionRecords(sdrs),
@@ -410,7 +408,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   templates.AlwaysTrueArgBytes(),
+		FeeProof:   templates.EmptyArgument(),
 	}
 	require.NoError(t, swapTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
 

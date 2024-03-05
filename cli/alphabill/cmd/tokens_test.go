@@ -67,7 +67,6 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
-		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
 		listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
@@ -80,7 +79,6 @@ func TestRunTokensNode(t *testing.T) {
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
-				" --bootnodes=" + bootNodeStr +
 				" --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

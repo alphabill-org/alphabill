@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
@@ -32,8 +33,13 @@ type (
 		transactions   []*types.TransactionOrder
 		ownerUnits     map[string][]types.UnitID
 		err            error
+		txs            txsystem.TransactionSystem
 	}
 )
+
+func (mn *MockNode) TransactionSystemState() txsystem.StateReader {
+	return mn.txs.State()
+}
 
 func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
 	if mn.err != nil {
@@ -53,6 +59,9 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]b
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
 	if blockNumber > mn.maxBlockNumber {
 		// empty block
 		return nil, nil
@@ -65,6 +74,9 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 }
 
 func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+	if mn.err != nil {
+		return 0, mn.err
+	}
 	return mn.maxRoundNumber, nil
 }
 

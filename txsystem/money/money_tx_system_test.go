@@ -9,7 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -54,7 +54,7 @@ func TestNewTxSystem(t *testing.T) {
 		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
 	)
 	txSystem, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithSystemDescriptionRecords(sdrs),
@@ -75,7 +75,7 @@ func TestNewTxSystem(t *testing.T) {
 	require.NotNil(t, d)
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, types.PredicateBytes(DustCollectorPredicate), d.Bearer())
+	require.Equal(t, DustCollectorPredicate, d.Bearer())
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
@@ -83,9 +83,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),
@@ -112,13 +113,13 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Commit and serialize the state
 	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
 	buf := &bytes.Buffer{}
-	require.NoError(t, originalTxs.SerializeState(buf, true))
+	require.NoError(t, originalTxs.State().Serialize(buf, true))
 
 	// Create a recovered state and txSystem from the serialized state
 	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(recoveredState),
@@ -355,7 +356,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 	_, billData = getBill(t, state, swapTx.UnitID())
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
-	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
+	require.EqualValues(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dcBillData = getBill(t, state, DustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.V) // dust collector money supply is the same after swap
 	require.EqualValues(t, 0, billData.Locked)                      // verify bill got unlocked
@@ -957,7 +958,7 @@ func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   templates.AlwaysTrueArgBytes(),
+		FeeProof:   templates.EmptyArgument(),
 	}
 	return tx
 }
@@ -969,7 +970,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
 
 	mss, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),

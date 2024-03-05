@@ -9,7 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
 )
@@ -20,14 +19,14 @@ var (
 	ErrReclaimFCInvalidTargetUnitBacklink = errors.New("invalid target unit backlink")
 )
 
-func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
+func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
-		unit, _ := s.GetUnit(unitID, false)
+		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}
-		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
 		bdd, ok := unit.Data().(*BillData)
@@ -35,12 +34,12 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			return nil, errors.New("reclaimFC: invalid unit type")
 		}
 
-		if err := validateReclaimFC(tx, attr, bdd, trustBase, hashAlgorithm); err != nil {
+		if err := validateReclaimFC(tx, attr, bdd, m.trustBase, m.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("reclaimFC: validation failed: %w", err)
 		}
 
 		// calculate actual tx fee cost
-		fee := feeCalc()
+		fee := m.feeCalculator()
 
 		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
 		closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
@@ -57,16 +56,16 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			}
 			newBillData.V += uint64(v)
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			newBillData.Locked = 0
 			return newBillData, nil
 		}
 		updateAction := state.UpdateUnitData(unitID, updateFunc)
 
-		if err := s.Apply(updateAction); err != nil {
+		if err := m.state.Apply(updateAction); err != nil {
 			return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
 		}
-		feeCreditTxRecorder.recordReclaimFC(
+		m.feeCreditTxRecorder.recordReclaimFC(
 			&reclaimFeeCreditTx{
 				tx:                  tx,
 				attr:                attr,

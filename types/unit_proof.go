@@ -14,39 +14,38 @@ import (
 
 type (
 	UnitStateProof struct {
-		_                  struct{} `cbor:",toarray"`
-		UnitID             UnitID
-		PreviousStateHash  []byte
-		UnitTreeCert       *UnitTreeCert
-		DataSummary        uint64
-		StateTreeCert      *StateTreeCert
-		UnicityCertificate *UnicityCertificate
+		_                  struct{}            `cbor:",toarray"`
+		UnitID             UnitID              `json:"unitId"`
+		UnitValue          uint64              `json:"unitValue,string"`
+		UnitLedgerHash     Bytes               `json:"unitLedgerHash"`
+		UnitTreeCert       *UnitTreeCert       `json:"unitTreeCert"`
+		StateTreeCert      *StateTreeCert      `json:"stateTreeCert"`
+		UnicityCertificate *UnicityCertificate `json:"unicityCert"`
 	}
 
 	UnitTreeCert struct {
-		_                     struct{} `cbor:",toarray"`
-		TransactionRecordHash []byte   // t
-		UnitDataHash          []byte   // s
-		Path                  []*mt.PathItem
+		_                     struct{}       `cbor:",toarray"`
+		TransactionRecordHash Bytes          `json:"txrHash"`  // t
+		UnitDataHash          Bytes          `json:"dataHash"` // s
+		Path                  []*mt.PathItem `json:"path"`
 	}
 
 	StateTreeCert struct {
-		_                 struct{} `cbor:",toarray"`
-		LeftHash          []byte
-		LeftSummaryValue  uint64
-		RightHash         []byte
-		RightSummaryValue uint64
-
-		Path []*StateTreePathItem
+		_                 struct{}             `cbor:",toarray"`
+		LeftSummaryHash   Bytes                `json:"leftSummaryHash"`
+		LeftSummaryValue  uint64               `json:"leftSummaryValue,string"`
+		RightSummaryHash  Bytes                `json:"rightSummaryHash"`
+		RightSummaryValue uint64               `json:"rightSummaryValue,string"`
+		Path              []*StateTreePathItem `json:"path"`
 	}
 
 	StateTreePathItem struct {
 		_                   struct{} `cbor:",toarray"`
-		ID                  UnitID   // (ι′)
-		Hash                []byte   // (z)
-		NodeSummaryInput    uint64   // (V)
-		SiblingHash         []byte
-		SubTreeSummaryValue uint64
+		UnitID              UnitID   `json:"unitId"`                     // (ι′)
+		LogsHash            Bytes    `json:"logsHash"`                   // (z)
+		Value               uint64   `json:"value,string"`               // (V)
+		SiblingSummaryHash  Bytes    `json:"siblingSummaryHash"`
+		SiblingSummaryValue uint64   `json:"siblingSummaryValue,string"`
 	}
 
 	StateUnitData struct {
@@ -93,8 +92,8 @@ func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, unitData *St
 	}
 	ir := u.UnicityCertificate.InputRecord
 	hash, summary := u.CalculateSateTreeOutput(algorithm)
-	if !bytes.Equal(util.Uint64ToBytes(summary), ir.SummaryValue) {
-		return fmt.Errorf("invalid summary value: expected %X, got %X", ir.SummaryValue, util.Uint64ToBytes(summary))
+	if !bytes.Equal(util.Uint64ToBytes(uint64(summary)), ir.SummaryValue) {
+		return fmt.Errorf("invalid summary value: expected %X, got %X", ir.SummaryValue, util.Uint64ToBytes(uint64(summary)))
 	}
 	if !bytes.Equal(hash, ir.Hash) {
 		return fmt.Errorf("invalid state root hash: expected %X, got %X", ir.Hash, hash)
@@ -106,12 +105,12 @@ func (u *UnitStateProof) CalculateSateTreeOutput(algorithm crypto.Hash) ([]byte,
 	var z []byte
 	if u.UnitTreeCert.TransactionRecordHash == nil {
 		z = hasherUtil.Sum(algorithm,
-			u.PreviousStateHash,
+			u.UnitLedgerHash,
 			u.UnitTreeCert.UnitDataHash,
 		)
 	} else {
 		z = hasherUtil.Sum(algorithm,
-			hasherUtil.Sum(algorithm, u.PreviousStateHash, u.UnitTreeCert.TransactionRecordHash),
+			hasherUtil.Sum(algorithm, u.UnitLedgerHash, u.UnitTreeCert.TransactionRecordHash),
 			u.UnitTreeCert.UnitDataHash,
 		)
 	}
@@ -119,14 +118,14 @@ func (u *UnitStateProof) CalculateSateTreeOutput(algorithm crypto.Hash) ([]byte,
 	logRoot := mt.PlainTreeOutput(u.UnitTreeCert.Path, z, algorithm)
 	id := u.UnitID
 	sc := u.StateTreeCert
-	v := u.DataSummary + sc.LeftSummaryValue + sc.RightSummaryValue
-	h := computeHash(algorithm, id, logRoot, v, sc.LeftHash, sc.LeftSummaryValue, sc.RightHash, sc.RightSummaryValue)
+	v := u.UnitValue + sc.LeftSummaryValue + sc.RightSummaryValue
+	h := computeHash(algorithm, id, logRoot, v, sc.LeftSummaryHash, sc.LeftSummaryValue, sc.RightSummaryHash, sc.RightSummaryValue)
 	for _, p := range sc.Path {
-		vv := p.NodeSummaryInput + v + p.SubTreeSummaryValue
-		if id.Compare(p.ID) == -1 {
-			h = computeHash(algorithm, p.ID, p.Hash, vv, h, v, p.SiblingHash, p.SubTreeSummaryValue)
+		vv := p.Value + v + p.SiblingSummaryValue
+		if id.Compare(p.UnitID) == -1 {
+			h = computeHash(algorithm, p.UnitID, p.LogsHash, vv, h, v, p.SiblingSummaryHash, p.SiblingSummaryValue)
 		} else {
-			h = computeHash(algorithm, p.ID, p.Hash, vv, p.SiblingHash, p.SubTreeSummaryValue, h, v)
+			h = computeHash(algorithm, p.UnitID, p.LogsHash, vv, p.SiblingSummaryHash, p.SiblingSummaryValue, h, v)
 		}
 		v = vv
 	}

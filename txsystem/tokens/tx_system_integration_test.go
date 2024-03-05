@@ -6,11 +6,9 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/partition"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
-
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -30,7 +28,7 @@ var defaultClientMetadata = &types.ClientMetadata{
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewTxSystem(logger.New(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
+		system, err := NewTxSystem(observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
 	}, DefaultSystemIdentifier, genesisState)
@@ -81,7 +79,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		genesisState = genesisState.Clone()
-		system, err := NewTxSystem(logger.New(t), WithState(genesisState), WithTrustBase(tb))
+		system, err := NewTxSystem(observability.Default(t), WithState(genesisState), WithTrustBase(tb))
 		require.NoError(t, err)
 		states = append(states, genesisState)
 		return system

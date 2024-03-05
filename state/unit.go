@@ -11,11 +11,10 @@ import (
 )
 
 type (
-
 	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
 	Unit struct {
-		logs                logs                 // state changes of the unit.
-		logRoot             []byte               // root value of the hash tree built on the state log.
+		logs                []*Log               // state changes of the unit during the current round
+		logsHash            []byte               // root value of the hash tree built on the logs
 		bearer              types.PredicateBytes // current bearer condition
 		data                UnitData             // current data of the unit
 		stateLockTx         []byte               // bytes of transaction that locked the unit
@@ -40,9 +39,6 @@ type (
 		NewUnitData        UnitData
 		NewStateLockTx     []byte
 	}
-
-	// logs contains a state changes of the unit during the current round.
-	logs []*Log
 )
 
 func NewUnit(bearer types.PredicateBytes, data UnitData) *Unit {
@@ -95,6 +91,10 @@ func (u *Unit) Logs() []*Log {
 	return u.logs
 }
 
+func (u *Unit) LastLogIndex() int {
+	return len(u.logs) - 1
+}
+
 func MarshalUnitData(u UnitData) ([]byte, error) {
 	enc, err := cbor.CanonicalEncOptions().EncMode()
 	if err != nil {
@@ -103,7 +103,7 @@ func MarshalUnitData(u UnitData) ([]byte, error) {
 	return enc.Marshal(u)
 }
 
-func copyLogs(entries logs) logs {
+func copyLogs(entries []*Log) []*Log {
 	logsCopy := make([]*Log, len(entries))
 	for i, e := range entries {
 		logsCopy[i] = e.Clone()

@@ -53,6 +53,8 @@ type (
 
 	RawCBOR []byte
 
+	PredicateBytes = Bytes
+
 	ProofGenerator func(bytesToSign []byte) (proof []byte, err error)
 
 	SigBytesProvider interface {
@@ -205,5 +207,3 @@ func (r *RawCBOR) UnmarshalCBOR(data []byte) error {
 	copy(*r, data)
 	return nil
 }
-
-type PredicateBytes []byte

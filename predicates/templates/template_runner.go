@@ -1,64 +1,41 @@
 package templates
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 const TemplateStartByte = 0x00
 
-type (
-	TemplateRunner struct {
-		templates map[byte]PredicateTemplate
-	}
-)
+type TemplateRunner struct{}
 
-var runner = newTemplateRunner()
-
-func init() {
-	runner.addTemplate(&AlwaysTrue{})
-	runner.addTemplate(&AlwaysFalse{})
-	runner.addTemplate(&P2pkh256{})
-
-	predicates.RegisterDefaultRunner(runner)
+func New() TemplateRunner {
+	return TemplateRunner{}
 }
 
-func (t *TemplateRunner) Execute(p *predicates.Predicate, ctx *predicates.PredicateContext) error {
-	if p == nil {
-		return fmt.Errorf("predicate is nil")
-	}
+func (TemplateRunner) ID() uint64 {
+	return TemplateStartByte
+}
+
+func (TemplateRunner) Execute(ctx context.Context, p *predicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 	if p.Tag != TemplateStartByte {
-		return fmt.Errorf("invalid predicate tag: %d", p.Tag)
+		return false, fmt.Errorf("expected predicate template tag %d but got %d", TemplateStartByte, p.Tag)
 	}
-	tp, err := t.selectTemplate(p)
-	if err != nil {
-		return err
-	}
-	var input []byte
-	var payload []byte
-	if ctx != nil {
-		input = ctx.Input
-		payload = ctx.PayloadBytes
-	}
-	return tp.Execute(p.Params, input, payload)
-}
-
-func newTemplateRunner() *TemplateRunner {
-	return &TemplateRunner{templates: make(map[byte]PredicateTemplate)}
-}
-
-func (t *TemplateRunner) addTemplate(template PredicateTemplate) {
-	t.templates[template.ID()] = template
-}
-
-func (t *TemplateRunner) selectTemplate(p *predicates.Predicate) (PredicateTemplate, error) {
 	if len(p.Code) != 1 {
-		return nil, fmt.Errorf("expected predicate code length to be 1, got: %d (%X)", len(p.Code), p.Code)
+		return false, fmt.Errorf("expected predicate template code length to be 1, got %d", len(p.Code))
 	}
-	pt, found := t.templates[p.Code[0]]
-	if !found {
-		return nil, fmt.Errorf("unknown predicate template: %X", p.Code)
+
+	switch p.Code[0] {
+	case P2pkh256ID:
+		return p2pkh256_Execute(p.Params, args, txo, env)
+	case AlwaysTrueID:
+		return alwaysTrue_Execute(p.Params, args)
+	case AlwaysFalseID:
+		return alwaysFalse_Execute(p.Params, args)
+	default:
+		return false, fmt.Errorf("unknown predicate template with id %d", p.Code[0])
 	}
-	return pt, nil
 }

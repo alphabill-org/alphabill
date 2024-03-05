@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
@@ -32,6 +34,7 @@ type (
 		trustBase               map[string]abcrypto.Verifier
 		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
+		execPredicate           func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 		feeCreditRecordUnitType []byte
 	}
 
@@ -51,6 +54,13 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	}
 	for _, o := range opts {
 		o(m)
+	}
+	if m.execPredicate == nil {
+		predEng, err := predicates.Dispatcher(templates.New())
+		if err != nil {
+			return nil, fmt.Errorf("creating predicate executor: %w", err)
+		}
+		m.execPredicate = predicates.PredicateRunner(predEng.Execute, m.state)
 	}
 	if err := validConfiguration(m); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)

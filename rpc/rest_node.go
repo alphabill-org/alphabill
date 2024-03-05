@@ -40,10 +40,6 @@ func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Ob
 		// get latest round number
 		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node, log)).Methods(http.MethodGet, http.MethodOptions)
 
-		// get unit data and proof
-		r.HandleFunc(pathUnits, getUnit(node, unitProofDB, log)).Methods(http.MethodGet, http.MethodOptions)
-		// Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}") - fields are not mandatory
-
 		// get the state file
 		r.HandleFunc(pathState, getState(node, log))
 
@@ -146,7 +142,7 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/cbor")
 		w.WriteHeader(http.StatusOK)
 
-		if err := node.SerializeState(w); err != nil {
+		if err := node.TransactionSystemState().Serialize(w, true); err != nil {
 			log.Error("writing state file", logger.Error(err))
 		}
 	}

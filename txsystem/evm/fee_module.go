@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -23,6 +24,7 @@ type (
 		hashAlgorithm    crypto.Hash
 		txValidator      *fc.DefaultFeeCreditTxValidator
 		feeCalculator    FeeCalculator
+		execPredicate    func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 		log              *slog.Logger
 	}
 
@@ -43,6 +45,7 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 		hashAlgorithm:    options.hashAlgorithm,
 		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase, nil),
 		feeCalculator:    FixedFee(1),
+		execPredicate:    predicates.PredicateRunner(options.execPredicate, options.state),
 		log:              log,
 	}, nil
 }
@@ -56,5 +59,5 @@ func (m FeeAccount) TxExecutors() map[string]txsystem.ExecuteFunc {
 }
 
 func (m FeeAccount) GenericTransactionValidator() genericTransactionValidator {
-	return checkFeeAccountBalance(m.state)
+	return checkFeeAccountBalance(m.state, m.execPredicate)
 }

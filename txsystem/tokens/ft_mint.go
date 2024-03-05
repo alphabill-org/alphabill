@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -12,18 +11,18 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
+func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateMintFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := m.validateMintFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := m.feeCalculator()
 
 		unitID := tx.UnitID()
-		h := tx.Hash(options.hashAlgorithm)
+		h := tx.Hash(m.hashAlgorithm)
 
 		// update state
-		if err := options.state.Apply(
+		if err := m.state.Apply(
 			state.AddUnit(unitID, attr.Bearer, newFungibleTokenData(attr, h, currentBlockNr)),
 		); err != nil {
 			return nil, err
@@ -32,12 +31,12 @@ func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Min
 	}
 }
 
-func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+func (m *FungibleTokensModule) validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
-	u, err := s.GetUnit(unitID, false)
+	u, err := m.state.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit with id %v already exists", unitID)
 	}
@@ -51,26 +50,20 @@ func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTok
 		return fmt.Errorf(ErrStrInvalidTypeID)
 	}
 
-	// existence of the parent type is checked by the getChainedPredicates
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		attr.TypeID,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.TokenCreationPredicate
+		attr.TokenCreationPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.TokenCreationPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("evaluating TokenCreationPredicate: %w", err)
 	}
-	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return err
-	}
-	return verifyPredicates(predicates, attr.TokenCreationPredicateSignatures, sigBytes)
+	return nil
 }
 
 func (m *MintFungibleTokenAttributes) GetBearer() []byte {

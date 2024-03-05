@@ -3,12 +3,12 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,9 +35,8 @@ type (
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() types.SystemID
-		GetUnitState(unitID []byte, returnProof bool, returnData bool) (*types.UnitDataAndProof, error)
 		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
-		SerializeState(writer io.Writer) error
+		TransactionSystemState() txsystem.StateReader
 	}
 )
 

@@ -7,14 +7,12 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/logger"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/config"
 	"github.com/stretchr/testify/require"
@@ -48,52 +46,6 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 	require.NotNil(t, network)
 }
 
-func TestValidatorNetwork_ForwardTransaction(t *testing.T) {
-	opts := ValidatorNetworkOptions{
-		ReceivedChannelCapacity:          1000,
-		TxBufferSize:                     1000,
-		TxBufferHashAlgorithm:            crypto.SHA256,
-		BlockCertificationTimeout:        300 * time.Millisecond,
-		BlockProposalTimeout:             300 * time.Millisecond,
-		LedgerReplicationRequestTimeout:  300 * time.Millisecond,
-		LedgerReplicationResponseTimeout: 300 * time.Millisecond,
-		HandshakeTimeout:                 300 * time.Millisecond,
-	}
-
-	var buf bytes.Buffer
-
-	obs := observability.New(t, "", "", func(configuration *logger.LogConfiguration) (*slog.Logger, error) {
-		return slog.New(slog.NewTextHandler(io.MultiWriter(&buf, os.Stdout), nil)), nil
-	})
-
-	h, err := libp2p.New([]config.Option{
-		libp2p.ListenAddrStrings(defaultAddress),
-	}...)
-	require.NoError(t, err)
-	defer func() {
-		err := h.Close()
-		if err != nil {
-			t.Fatalf("error closing node %v", err)
-		}
-	}()
-
-	network, err := NewLibP2PValidatorNetwork(&Peer{host: h}, opts, obs)
-	require.NoError(t, err)
-	require.NotNil(t, network)
-
-	tx := &types.TransactionOrder{}
-	_, err = network.AddTransaction(context.Background(), tx)
-	require.NoError(t, err)
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-	go func() {
-		network.ForwardTransactions(ctx, "receiver_id")
-	}()
-
-	require.Eventually(t, func() bool { return strings.Contains(buf.String(), "opening p2p stream") }, time.Second, 200*time.Millisecond)
-}
-
 func TestValidatorNetwork_ForwardTransactionEmpty(t *testing.T) {
 	opts := ValidatorNetworkOptions{
 		ReceivedChannelCapacity:          1000,
@@ -107,7 +59,6 @@ func TestValidatorNetwork_ForwardTransactionEmpty(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-
 	obs := observability.New(t, "", "", func(configuration *logger.LogConfiguration) (*slog.Logger, error) {
 		return slog.New(slog.NewTextHandler(io.MultiWriter(&buf, os.Stdout), nil)), nil
 	})

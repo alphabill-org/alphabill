@@ -143,7 +143,5 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 			WriteCBORError(w, err, http.StatusInternalServerError, log)
 			return
 		}
-		w.Header().Set("Content-Type", "application/cbor")
-		w.WriteHeader(http.StatusOK)
 	}
 }

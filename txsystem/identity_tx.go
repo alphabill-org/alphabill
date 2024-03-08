@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
@@ -16,23 +17,31 @@ const TxIdentity = "identity"
 type IdentityModule struct {
 	txExecutor TransactionExecutor
 	state      *state.State
+	pr         predicateRunner
 }
+
+type predicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 
 type IdentityAttributes struct{}
 
 func NewIdentityModule(txExecutor TransactionExecutor, state *state.State) Module {
-	return &IdentityModule{txExecutor: txExecutor, state: state}
+	engines, err := predicates.Dispatcher(templates.New())
+	if err != nil {
+		panic(fmt.Errorf("creating predicate executor: %w", err))
+	}
+
+	return &IdentityModule{txExecutor: txExecutor, state: state, pr: predicates.PredicateRunner(engines.Execute, state)}
 }
 
-func (i IdentityModule) TxExecutors() map[string]ExecuteFunc {
+func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
 	return map[string]ExecuteFunc{
-		TxIdentity: handleIdentityTx(i.txExecutor, i.state).ExecuteFunc(),
+		TxIdentity: i.handleIdentityTx().ExecuteFunc(),
 	}
 }
 
-func handleIdentityTx(txExecutor TransactionExecutor, state *state.State) GenericExecuteFunc[IdentityAttributes] {
+func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttributes] {
 	return func(tx *types.TransactionOrder, attr *IdentityAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := validateIdentityTx(txExecutor, tx, state); err != nil {
+		if err := i.validateIdentityTx(tx); err != nil {
 			return nil, fmt.Errorf("invalid identity tx: %w", err)
 		}
 
@@ -40,9 +49,9 @@ func handleIdentityTx(txExecutor TransactionExecutor, state *state.State) Generi
 	}
 }
 
-func validateIdentityTx(txExecutor TransactionExecutor, tx *types.TransactionOrder, s *state.State) error {
+func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder) error {
 	unitID := tx.UnitID()
-	u, err := s.GetUnit(unitID, false)
+	u, err := i.state.GetUnit(unitID, false)
 	if err != nil {
 		return fmt.Errorf("identity tx: %w", err)
 	}
@@ -50,7 +59,7 @@ func validateIdentityTx(txExecutor TransactionExecutor, tx *types.TransactionOrd
 	// depending on whether the unit has the state lock or not, the order of the checks is different
 	// that is, if the lock is present, bearer check must be performed only after the unit is unlocked, yielding new state
 	if u.IsStateLocked() {
-		if err := validateUnitStateLock(txExecutor, tx, s, u); err != nil {
+		if err := i.validateUnitStateLock(tx, u); err != nil {
 			return fmt.Errorf("identity tx: %w", err)
 		}
 		// TODO: unit must have a new state after the unlock
@@ -59,14 +68,14 @@ func validateIdentityTx(txExecutor TransactionExecutor, tx *types.TransactionOrd
 		// do nothing, the state lock has been released
 	} else {
 		// state not locked, check the bearer
-		if err := VerifyUnitOwnerProof(tx, u.Bearer()); err != nil {
+		if err := i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
 			return fmt.Errorf("identity tx: %w", err)
 		}
 
 		// check if state has to be locked
 		if tx.Payload.StateLock != nil && len(tx.Payload.StateLock.ExecutionPredicate) != 0 {
 			// check if it evaluates to true without any input
-			err := predicates.RunPredicate(tx.Payload.StateLock.ExecutionPredicate, nil, nil)
+			err := i.pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
 			if err != nil {
 				// ignore 'err' as we are only interested if the predicate evaluates to true or not
 				txBytes, err := cbor.Marshal(tx)
@@ -75,7 +84,7 @@ func validateIdentityTx(txExecutor TransactionExecutor, tx *types.TransactionOrd
 				}
 				// lock the state
 				action := state.SetStateLock(unitID, txBytes)
-				if err := s.Apply(action); err != nil {
+				if err := i.state.Apply(action); err != nil {
 					return fmt.Errorf("state lock: failed to lock the state: %w", err)
 				}
 			}
@@ -97,20 +106,14 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(tx *types.TransactionOrder, stateLock *types.StateLock) error {
-	ctx := &predicates.PredicateContext{
-		Input:        p.Proof,
-		PayloadBytes: nil, // nothing?
-		Tx:           tx,
-	}
+func (p *StateUnlockProof) check(pr predicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
 	switch p.Kind {
 	case StateUnlockExecute:
-		err := predicates.RunPredicateWithContext(stateLock.ExecutionPredicate, ctx)
-		if err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := predicates.RunPredicateWithContext(stateLock.RollbackPredicate, ctx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -129,7 +132,7 @@ func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
 }
 
 // TODO: make this function reusable for all allowed transactions
-func validateUnitStateLock(txExecutor TransactionExecutor, tx *types.TransactionOrder, s *state.State, u *state.Unit) error {
+func (i *IdentityModule) validateUnitStateLock(tx *types.TransactionOrder, u *state.Unit) error {
 	stateLockTx := u.StateLockTx()
 	// check if unit has a state lock
 	if len(stateLockTx) > 0 {
@@ -147,23 +150,32 @@ func validateUnitStateLock(txExecutor TransactionExecutor, tx *types.Transaction
 			return fmt.Errorf("state lock tx has no state lock")
 		}
 
-		if err := proof.check(tx, stateLock); err != nil {
+		if err := proof.check(i.pr, tx, stateLock); err != nil {
 			return err
 		}
 
 		// proof is ok, release the lock
-		if err := s.Apply(state.SetStateLock(tx.UnitID(), nil)); err != nil {
+		if err := i.state.Apply(state.SetStateLock(tx.UnitID(), nil)); err != nil {
 			return fmt.Errorf("failed to release state lock: %w", err)
 		}
 
 		// execute the tx that was "on hold"
 		if proof.Kind == StateUnlockExecute {
-			sm, err := txExecutor.Execute(txOnHold)
+			sm, err := i.txExecutor.Execute(txOnHold)
 			if err != nil {
 				return fmt.Errorf("failed to execute tx that was on hold: %w", err)
 			}
 			_ = sm.GetActualFee() // TODO: propagate the fee?
 		}
+	}
+
+	return nil
+}
+
+func (i *IdentityModule) verifyUnitOwnerProof(tx *types.TransactionOrder, bearer types.PredicateBytes) error {
+	if err := i.pr(bearer, tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x]",
+			err, tx.OwnerProof, bearer)
 	}
 
 	return nil

@@ -168,7 +168,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
-			logger.New(t),
+			observability.Default(t),
 			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),

@@ -153,11 +153,7 @@ func (l *UnlockTokenAttributes) SigBytes() ([]byte, error) {
 	return cbor.Marshal(signatureAttr)
 }
 
-<<<<<<< HEAD
-func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, predicates []types.PredicateBytes, d tokenData) error {
-=======
 func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, d tokenData) error {
->>>>>>> main
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")

@@ -37,6 +37,7 @@ type (
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
+		withOwnerIndex              bool
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      abcrypto.Signer
@@ -53,11 +54,9 @@ type (
 	// historyLen - number of rounds/blocks to keep in indexer:
 	// - if 0, there is no clean-up and all blocks are kept in the index;
 	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
-	// withOwnerIndex - if true indexes all units by their owner
 	proofIndexConfig struct {
-		store          keyvaluedb.KeyValueDB
-		historyLen     uint64
-		withOwnerIndex bool
+		store      keyvaluedb.KeyValueDB
+		historyLen uint64
 	}
 
 	ledgerReplicationConfig struct {
@@ -97,11 +96,16 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
-func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64, withOwnerIndex bool) NodeOption {
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *configuration) {
 		c.proofIndexConfig.store = db
 		c.proofIndexConfig.historyLen = history
-		c.proofIndexConfig.withOwnerIndex = withOwnerIndex
+	}
+}
+
+func WithOwnerIndex(withOwnerIndex bool) NodeOption {
+	return func(c *configuration) {
+		c.withOwnerIndex = withOwnerIndex
 	}
 }
 

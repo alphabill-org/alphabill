@@ -235,8 +235,8 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithProofIndex(proofStore, 20, cfg.WithOwnerIndex),
-		// TODO history size!
+		partition.WithProofIndex(proofStore, 20), // TODO history size!
+		partition.WithOwnerIndex(cfg.WithOwnerIndex),
 	}
 
 	node, err := partition.NewNode(

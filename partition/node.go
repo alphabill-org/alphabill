@@ -97,6 +97,7 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexer                *ProofIndexer
+		ownerIndexer                *OwnerIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
@@ -153,7 +154,7 @@ func NewNode(
 
 	// load owner indexer
 	var ownerIndexer *OwnerIndexer
-	if conf.proofIndexConfig.withOwnerIndex {
+	if conf.withOwnerIndex {
 		ownerIndexer = NewOwnerIndexer(observe.Logger())
 		if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
 			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
@@ -167,7 +168,8 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, ownerIndexer, observe.Logger()),
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
+		ownerIndexer:                ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -316,6 +318,13 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		// node must have exited before block was indexed
 		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
 			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.State())
+		}
+
+		// rebuild owner index
+		if n.ownerIndexer != nil {
+			if err := n.ownerIndexer.IndexBlock(&bl, n.TransactionSystemState()); err != nil {
+				return fmt.Errorf("failed to index block: %w", err)
+			}
 		}
 
 		luc = bl.UnicityCertificate
@@ -884,6 +893,11 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	}
 	n.sendEvent(event.BlockFinalized, b)
 	n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
+	if n.ownerIndexer != nil {
+		if err := n.ownerIndexer.IndexBlock(b, n.transactionSystem.State()); err != nil {
+			return fmt.Errorf("failed to index block: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -1344,10 +1358,10 @@ func (n *Node) TransactionSystemState() txsystem.StateReader {
 }
 
 func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
-	if n.proofIndexer.ownerIndexer == nil {
+	if n.ownerIndexer == nil {
 		return nil, errors.New("owner indexer is disabled")
 	}
-	return n.proofIndexer.ownerIndexer.GetOwnerUnits(ownerID)
+	return n.ownerIndexer.GetOwnerUnits(ownerID)
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

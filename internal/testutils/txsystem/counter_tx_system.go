@@ -26,7 +26,7 @@ type CounterTxSystem struct {
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
 
-	FixedState  *state.State
+	FixedState  txsystem.StateReader
 	blockNo     uint64
 	uncommitted bool
 	committedUC *types.UnicityCertificate

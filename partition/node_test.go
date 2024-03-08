@@ -82,15 +82,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	require.NoError(t, db.Write(util.Uint64ToBytes(1), newBlock1))
 	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
 	// add transactions from block 4 as pending block
-	proposal := &pendingBlockProposal{
-		RoundNumber:    newBlock3.GetRoundNumber(),
-		ProposerNodeId: newBlock3.GetProposerID(),
-		PrevHash:       newBlock2.UnicityCertificate.InputRecord.Hash,
-		StateHash:      newBlock3.UnicityCertificate.InputRecord.Hash,
-		Transactions:   newBlock3.Transactions,
-		StateSummary:   make([]byte, 8),
-	}
-	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
+	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), newBlock3))
 	// start node with db filled
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -439,6 +431,7 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 	// when UC with modified IR.SumOfEarnedFees is received
 	tp.SubmitT1Timeout(t)
 	uc := tp.IssueBlockUC(t)
+	uc.InputRecord = copyIR(uc.InputRecord)
 	uc.InputRecord.SumOfEarnedFees += 1
 	tp.SubmitUnicityCertificate(uc)
 

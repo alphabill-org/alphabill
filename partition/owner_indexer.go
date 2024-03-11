@@ -23,6 +23,15 @@ type (
 		ownerUnits map[string][]types.UnitID
 	}
 
+	IndexWriter interface {
+		LoadState(s txsystem.StateReader) error
+		IndexBlock(b *types.Block, s StateProvider) error
+	}
+
+	IndexReader interface {
+		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
+	}
+
 	StateProvider interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 	}
@@ -35,6 +44,13 @@ func NewOwnerIndexer(l *slog.Logger) *OwnerIndexer {
 	}
 }
 
+// GetOwnerUnits returns all unit ids for given owner.
+func (o *OwnerIndexer) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.ownerUnits[string(ownerID)], nil
+}
+
 // LoadState fills the index from state.
 func (o *OwnerIndexer) LoadState(s txsystem.StateReader) error {
 	index, err := s.CreateIndex(extractOwnerID)
@@ -45,13 +61,6 @@ func (o *OwnerIndexer) LoadState(s txsystem.StateReader) error {
 	defer o.mu.Unlock()
 	o.ownerUnits = index
 	return nil
-}
-
-// GetOwnerUnits returns all unit ids for given owner.
-func (o *OwnerIndexer) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	return o.ownerUnits[string(ownerID)], nil
 }
 
 // IndexBlock updates the index based on current committed state and transactions in a block (changed units).

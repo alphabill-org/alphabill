@@ -57,7 +57,7 @@ type startNodeConfiguration struct {
 }
 
 func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
-	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
+	proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
 	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
@@ -106,7 +106,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, proofStore, obs),
+			rpc.NodeEndpoints(node, ownerIndexer, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 		}
 		if rpcServerConf.Router != nil {
@@ -115,7 +115,7 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 		rpcServerConf.APIs = []rpc.API{
 			{
 				Namespace: "state",
-				Service:   rpc.NewStateAPI(node),
+				Service:   rpc.NewStateAPI(node, ownerIndexer),
 			},
 			{
 				Namespace: "admin",
@@ -212,7 +212,7 @@ func initGRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs part
 }
 
 func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
-	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, obs Observability) (*partition.Node, error) {
+	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 		partition.WithProofIndex(proofStore, 20), // TODO history size!
-		partition.WithOwnerIndex(cfg.WithOwnerIndex),
+		partition.WithOwnerIndex(ownerIndexer),
 	}
 
 	node, err := partition.NewNode(

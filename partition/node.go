@@ -10,6 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -24,13 +32,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -143,7 +144,7 @@ func NewNode(
 	defer span.End()
 
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, observe.Logger(), nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
@@ -153,10 +154,8 @@ func NewNode(
 	}
 
 	// load owner indexer
-	var ownerIndexer *OwnerIndexer
-	if conf.withOwnerIndex {
-		ownerIndexer = NewOwnerIndexer(observe.Logger())
-		if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
+	if conf.ownerIndexer != nil {
+		if err := conf.ownerIndexer.LoadState(txSystem.State()); err != nil {
 			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
 		}
 	}
@@ -169,7 +168,7 @@ func NewNode(
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
 		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
-		ownerIndexer:                ownerIndexer,
+		ownerIndexer:                conf.ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -1355,13 +1354,6 @@ func (n *Node) SystemIdentifier() types.SystemID {
 
 func (n *Node) TransactionSystemState() txsystem.StateReader {
 	return n.transactionSystem.State()
-}
-
-func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
-	if n.ownerIndexer == nil {
-		return nil, errors.New("owner indexer is disabled")
-	}
-	return n.ownerIndexer.GetOwnerUnits(ownerID)
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

@@ -4,9 +4,10 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -15,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -37,7 +37,7 @@ type (
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
-		withOwnerIndex              bool
+		ownerIndexer                *OwnerIndexer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      abcrypto.Signer
@@ -49,6 +49,7 @@ type (
 	}
 
 	NodeOption func(c *configuration)
+
 	// proofIndexConfig proof indexer config
 	// store - type of store, either a memory DB or bolt DB
 	// historyLen - number of rounds/blocks to keep in indexer:
@@ -103,9 +104,9 @@ func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	}
 }
 
-func WithOwnerIndex(withOwnerIndex bool) NodeOption {
+func WithOwnerIndex(ownerIndexer *OwnerIndexer) NodeOption {
 	return func(c *configuration) {
-		c.withOwnerIndex = withOwnerIndex
+		c.ownerIndexer = ownerIndexer
 	}
 }
 
@@ -128,7 +129,7 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}

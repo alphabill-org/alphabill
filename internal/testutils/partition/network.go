@@ -348,7 +348,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
 			partition.WithProofIndex(nd.proofDB, 0),
-			partition.WithOwnerIndex(true),
+			partition.WithOwnerIndex(partition.NewOwnerIndexer(n.obs.DefaultLogger())),
 		)
 		if err = n.startNode(ctx, nd); err != nil {
 			return err

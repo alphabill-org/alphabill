@@ -14,7 +14,8 @@ import (
 
 type (
 	StateAPI struct {
-		node partitionNode
+		node       partitionNode
+		ownerIndex partition.IndexReader
 	}
 
 	Unit[T any] struct {
@@ -30,8 +31,8 @@ type (
 	}
 )
 
-func NewStateAPI(node partitionNode) *StateAPI {
-	return &StateAPI{node}
+func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI {
+	return &StateAPI{node: node, ownerIndex: ownerIndex}
 }
 
 // GetRoundNumber returns the round number of the latest UC seen by node.
@@ -71,7 +72,10 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
 func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error) {
-	unitIds, err := s.node.GetOwnerUnits(ownerID)
+	if s.ownerIndex == nil {
+		return nil, errors.New("owner indexer is disabled")
+	}
+	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}

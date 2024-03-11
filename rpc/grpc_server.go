@@ -35,7 +35,6 @@ type (
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		SystemIdentifier() types.SystemID
-		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
 		TransactionSystemState() txsystem.StateReader
 	}
 )

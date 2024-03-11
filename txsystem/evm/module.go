@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/core"
@@ -18,6 +19,7 @@ type (
 		systemIdentifier types.SystemID
 		options          *Options
 		blockGasCounter  *core.GasPool
+		execPredicate    func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 		log              *slog.Logger
 	}
 )
@@ -30,6 +32,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		systemIdentifier: systemIdentifier,
 		options:          opts,
 		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
+		execPredicate:    predicates.PredicateRunner(opts.execPredicate, opts.state),
 		log:              log,
 	}, nil
 }
@@ -51,7 +54,9 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		}
 
 		if ctx.Unit != nil {
-			return txsystem.VerifyUnitOwnerProof(ctx.Tx, ctx.Unit.Bearer())
+			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx); err != nil {
+				return fmt.Errorf("evaluating bearer predicate: %w", err)
+			}
 		}
 
 		return nil

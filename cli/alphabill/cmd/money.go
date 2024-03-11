@@ -36,9 +36,9 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:      &startNodeConfiguration{},
+		Node:       &startNodeConfiguration{},
 		grpcServer: &grpcServerConfiguration{},
-		rpcServer: &rpc.ServerConfiguration{},
+		rpcServer:  &rpc.ServerConfiguration{},
 	}
 	var nodeCmd = &cobra.Command{
 		Use:   "money",
@@ -114,7 +114,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	txs, err := money.NewTxSystem(
-		log,
+		obs,
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),

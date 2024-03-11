@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/util"
@@ -36,13 +37,30 @@ func isZeroHash(hash []byte) bool {
 	return true
 }
 
-func (x *InputRecord) Equal(b *InputRecord) bool {
-	return x.RoundNumber == b.RoundNumber &&
-		x.SumOfEarnedFees == b.SumOfEarnedFees &&
-		bytes.Equal(x.PreviousHash, b.PreviousHash) &&
-		bytes.Equal(x.Hash, b.Hash) &&
-		bytes.Equal(x.BlockHash, b.BlockHash) &&
-		bytes.Equal(x.SummaryValue, b.SummaryValue)
+func EqualIR(a, b *InputRecord) bool {
+	return bytes.Equal(a.Bytes(), b.Bytes())
+}
+
+func AssertEqualIR(a, b *InputRecord) error {
+	if a.RoundNumber != b.RoundNumber {
+		return fmt.Errorf("round number is different: %v vs %v", a.RoundNumber, b.RoundNumber)
+	}
+	if a.SumOfEarnedFees != b.SumOfEarnedFees {
+		return fmt.Errorf("sum of fees is different: %v vs %v", a.SumOfEarnedFees, b.SumOfEarnedFees)
+	}
+	if !bytes.Equal(a.SummaryValue, b.SummaryValue) {
+		return fmt.Errorf("summary value is different: %v vs %v", a.SummaryValue, b.SummaryValue)
+	}
+	if !bytes.Equal(a.PreviousHash, b.PreviousHash) {
+		return fmt.Errorf("previous state hash is different: %X vs %X", a.PreviousHash, b.PreviousHash)
+	}
+	if !bytes.Equal(a.Hash, b.Hash) {
+		return fmt.Errorf("state hash is different: %X vs %X", a.Hash, b.Hash)
+	}
+	if !bytes.Equal(a.BlockHash, b.BlockHash) {
+		return fmt.Errorf("block hash is different: %X vs %X", a.BlockHash, b.BlockHash)
+	}
+	return nil
 }
 
 func (x *InputRecord) IsValid() error {
@@ -60,6 +78,16 @@ func (x *InputRecord) IsValid() error {
 	}
 	if x.SummaryValue == nil {
 		return ErrSummaryValueIsNil
+	}
+	if isZeroHash(x.BlockHash) {
+		if !bytes.Equal(x.PreviousHash, x.Hash) {
+			return fmt.Errorf("block hash is 0H, but state hash changes")
+		}
+	}
+	if bytes.Equal(x.PreviousHash, x.Hash) {
+		if !isZeroHash(x.BlockHash) {
+			return fmt.Errorf("state hash does not change, but block hash is 0H")
+		}
 	}
 	return nil
 }
@@ -89,4 +117,12 @@ func (x *InputRecord) NewRepeatIR() *InputRecord {
 		RoundNumber:     x.RoundNumber,
 		SumOfEarnedFees: x.SumOfEarnedFees,
 	}
+}
+
+func (x *InputRecord) String() string {
+	if x == nil {
+		return "input record is nil"
+	}
+	return fmt.Sprintf("H: %X H': %X Bh: %X round: %v fees: %d summary: %d",
+		x.Hash, x.PreviousHash, x.BlockHash, x.RoundNumber, x.SumOfEarnedFees, x.SumOfEarnedFees)
 }

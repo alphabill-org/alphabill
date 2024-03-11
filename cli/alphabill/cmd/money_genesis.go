@@ -10,7 +10,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
@@ -53,7 +52,7 @@ type moneyGenesisConfig struct {
 	OutputState        string
 	InitialBillID      types.UnitID
 	InitialBillValue   uint64 `validate:"gte=0"`
-	InitialBillOwner   predicates.PredicateBytes
+	InitialBillOwner   types.PredicateBytes
 	DCMoneySupplyValue uint64   `validate:"gte=0"`
 	T2Timeout          uint32   `validate:"gte=0"`
 	SDRFiles           []string // system description record files

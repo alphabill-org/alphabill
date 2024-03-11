@@ -1,10 +1,14 @@
 package money
 
 import (
-	gocrypto "crypto"
+	"context"
+	"crypto"
+	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
@@ -16,22 +20,31 @@ type (
 	Options struct {
 		systemIdentifier         types.SystemID
 		state                    *state.State
-		hashAlgorithm            gocrypto.Hash
-		trustBase                map[string]crypto.Verifier
+		hashAlgorithm            crypto.Hash
+		trustBase                map[string]abcrypto.Verifier
 		systemDescriptionRecords []*genesis.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
+		exec                     PredicateExecutor
 	}
 
 	Option func(*Options)
+
+	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
-func DefaultOptions() *Options {
+func defaultOptions() (*Options, error) {
+	predEng, err := predicates.Dispatcher(templates.New())
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate executor: %w", err)
+	}
+
 	return &Options{
 		systemIdentifier: DefaultSystemIdentifier,
-		hashAlgorithm:    gocrypto.SHA256,
-		trustBase:        make(map[string]crypto.Verifier),
+		hashAlgorithm:    crypto.SHA256,
+		trustBase:        make(map[string]abcrypto.Verifier),
 		feeCalculator:    fc.FixedFee(1),
-	}
+		exec:             predEng.Execute,
+	}, nil
 }
 
 func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
@@ -46,13 +59,13 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithTrustBase(trust map[string]crypto.Verifier) Option {
+func WithTrustBase(trust map[string]abcrypto.Verifier) Option {
 	return func(options *Options) {
 		options.trustBase = trust
 	}
 }
 
-func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
+func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	return func(g *Options) {
 		g.hashAlgorithm = hashAlgorithm
 	}
@@ -67,5 +80,17 @@ func WithSystemDescriptionRecords(records []*genesis.SystemDescriptionRecord) Op
 func WithFeeCalculator(calc fc.FeeCalculator) Option {
 	return func(g *Options) {
 		g.feeCalculator = calc
+	}
+}
+
+/*
+WithPredicateExecutor allows to replace the default predicate executor function.
+Should be used by tests only.
+*/
+func WithPredicateExecutor(exec PredicateExecutor) Option {
+	return func(g *Options) {
+		if exec != nil {
+			g.exec = exec
+		}
 	}
 }

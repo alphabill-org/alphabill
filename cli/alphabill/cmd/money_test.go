@@ -335,7 +335,6 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 		require.NoError(t, err)
-		bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
 		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
@@ -351,7 +350,6 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
-				" --bootnodes=" + bootNodeStr +
 				" --server-address " + moneyNodeAddr +
 				" --rpc-server-address " + rpcNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))

@@ -37,6 +37,8 @@ type (
 
 	RawCBOR []byte
 
+	PredicateBytes = Bytes
+
 	ProofGenerator func(bytesToSign []byte) (proof []byte, err error)
 
 	SigBytesProvider interface {

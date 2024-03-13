@@ -53,7 +53,7 @@ func (o *OwnerIndexer) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
 
 // LoadState fills the index from state.
 func (o *OwnerIndexer) LoadState(s txsystem.StateReader) error {
-	index, err := s.CreateIndex(extractOwnerID)
+	index, err := s.CreateIndex(o.extractOwnerID)
 	if err != nil {
 		return fmt.Errorf("failed to create ownerID index: %w", err)
 	}
@@ -109,10 +109,7 @@ func (o *OwnerIndexer) indexUnit(unitID types.UnitID, logs []*state.Log) error {
 }
 
 func (o *OwnerIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := extractOwnerIDFromPredicate(ownerPredicate)
-	if err != nil {
-		return fmt.Errorf("failed to extract owner id: %w", err)
-	}
+	ownerID := o.extractOwnerIDFromPredicate(ownerPredicate)
 	if ownerID != "" {
 		o.ownerUnits[ownerID] = append(o.ownerUnits[ownerID], unitID)
 	}
@@ -120,10 +117,7 @@ func (o *OwnerIndexer) addOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 }
 
 func (o *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte) error {
-	ownerID, err := extractOwnerIDFromPredicate(ownerPredicate)
-	if err != nil {
-		return fmt.Errorf("failed to extract owner id: %w", err)
-	}
+	ownerID := o.extractOwnerIDFromPredicate(ownerPredicate)
 	if ownerID == "" {
 		return nil
 	}
@@ -144,20 +138,22 @@ func (o *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	return nil
 }
 
-func extractOwnerID(unit *state.Unit) (string, error) {
-	return extractOwnerIDFromPredicate(unit.Bearer())
+func (o *OwnerIndexer) extractOwnerID(unit *state.Unit) (string, error) {
+	return o.extractOwnerIDFromPredicate(unit.Bearer()), nil
 }
 
-func extractOwnerIDFromPredicate(predicateBytes []byte) (string, error) {
+func (o *OwnerIndexer) extractOwnerIDFromPredicate(predicateBytes []byte) string {
 	predicate, err := predicates.ExtractPredicate(predicateBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract predicate '%X': %w", predicateBytes, err)
+		// unit bearer predicate can be arbitrary data and does not have to conform to predicate template
+		o.log.Debug(fmt.Sprintf("failed to extract predicate '%X': %v", predicateBytes, err))
+		return ""
 	}
 
 	if !templates.IsP2pkhTemplate(predicate) {
 		// do not index non-p2pkh predicates
-		return "", nil
+		return ""
 	}
 	// for p2pkh predicates use pubkey hash as the owner id
-	return string(predicate.Params), nil
+	return string(predicate.Params)
 }

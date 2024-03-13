@@ -3,19 +3,20 @@ package rpc
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/partition"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
@@ -66,7 +67,7 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "unable to decode request body as transaction")
 }
 
-func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
+func TestRESTServer_GetLatestRoundNumber_Ok(t *testing.T) {
 	node := &MockNode{}
 	obs := observability.Default(t)
 
@@ -77,6 +78,17 @@ func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
 	var response uint64
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
 	require.Equal(t, node.maxBlockNumber, response)
+}
+
+func TestRESTServer_GetLatestRoundNumber_Error(t *testing.T) {
+	node := &MockNode{err: errors.New("round number error")}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/rounds/latest", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "round number error")
 }
 
 func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
@@ -107,6 +119,37 @@ func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 	require.Equal(t, int64(-1), recorder.Result().ContentLength)
+}
+
+func TestRESTServer_GetTransactionRecord_Error(t *testing.T) {
+	obs := observability.Default(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/INVALID", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: partition.ErrIndexNotFound}, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "invalid tx order hash: INVALID")
+}
+
+func TestRESTServer_GetState_Ok(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+}
+
+func TestRESTServer_GetState_Error(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{ErrorState: &testtxsystem.ErrorState{Err: errors.New("state error")}}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "state error")
 }
 
 func TestRESTServer_GetOwnerUnits(t *testing.T) {

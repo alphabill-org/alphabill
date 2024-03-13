@@ -93,6 +93,9 @@ func (mn *MockNode) GetPeer() *network.Peer {
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
+	if mn.err != nil {
+		return mn.err
+	}
 	return nil
 }
 

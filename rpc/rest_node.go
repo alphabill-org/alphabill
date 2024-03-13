@@ -139,11 +139,9 @@ func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc
 
 func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		w.Header().Set("Content-Type", "application/cbor")
-		w.WriteHeader(http.StatusOK)
-
 		if err := node.TransactionSystemState().Serialize(w, true); err != nil {
-			log.Error("writing state file", logger.Error(err))
+			WriteCBORError(w, err, http.StatusInternalServerError, log)
+			return
 		}
 	}
 }

@@ -3,7 +3,6 @@ package wvm
 import (
 	"bytes"
 	"context"
-	"crypto"
 	_ "embed"
 	"fmt"
 	"testing"
@@ -15,8 +14,11 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
@@ -37,32 +39,46 @@ var ticketsWasm []byte
 
 func Test_conference_tickets(t *testing.T) {
 
+	// conference organiser
+	signerOrg, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifierOrg, err := signerOrg.Verifier()
+	require.NoError(t, err)
+	pubKeyOrg, err := verifierOrg.MarshalPublicKey()
+	require.NoError(t, err)
+	// customer buying conference ticket
+	signerAttendee, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifierAttendee, err := signerAttendee.Verifier()
+	require.NoError(t, err)
+	pubKeyAttendee, err := verifierAttendee.MarshalPublicKey()
+	require.NoError(t, err)
+	// not ideal but we use org and attendee also for trustbase
+	// the testblock.CreateProof takes single signer as trustbase and used id "test" for it
+	trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
+
+	// create tx record and tx proof pair for money transfer and serialize them into
+	// CBOR array usable as predicate argument for mint and update token tx
 	predicateArgs := func(t *testing.T, value uint64, nonce []byte) []byte {
+		// attendee transfers to the organiser
 		txPayment := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID: money.DefaultSystemIdentifier,
 				Type:     money.PayloadTypeTransfer,
 				UnitID:   money.NewBillID(nil, []byte{8, 1, 1, 1}),
 			},
-			OwnerProof: make([]byte, 32),
-			FeeProof:   []byte{1, 2, 3, 4},
 		}
 		require.NoError(t, txPayment.Payload.SetAttributes(
 			money.TransferAttributes{
-				NewBearer:   []byte{8, 8},
+				NewBearer:   templates.NewP2pkh256BytesFromKey(pubKeyOrg),
 				TargetValue: value,
 				Backlink:    []byte{3, 3},
 				//Nonce:       nonce, // AB-1509
 			}))
+		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
-		block := &types.Block{
-			Header:             &types.Header{SystemID: txPayment.SystemID()},
-			Transactions:       []*types.TransactionRecord{txRec},
-			UnicityCertificate: &types.UnicityCertificate{},
-		}
-		proof, _, err := types.NewTxProof(block, 0, crypto.SHA256)
-		require.NoError(t, err)
+		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemIdentifier))
 
 		b, err := cbor.Marshal(txRec)
 		require.NoError(t, err)
@@ -139,35 +155,25 @@ func Test_conference_tickets(t *testing.T) {
 	})
 
 	t.Run("mint_token", func(t *testing.T) {
+		// org mints token (ticket) to the attendee
 		txNFTMint := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID: tokens.DefaultSystemIdentifier,
 				Type:     tokens.PayloadTypeMintNFT,
 				UnitID:   tokenID,
 			},
-			OwnerProof: make([]byte, 32),
-			FeeProof:   []byte{1, 2, 3, 4},
+			FeeProof: []byte{1, 2, 3, 4},
 		}
 		require.NoError(t, txNFTMint.Payload.SetAttributes(
 			tokens.MintNonFungibleTokenAttributes{
+				Bearer:    templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
 				NFTTypeID: nftTypeID,
 				Data:      []byte("early-bird"),
 			}))
+		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+
 		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
-				if !bytes.Equal(id, tokenID) {
-					return nil, fmt.Errorf("unknown unit %x", id)
-				}
-				return state.NewUnit(
-					[]byte{1},
-					&tokens.NonFungibleTokenData{
-						Name:    "Ticket 001",
-						T:       42,
-						Data:    []byte("early-bird"),
-						NftType: nftTypeID,
-					}), nil
-			},
-			trustBase: func() (map[string]abcrypto.Verifier, error) { return nil, nil },
+			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
 			curRound:  func() uint64 { return 1709683000 },
 		}
 
@@ -179,8 +185,8 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		// verifyTxProof: invalid unicity certificate: unicity seal validation failed, unicity seal is nil
-		require.EqualValues(t, 0x101, res)
+		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
+		require.EqualValues(t, 0x102, res)
 	})
 
 	t.Run("update_data", func(t *testing.T) {
@@ -211,7 +217,7 @@ func Test_conference_tickets(t *testing.T) {
 						NftType: nftTypeID,
 					}), nil
 			},
-			trustBase: func() (map[string]abcrypto.Verifier, error) { return nil, nil },
+			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
 			curRound:  func() uint64 { return 1709683000 },
 		}
 
@@ -223,8 +229,8 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		// .verifyTxProof: invalid unicity certificate: unicity seal validation failed, unicity seal is nil
-		require.EqualValues(t, 0x0101, res)
+		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
+		require.EqualValues(t, 0x102, res)
 	})
 }
 

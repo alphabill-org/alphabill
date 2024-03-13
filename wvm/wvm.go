@@ -59,7 +59,6 @@ type (
 	// "evaluation context" of current program
 	EvalContext struct {
 		mod    api.Module // created from the WASM of the predicate
-		args   []byte     // predicate arguments
 		vars   map[uint64]any
 		varIdx uint64          // "handle generator" for vars
 		env    EvalEnvironment // callback to the tx system
@@ -75,7 +74,7 @@ type (
 
 	// translates AB types to WASM consumable representation
 	Encoder interface {
-		Encode(obj any, getHandler handlerFunc) ([]byte, error)
+		Encode(obj any, getHandle handleFunc) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder) ([]byte, error)
 		UnitData(unit *state.Unit) ([]byte, error)
 	}
@@ -110,7 +109,6 @@ func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
 }
 
 func (vmc *VmContext) EndEval() {
-	vmc.curPrg.args = nil
 	vmc.curPrg.mod = nil
 	clear(vmc.curPrg.vars)
 }
@@ -207,7 +205,6 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	hb := api.DecodeU32(global.Get())
 	vm.ctx.Alloc = allocator.NewFreeingBumpHeapAllocator(hb)
 	vm.ctx.curPrg.mod = m
-	vm.ctx.curPrg.args = args
 	vm.ctx.curPrg.varIdx = handle_max_reserved
 	defer vm.ctx.EndEval()
 	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
@@ -254,7 +251,7 @@ func hostAPI(f func(vec *VmContext, mod api.Module, stack []uint64) error) api.G
 			panic("context doesn't contain VM context value")
 		}
 		if err := f(rtCtx, mod, stack); err != nil {
-			rtCtx.log.Error("host API returned error", logger.Error(err))
+			rtCtx.log.ErrorContext(ctx, "host API returned error", logger.Error(err))
 			rtCtx.curPrg.mod.CloseWithExitCode(ctx, 0xFF0000FF)
 		}
 	}

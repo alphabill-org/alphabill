@@ -42,8 +42,13 @@ func create_obj(vec *VmContext, mod api.Module, stack []uint64) error {
 }
 
 func args_cbor_array(vec *VmContext, mod api.Module, stack []uint64) error {
+	// todo: handle should come in as a param so it's usable not only for cur_args?
+	args, err := getVar[[]byte](vec.curPrg.vars, handle_current_args)
+	if err != nil {
+		return fmt.Errorf("reading predicate arguments variable: %w", err)
+	}
 	var data []types.RawCBOR
-	if err := cbor.Unmarshal(vec.curPrg.args, &data); err != nil {
+	if err := cbor.Unmarshal(args, &data); err != nil {
 		return fmt.Errorf("decoding arguments as array of CBOR: %w", err)
 	}
 	var buf wasmEnc

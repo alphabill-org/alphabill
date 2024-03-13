@@ -11,29 +11,29 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
-type handlerFunc func(obj any) uint64
+type handleFunc func(obj any) uint64
 
 type TXSystemEncoder struct{}
 
 /*
 Encode serializes well known types (not tx system specific) to WASM representation.
 */
-func (enc TXSystemEncoder) Encode(obj any, getHandler handlerFunc) ([]byte, error) {
+func (enc TXSystemEncoder) Encode(obj any, getHandle handleFunc) ([]byte, error) {
 	switch t := obj.(type) {
 	case *types.TransactionOrder:
 		return enc.txOrder(t)
 	case *types.TransactionRecord:
-		return enc.txRecord(t, getHandler)
+		return enc.txRecord(t, getHandle)
 	case []byte:
 		return t, nil
 	}
 	return nil, fmt.Errorf("no encoder for %T", obj)
 }
 
-func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, getHandler func(obj any) uint64) ([]byte, error) {
+func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, getHandle func(obj any) uint64) ([]byte, error) {
 	var buf wasmEnc
 	buf.writeTypeVer(type_id_tx_record, 1)
-	buf.writeUInt64(getHandler(txo.TransactionOrder))
+	buf.writeUInt64(getHandle(txo.TransactionOrder))
 	return buf, nil
 }
 

@@ -48,7 +48,7 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 
 func digest_sha256(vec *VmContext, mod api.Module, stack []uint64) error {
 	data := read(mod, stack[0])
-	vec.log.Debug(fmt.Sprintf("digest_sha256(%#v) => %#v", stack, data))
+	//vec.log.Debug(fmt.Sprintf("digest_sha256(%#v) => %#v", stack, data))
 
 	addr, err := vec.writeToMemory(mod, hash.Sum256(data))
 	if err != nil {

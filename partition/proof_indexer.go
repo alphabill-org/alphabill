@@ -112,8 +112,9 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 			if e := dbTx.Rollback(); e != nil {
 				err = errors.Join(err, fmt.Errorf("index transaction rollback failed: %w", e))
 			}
+		} else {
+			err = dbTx.Commit()
 		}
-		err = dbTx.Commit()
 	}()
 
 	var history historyIndex

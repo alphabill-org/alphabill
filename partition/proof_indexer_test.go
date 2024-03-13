@@ -3,7 +3,9 @@ package partition
 import (
 	"context"
 	"crypto"
+	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
@@ -169,9 +172,39 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	})
 }
 
-type mockStateStoreOK struct{}
+func TestProofIndexer_BoltDBTx(t *testing.T) {
+	proofDB, err := boltdb.New(filepath.Join(t.TempDir(), "tempdb.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = proofDB.Close()
+	})
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+
+	// simulate error when indexing a block
+	ctx := context.Background()
+	bas := simulateInput(1, []byte{1})
+	bas.State = mockStateStoreOK{err: errors.New("some error")}
+
+	err = indexer.create(ctx, bas)
+	require.ErrorContains(t, err, "some error")
+
+	// verify index db does not contain the stored round number (tx is rolled back)
+	dbIt := proofDB.First()
+	t.Cleanup(func() {
+		_ = dbIt.Close()
+	})
+	require.False(t, dbIt.Valid())
+}
+
+type mockStateStoreOK struct {
+	err error
+}
 
 func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return &state.Unit{}, nil
 }
 

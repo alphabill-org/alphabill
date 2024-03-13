@@ -1,31 +1,30 @@
 package wvm
 
 import (
-	"context"
-	"os"
 	"testing"
-
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/stretchr/testify/require"
 )
 
-const stateID = 0xaabbccdd
-
-func initWvmHostTest(t *testing.T, ctx context.Context, args []byte, s keyvaluedb.KeyValueDB) *WasmVM {
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	obs := observability.Default(t)
-	abCtx := &AbContext{
-		SysID:    1,
-		Round:    2,
-		Txo:      nil,
-		InitArgs: args,
+func Test_addr_encoding(t *testing.T) {
+	testCases := []struct{ addr, size uint32 }{
+		{addr: 0, size: 0},
+		{addr: 0, size: 1},
+		{addr: 1, size: 0},
+		{addr: 1, size: 1},
+		{addr: 0xFF00, size: 100},
+		{addr: 0xFF0000CC, size: 500},
+		{addr: 0, size: 0xFFFFFFFF},
+		{addr: 0xFFFFFFFF, size: 0},
+		{addr: 0xFFFFFFFF, size: 0xFFFFFFFF},
 	}
-	// init WVM
-	wvm, err := New(ctx, wasm, abCtx, obs.Logger(), WithStorage(s))
-	require.NoError(t, err)
-	return wvm
-}
 
-// Todo: write tests for host functionality
+	for x, tc := range testCases {
+		ptr := newPointerSize(tc.addr, tc.size)
+		addr, size := splitPointerSize(ptr)
+		if addr != tc.addr {
+			t.Errorf("[%d] address doesn't match after conversion: %d vs %d", x, tc.addr, addr)
+		}
+		if size != tc.size {
+			t.Errorf("[%d] size doesn't match after conversion: %d vs %d", x, tc.size, size)
+		}
+	}
+}

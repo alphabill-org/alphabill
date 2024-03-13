@@ -1,23 +1,30 @@
 package wvm
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
 
-const (
-	Success = 0
-	Error   = -1
-)
+/*
+addHostModule adds "host" module to the "rt".
+The host module provides "utility APIs" for the runtime, ie memory manager and logging.
+*/
+func addHostModule(ctx context.Context, rt wazero.Runtime, observe Observability) error {
+	_, err := rt.NewHostModuleBuilder("host").
+		NewFunctionBuilder().WithFunc(dump).Export("dump").
+		NewFunctionBuilder().WithFunc(logMsg).Export("log_msg").
+		NewFunctionBuilder().WithGoModuleFunction(extMalloc(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("ext_malloc").
+		NewFunctionBuilder().WithGoModuleFunction(extFree(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{}).Export("ext_free").
+		NewFunctionBuilder().WithFunc(storageReadV1).Export("storage_read").
+		NewFunctionBuilder().WithFunc(storageWriteV1).Export("storage_write").
+		Instantiate(ctx)
+	return err
+}
 
 // toPointerSize converts an uint32 pointer and uint32 size
 // to an int64 pointer size.
@@ -34,10 +41,9 @@ func splitPointerSize(pointerSize uint64) (ptr, size uint32) {
 // read will read from 64 bit pointer size and return a byte slice
 func read(m api.Module, pointerSize uint64) (data []byte) {
 	ptr, size := splitPointerSize(pointerSize)
-	fmt.Printf("%s.read(%x) => %d @ %d\n", m.Name(), pointerSize, size, ptr)
 	data, ok := m.Memory().Read(ptr, size)
 	if !ok {
-		panic("write overflow")
+		panic("out of range read from shared memory")
 	}
 	return data
 }
@@ -48,23 +54,23 @@ func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
 		panic("nil runtime context")
 	}
 
-	rtCtx.Log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
+	rtCtx.log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
 	var Value []byte
 	found, err := rtCtx.Storage.Read(util.Uint32ToBytes(fileID), &Value)
 	if !found {
 		return 0
 	}
 	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "get state from storage failed, %v", logger.Error(err))
+		rtCtx.log.WarnContext(ctx, "get state from storage failed, %v", logger.Error(err))
 		return 0
 	}
 	dataLen := uint32(len(Value))
 	offset, err := rtCtx.Alloc.Allocate(m.Memory(), dataLen)
 	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "program state file memory allocation failed failed: %w", err)
+		rtCtx.log.WarnContext(ctx, "program state file memory allocation failed failed: %w", err)
 	}
 	if ok := m.Memory().Write(offset, Value); !ok {
-		rtCtx.Log.WarnContext(ctx, "program state file write failed")
+		rtCtx.log.WarnContext(ctx, "program state file write failed")
 		return 0
 	}
 	return newPointerSize(offset, dataLen)
@@ -78,147 +84,66 @@ func storageWriteV1(ctx context.Context, m api.Module, fileID uint32, value uint
 	prt, size := splitPointerSize(value)
 	data, ok := m.Memory().Read(prt, size)
 	if !ok {
-		rtCtx.Log.WarnContext(ctx, "failed to read state from program memory")
+		rtCtx.log.WarnContext(ctx, "failed to read state from program memory")
 		return -1
 	}
-	rtCtx.Log.WarnContext(ctx, fmt.Sprintf("set state, %v id, new state: %v", fileID, data))
+	rtCtx.log.WarnContext(ctx, fmt.Sprintf("set state, %v id, new state: %v", fileID, data))
 	if err := rtCtx.Storage.Write(util.Uint32ToBytes(fileID), data); err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to persist program state")
+		rtCtx.log.WarnContext(ctx, "failed to persist program state")
 		return -1
 	}
 	return 0
 }
 
-func p2pkhV1(ctx context.Context, m api.Module) int32 {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
-	if rtCtx == nil {
-		panic("nil runtime context")
-	}
-
-	p2pkh256Signature := &predicates.P2pkh256Signature{}
-	if err := cbor.Unmarshal(rtCtx.AbCtx.Txo.OwnerProof, p2pkh256Signature); err != nil {
-		rtCtx.Log.WarnContext(ctx, "p2pkh v1 failed to decode P2PKH256 signature:", logger.Error(err))
-		return -1
-	}
-	pubKeyHash := rtCtx.AbCtx.InitArgs
-	if len(pubKeyHash) != 32 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey hash size: %X, expected 32", pubKeyHash))
-		return -1
-	}
-	if len(p2pkh256Signature.Sig) != 65 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid signature size: %X, expected 65", p2pkh256Signature.Sig))
-		return -1
-	}
-	if len(p2pkh256Signature.PubKey) != 33 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey))
-		return -1
-	}
-	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
-		rtCtx.Log.WarnContext(ctx, "pubkey hash does not match")
-		return -1
-	}
-	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
-	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to create verifier:", logger.Error(err))
-		return -1
-	}
-	payloadBytes, err := rtCtx.AbCtx.Txo.PayloadBytes()
-	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to marshal payload bytes: %w", logger.Error(err))
-		return -1
-	}
-	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to verify signature: ", logger.Error(err))
-		return -1
-	}
-	return 1
+func dump(ctx context.Context, m api.Module, msgData uint64) {
+	rtCtx := vmContext(ctx)
+	msg := read(m, msgData)
+	rtCtx.log.InfoContext(ctx, fmt.Sprintf("DUMP(%d): %#v", msgData, msg))
 }
 
-func p2pkhV2(ctx context.Context, m api.Module, pubKeyHashPtr uint64) int32 {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
-	if rtCtx == nil {
-		panic("nil runtime context")
-	}
-
-	p2pkh256Signature := &predicates.P2pkh256Signature{}
-	if err := cbor.Unmarshal(rtCtx.AbCtx.Txo.OwnerProof, p2pkh256Signature); err != nil {
-		rtCtx.Log.WarnContext(ctx, "p2pkh v1 failed to decode P2PKH256 signature:", logger.Error(err))
-		return -1
-	}
-	pubKeyHash := read(m, pubKeyHashPtr)
-	if len(pubKeyHash) != 32 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey hash size: %X, expected 32", pubKeyHash))
-		return -1
-	}
-	if len(p2pkh256Signature.Sig) != 65 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid signature size: %X, expected 65", p2pkh256Signature.Sig))
-		return -1
-	}
-	if len(p2pkh256Signature.PubKey) != 33 {
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("invalid pubkey size: %X, expected 33", p2pkh256Signature.PubKey))
-		return -1
-	}
-	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
-		rtCtx.Log.WarnContext(ctx, "pubkey hash does not match")
-		return -1
-	}
-	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
-	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to create verifier:", logger.Error(err))
-		return -1
-	}
-	payloadBytes, err := rtCtx.AbCtx.Txo.PayloadBytes()
-	if err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to marshal payload bytes: %w", logger.Error(err))
-		return -1
-	}
-	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
-		rtCtx.Log.WarnContext(ctx, "failed to verify signature: ", logger.Error(err))
-		return -1
-	}
-	return 1
-}
-
-func loggingV1(ctx context.Context, m api.Module, level uint32, msgData uint64) {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
-	if rtCtx == nil {
-		panic("nil runtime context")
-	}
+func logMsg(ctx context.Context, m api.Module, level uint32, msgData uint64) {
+	rtCtx := vmContext(ctx)
 	msg := read(m, msgData)
 	switch level {
 	case 0:
-		rtCtx.Log.ErrorContext(ctx, fmt.Sprintf("%s", msg))
+		rtCtx.log.ErrorContext(ctx, string(msg))
 	case 1:
-		rtCtx.Log.WarnContext(ctx, fmt.Sprintf("%s", msg))
+		rtCtx.log.WarnContext(ctx, string(msg))
 	case 2:
-		rtCtx.Log.InfoContext(ctx, fmt.Sprintf("%s", msg))
+		rtCtx.log.InfoContext(ctx, string(msg))
 	case 3:
-		rtCtx.Log.DebugContext(ctx, fmt.Sprintf("%s", msg))
+		rtCtx.log.DebugContext(ctx, string(msg))
 	default:
-		rtCtx.Log.ErrorContext(ctx, fmt.Sprintf("unknown leved %v: %s", level, fmt.Sprintf("%s", msg)))
+		rtCtx.log.ErrorContext(ctx, fmt.Sprintf("unknown level %v: %s", level, msg))
 	}
 }
 
-func extFree(ctx context.Context, m api.Module, addr uint32) {
-	fmt.Printf("%s.Free(%d)\n", m.Name(), addr)
-	allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
+func extFree(observe Observability) api.GoModuleFunc {
+	log := observe.Logger()
+	return func(ctx context.Context, mod api.Module, stack []uint64) {
+		addr := api.DecodeU32(stack[0])
+		log.DebugContext(ctx, fmt.Sprintf("%s.Free(%d)", mod.Name(), addr))
+		allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
 
-	// Deallocate memory
-	err := allocator.Deallocate(m.Memory(), addr)
-	if err != nil {
-		panic(err)
+		if err := allocator.Deallocate(mod.Memory(), addr); err != nil {
+			panic(err)
+		}
 	}
 }
 
-func extMalloc(ctx context.Context, m api.Module, size uint32) uint32 {
-	allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
+func extMalloc(observe Observability) api.GoModuleFunc {
+	log := observe.Logger()
+	return func(ctx context.Context, mod api.Module, stack []uint64) {
+		allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
 
-	// Allocate memory
-	res, err := allocator.Allocate(m.Memory(), size)
-	if err != nil {
-		panic(err)
+		// Allocate memory
+		size := api.DecodeU32(stack[0])
+		res, err := allocator.Allocate(mod.Memory(), size)
+		if err != nil {
+			panic(err)
+		}
+		log.DebugContext(ctx, fmt.Sprintf("%s.Alloc(%d) => %d", mod.Name(), size, res))
+
+		stack[0] = api.EncodeU32(res)
 	}
-	fmt.Printf("%s.Alloc(%d) => %d\n", m.Name(), size, res)
-
-	return res
 }

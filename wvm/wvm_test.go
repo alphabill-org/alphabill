@@ -1,32 +1,30 @@
 package wvm
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	_ "embed"
-	"encoding/binary"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
-	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
-//go:embed testdata/empty/target/wasm32-unknown-unknown/release/empty.wasm
-var emptyWasm []byte
-
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
-var addWasm []byte
+var addOneWasm []byte
 
 //go:embed testdata/missingHostAPI/target/wasm32-unknown-unknown/release/invalid_api.wasm
 var invalidAPIWasm []byte
@@ -34,30 +32,200 @@ var invalidAPIWasm []byte
 //go:embed testdata/p2pkh_v1/p2pkh.wasm
 var p2pkhV1Wasm []byte
 
-//go:embed testdata/p2pkh_v2_c/build/p2pkh_v2.wasm
-var p2pkhV2Wasm []byte
+//go:embed testdata/tickets.wasm
+var ticketsWasm []byte
 
-func TestNewNoHostModules(t *testing.T) {
-	ctx := context.Background()
-	obs := observability.Default(t)
-	wvm, err := New(ctx, addWasm, nil, obs.Logger())
-	require.NoError(t, err)
-	require.NotNil(t, wvm)
-	fn, err := wvm.getApiFn("add_one")
-	require.NoError(t, err)
-	require.NotNil(t, fn)
-	res, err := fn.Call(ctx, uint64(3))
-	require.NoError(t, err)
-	require.Len(t, res, 1)
-	require.EqualValues(t, 4, res[0])
-}
+func Test_conference_tickets(t *testing.T) {
 
-func TestNew_RequiresABModuleAndFails(t *testing.T) {
-	ctx := context.Background()
-	obs := observability.Default(t)
-	wvm, err := New(ctx, invalidAPIWasm, nil, obs.Logger())
-	require.EqualError(t, err, "failed to initiate VM with wasm source, \"get_test_missing\" is not exported in module \"ab\"")
-	require.Nil(t, wvm)
+	predicateArgs := func(t *testing.T, value uint64, nonce []byte) []byte {
+		txPayment := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: money.DefaultSystemIdentifier,
+				Type:     money.PayloadTypeTransfer,
+				UnitID:   money.NewBillID(nil, []byte{8, 1, 1, 1}),
+			},
+			OwnerProof: make([]byte, 32),
+			FeeProof:   []byte{1, 2, 3, 4},
+		}
+		require.NoError(t, txPayment.Payload.SetAttributes(
+			money.TransferAttributes{
+				NewBearer:   []byte{8, 8},
+				TargetValue: value,
+				Backlink:    []byte{3, 3},
+				//Nonce:       nonce, // AB-1509
+			}))
+
+		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		block := &types.Block{
+			Header:             &types.Header{SystemID: txPayment.SystemID()},
+			Transactions:       []*types.TransactionRecord{txRec},
+			UnicityCertificate: &types.UnicityCertificate{},
+		}
+		proof, _, err := types.NewTxProof(block, 0, crypto.SHA256)
+		require.NoError(t, err)
+
+		b, err := cbor.Marshal(txRec)
+		require.NoError(t, err)
+
+		args := []types.RawCBOR{b}
+		b, err = cbor.Marshal(proof)
+		require.NoError(t, err)
+		args = append(args, b)
+
+		b, err = cbor.Marshal(args)
+		require.NoError(t, err)
+		return b
+	}
+
+	/*
+		params hardcoded to the predicates:
+		const D1: u64 = 1709683200;
+		const D2: u64 = D1+ 100000;
+		const P1: u64 = 1000;
+		const P2: u64 = 1500;
+	*/
+
+	nftTypeID := tokens.NewNonFungibleTokenTypeID(nil, []byte{7, 7, 7, 7, 7, 7, 7})
+	tokenID, err := tokens.NewRandomNonFungibleTokenID(nil)
+	require.NoError(t, err)
+
+	t.Run("bearer_invariant", func(t *testing.T) {
+		// evaluated when NFT is transferred to a new bearer. Checks:
+		// token data is "early-bird" and date <= D1, or token data is "regular" and date <= D2
+		// to get the "data", getUnit host API is called and for date "currentRound" is used
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
+			},
+			curRound: func() uint64 { return 1709683000 },
+		}
+
+		// "current transaction" for the predicate must be "transfer NFT"
+		txNFTTransfer := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: tokens.DefaultSystemIdentifier,
+				Type:     tokens.PayloadTypeTransferNFT,
+				UnitID:   tokenID,
+			},
+		}
+		require.NoError(t, txNFTTransfer.Payload.SetAttributes(
+			tokens.TransferNonFungibleTokenAttributes{
+				NewBearer: []byte{5, 5, 5},
+				NFTTypeID: nftTypeID,
+			}))
+
+		obs := observability.Default(t)
+		wvm, err := New(context.Background(), env, obs)
+		require.NoError(t, err)
+		args := []byte{} // predicate expects no arguments
+
+		// should eval to "true"
+		start := time.Now()
+		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		t.Logf("took %s", time.Since(start))
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res)
+
+		// hakich way to change current round so now should eval to "false"
+		env.curRound = func() uint64 { return 1709684000 }
+		start = time.Now()
+		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		t.Logf("took %s", time.Since(start))
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res)
+	})
+
+	t.Run("mint_token", func(t *testing.T) {
+		txNFTMint := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: tokens.DefaultSystemIdentifier,
+				Type:     tokens.PayloadTypeMintNFT,
+				UnitID:   tokenID,
+			},
+			OwnerProof: make([]byte, 32),
+			FeeProof:   []byte{1, 2, 3, 4},
+		}
+		require.NoError(t, txNFTMint.Payload.SetAttributes(
+			tokens.MintNonFungibleTokenAttributes{
+				NFTTypeID: nftTypeID,
+				Data:      []byte("early-bird"),
+			}))
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(
+					[]byte{1},
+					&tokens.NonFungibleTokenData{
+						Name:    "Ticket 001",
+						T:       42,
+						Data:    []byte("early-bird"),
+						NftType: nftTypeID,
+					}), nil
+			},
+			trustBase: func() (map[string]abcrypto.Verifier, error) { return nil, nil },
+			curRound:  func() uint64 { return 1709683000 },
+		}
+
+		wvm, err := New(context.Background(), env, observability.Default(t))
+		require.NoError(t, err)
+
+		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTMint.Payload.UnitID...)))
+		start := time.Now()
+		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
+		t.Logf("took %s", time.Since(start))
+		require.NoError(t, err)
+		// verifyTxProof: invalid unicity certificate: unicity seal validation failed, unicity seal is nil
+		require.EqualValues(t, 0x101, res)
+	})
+
+	t.Run("update_data", func(t *testing.T) {
+		txNFTUpdate := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: tokens.DefaultSystemIdentifier,
+				Type:     tokens.PayloadTypeUpdateNFT,
+				UnitID:   tokenID,
+			},
+			OwnerProof: make([]byte, 32),
+			FeeProof:   []byte{1, 2, 3, 4},
+		}
+		require.NoError(t, txNFTUpdate.Payload.SetAttributes(
+			tokens.UpdateNonFungibleTokenAttributes{
+				Data: []byte("regular"),
+			}))
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(
+					[]byte{1},
+					&tokens.NonFungibleTokenData{
+						Name:    "Ticket 001",
+						T:       42,
+						Data:    []byte("early-bird"),
+						NftType: nftTypeID,
+					}), nil
+			},
+			trustBase: func() (map[string]abcrypto.Verifier, error) { return nil, nil },
+			curRound:  func() uint64 { return 1709683000 },
+		}
+
+		wvm, err := New(context.Background(), env, observability.Default(t))
+		require.NoError(t, err)
+
+		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
+		start := time.Now()
+		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate)
+		t.Logf("took %s", time.Since(start))
+		require.NoError(t, err)
+		// .verifyTxProof: invalid unicity certificate: unicity seal validation failed, unicity seal is nil
+		require.EqualValues(t, 0x0101, res)
+	})
 }
 
 func TestNew(t *testing.T) {
@@ -66,145 +234,48 @@ func TestNew(t *testing.T) {
 
 	memDB, err := memorydb.New()
 	require.NoError(t, err)
-	input := make([]byte, 8)
-	binary.LittleEndian.PutUint64(input, 1)
-	abCtx := &AbContext{
-		InitArgs: make([]byte, 8),
-	}
+	env := &mockTxContext{}
+
 	require.NoError(t, err)
-	wvm, err := New(ctx, addWasm, abCtx, obs.Logger(), WithStorage(memDB))
+	wvm, err := New(ctx, env, obs, WithStorage(memDB))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
+
+	require.NoError(t, wvm.Close(ctx))
 }
 
-func TestWasmVM_CheckApiCallExists_OK(t *testing.T) {
-	ctx := context.Background()
-	memDB, err := memorydb.New()
-	require.NoError(t, err)
-	input := make([]byte, 8)
-	binary.LittleEndian.PutUint64(input, 1)
-
-	abCtx := &AbContext{
-		InitArgs: make([]byte, 8),
-	}
-	obs := observability.Default(t)
-	wvm, err := New(ctx, addWasm, abCtx, obs.Logger(), WithStorage(memDB))
-	require.NoError(t, err)
-	require.NoError(t, wvm.CheckApiCallExists())
-}
-
-// loads src that does not export any functions
-func TestWasmVM_CheckApiCallExists_NOK(t *testing.T) {
-	ctx := context.Background()
-	obs := observability.Default(t)
-	wvm, err := New(ctx, emptyWasm, nil, obs.Logger())
-	require.NoError(t, err)
-	require.ErrorContains(t, wvm.CheckApiCallExists(), "no exported functions")
-}
-
-func TestPredicate_P2PKH_V1(t *testing.T) {
-	ctx := context.Background()
-	payload := &types.Payload{
-		SystemID: types.SystemID(1),
-		Type:     money.PayloadTypeTransfer,
-		UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
-	}
-	bytes, err := payload.Bytes()
-	require.NoError(t, err)
-	sig, pubKey := testsig.SignBytes(t, bytes)
-	require.NoError(t, err)
-	execCtx := &AbContext{
-		InitArgs: hash.Sum256(pubKey),
-		Txo: &types.TransactionOrder{
-			Payload:    payload,
-			OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKey)},
-	}
-	obs := observability.Default(t)
-	wvm, err := New(ctx, p2pkhV1Wasm, execCtx, obs.Logger())
-	require.NoError(t, err)
-	require.NoError(t, wvm.CheckApiCallExists())
-	res, err := wvm.Exec(ctx, "run")
-	require.NoError(t, err)
-	require.True(t, res)
-}
-
-func TestPredicate_P2PKH_V2(t *testing.T) {
-	ctx := context.Background()
-	payload := &types.Payload{
-		SystemID: types.SystemID(1),
-		Type:     money.PayloadTypeTransfer,
-		UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
-	}
-	bytes, err := payload.Bytes()
-	require.NoError(t, err)
-	sig, pubKey := testsig.SignBytes(t, bytes)
-	require.NoError(t, err)
-	execCtx := &AbContext{
-		Txo: &types.TransactionOrder{
-			Payload:    payload,
-			OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKey)},
-	}
-	obs := observability.Default(t)
-	wvm, err := New(ctx, p2pkhV2Wasm, execCtx, obs.Logger())
-	require.NoError(t, err)
-	require.NoError(t, wvm.CheckApiCallExists())
-	pubKeyHash := hash.Sum256(pubKey)
-	obs.Logger().InfoContext(ctx, fmt.Sprintf("Send PubKey Hash: %x", pubKeyHash))
-	res, err := wvm.Exec(ctx, "run", pubKeyHash)
-	require.NoError(t, err)
-	require.True(t, res)
-}
-
-func Benchmark_runPredicate(b *testing.B) {
+func Benchmark_wazero_call_wasm_fn(b *testing.B) {
+	// measure overhead of calling func from WASM
+	// simple wazero setup, without any AB specific stuff.
+	// addOneWasm is a WASM module which exports "add_one(x: i32) -> i32"
 	b.StopTimer()
 	ctx := context.Background()
-	logF := testlogr.LoggerBuilder(b)
-	logger, err := logF(&logger.LogConfiguration{})
-	if err != nil {
-		b.Fatal(err)
-	}
-	payload := &types.Payload{
-		SystemID: types.SystemID(1),
-		Type:     money.PayloadTypeTransfer,
-		UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
-	}
-	pubKey := []byte{0x2, 0x12, 0x91, 0x1c, 0x73, 0x41, 0x39, 0x9e, 0x87, 0x68, 0x0, 0xa2, 0x68, 0x85, 0x5c, 0x89, 0x4c, 0x43, 0xeb, 0x84, 0x9a, 0x72, 0xac, 0x5a, 0x9d, 0x26, 0xa0, 0x9, 0x10, 0x41, 0xc1, 0x7, 0xf0}
-	privKey := []byte{0xa5, 0xe8, 0xbf, 0xf9, 0x73, 0x3e, 0xbc, 0x75, 0x1a, 0x45, 0xca, 0x4b, 0x8c, 0xc6, 0xce, 0x8e, 0x76, 0xc8, 0x31, 0x6a, 0x5e, 0xb5, 0x56, 0xf7, 0x38, 0x9, 0x2d, 0xf6, 0x23, 0x2e, 0x78, 0xde}
+	rt := wazero.NewRuntimeWithConfig(ctx, defaultOptions().cfg)
+	defer rt.Close(ctx)
 
-	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(privKey)
-	if err != nil {
-		b.Fatal(err)
+	if _, err := rt.Instantiate(ctx, envWasm); err != nil {
+		b.Fatalf("instantiate env module: %v", err)
 	}
-	buf, err := payload.Bytes()
+	m, err := rt.Instantiate(ctx, addOneWasm)
 	if err != nil {
-		b.Fatal(err)
+		b.Fatal("failed to instantiate predicate code", err)
 	}
-	p2hs := predicates.P2pkh256Signature{PubKey: pubKey}
-	if p2hs.Sig, err = signer.SignBytes(buf); err != nil {
-		b.Fatal(err)
+	defer m.Close(ctx)
+
+	fn := m.ExportedFunction("add_one")
+	if fn == nil {
+		b.Fatal("module doesn't export the add_one function")
 	}
 
-	if buf, err = cbor.Marshal(p2hs); err != nil {
-		b.Fatal(err)
-	}
-	execCtx := &AbContext{
-		InitArgs: hash.Sum256(pubKey),
-		Txo: &types.TransactionOrder{
-			Payload:    payload,
-			OwnerProof: buf},
-	}
 	b.StartTimer()
+	var n uint64
 	for i := 0; i < b.N; i++ {
-		wvm, err := New(ctx, p2pkhV1Wasm, execCtx, logger)
+		res, err := fn.Call(ctx, n)
 		if err != nil {
-			b.Fatal(err)
+			b.Errorf("add_one returned error: %v", err)
 		}
-		res, err := wvm.Exec(ctx, "run")
-		if err != nil {
-			b.Fatal(err)
-		}
-		if !res {
-			b.Fatal("expected predicate to eval to true")
+		if n = res[0]; n != uint64(i+1) {
+			b.Errorf("expected %d got %d", i, n)
 		}
 	}
 }

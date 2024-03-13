@@ -1,11 +1,15 @@
 package evm
 
 import (
+	"context"
 	gocrypto "crypto"
+	"fmt"
 	"math/big"
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 )
@@ -24,19 +28,28 @@ type (
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
+		execPredicate           PredicateExecutor
 	}
+
+	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 
 	Option func(*Options)
 )
 
-func DefaultOptions() *Options {
+func defaultOptions() (*Options, error) {
+	predEng, err := predicates.Dispatcher(templates.New())
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate executor: %w", err)
+	}
+
 	return &Options{
 		moneyTXSystemIdentifier: 1,
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		blockGasLimit:           DefaultBlockGasLimit,
 		gasUnitPrice:            big.NewInt(DefaultGasPrice),
-	}
+		execPredicate:           predEng.Execute,
+	}, nil
 }
 
 func WithBlockDB(blockDB keyvaluedb.KeyValueDB) Option {

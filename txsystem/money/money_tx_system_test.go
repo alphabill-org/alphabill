@@ -9,10 +9,9 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -32,7 +31,7 @@ const initialDustCollectorMoneyAmount uint64 = 100
 type InitialBill struct {
 	ID    types.UnitID
 	Value uint64
-	Owner predicates.PredicateBytes
+	Owner types.PredicateBytes
 }
 
 var (
@@ -54,7 +53,7 @@ func TestNewTxSystem(t *testing.T) {
 		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
 	)
 	txSystem, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithSystemDescriptionRecords(sdrs),
@@ -75,7 +74,7 @@ func TestNewTxSystem(t *testing.T) {
 	require.NotNil(t, d)
 
 	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, predicates.PredicateBytes(DustCollectorPredicate), d.Bearer())
+	require.Equal(t, DustCollectorPredicate, d.Bearer())
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
@@ -83,9 +82,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),
@@ -118,7 +118,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	recoveredState, err := state.NewRecoveredState(buf, NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
-		logger.New(t),
+		observe,
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(recoveredState),
@@ -211,7 +211,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-	require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+	require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 	require.EqualValues(t, 0, bd.Locked)
 }
@@ -262,7 +262,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		require.NotNil(t, bd)
 		require.Equal(t, amount, bd.V)
 		require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-		require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+		require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 		require.Equal(t, roundNumber, bd.T)
 	}
 }
@@ -957,7 +957,7 @@ func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   templates.AlwaysTrueArgBytes(),
+		FeeProof:   templates.EmptyArgument(),
 	}
 	return tx
 }
@@ -969,7 +969,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
 
 	mss, err := NewTxSystem(
-		logger.New(t),
+		observability.Default(t),
 		WithSystemIdentifier(systemIdentifier),
 		WithSystemDescriptionRecords(sdrs),
 		WithState(s),

@@ -377,10 +377,10 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 }
 
 func TestNode_RecoverBlocks(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -438,10 +438,10 @@ func TestNode_RecoverBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -475,10 +475,10 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
+	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3empty := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate)
@@ -596,10 +596,10 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 }
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -650,10 +650,10 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
@@ -694,7 +694,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
 	t.Cleanup(func() {
@@ -706,7 +706,7 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		}
 	})
 	uc0 := tp.GetCommittedUC(t)
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
@@ -755,8 +755,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
 	t.Cleanup(func() {
@@ -829,8 +829,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	uc0 := tp.GetCommittedUC(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -903,8 +903,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	uc0 := tp.GetCommittedUC(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -941,7 +941,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// no block certification request is sent
 	require.Len(t, tp.mockNet.SentMessages(network.ProtocolBlockCertification), 0)
 	// make no certification request is sent, proposal is not stored
-	var pr pendingBlockProposal
+	var pr types.Block
 	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
 	require.NoError(t, err)
 	require.False(t, found)
@@ -968,10 +968,10 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 }
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -1177,46 +1177,46 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 }
 
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) *types.Block {
+	newRound := uc.InputRecord.RoundNumber + 1
+	var transactions = make([]*types.TransactionRecord, len(txrs))
 	// simulate new block's state
-	txs.BeginBlock(uc.InputRecord.RoundNumber + 1)
+	require.NoError(t, txs.BeginBlock(newRound))
 
-	// create new block
-	newBlock := &types.Block{
-		Header: &types.Header{
-			SystemID:   uc.UnicityTreeCertificate.SystemIdentifier,
-			ProposerID: "test",
-		},
-		UnicityCertificate: copyUC(t, uc),
-	}
-	newBlock.UnicityCertificate.InputRecord.RoundNumber = uc.InputRecord.RoundNumber + 1
-	newBlock.Header.PreviousBlockHash = uc.InputRecord.BlockHash
-	newBlock.Transactions = make([]*types.TransactionRecord, 0)
-	for _, txr := range txrs {
-		newBlock.Transactions = append(newBlock.Transactions, txr)
+	for i, txr := range txrs {
+		transactions[i] = txr
 		_, err := txs.Execute(txr.TransactionOrder)
 		require.NoError(t, err)
 	}
 	state, err := txs.EndBlock()
 	require.NoError(t, err)
-	require.NoError(t, txs.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
-		RoundNumber:  newBlock.UnicityCertificate.InputRecord.RoundNumber,
-		Hash:         state.Root(),
-		SummaryValue: state.Summary(),
-	}}))
-
-	// send UC certifying new block
-	ir := newBlock.UnicityCertificate.InputRecord
-	ir.PreviousHash = ir.Hash
-	ir.BlockHash, _ = newBlock.Hash(gocrypto.SHA256)
-	ir.Hash = state.Root()
-	ir.SummaryValue = state.Summary()
+	// create new block
+	newBlock := &types.Block{
+		Header: &types.Header{
+			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
+			ProposerID:        "test",
+			PreviousBlockHash: uc.InputRecord.BlockHash,
+		},
+		Transactions: transactions,
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
+				RoundNumber:  newRound,
+				Hash:         state.Root(),
+				PreviousHash: uc.InputRecord.Hash,
+				SummaryValue: state.Summary(),
+			},
+		},
+	}
+	blockHash, err := newBlock.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	newBlock.UnicityCertificate.InputRecord.BlockHash = blockHash
+	require.NoError(t, txs.Commit(newBlock.UnicityCertificate))
 
 	newUC, err := tp.CreateUnicityCertificate(
-		ir,
+		newBlock.UnicityCertificate.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	newBlock.UnicityCertificate = newUC
+	newBlock.UnicityCertificate = copyUC(t, newUC)
 	return newBlock
 }
 

@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,16 +12,16 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
+func (n *NonFungibleTokensModule) handleCreateNoneFungibleTokenTx() txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := validate(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := n.validate(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid create non-fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := n.feeCalculator()
 
 		// update state
 		unitID := tx.UnitID()
-		if err := options.state.Apply(
+		if err := n.state.Apply(
 			state.AddUnit(unitID, templates.AlwaysTrueBytes(), newNonFungibleTokenTypeData(attr)),
 		); err != nil {
 			return nil, err
@@ -31,7 +30,7 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 	}
 }
 
-func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
@@ -53,36 +52,28 @@ func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttrib
 			return fmt.Errorf("create nft type: %s", ErrStrInvalidIconDataLength)
 		}
 	}
-	u, err := s.GetUnit(unitID, false)
+	u, err := n.state.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("create nft type: unit %v exists", unitID)
 	}
 	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
-	// signature satisfies the predicate obtained by concatenating all the
-	// sub-type creation clauses along the type inheritance chain.
-	predicates, err := getChainedPredicates[*NonFungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+
+	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		tx,
 		attr.ParentTypeID,
-		func(d *NonFungibleTokenTypeData) []byte {
-			return d.SubTypeCreationPredicate
+		attr.SubTypeCreationPredicateSignatures,
+		n.execPredicate,
+		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.SubTypeCreationPredicate
 		},
-		func(d *NonFungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		n.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("token type SubTypeCreationPredicate: %w", err)
 	}
-
-	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return err
-	}
-
-	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
+	return nil
 }
 
 func (c *CreateNonFungibleTokenTypeAttributes) GetSymbol() string {

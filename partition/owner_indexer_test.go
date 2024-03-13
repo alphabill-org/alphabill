@@ -6,9 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -16,78 +18,127 @@ import (
 func TestOwnerIndexer(t *testing.T) {
 	t.Run("last owner of unit is added to index", func(t *testing.T) {
 		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
+
+		// create initial state
+		s := state.NewEmptyState()
 		unitID := types.UnitID{1}
-		pubKeyHash1 := []byte{1}
-		pubKeyHash2 := []byte{2}
-		pubKeyHash3 := []byte{3}
-		logs := []*state.Log{
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash1)},
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash2)},
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash3)},
-		}
-		err := ownerIndexer.IndexOwner(unitID, logs)
+		unitData := &mockUnitData{}
+		initialOwner := templates.NewP2pkh256BytesFromKeyHash([]byte{0})
+		err := s.Apply(state.AddUnit(unitID, initialOwner, unitData))
 		require.NoError(t, err)
 
-		// verify that owner index contains only the last owner
+		// add units to state
+		for i := byte(1); i <= 3; i++ {
+			ownerID := templates.NewP2pkh256BytesFromKeyHash([]byte{i})
+			err = s.Apply(state.SetOwner(unitID, ownerID))
+			require.NoError(t, err)
+
+			err = s.AddUnitLog(unitID, []byte{i})
+			require.NoError(t, err)
+		}
+		commitState(t, s)
+
+		// update index with given state and block
+		b := &types.Block{Transactions: []*types.TransactionRecord{testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID))}}
+		err = ownerIndexer.IndexBlock(b, s)
+		require.NoError(t, err)
+
+		// verify that owner index contains the last owner
 		require.Len(t, ownerIndexer.ownerUnits, 1)
-		ownerUnitIDs := ownerIndexer.ownerUnits[string(pubKeyHash3)]
+		ownerUnitIDs := ownerIndexer.ownerUnits[string([]byte{3})]
 		require.Len(t, ownerUnitIDs, 1)
 		require.Equal(t, unitID, ownerUnitIDs[0])
 	})
-	t.Run("unit is removed from previous owner index (single unit is deleted)", func(t *testing.T) {
+	t.Run("unit is removed from previous owner index (single entry is deleted)", func(t *testing.T) {
 		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
 		unitID1 := types.UnitID{1}
 		unitID2 := types.UnitID{2}
 		ownerID1 := []byte{1}
 		ownerID2 := []byte{2}
+		owner1Predicate := templates.NewP2pkh256BytesFromKeyHash(ownerID1)
+		owner2Predicate := templates.NewP2pkh256BytesFromKeyHash(ownerID2)
 
-		// set index owner1 => [unit1, unit2]
+		// set index owner1 owns both units
 		ownerIndexer.ownerUnits[string(ownerID1)] = []types.UnitID{unitID1, unitID2}
 
-		// transfer unit2 to owner2
-		logs := []*state.Log{
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(ownerID1)},
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(ownerID2)},
-		}
-		err := ownerIndexer.IndexOwner(unitID2, logs)
-		require.NoError(t, err)
+		// create state where unit2 owner was changed owner1->owner2
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(state.AddUnit(unitID2, owner1Predicate, &mockUnitData{})))
+		require.NoError(t, s.AddUnitLog(unitID2, test.RandomBytes(4)))
+		require.NoError(t, s.Apply(state.SetOwner(unitID2, owner2Predicate)))
+		require.NoError(t, s.AddUnitLog(unitID2, test.RandomBytes(4)))
+		commitState(t, s)
 
-		// verify that unit2 is removed from owner 1
+		// update index
+		b := &types.Block{Transactions: []*types.TransactionRecord{
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID2)),
+		}}
+		require.NoError(t, ownerIndexer.IndexBlock(b, s))
+
+		// verify that unit2 is removed from owner1
 		owner1UnitIDs := ownerIndexer.ownerUnits[string(ownerID1)]
 		require.Len(t, owner1UnitIDs, 1)
 		require.Equal(t, unitID1, owner1UnitIDs[0])
+
+		// and unit2 is added to owner2
+		owner2UnitIDs := ownerIndexer.ownerUnits[string(ownerID2)]
+		require.Len(t, owner2UnitIDs, 1)
+		require.Equal(t, unitID2, owner2UnitIDs[0])
 	})
 	t.Run("unit is removed from previous owner index (entire cache entry is deleted)", func(t *testing.T) {
 		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
 		unitID := types.UnitID{1}
 		ownerID1 := []byte{1}
 		ownerID2 := []byte{2}
+		owner1Predicate := templates.NewP2pkh256BytesFromKeyHash(ownerID1)
+		owner2Predicate := templates.NewP2pkh256BytesFromKeyHash(ownerID2)
 
 		// set index owner1 => [unit]
 		ownerIndexer.ownerUnits[string(ownerID1)] = []types.UnitID{unitID}
 
-		// transfer unit to owner2
-		logs := []*state.Log{
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(ownerID1)},
-			{NewBearer: templates.NewP2pkh256BytesFromKeyHash(ownerID2)},
-		}
-		err := ownerIndexer.IndexOwner(unitID, logs)
-		require.NoError(t, err)
+		// create state where unit was transferred to owner2
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(state.AddUnit(unitID, owner1Predicate, &mockUnitData{})))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		require.NoError(t, s.Apply(state.SetOwner(unitID, owner2Predicate)))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		commitState(t, s)
 
-		// verify that unit1 index is removed
+		// update index
+		b := &types.Block{Transactions: []*types.TransactionRecord{
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+		}}
+		require.NoError(t, ownerIndexer.IndexBlock(b, s))
+
+		// verify that owner1 index is removed
 		owner1UnitIDs, ok := ownerIndexer.ownerUnits[string(ownerID1)]
 		require.False(t, ok)
 		require.Nil(t, owner1UnitIDs)
+
+		// and owner2 index is updated
+		owner2UnitIDs, ok := ownerIndexer.ownerUnits[string(ownerID2)]
+		require.True(t, ok)
+		require.Len(t, owner2UnitIDs, 1)
+		require.Equal(t, owner2UnitIDs[0], unitID)
 	})
 	t.Run("non-p2pkh predicate is not indexed", func(t *testing.T) {
 		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
 		unitID := types.UnitID{1}
 		ownerID := templates.AlwaysTrueBytes()
-		logs := []*state.Log{{NewBearer: ownerID}}
-		err := ownerIndexer.IndexOwner(unitID, logs)
-		require.NoError(t, err)
 
-		// verify that unit is indexed
+		// create state with alwaysTrue unit
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerID, &mockUnitData{})))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		commitState(t, s)
+
+		// update index
+		b := &types.Block{Transactions: []*types.TransactionRecord{
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+		}}
+		require.NoError(t, ownerIndexer.IndexBlock(b, s))
+
+		// verify that unit is not indexed
 		ownerUnitIDs := ownerIndexer.ownerUnits[string(ownerID)]
 		require.Len(t, ownerUnitIDs, 0)
 	})
@@ -97,19 +148,12 @@ func TestOwnerIndexer(t *testing.T) {
 		ownerID := []byte{1}
 		ownerPredicate := templates.NewP2pkh256BytesFromKeyHash(ownerID)
 		s := state.NewEmptyState()
-		err := s.Apply(state.AddUnit(unitID, ownerPredicate, &mockUnitData{}))
-		require.NoError(t, err)
-		summaryValue, summaryHash, err := s.CalculateRoot()
-		require.NoError(t, err)
-		err = s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
-			RoundNumber:  1,
-			Hash:         summaryHash,
-			SummaryValue: util.Uint64ToBytes(summaryValue),
-		}})
-		require.NoError(t, err)
+		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerPredicate, &mockUnitData{})))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		commitState(t, s)
 
-		err = ownerIndexer.LoadState(s)
-		require.NoError(t, err)
+		// load state
+		require.NoError(t, ownerIndexer.LoadState(s))
 
 		// verify that unit is indexed
 		ownerUnitIDs, err := ownerIndexer.GetOwnerUnits(ownerID)
@@ -129,4 +173,22 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 
 func (m mockUnitData) Copy() state.UnitData {
 	return mockUnitData{}
+}
+
+func commitState(t *testing.T, s *state.State) {
+	rootVal, rootHash, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit(createUC(s, rootVal, rootHash)))
+}
+
+func createUC(s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
+	roundNumber := uint64(1)
+	if s.IsCommitted() {
+		roundNumber = s.CommittedUC().GetRoundNumber() + 1
+	}
+	return &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		RoundNumber:  roundNumber,
+		Hash:         summaryHash,
+		SummaryValue: util.Uint64ToBytes(summaryValue),
+	}}
 }

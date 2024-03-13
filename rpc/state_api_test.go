@@ -8,21 +8,22 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
 
 func TestGetRoundNumber(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
@@ -47,7 +48,7 @@ func TestGetUnit(t *testing.T) {
 			FixedState: prepareState(t),
 		},
 	}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("get unit (proof=false)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
@@ -67,20 +68,21 @@ func TestGetUnit(t *testing.T) {
 		require.NotNil(t, unit.StateProof)
 		require.EqualValues(t, unitID, unit.StateProof.UnitID)
 	})
-	t.Run("err", func(t *testing.T) {
-		unitData, err := api.GetUnit([]byte{1, 2, 3}, false)
-		require.ErrorContains(t, err, "item 010203 does not exist")
-		require.Nil(t, unitData)
+	t.Run("unit not found", func(t *testing.T) {
+		unit, err := api.GetUnit([]byte{1, 2, 3}, false)
+		require.NoError(t, err)
+		require.Nil(t, unit)
 	})
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
-	node := &MockNode{ownerUnits: map[string][]types.UnitID{}}
-	api := NewStateAPI(node)
+	node := &MockNode{}
+	ownerIndex := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{}}
+	api := NewStateAPI(node, ownerIndex)
 
 	t.Run("ok", func(t *testing.T) {
 		ownerID := []byte{1}
-		node.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
+		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
 
 		unitIds, err := api.GetUnitsByOwnerID(ownerID)
 		require.NoError(t, err)
@@ -90,7 +92,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 	})
 	t.Run("err", func(t *testing.T) {
 		ownerID := []byte{1}
-		node.err = errors.New("some error")
+		ownerIndex.err = errors.New("some error")
 
 		unitIds, err := api.GetUnitsByOwnerID(ownerID)
 		require.ErrorContains(t, err, "some error")
@@ -100,7 +102,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 
 func TestSendTransaction(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		tx := createTransactionOrder(t, []byte{1})
@@ -118,7 +120,7 @@ func TestSendTransaction(t *testing.T) {
 
 func TestGetTransactionProof(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		txHash := []byte{1}
@@ -148,7 +150,7 @@ func TestGetTransactionProof(t *testing.T) {
 
 func TestGetBlock(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1
@@ -162,12 +164,12 @@ func TestGetBlock(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, block.GetRoundNumber())
 	})
-	t.Run("err", func(t *testing.T) {
-		blockNumber := uint64(1)
-		node.err = errors.New("some error")
+	t.Run("block not found", func(t *testing.T) {
+		node.maxBlockNumber = 1
+		blockNumber := uint64(2)
 
 		res, err := api.GetBlock(context.Background(), blockNumber)
-		require.ErrorContains(t, err, "some error")
+		require.NoError(t, err)
 		require.Nil(t, res)
 	})
 }

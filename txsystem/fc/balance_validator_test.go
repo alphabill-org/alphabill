@@ -66,7 +66,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 				testtransaction.WithOwnerProof(bearer),
 			),
-			expectedError: "invalid fee proof",
+			expectedError: "decoding predicate",
 		},
 	}
 

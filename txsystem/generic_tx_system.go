@@ -1,10 +1,14 @@
 package txsystem
 
 import (
+	"context"
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
@@ -35,20 +39,28 @@ type GenericTxSystem struct {
 
 type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
 
-func NewGenericTxSystem(log *slog.Logger, feeChecker FeeCreditBalanceValidator, modules []Module, opts ...Option) (*GenericTxSystem, error) {
+type Observability interface {
+	Meter(name string, opts ...metric.MeterOption) metric.Meter
+	Logger() *slog.Logger
+}
+
+func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+	if systemID == 0 {
+		return nil, errors.New("system ID must be assigned")
+	}
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
 	}
 	txs := &GenericTxSystem{
-		systemIdentifier:      options.systemIdentifier,
+		systemIdentifier:      systemID,
 		hashAlgorithm:         options.hashAlgorithm,
 		state:                 options.state,
 		beginBlockFunctions:   options.beginBlockFunctions,
 		endBlockFunctions:     options.endBlockFunctions,
 		executors:             make(TxExecutors),
 		checkFeeCreditBalance: feeChecker,
-		log:                   log,
+		log:                   observe.Logger(),
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 
@@ -58,8 +70,8 @@ func NewGenericTxSystem(log *slog.Logger, feeChecker FeeCreditBalanceValidator, 
 		}
 	}
 
-	if txs.systemIdentifier == 0 {
-		return nil, errors.New("system ID must be assigned")
+	if err := txs.initMetrics(observe.Meter("txsystem")); err != nil {
+		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
 	return txs, nil
@@ -213,4 +225,26 @@ func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
 
 func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
+}
+
+func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
+	return m.state.Serialize(writer, committed)
+}
+
+func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
+	if _, err := mtr.Int64ObservableUpDownCounter(
+		"unit.count",
+		metric.WithDescription(`Number of units in the state.`),
+		metric.WithUnit("{unit}"),
+		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
+			snc := state.NewStateNodeCounter()
+			m.state.Traverse(snc)
+			io.Observe(int64(snc.NodeCount()))
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("creating state unit counter: %w", err)
+	}
+
+	return nil
 }

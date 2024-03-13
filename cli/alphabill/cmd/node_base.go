@@ -57,7 +57,7 @@ type startNodeConfiguration struct {
 }
 
 func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
-	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
+	proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
 	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
@@ -106,17 +106,22 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, proofStore, obs),
+			rpc.NodeEndpoints(node, ownerIndexer, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
-			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if rpcServerConf.Router != nil {
 			routers = append(routers, rpcServerConf.Router)
 		}
-		rpcServerConf.APIs = []rpc.API{{
-			Namespace: "state",
-			Service:   rpc.NewStateAPI(node),
-		}}
+		rpcServerConf.APIs = []rpc.API{
+			{
+				Namespace: "state",
+				Service:   rpc.NewStateAPI(node, ownerIndexer),
+			},
+			{
+				Namespace: "admin",
+				Service:   rpc.NewAdminAPI(node, name, node.GetPeer(), log),
+			},
+		}
 
 		rpcServer, err := rpc.NewHTTPServer(rpcServerConf, obs, routers...)
 		if err != nil {
@@ -180,8 +185,6 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	}
 	sort.Sort(validatorIdentifiers)
 
-	// Assume monolithic root chain for now and only extract the id of the first root node.
-	// Assume monolithic root chain is also a bootstrap node.
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -209,7 +212,7 @@ func initGRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs part
 }
 
 func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
-	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, obs Observability) (*partition.Node, error) {
+	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -232,8 +235,8 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithProofIndex(proofStore, 20, cfg.WithOwnerIndex),
-		// TODO history size!
+		partition.WithProofIndex(proofStore, 20), // TODO history size!
+		partition.WithOwnerIndex(ownerIndexer),
 	}
 
 	node, err := partition.NewNode(
@@ -301,6 +304,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {
 	cmd.Flags().StringVar(&c.Address, "rpc-server-address", "",
 		"Specifies the TCP address for the RPC server to listen on, in the form \"host:port\". RPC server isn't initialised if Address is empty. (default \"\")")
+
 	cmd.Flags().DurationVar(&c.ReadTimeout, "rpc-server-read-timeout", 0,
 		"The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. (default 0)")
 	cmd.Flags().DurationVar(&c.ReadHeaderTimeout, "rpc-server-read-header-timeout", 0,
@@ -317,4 +321,23 @@ func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfigurati
 		"The maximum number of requests in a batch.")
 	cmd.Flags().IntVar(&c.BatchResponseSizeLimit, "rpc-server-batch-response-size-limit", rpc.DefaultBatchResponseSizeLimit,
 		"The maximum number of response bytes across all requests in a batch.")
+
+	hideFlags(cmd,
+		"rpc-server-read-timeout",
+		"rpc-server-read-header-timeout",
+		"rpc-server-write-timeout",
+		"rpc-server-idle-timeout",
+		"rpc-server-max-header",
+		"rpc-server-max-body",
+		"rpc-server-batch-item-limit",
+		"rpc-server-batch-response-size-limit",
+	)
+}
+
+func hideFlags(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.Flags().MarkHidden(flag); err != nil {
+			panic(err)
+		}
+	}
 }

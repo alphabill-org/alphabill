@@ -1,22 +1,18 @@
 package money
 
 import (
-	"crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 )
 
-func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferDCAttributes] {
+func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := validateTransferDCTx(tx, attr, s); err != nil {
+		if err := m.validateTransferDCTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
-		// calculate actual tx fee cost
-		fee := feeCalc()
 		unitID := tx.UnitID()
 
 		// 1. SetOwner(ι, DC)
@@ -42,11 +38,11 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 				}
 				bd.V = 0
 				bd.T = currentBlockNumber
-				bd.Backlink = tx.Hash(hashAlgorithm)
+				bd.Backlink = tx.Hash(m.hashAlgorithm)
 				return bd, nil
 			})
 
-		if err := s.Apply(
+		if err := m.state.Apply(
 			setOwnerFn,
 			updateDCMoneySupplyFn,
 			updateUnitFn,
@@ -57,19 +53,19 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 		// record dust bills for later deletion TODO AB-1133
 		// dustCollector.AddDustBill(unitID, currentBlockNumber)
 		return &types.ServerMetadata{
-			ActualFee:        fee,
+			ActualFee:        m.feeCalculator(),
 			TargetUnits:      []types.UnitID{unitID, DustCollectorMoneySupplyID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		}, nil
 	}
 }
 
-func validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes, s *state.State) error {
-	unit, err := s.GetUnit(tx.UnitID(), false)
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes) error {
+	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 		return err
 	}
 	return validateTransferDC(unit.Data(), attr)

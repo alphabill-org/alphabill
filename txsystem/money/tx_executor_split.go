@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -22,19 +21,19 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 	return hasher.Sum(nil)
 }
 
-func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SplitAttributes] {
+func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := validateSplitTx(tx, attr, s); err != nil {
+		if err := m.validateSplitTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}
 		unitID := tx.UnitID()
-		txHash := tx.Hash(hashAlgorithm)
+		txHash := tx.Hash(m.hashAlgorithm)
 		targetUnitIDs := []types.UnitID{unitID}
 
 		// add new units
 		var actions []state.Action
 		for i, targetUnit := range attr.TargetUnits {
-			newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), hashAlgorithm))
+			newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
 			targetUnitIDs = append(targetUnitIDs, newUnitID)
 			actions = append(actions, state.AddUnit(
 				newUnitID,
@@ -58,20 +57,20 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 		))
 
 		// update state
-		if err := s.Apply(actions...); err != nil {
+		if err := m.state.Apply(actions...); err != nil {
 			return nil, fmt.Errorf("state update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: feeCalc(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, s *state.State) error {
-	unit, err := s.GetUnit(tx.UnitID(), false)
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes) error {
+	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
-		return err
+	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
 	return validateSplit(unit.Data(), attr)
 }

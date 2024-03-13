@@ -13,25 +13,25 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
+func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateSplitFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
 		unitID := tx.UnitID()
-		u, err := options.state.GetUnit(unitID, false)
+		u, err := m.state.GetUnit(unitID, false)
 		if err != nil {
 			return nil, err
 		}
 		d := u.Data().(*FungibleTokenData)
 		// add new token unit
-		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
+		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
 
-		fee := options.feeCalculator()
-		txHash := tx.Hash(options.hashAlgorithm)
+		fee := m.feeCalculator()
+		txHash := tx.Hash(m.hashAlgorithm)
 
 		// update state
-		if err := options.state.Apply(
+		if err := m.state.Apply(
 			state.AddUnit(newTokenID,
 				attr.NewBearer,
 				&FungibleTokenData{
@@ -68,8 +68,8 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
+func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
@@ -97,38 +97,23 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	}
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		d.TokenType,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("evaluating InvariantPredicate: %w", err)
 	}
-	return verifyOwnership(bearer, predicates, &splitFungibleTokenOwnershipProver{tx: tx, attr: attr})
-}
-
-type splitFungibleTokenOwnershipProver struct {
-	tx   *types.TransactionOrder
-	attr *SplitFungibleTokenAttributes
-}
-
-func (t *splitFungibleTokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t *splitFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.attr.InvariantPredicateSignatures
-}
-
-func (t *splitFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+	return nil
 }
 
 func (s *SplitFungibleTokenAttributes) GetNewBearer() []byte {

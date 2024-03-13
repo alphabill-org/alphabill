@@ -2,13 +2,11 @@ package money
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/types"
 )
@@ -28,14 +26,14 @@ var (
 	ErrInvalidBacklink             = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
-func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
+func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
-		unit, _ := s.GetUnit(unitID, false)
+		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
 			return nil, fmt.Errorf("transferFC: unit not found %X", tx.UnitID())
 		}
-		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, fmt.Errorf("verify owner proof: %w", err)
 		}
 		billData, ok := unit.Data().(*BillData)
@@ -54,17 +52,17 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			}
 			newBillData.V -= attr.Amount
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			return newBillData, nil
 		})
-		if err := s.Apply(action); err != nil {
+		if err := m.state.Apply(action); err != nil {
 			return nil, fmt.Errorf("transferFC: failed to update state: %w", err)
 		}
 
-		fee := feeCalc()
+		fee := m.feeCalculator()
 
 		// record fee tx for end of the round consolidation
-		feeCreditTxRecorder.recordTransferFC(&transferFeeCreditTx{
+		m.feeCreditTxRecorder.recordTransferFC(&transferFeeCreditTx{
 			tx:   tx,
 			attr: attr,
 			fee:  fee,

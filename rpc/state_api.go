@@ -2,15 +2,20 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
 	StateAPI struct {
-		node partitionNode
+		node       partitionNode
+		ownerIndex partition.IndexReader
 	}
 
 	Unit[T any] struct {
@@ -26,8 +31,8 @@ type (
 	}
 )
 
-func NewStateAPI(node partitionNode) *StateAPI {
-	return &StateAPI{node}
+func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI {
+	return &StateAPI{node: node, ownerIndex: ownerIndex}
 }
 
 // GetRoundNumber returns the round number of the latest UC seen by node.
@@ -41,6 +46,9 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 
 	unit, err := state.GetUnit(unitID, true)
 	if err != nil {
+		if errors.Is(err, avl.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -64,7 +72,10 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
 func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error) {
-	unitIds, err := s.node.GetOwnerUnits(ownerID)
+	if s.ownerIndex == nil {
+		return nil, errors.New("owner indexer is disabled")
+	}
+	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}
@@ -88,6 +99,9 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (ty
 func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) (*TransactionRecordAndProof, error) {
 	txRecord, txProof, err := s.node.GetTransactionRecord(ctx, txHash)
 	if err != nil {
+		if errors.Is(err, partition.ErrIndexNotFound) || errors.Is(err, types.ErrBlockIsNil) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
 	txRecordBytes, err := encodeCbor(txRecord)
@@ -109,6 +123,9 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (types.Byte
 	block, err := s.node.GetBlock(ctx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
+	}
+	if block == nil {
+		return nil, nil
 	}
 	blockCbor, err := encodeCbor(block)
 	if err != nil {

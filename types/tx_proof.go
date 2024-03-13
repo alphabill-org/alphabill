@@ -81,19 +81,21 @@ func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[st
 			DirectionLeft: item.Left,
 		}
 	}
-	// h ← plain_tree_output(C, H(P))
-	rootHash := mt.EvalMerklePath(merklePath, txRecord, hashAlgorithm)
-	hasher := hashAlgorithm.New()
-	hasher.Write(proof.BlockHeaderHash)
-	hasher.Write(rootHash)
-	//h ← H(h_h,h)
-	blockHash := hasher.Sum(nil)
-
 	// TODO ch 2.8.7: Verify Transaction Proof: VerifyTxProof: System description must be an input parameter
 	systemDescriptionHash := proof.GetUnicityTreeSystemDescriptionHash()
 	if err := proof.UnicityCertificate.IsValid(trustBase, hashAlgorithm, txRecord.TransactionOrder.SystemID(), systemDescriptionHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
+	// h ← plain_tree_output(C, H(P))
+	rootHash := mt.EvalMerklePath(merklePath, txRecord, hashAlgorithm)
+	hasher := hashAlgorithm.New()
+	hasher.Write(proof.BlockHeaderHash)
+	hasher.Write(proof.UnicityCertificate.InputRecord.PreviousHash)
+	hasher.Write(proof.UnicityCertificate.InputRecord.Hash)
+	hasher.Write(rootHash)
+	//h ← H(h_h,h)
+	blockHash := hasher.Sum(nil)
+
 	//UC.IR.hB = h
 	if !bytes.Equal(blockHash, proof.UnicityCertificate.InputRecord.BlockHash) {
 		return fmt.Errorf("invalid chain root hash")

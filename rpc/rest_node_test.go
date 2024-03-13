@@ -158,7 +158,8 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		obs := observability.Default(t)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
-		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: fmt.Errorf("something is wrong")}, nil, obs)).Handler.ServeHTTP(recorder, req)
+		ownerIndexer := &MockOwnerIndex{err: fmt.Errorf("something is wrong")}
+		NewRESTServer("", 10, obs, NodeEndpoints(nil, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
 		require.Contains(t, recorder.Body.String(), "something is wrong")
@@ -170,7 +171,8 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", ownerID), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
 		obs := observability.Default(t)
-		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{ownerUnits: map[string][]types.UnitID{}}, nil, obs)).Handler.ServeHTTP(recorder, req)
+		ownerIndexer := partition.NewOwnerIndexer(obs.Logger())
+		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{}, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
@@ -183,10 +185,9 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		obs := observability.Default(t)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
-		mockNode := &MockNode{
-			ownerUnits: map[string][]types.UnitID{string(hash[:]): {types.UnitID{0}, types.UnitID{1}}},
-		}
-		NewRESTServer("", 10, obs, NodeEndpoints(mockNode, nil, obs)).Handler.ServeHTTP(recorder, req)
+		mockNode := &MockNode{}
+		ownerIndexer := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{string(hash[:]): {types.UnitID{0}, types.UnitID{1}}}}
+		NewRESTServer("", 10, obs, NodeEndpoints(mockNode, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))

@@ -23,7 +23,7 @@ var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
 
 func TestGetRoundNumber(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
@@ -48,7 +48,7 @@ func TestGetUnit(t *testing.T) {
 			FixedState: prepareState(t),
 		},
 	}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("get unit (proof=false)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
@@ -76,12 +76,13 @@ func TestGetUnit(t *testing.T) {
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
-	node := &MockNode{ownerUnits: map[string][]types.UnitID{}}
-	api := NewStateAPI(node)
+	node := &MockNode{}
+	ownerIndex := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{}}
+	api := NewStateAPI(node, ownerIndex)
 
 	t.Run("ok", func(t *testing.T) {
 		ownerID := []byte{1}
-		node.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
+		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
 
 		unitIds, err := api.GetUnitsByOwnerID(ownerID)
 		require.NoError(t, err)
@@ -91,7 +92,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 	})
 	t.Run("err", func(t *testing.T) {
 		ownerID := []byte{1}
-		node.err = errors.New("some error")
+		ownerIndex.err = errors.New("some error")
 
 		unitIds, err := api.GetUnitsByOwnerID(ownerID)
 		require.ErrorContains(t, err, "some error")
@@ -101,7 +102,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 
 func TestSendTransaction(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		tx := createTransactionOrder(t, []byte{1})
@@ -119,7 +120,7 @@ func TestSendTransaction(t *testing.T) {
 
 func TestGetTransactionProof(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		txHash := []byte{1}
@@ -149,7 +150,7 @@ func TestGetTransactionProof(t *testing.T) {
 
 func TestGetBlock(t *testing.T) {
 	node := &MockNode{}
-	api := NewStateAPI(node)
+	api := NewStateAPI(node, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1

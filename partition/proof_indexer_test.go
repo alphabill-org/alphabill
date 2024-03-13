@@ -3,22 +3,24 @@ package partition
 import (
 	"context"
 	"crypto"
+	"io"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewProofIndexer_history_2(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
 	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -51,7 +53,7 @@ func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
 	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -80,7 +82,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
 		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, NewOwnerIndexer(logger), logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -125,7 +127,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
 		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -175,6 +177,14 @@ func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 
 func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	return &types.UnitStateProof{}, nil
+}
+
+func (m mockStateStoreOK) CreateIndex(state.KeyExtractor[string]) (state.Index[string], error) {
+	return nil, nil
+}
+
+func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
+	return nil
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {

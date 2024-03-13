@@ -8,15 +8,15 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/txbuffer"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/txbuffer"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 	pathUnits                = "/units/{unitID}"
 )
 
-func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Observability) RegistrarFunc {
+func NodeEndpoints(node partitionNode, ownerIndexer partition.IndexReader, obs Observability) RegistrarFunc {
 	return func(r *mux.Router) {
 		log := obs.Logger()
 		// submit transaction
@@ -44,7 +44,7 @@ func NodeEndpoints(node partitionNode, unitProofDB keyvaluedb.KeyValueDB, obs Ob
 		r.HandleFunc(pathState, getState(node, log))
 
 		// get owner unit ids
-		r.HandleFunc(pathOwnerUnits, getOwnerUnits(node, log)).Methods(http.MethodGet, http.MethodOptions)
+		r.HandleFunc(pathOwnerUnits, getOwnerUnits(ownerIndexer, log)).Methods(http.MethodGet, http.MethodOptions)
 	}
 }
 
@@ -139,11 +139,9 @@ func getLatestRoundNumber(node partitionNode, log *slog.Logger) http.HandlerFunc
 
 func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		w.Header().Set("Content-Type", "application/cbor")
-		w.WriteHeader(http.StatusOK)
-
 		if err := node.TransactionSystemState().Serialize(w, true); err != nil {
-			log.Error("writing state file", logger.Error(err))
+			WriteCBORError(w, err, http.StatusInternalServerError, log)
+			return
 		}
 	}
 }

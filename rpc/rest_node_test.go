@@ -3,19 +3,20 @@ package rpc
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/partition"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
@@ -66,7 +67,7 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "unable to decode request body as transaction")
 }
 
-func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
+func TestRESTServer_GetLatestRoundNumber_Ok(t *testing.T) {
 	node := &MockNode{}
 	obs := observability.Default(t)
 
@@ -77,6 +78,17 @@ func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
 	var response uint64
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
 	require.Equal(t, node.maxBlockNumber, response)
+}
+
+func TestRESTServer_GetLatestRoundNumber_Error(t *testing.T) {
+	node := &MockNode{err: errors.New("round number error")}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/rounds/latest", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "round number error")
 }
 
 func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
@@ -109,13 +121,45 @@ func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
 	require.Equal(t, int64(-1), recorder.Result().ContentLength)
 }
 
+func TestRESTServer_GetTransactionRecord_Error(t *testing.T) {
+	obs := observability.Default(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/INVALID", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: partition.ErrIndexNotFound}, nil, obs)).Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "invalid tx order hash: INVALID")
+}
+
+func TestRESTServer_GetState_Ok(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+}
+
+func TestRESTServer_GetState_Error(t *testing.T) {
+	node := &MockNode{txs: &testtxsystem.CounterTxSystem{ErrorState: &testtxsystem.ErrorState{Err: errors.New("state error")}}}
+	obs := observability.Default(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/state", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
+	require.Contains(t, recorder.Body.String(), "state error")
+}
+
 func TestRESTServer_GetOwnerUnits(t *testing.T) {
 	t.Run("get owner units - server error", func(t *testing.T) {
 		var hash [32]byte
 		obs := observability.Default(t)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
-		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{err: fmt.Errorf("something is wrong")}, nil, obs)).Handler.ServeHTTP(recorder, req)
+		ownerIndexer := &MockOwnerIndex{err: fmt.Errorf("something is wrong")}
+		NewRESTServer("", 10, obs, NodeEndpoints(nil, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusInternalServerError, recorder.Result().StatusCode)
 		require.Contains(t, recorder.Body.String(), "something is wrong")
@@ -127,7 +171,8 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", ownerID), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
 		obs := observability.Default(t)
-		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{ownerUnits: map[string][]types.UnitID{}}, nil, obs)).Handler.ServeHTTP(recorder, req)
+		ownerIndexer := partition.NewOwnerIndexer(obs.Logger())
+		NewRESTServer("", 10, obs, NodeEndpoints(&MockNode{}, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
@@ -140,10 +185,9 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		obs := observability.Default(t)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/owner-unit-ids/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
 		recorder := httptest.NewRecorder()
-		mockNode := &MockNode{
-			ownerUnits: map[string][]types.UnitID{string(hash[:]): {types.UnitID{0}, types.UnitID{1}}},
-		}
-		NewRESTServer("", 10, obs, NodeEndpoints(mockNode, nil, obs)).Handler.ServeHTTP(recorder, req)
+		mockNode := &MockNode{}
+		ownerIndexer := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{string(hash[:]): {types.UnitID{0}, types.UnitID{1}}}}
+		NewRESTServer("", 10, obs, NodeEndpoints(mockNode, ownerIndexer, obs)).Handler.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))

@@ -377,10 +377,10 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 }
 
 func TestNode_RecoverBlocks(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -438,10 +438,10 @@ func TestNode_RecoverBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -475,10 +475,10 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
+	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3empty := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate)
@@ -596,10 +596,10 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 }
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
@@ -650,10 +650,10 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
@@ -694,7 +694,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
 	t.Cleanup(func() {
@@ -706,7 +706,7 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		}
 	})
 	uc0 := tp.GetCommittedUC(t)
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
@@ -755,8 +755,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
 	t.Cleanup(func() {
@@ -829,8 +829,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	uc0 := tp.GetCommittedUC(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -903,8 +903,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 	uc0 := tp.GetCommittedUC(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -968,10 +968,10 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 }
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))

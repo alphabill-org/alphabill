@@ -22,7 +22,10 @@ type IdentityModule struct {
 
 type predicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 
-type IdentityAttributes struct{}
+type IdentityAttributes struct {
+	_     struct{} `cbor:",toarray"`
+	Nonce []byte
+}
 
 func NewIdentityModule(txExecutor TransactionExecutor, state *state.State) Module {
 	engines, err := predicates.Dispatcher(templates.New())

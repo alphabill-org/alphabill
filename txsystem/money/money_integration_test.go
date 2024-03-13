@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
@@ -249,24 +250,24 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	// 1) identity tx without a state lock/unlock does nothing, even does not change the backlink
 	pk1 := decodeHex(pubKey1)
 	// TODO: uncomment the following and further assertions will fail because ID tx has the same hash. Introduce the nonce in the attributes
-	//idTx := createTx(initialBill.ID, txsystem.TxIdentity)
-	//require.NoError(t, idTx.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
-	//require.NoError(t, idTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
-	//require.NoError(t, moneyPrt.SubmitTx(idTx))
-	//txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx)
-	//require.NoError(t, err, "identity tx failed")
+	idTx := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
+	require.NoError(t, idTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	require.NoError(t, moneyPrt.SubmitTx(idTx))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx)
+	require.NoError(t, err, "identity tx failed")
 	// send second identity tx just to make sure it's idempotent
-	//idTx11 := createTx(initialBill.ID, txsystem.TxIdentity)
-	//require.NoError(t, idTx11.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
-	//require.NoError(t, idTx11.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
-	//require.NoError(t, moneyPrt.SubmitTx(idTx11))
-	//txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx11)
-	//require.NoError(t, err, "identity tx failed")
+	idTx11 := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx11.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
+	require.NoError(t, idTx11.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	require.NoError(t, moneyPrt.SubmitTx(idTx11))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx11)
+	require.NoError(t, err, "identity tx failed")
 
 	// let's lock the unit of pubKey1
 	//backlink := transferInitialBillTxRecord.TransactionOrder.Hash(crypto.SHA256)
 	idTx2 := createTx(initialBill.ID, txsystem.TxIdentity)
-	require.NoError(t, idTx2.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx2.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
 	idTx2.Payload.StateLock = &types.StateLock{
 		ExecutionPredicate: templates.NewP2pkh256BytesFromKey(pk1),
 	}
@@ -279,7 +280,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 		n.EventHandler.Reset()
 	}
 	idTx3 := createTx(initialBill.ID, txsystem.TxIdentity)
-	require.NoError(t, idTx3.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx3.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
 	require.NoError(t, idTx3.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
 	require.NoError(t, moneyPrt.SubmitTx(idTx3))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx3)
@@ -296,7 +297,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.Error(t, err)
 	// send identity tx with unlock proof
 	idTx4 := createTx(initialBill.ID, txsystem.TxIdentity)
-	require.NoError(t, idTx4.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx4.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
 	require.NoError(t, idTx4.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
 	idTx4.StateUnlock = append([]byte{0}, idTx4.OwnerProof...)
 	require.NoError(t, moneyPrt.SubmitTx(idTx4))
@@ -304,7 +305,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.NoError(t, err)
 	// send another simple identity tx
 	idTx5 := createTx(initialBill.ID, txsystem.TxIdentity)
-	require.NoError(t, idTx5.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx5.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
 	require.NoError(t, idTx5.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
 	require.NoError(t, moneyPrt.SubmitTx(idTx5))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx5)

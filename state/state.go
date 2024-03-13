@@ -202,9 +202,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	unit := u.Clone()
 	logsCount := len(unit.logs)
 	l := &Log{
-		TxRecordHash: transactionRecordHash,
-		NewBearer:    bytes.Clone(unit.bearer),
-		NewUnitData:  copyData(unit.data),
+		TxRecordHash:   transactionRecordHash,
+		NewBearer:      bytes.Clone(unit.bearer),
+		NewUnitData:    copyData(unit.data),
+		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
 	if logsCount == 0 {
 		// newly created unit
@@ -484,9 +485,9 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 		nodeLeft := node.Left()
 		nodeRight := node.Right()
 		return &types.StateTreeCert{
-			LeftSummaryHash:          getSubTreeSummaryHash(nodeLeft),
+			LeftSummaryHash:   getSubTreeSummaryHash(nodeLeft),
 			LeftSummaryValue:  getSubTreeSummaryValue(nodeLeft),
-			RightSummaryHash:         getSubTreeSummaryHash(nodeRight),
+			RightSummaryHash:  getSubTreeSummaryHash(nodeRight),
 			RightSummaryValue: getSubTreeSummaryValue(nodeRight),
 			Path:              path,
 		}, nil

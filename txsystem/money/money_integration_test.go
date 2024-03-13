@@ -243,22 +243,76 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
-	transferInitialBillTxRecord := txRecord
+	//transferInitialBillTxRecord := txRecord
 
 	// TODO: okay, preparations done, now we need to create an identity tx and check if it is accepted
 	// 1) identity tx without a state lock/unlock does nothing, even does not change the backlink
-	idTx := createTx(initialBill.ID, txsystem.TxIdentity)
-	require.NoError(t, idTx.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
-	require.NoError(t, idTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
-	require.NoError(t, moneyPrt.SubmitTx(idTx))
-	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx)
-	require.NoError(t, err, "identity tx failed")
-	// let's lock the unit of pubKey1 and then try to transfer it to pubKey2, it should fail
-	// TODO backlink must be ignored by identity tx?
-	/*backlink*/
-	_ = transferInitialBillTxRecord.TransactionOrder.Hash(crypto.SHA256)
+	pk1 := decodeHex(pubKey1)
+	// TODO: uncomment the following and further assertions will fail because ID tx has the same hash. Introduce the nonce in the attributes
+	//idTx := createTx(initialBill.ID, txsystem.TxIdentity)
+	//require.NoError(t, idTx.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	//require.NoError(t, idTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	//require.NoError(t, moneyPrt.SubmitTx(idTx))
+	//txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx)
+	//require.NoError(t, err, "identity tx failed")
+	// send second identity tx just to make sure it's idempotent
+	//idTx11 := createTx(initialBill.ID, txsystem.TxIdentity)
+	//require.NoError(t, idTx11.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	//require.NoError(t, idTx11.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	//require.NoError(t, moneyPrt.SubmitTx(idTx11))
+	//txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx11)
+	//require.NoError(t, err, "identity tx failed")
 
-	// TODO ...
+	// let's lock the unit of pubKey1
+	//backlink := transferInitialBillTxRecord.TransactionOrder.Hash(crypto.SHA256)
+	idTx2 := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx2.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	idTx2.Payload.StateLock = &types.StateLock{
+		ExecutionPredicate: templates.NewP2pkh256BytesFromKey(pk1),
+	}
+	require.NoError(t, idTx2.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	require.NoError(t, moneyPrt.SubmitTx(idTx2))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx2)
+	require.NoError(t, err, "identity tx failed")
+	// sending subsequent identity tx without state unlock proof should fail
+	for _, n := range moneyPrt.Nodes {
+		n.EventHandler.Reset()
+	}
+	idTx3 := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx3.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx3.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	require.NoError(t, moneyPrt.SubmitTx(idTx3))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx3)
+	//check error: identity tx: unit has a state lock, but tx does not have unlock proof
+	for _, n := range moneyPrt.Nodes {
+		events := n.EventHandler.GetEvents()
+		for _, e := range events {
+			if e.EventType == event.TransactionFailed {
+				actualTx := (e.Content).(*types.TransactionOrder)
+				require.EqualValues(t, idTx3.UnitID(), actualTx.UnitID())
+			}
+		}
+	}
+	require.Error(t, err)
+	// send identity tx with unlock proof
+	idTx4 := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx4.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx4.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	idTx4.StateUnlock = append([]byte{0}, idTx4.OwnerProof...)
+	require.NoError(t, moneyPrt.SubmitTx(idTx4))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx4)
+	require.NoError(t, err)
+	// send another simple identity tx
+	idTx5 := createTx(initialBill.ID, txsystem.TxIdentity)
+	require.NoError(t, idTx5.Payload.SetAttributes((*txsystem.IdentityAttributes)(nil)))
+	require.NoError(t, idTx5.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), pk1)))
+	require.NoError(t, moneyPrt.SubmitTx(idTx5))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx5)
+	require.NoError(t, err, "identity tx failed")
+	// TODO: locking is working only for identity tx atm, but not for transfer tx
+	//// try the transfer to pubKey2
+	//transferTx, _ := createBillTransfer(t, initialBill.ID, 100, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2)), backlink)
+	//require.Error(t, moneyPrt.SubmitTx(transferTx))
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {

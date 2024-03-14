@@ -107,13 +107,20 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		return fmt.Errorf("start DB transaction failed: %w", err)
 	}
 
+	// commit if no error, rollback if any error
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
 				err = errors.Join(err, fmt.Errorf("index transaction rollback failed: %w", e))
 			}
 		}
-		err = dbTx.Commit()
+	}()
+	defer func() {
+		if err == nil {
+			if e := dbTx.Commit(); e != nil {
+				err = errors.Join(err, fmt.Errorf("index transaction commit failed: %w", e))
+			}
+		}
 	}()
 
 	var history historyIndex
@@ -208,14 +215,23 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 	if err != nil {
 		return fmt.Errorf("unable to start DB transaction: %w", err)
 	}
+
+	// commit if no error, rollback if any error
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
 				err = errors.Join(err, fmt.Errorf("history clean rollback failed: %w", e))
 			}
 		}
-		err = dbTx.Commit()
 	}()
+	defer func() {
+		if err == nil {
+			if e := dbTx.Commit(); e != nil {
+				err = errors.Join(err, fmt.Errorf("history clean commit failed: %w", e))
+			}
+		}
+	}()
+
 	if e := dbTx.Delete(history.TxIndexKey); e != nil {
 		err = errors.Join(err, fmt.Errorf("unable to delete tx index: %w", e))
 	}

@@ -121,6 +121,27 @@ func TestOwnerIndexer(t *testing.T) {
 		require.Len(t, owner2UnitIDs, 1)
 		require.Equal(t, owner2UnitIDs[0], unitID)
 	})
+	t.Run("random owner bytes are not indexed", func(t *testing.T) {
+		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
+		unitID := types.UnitID{1}
+		ownerPredicate := []byte{123}
+
+		// create state with random bytes for owner predicate
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerPredicate, &mockUnitData{})))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		commitState(t, s)
+
+		// update index
+		b := &types.Block{Transactions: []*types.TransactionRecord{
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+		}}
+		require.NoError(t, ownerIndexer.IndexBlock(b, s))
+
+		// verify that unit is not indexed
+		ownerUnitIDs := ownerIndexer.ownerUnits[string(ownerPredicate)]
+		require.Len(t, ownerUnitIDs, 0)
+	})
 	t.Run("non-p2pkh predicate is not indexed", func(t *testing.T) {
 		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
 		unitID := types.UnitID{1}

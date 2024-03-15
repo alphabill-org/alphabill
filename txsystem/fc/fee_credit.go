@@ -60,7 +60,7 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 		if err != nil {
 			return nil, fmt.Errorf("creating predicate executor: %w", err)
 		}
-		m.execPredicate = predicates.PredicateRunner(predEng.Execute, m.state)
+		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute, m.state)
 	}
 	if err := validConfiguration(m); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)

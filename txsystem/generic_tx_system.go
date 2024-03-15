@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -35,6 +36,7 @@ type GenericTxSystem struct {
 	endBlockFunctions     []func(blockNumber uint64) error
 	roundCommitted        bool
 	log                   *slog.Logger
+	pr                    predicates.PredicateRunner
 }
 
 type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
@@ -61,6 +63,7 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		executors:             make(TxExecutors),
 		checkFeeCreditBalance: feeChecker,
 		log:                   observe.Logger(),
+		pr:                    options.predicateRunner,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 	modules = append(modules, NewIdentityModule(txs, txs.state))
@@ -153,6 +156,13 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 
+	// check state lock
+	rErr = m.validateUnitStateLock(tx)
+	if rErr != nil {
+		return nil, rErr
+	}
+
+	// proceed with the transaction execution
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
 	sm, rErr = m.executors.Execute(tx, m.currentBlockNumber)
 	if rErr != nil {

@@ -17,10 +17,8 @@ const TxIdentity = "identity"
 type IdentityModule struct {
 	txExecutor TransactionExecutor
 	state      *state.State
-	pr         predicateRunner
+	pr         predicates.PredicateRunner
 }
-
-type predicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 
 type IdentityAttributes struct {
 	_     struct{} `cbor:",toarray"`
@@ -32,8 +30,8 @@ func NewIdentityModule(txExecutor TransactionExecutor, state *state.State) Modul
 	if err != nil {
 		panic(fmt.Errorf("creating predicate executor: %w", err))
 	}
-
-	return &IdentityModule{txExecutor: txExecutor, state: state, pr: predicates.PredicateRunner(engines.Execute, state)}
+	pr := predicates.NewPredicateRunner(engines.Execute, state)
+	return &IdentityModule{txExecutor: txExecutor, state: state, pr: pr}
 }
 
 func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
@@ -56,16 +54,13 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder) error {
 	unitID := tx.UnitID()
 	u, err := i.state.GetUnit(unitID, false)
 	if err != nil {
-		return fmt.Errorf("identity tx: %w", err)
+		return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
 	}
 
 	// depending on whether the unit has the state lock or not, the order of the checks is different
 	// that is, if the lock is present, bearer check must be performed only after the unit is unlocked, yielding new state
 	if u.IsStateLocked() {
-		if err := i.validateUnitStateLock(tx, u); err != nil {
-			return fmt.Errorf("identity tx: %w", err)
-		}
-		// TODO: unit must have a new state after the unlock
+		return fmt.Errorf("identity tx: unit is state locked")
 	} else if u.IsStateLockReleased() {
 		// this is the transaction that was "on hold" due to the state lock
 		// do nothing, the state lock has been released
@@ -93,85 +88,6 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder) error {
 			}
 		}
 	}
-	return nil
-}
-
-type StateUnlockProofKind byte
-
-const (
-	StateUnlockExecute StateUnlockProofKind = iota
-	StateUnlockRollback
-)
-
-type StateUnlockProof struct {
-	Kind  StateUnlockProofKind
-	Proof []byte
-}
-
-// check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
-	switch p.Kind {
-	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
-			return fmt.Errorf("state lock's execution predicate failed: %w", err)
-		}
-	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx); err != nil {
-			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
-		}
-	default:
-		return fmt.Errorf("invalid state unlock proof kind")
-	}
-	return nil
-}
-
-func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
-	if len(b) < 1 {
-		return nil, fmt.Errorf("invalid state unlock proof: empty")
-	}
-	kind := StateUnlockProofKind(b[0])
-	proof := b[1:]
-	return &StateUnlockProof{Kind: kind, Proof: proof}, nil
-}
-
-// TODO: make this function reusable for all allowed transactions
-func (i *IdentityModule) validateUnitStateLock(tx *types.TransactionOrder, u *state.Unit) error {
-	stateLockTx := u.StateLockTx()
-	// check if unit has a state lock
-	if len(stateLockTx) > 0 {
-		// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
-		proof, err := StateUnlockProofFromBytes(tx.StateUnlock)
-		if err != nil {
-			return fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
-		}
-		txOnHold := &types.TransactionOrder{}
-		if err := cbor.Unmarshal(stateLockTx, txOnHold); err != nil {
-			return fmt.Errorf("failed to unmarshal state lock tx: %w", err)
-		}
-		stateLock := txOnHold.Payload.StateLock
-		if stateLock == nil {
-			return fmt.Errorf("state lock tx has no state lock")
-		}
-
-		if err := proof.check(i.pr, tx, stateLock); err != nil {
-			return err
-		}
-
-		// proof is ok, release the lock
-		if err := i.state.Apply(state.SetStateLock(tx.UnitID(), nil)); err != nil {
-			return fmt.Errorf("failed to release state lock: %w", err)
-		}
-
-		// execute the tx that was "on hold"
-		if proof.Kind == StateUnlockExecute {
-			sm, err := i.txExecutor.Execute(txOnHold)
-			if err != nil {
-				return fmt.Errorf("failed to execute tx that was on hold: %w", err)
-			}
-			_ = sm.GetActualFee() // TODO: propagate the fee?
-		}
-	}
-
 	return nil
 }
 

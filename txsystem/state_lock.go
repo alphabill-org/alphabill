@@ -1,0 +1,100 @@
+package txsystem
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+)
+
+type StateUnlockProofKind byte
+
+const (
+	StateUnlockExecute StateUnlockProofKind = iota
+	StateUnlockRollback
+)
+
+type StateUnlockProof struct {
+	Kind  StateUnlockProofKind
+	Proof []byte
+}
+
+// check checks if the state unlock proof is valid, gives error if not
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
+	switch p.Kind {
+	case StateUnlockExecute:
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
+			return fmt.Errorf("state lock's execution predicate failed: %w", err)
+		}
+	case StateUnlockRollback:
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx); err != nil {
+			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
+		}
+	default:
+		return fmt.Errorf("invalid state unlock proof kind")
+	}
+	return nil
+}
+
+func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
+	if len(b) < 1 {
+		return nil, fmt.Errorf("invalid state unlock proof: empty")
+	}
+	kind := StateUnlockProofKind(b[0])
+	proof := b[1:]
+	return &StateUnlockProof{Kind: kind, Proof: proof}, nil
+}
+
+func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) error {
+	unitID := tx.UnitID()
+	u, err := m.state.GetUnit(unitID, false)
+	if err != nil {
+		if errors.Is(err, avl.ErrNotFound) {
+			// no unit, no state lock, duh
+			return nil
+		}
+		return fmt.Errorf("getting unit: %w", err)
+	}
+	stateLockTx := u.StateLockTx()
+	// check if unit has a state lock
+	if len(stateLockTx) > 0 {
+		m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
+		// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
+		proof, err := StateUnlockProofFromBytes(tx.StateUnlock)
+		if err != nil {
+			return fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
+		}
+		txOnHold := &types.TransactionOrder{}
+		if err := cbor.Unmarshal(stateLockTx, txOnHold); err != nil {
+			return fmt.Errorf("failed to unmarshal state lock tx: %w", err)
+		}
+		stateLock := txOnHold.Payload.StateLock
+		if stateLock == nil {
+			return fmt.Errorf("state lock tx has no state lock")
+		}
+
+		if err := proof.check(m.pr, tx, stateLock); err != nil {
+			return err
+		}
+
+		// proof is ok, release the lock
+		if err := m.state.Apply(state.SetStateLock(unitID, nil)); err != nil {
+			return fmt.Errorf("failed to release state lock: %w", err)
+		}
+
+		// execute the tx that was "on hold"
+		if proof.Kind == StateUnlockExecute {
+			sm, err := m.Execute(txOnHold)
+			if err != nil {
+				return fmt.Errorf("failed to execute tx that was on hold: %w", err)
+			}
+			_ = sm.GetActualFee() // TODO: propagate the fee?
+		}
+	}
+
+	return nil
+}

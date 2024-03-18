@@ -31,9 +31,13 @@ type (
 		maxBlockNumber uint64
 		maxRoundNumber uint64
 		transactions   []*types.TransactionOrder
-		ownerUnits     map[string][]types.UnitID
 		err            error
 		txs            txsystem.TransactionSystem
+	}
+
+	MockOwnerIndex struct {
+		err        error
+		ownerUnits map[string][]types.UnitID
 	}
 )
 
@@ -108,10 +112,13 @@ func (mn *MockNode) GetUnitState(unitID []byte, returnProof bool, returnData boo
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
+	if mn.err != nil {
+		return mn.err
+	}
 	return nil
 }
 
-func (mn *MockNode) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
 	if mn.err != nil {
 		return nil, mn.err
 	}

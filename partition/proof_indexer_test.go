@@ -3,22 +3,27 @@ package partition
 import (
 	"context"
 	"crypto"
+	"errors"
+	"io"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewProofIndexer_history_2(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
 	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -51,7 +56,7 @@ func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
 	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -80,7 +85,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
 		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, NewOwnerIndexer(logger), logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -125,7 +130,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
 		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, NewOwnerIndexer(logger), logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -167,14 +172,52 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	})
 }
 
-type mockStateStoreOK struct{}
+func TestProofIndexer_BoltDBTx(t *testing.T) {
+	proofDB, err := boltdb.New(filepath.Join(t.TempDir(), "tempdb.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = proofDB.Close()
+	})
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+
+	// simulate error when indexing a block
+	ctx := context.Background()
+	bas := simulateInput(1, []byte{1})
+	bas.State = mockStateStoreOK{err: errors.New("some error")}
+
+	err = indexer.create(ctx, bas)
+	require.ErrorContains(t, err, "some error")
+
+	// verify index db does not contain the stored round number (tx is rolled back)
+	dbIt := proofDB.First()
+	t.Cleanup(func() {
+		_ = dbIt.Close()
+	})
+	require.False(t, dbIt.Valid())
+}
+
+type mockStateStoreOK struct {
+	err error
+}
 
 func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return &state.Unit{}, nil
 }
 
 func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	return &types.UnitStateProof{}, nil
+}
+
+func (m mockStateStoreOK) CreateIndex(state.KeyExtractor[string]) (state.Index[string], error) {
+	return nil, nil
+}
+
+func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
+	return nil
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {

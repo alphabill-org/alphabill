@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 type (
@@ -110,9 +112,13 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
+	return run(ctx, "tokens node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, ownerIndexer, obs)
 }

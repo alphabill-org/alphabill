@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
@@ -124,10 +125,13 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-
-	return run(ctx, "money node", node, cfg.grpcServer, cfg.rpcServer, proofStore, obs)
+	return run(ctx, "money node", node, cfg.grpcServer, cfg.rpcServer, proofStore, ownerIndexer, obs)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
@@ -124,7 +125,11 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
@@ -135,5 +140,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
+	return run(ctx, "evm node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, ownerIndexer, obs)
 }

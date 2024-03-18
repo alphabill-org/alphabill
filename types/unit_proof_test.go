@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,5 +82,43 @@ func TestVerifyUnitStateProof(t *testing.T) {
 		}
 		data := &StateUnitData{}
 		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "unit data hash does not match hash in unit tree")
+	})
+	t.Run("invalid summary value", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		data := &StateUnitData{}
+		proof.UnitTreeCert.UnitDataHash = data.Hash(crypto.SHA256)
+		proof.UnicityCertificate.InputRecord = &InputRecord{SummaryValue: []byte{1}}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "invalid summary value")
+	})
+	t.Run("invalid state root hash", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		data := &StateUnitData{}
+		proof.UnitTreeCert.UnitDataHash = data.Hash(crypto.SHA256)
+		proof.UnicityCertificate.InputRecord = &InputRecord{SummaryValue: []byte{0, 0, 0, 0, 0, 0, 0, 0}}
+		require.ErrorContains(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "invalid state root hash")
+	})
+	t.Run("verify - ok", func(t *testing.T) {
+		proof := &UnitStateProof{
+			UnitID:             []byte{0},
+			UnitTreeCert:       &UnitTreeCert{},
+			StateTreeCert:      &StateTreeCert{},
+			UnicityCertificate: &UnicityCertificate{},
+		}
+		data := &StateUnitData{}
+		proof.UnitTreeCert.UnitDataHash = data.Hash(crypto.SHA256)
+		proof.UnicityCertificate.InputRecord = &InputRecord{SummaryValue: []byte{0, 0, 0, 0, 0, 0, 0, 0}}
+		hash, _ := hexutil.Decode("0xD89E72519019E9A93B1A3BE8C1E9593EC347E239DEC0C1AD73071055C144796C")
+		proof.UnicityCertificate.InputRecord.Hash = hash
+		require.NoError(t, VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}), "unexpected error")
 	})
 }

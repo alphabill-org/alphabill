@@ -10,6 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -25,13 +33,6 @@ import (
 	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -98,6 +99,7 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexer                *ProofIndexer
+		ownerIndexer                *OwnerIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
 		peer                        *network.Peer
@@ -143,7 +145,7 @@ func NewNode(
 	defer span.End()
 
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, observe.Logger(), nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
@@ -153,10 +155,8 @@ func NewNode(
 	}
 
 	// load owner indexer
-	var ownerIndexer *OwnerIndexer
-	if conf.proofIndexConfig.withOwnerIndex {
-		ownerIndexer = NewOwnerIndexer(observe.Logger())
-		if err := ownerIndexer.LoadState(txSystem.State()); err != nil {
+	if conf.ownerIndexer != nil {
+		if err := conf.ownerIndexer.LoadState(txSystem.State()); err != nil {
 			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
 		}
 	}
@@ -168,7 +168,8 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, ownerIndexer, observe.Logger()),
+		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
+		ownerIndexer:                conf.ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
@@ -317,6 +318,13 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		// node must have exited before block was indexed
 		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
 			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.State())
+		}
+
+		// rebuild owner index
+		if n.ownerIndexer != nil {
+			if err := n.ownerIndexer.IndexBlock(&bl, n.TransactionSystemState()); err != nil {
+				return fmt.Errorf("failed to index block: %w", err)
+			}
 		}
 
 		luc = bl.UnicityCertificate
@@ -885,6 +893,11 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	}
 	n.sendEvent(event.BlockFinalized, b)
 	n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
+	if n.ownerIndexer != nil {
+		if err := n.ownerIndexer.IndexBlock(b, n.transactionSystem.State()); err != nil {
+			return fmt.Errorf("failed to index block: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -1342,13 +1355,6 @@ func (n *Node) SystemIdentifier() types.SystemID {
 
 func (n *Node) TransactionSystemState() txsystem.StateReader {
 	return n.transactionSystem.State()
-}
-
-func (n *Node) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
-	if n.proofIndexer.ownerIndexer == nil {
-		return nil, errors.New("owner indexer is disabled")
-	}
-	return n.proofIndexer.ownerIndexer.GetOwnerUnits(ownerID)
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

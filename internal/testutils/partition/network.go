@@ -347,7 +347,8 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		nd.confOpts = append(nd.confOpts,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore),
-			partition.WithProofIndex(nd.proofDB, 0, true),
+			partition.WithProofIndex(nd.proofDB, 0),
+			partition.WithOwnerIndex(partition.NewOwnerIndexer(n.obs.DefaultLogger())),
 		)
 		if err = n.startNode(ctx, nd); err != nil {
 			return err

@@ -50,18 +50,16 @@ type (
 		historySize   uint64 // number of rounds for which the history of unit states is kept
 		log           *slog.Logger
 		blockCh       chan *BlockAndState
-		ownerIndexer  *OwnerIndexer
 	}
 )
 
-func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, ownerIndexer *OwnerIndexer, l *slog.Logger) *ProofIndexer {
+func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, l *slog.Logger) *ProofIndexer {
 	return &ProofIndexer{
 		hashAlgorithm: algo,
 		storage:       db,
 		historySize:   historySize,
 		log:           l,
 		blockCh:       make(chan *BlockAndState, 20),
-		ownerIndexer:  ownerIndexer,
 	}
 }
 
@@ -109,13 +107,20 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		return fmt.Errorf("start DB transaction failed: %w", err)
 	}
 
+	// commit if no error, rollback if any error
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
 				err = errors.Join(err, fmt.Errorf("index transaction rollback failed: %w", e))
 			}
 		}
-		err = dbTx.Commit()
+	}()
+	defer func() {
+		if err == nil {
+			if e := dbTx.Commit(); e != nil {
+				err = errors.Join(err, fmt.Errorf("index transaction commit failed: %w", e))
+			}
+		}
 	}()
 
 	var history historyIndex
@@ -160,14 +165,6 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)
-				}
-			}
-
-			if p.ownerIndexer != nil {
-				// update owner index
-				p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Updating owner index for unit %X", unitID))
-				if err := p.ownerIndexer.IndexOwner(unitID, unitLogs); err != nil {
-					return fmt.Errorf("failed to update owner index: %w", err)
 				}
 			}
 		}
@@ -218,14 +215,23 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 	if err != nil {
 		return fmt.Errorf("unable to start DB transaction: %w", err)
 	}
+
+	// commit if no error, rollback if any error
 	defer func() {
 		if err != nil {
 			if e := dbTx.Rollback(); e != nil {
 				err = errors.Join(err, fmt.Errorf("history clean rollback failed: %w", e))
 			}
 		}
-		err = dbTx.Commit()
 	}()
+	defer func() {
+		if err == nil {
+			if e := dbTx.Commit(); e != nil {
+				err = errors.Join(err, fmt.Errorf("history clean commit failed: %w", e))
+			}
+		}
+	}()
+
 	if e := dbTx.Delete(history.TxIndexKey); e != nil {
 		err = errors.Join(err, fmt.Errorf("unable to delete tx index: %w", e))
 	}

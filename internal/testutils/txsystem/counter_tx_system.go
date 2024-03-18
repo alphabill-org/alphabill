@@ -27,7 +27,8 @@ type CounterTxSystem struct {
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
 
-	FixedState  *state.State
+	FixedState  txsystem.StateReader
+	ErrorState  *ErrorState
 	blockNo     uint64
 	uncommitted bool
 	committedUC *types.UnicityCertificate
@@ -44,6 +45,11 @@ type Summary struct {
 	summary []byte
 }
 
+type ErrorState struct {
+	txsystem.StateReader
+	Err error
+}
+
 func (s *Summary) Root() []byte {
 	return s.root
 }
@@ -55,6 +61,9 @@ func (s *Summary) Summary() []byte {
 func (m *CounterTxSystem) State() txsystem.StateReader {
 	if m.FixedState != nil {
 		return m.FixedState
+	}
+	if m.ErrorState != nil {
+		return m.ErrorState
 	}
 	return state.NewEmptyState().Clone()
 }
@@ -145,4 +154,8 @@ func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetad
 	m.ExecuteCountDelta++
 	m.uncommitted = true
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil
+}
+
+func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {
+	return m.Err
 }

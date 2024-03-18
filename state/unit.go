@@ -18,7 +18,6 @@ type (
 		bearer              types.PredicateBytes // current bearer condition
 		data                UnitData             // current data of the unit
 		stateLockTx         []byte               // bytes of transaction that locked the unit
-		stateLockReleased   bool                 // true if the state lock was released just now
 		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
 		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
@@ -56,7 +55,6 @@ func (u *Unit) Clone() *Unit {
 		logs:                copyLogs(u.logs),
 		bearer:              bytes.Clone(u.bearer),
 		stateLockTx:         bytes.Clone(u.stateLockTx),
-		stateLockReleased:   false,
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,
 		summaryCalculated:   false,
@@ -73,10 +71,6 @@ func (u *Unit) Bearer() types.PredicateBytes {
 
 func (u *Unit) IsStateLocked() bool {
 	return len(u.stateLockTx) > 0
-}
-
-func (u *Unit) IsStateLockReleased() bool {
-	return u.stateLockReleased
 }
 
 func (u *Unit) StateLockTx() []byte {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/types"
+
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -12,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type EstimateGasResponse struct {
@@ -22,7 +23,7 @@ type EstimateGasResponse struct {
 
 func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
-	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
+	if err := types.Cbor.Decode(r.Body, request); err != nil {
 		rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}

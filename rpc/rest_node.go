@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -65,7 +64,7 @@ func submitTransaction(node partitionNode, mtr metric.Meter, log *slog.Logger) h
 		}
 
 		tx := &types.TransactionOrder{}
-		if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
+		if err := types.Cbor.Unmarshal(buf.Bytes(), tx); err != nil {
 			txCnt.Add(r.Context(), 1, metric.WithAttributes(txStatusKey.String("err.cbor")))
 			WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 			return

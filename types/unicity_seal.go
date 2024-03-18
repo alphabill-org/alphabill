@@ -10,7 +10,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 )
 
 // GenesisTime min timestamp Thursday, April 20, 2023 6:11:24 AM GMT+00:00
@@ -59,12 +58,12 @@ func (s *SignatureMap) MarshalCBOR() ([]byte, error) {
 	for i, author := range authors {
 		sCBOR[i] = &signature{NodeID: author, Signature: signatures[author]}
 	}
-	return cbor.Marshal(sCBOR)
+	return Cbor.Marshal(sCBOR)
 }
 
 func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
 	var sCBOR signaturesCBOR
-	if err := cbor.Unmarshal(b, &sCBOR); err != nil {
+	if err := Cbor.Unmarshal(b, &sCBOR); err != nil {
 		return fmt.Errorf("cbor unmarshal failed, %w", err)
 	}
 	sigMap := make(SignatureMap)

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -100,7 +99,7 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	if err != nil {
 		return fmt.Errorf("creating transfer FC transaction: %w", err)
 	}
-	transferFCBytes, err := cbor.Marshal(transferFC)
+	transferFCBytes, err := types.Cbor.Marshal(transferFC)
 	if err != nil {
 		return fmt.Errorf("marshalling transfer FC transaction: %w", err)
 	}
@@ -126,7 +125,7 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	if err != nil {
 		return fmt.Errorf("creating add FC transaction: %w", err)
 	}
-	addFCBytes, err := cbor.Marshal(addFC)
+	addFCBytes, err := types.Cbor.Marshal(addFC)
 	if err != nil {
 		return fmt.Errorf("marshalling add FC transaction: %w", err)
 	}
@@ -152,7 +151,7 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 	if err != nil {
 		return fmt.Errorf("creating transfer transaction: %w", err)
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	if err != nil {
 		return fmt.Errorf("marshalling transfer transaction: %w", err)
 	}
@@ -168,7 +167,7 @@ func execInitialBill(ctx context.Context, client alphabill.AlphabillServiceClien
 }
 
 func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {
-	attr, err := cbor.Marshal(
+	attr, err := types.Cbor.Marshal(
 		&transactions.TransferFeeCreditAttributes{
 			Amount:                 feeAmount,
 			TargetSystemIdentifier: 1,
@@ -194,7 +193,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 }
 
 func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.TransactionRecord, transferFCProof *types.TxProof, timeout uint64, maxFee uint64) (*types.TransactionOrder, error) {
-	attr, err := cbor.Marshal(
+	attr, err := types.Cbor.Marshal(
 		&transactions.AddFeeCreditAttributes{
 			FeeCreditTransfer:       transferFC,
 			FeeCreditTransferProof:  transferFCProof,
@@ -217,7 +216,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 }
 
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
-	attr, err := cbor.Marshal(
+	attr, err := types.Cbor.Marshal(
 		&money.TransferAttributes{
 			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 			TargetValue: billValue,
@@ -269,7 +268,7 @@ func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServic
 			}
 		} else {
 			block := &types.Block{}
-			if err := cbor.Unmarshal(blockBytes, block); err != nil {
+			if err := types.Cbor.Unmarshal(blockBytes, block); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal block: %w", err)
 			}
 			for i, tx := range block.Transactions {

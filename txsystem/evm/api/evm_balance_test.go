@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -15,7 +17,6 @@ import (
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +47,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 		Balance  string
 		Backlink []byte
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, balance.String(), resp.Balance)
 	require.Len(t, resp.Backlink, 0)
 }
@@ -82,7 +83,7 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 		Balance  string
 		Backlink []byte
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, balance.String(), resp.Balance)
 	require.Equal(t, backlink, resp.Backlink)
 }

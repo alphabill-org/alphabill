@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
@@ -67,7 +66,7 @@ func NewGRPCServer(node partitionNode, obs Observability, opts ...Option) (*grpc
 
 func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *alphabill.Transaction) (*emptypb.Empty, error) {
 	txo := &types.TransactionOrder{}
-	if err := cbor.Unmarshal(tx.Order, txo); err != nil {
+	if err := types.Cbor.Unmarshal(tx.Order, txo); err != nil {
 		r.txCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "err.cbor")))
 		return nil, err
 	}
@@ -85,7 +84,7 @@ func (r *grpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockReques
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := cbor.Marshal(b)
+	bytes, err := types.Cbor.Marshal(b)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +127,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 		if b == nil {
 			continue
 		}
-		bytes, err := cbor.Marshal(b)
+		bytes, err := types.Cbor.Marshal(b)
 		if err != nil {
 			return nil, err
 		}

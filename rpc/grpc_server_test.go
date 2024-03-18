@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -207,10 +206,10 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 		Backlink:    nil,
 	}
 
-	attBytes, err := cbor.Marshal(bt)
+	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	order, err := cbor.Marshal(&types.TransactionOrder{
+	order, err := types.Cbor.Marshal(&types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:         unitID,
 			Type:           money.PayloadTypeTransfer,

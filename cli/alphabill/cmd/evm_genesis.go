@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -128,7 +127,7 @@ func (c *evmGenesisConfig) getPartitionParams() ([]byte, error) {
 		BlockGasLimit: c.BlockGasLimit,
 		GasUnitPrice:  c.GasUnitPrice,
 	}
-	res, err := cbor.Marshal(src)
+	res, err := types.Cbor.Marshal(src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
 	}

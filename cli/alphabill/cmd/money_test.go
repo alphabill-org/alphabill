@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -383,7 +382,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -395,7 +394,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
 	_, err = txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
@@ -408,7 +407,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -420,7 +419,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 	protoTx := &alphabill.Transaction{Order: txBytes}
 	response, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))

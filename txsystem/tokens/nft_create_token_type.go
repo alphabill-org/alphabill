@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (n *NonFungibleTokensModule) handleCreateNoneFungibleTokenTx() txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
@@ -161,5 +160,5 @@ func (c *CreateNonFungibleTokenTypeAttributes) SigBytes() ([]byte, error) {
 		Icon:                               c.Icon,
 		SubTypeCreationPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

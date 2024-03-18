@@ -3,11 +3,13 @@ package storage
 import (
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -49,11 +51,7 @@ func WriteVote(db keyvaluedb.KeyValueDB, vote any) error {
 		return fmt.Errorf("unknown vote type")
 	}
 
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return fmt.Errorf("cbor encoder init failed: %w", err)
-	}
-	encoded, err := enc.Marshal(vote)
+	encoded, err := types.Cbor.Marshal(vote)
 	if err != nil {
 		return fmt.Errorf("vote message serialization failed: %w", err)
 	}
@@ -77,13 +75,13 @@ func ReadVote(db keyvaluedb.KeyValueDB) (any, error) {
 	switch voteStore.VoteType {
 	case VoteMsg:
 		var vote abdrc.VoteMsg
-		if err = cbor.Unmarshal(voteStore.VoteMsg, &vote); err != nil {
+		if err = types.Cbor.Unmarshal(voteStore.VoteMsg, &vote); err != nil {
 			return nil, fmt.Errorf("vote message deserialization failed: %w", err)
 		}
 		return &vote, nil
 	case TimeoutVoteMsg:
 		var vote abdrc.TimeoutMsg
-		if err = cbor.Unmarshal(voteStore.VoteMsg, &vote); err != nil {
+		if err = types.Cbor.Unmarshal(voteStore.VoteMsg, &vote); err != nil {
 			return nil, fmt.Errorf("vote message deserialization failed: %w", err)
 		}
 		return &vote, nil

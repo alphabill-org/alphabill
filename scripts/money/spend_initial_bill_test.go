@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -52,7 +51,7 @@ func (m *MockAlphabillServiceClient) GetBlock(ctx context.Context, in *alphabill
 		Transactions:       []*types.TransactionRecord{{TransactionOrder: tx}},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 	}
-	bytes, err := cbor.Marshal(b)
+	bytes, err := types.Cbor.Marshal(b)
 	if err != nil {
 		return nil, err
 	}

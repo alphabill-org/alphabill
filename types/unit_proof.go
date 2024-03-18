@@ -41,9 +41,9 @@ type (
 
 	StateTreePathItem struct {
 		_                   struct{} `cbor:",toarray"`
-		UnitID              UnitID   `json:"unitId"`                     // (ι′)
-		LogsHash            Bytes    `json:"logsHash"`                   // (z)
-		Value               uint64   `json:"value,string"`               // (V)
+		UnitID              UnitID   `json:"unitId"`       // (ι′)
+		LogsHash            Bytes    `json:"logsHash"`     // (z)
+		Value               uint64   `json:"value,string"` // (V)
 		SiblingSummaryHash  Bytes    `json:"siblingSummaryHash"`
 		SiblingSummaryValue uint64   `json:"siblingSummaryValue,string"`
 	}
@@ -143,7 +143,7 @@ func (sd *StateUnitData) UnmarshalData(v any) error {
 	if sd.Data == nil {
 		return fmt.Errorf("state unit data is nil")
 	}
-	return cbor.Unmarshal(sd.Data, v)
+	return Cbor.Unmarshal(sd.Data, v)
 }
 
 func (sd *StateUnitData) Hash(hashAlgo crypto.Hash) []byte {

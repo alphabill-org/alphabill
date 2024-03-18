@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -285,7 +284,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		DcTransferProofs: dcRecordsProofs,
 		TargetValue:      sum,
 	}
-	swapBytes, err := cbor.Marshal(swapAttr)
+	swapBytes, err := types.Cbor.Marshal(swapAttr)
 	require.NoError(t, err)
 
 	// create swap tx

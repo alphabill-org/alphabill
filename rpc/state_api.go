@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/types"
@@ -85,7 +83,7 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
 func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (types.Bytes, error) {
 	var tx *types.TransactionOrder
-	if err := cbor.Unmarshal(txBytes, &tx); err != nil {
+	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
 	}
 	txHash, err := s.node.SubmitTx(ctx, tx)
@@ -135,11 +133,7 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (types.Byte
 }
 
 func encodeCbor(v interface{}) ([]byte, error) {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return nil, err
-	}
-	data, err := enc.Marshal(v)
+	data, err := types.Cbor.Marshal(v)
 	if err != nil {
 		return nil, err
 	}

@@ -15,14 +15,13 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
 	node := &MockNode{}
 	transaction := createTxOrder(t)
-	message, err := cbor.Marshal(transaction)
+	message, err := types.Cbor.Marshal(transaction)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(message))
@@ -76,7 +75,7 @@ func TestRESTServer_GetLatestRoundNumber_Ok(t *testing.T) {
 	NewRESTServer("", 10, obs, NodeEndpoints(node, nil, obs)).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 	var response uint64
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, &response))
 	require.Equal(t, node.maxBlockNumber, response)
 }
 
@@ -105,7 +104,7 @@ func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
 		TxRecord *types.TransactionRecord
 		TxProof  *types.TxProof
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, &response))
 	require.NotNil(t, response.TxRecord)
 	require.NotNil(t, response.TxProof)
 }
@@ -177,7 +176,7 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
 		var response []types.UnitID
-		require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+		require.NoError(t, types.Cbor.Decode(recorder.Body, &response))
 		require.Nil(t, response, "expected response body to be cbor nil (f6)")
 	})
 	t.Run("get owner units - ok", func(t *testing.T) {
@@ -192,7 +191,7 @@ func TestRESTServer_GetOwnerUnits(t *testing.T) {
 		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 		require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
 		var response []types.UnitID
-		require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+		require.NoError(t, types.Cbor.Decode(recorder.Body, &response))
 		require.NotNil(t, response)
 		require.Len(t, response, 2)
 		require.Equal(t, types.UnitID{0}, response[0])

@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/types"
+
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/rpc"
@@ -16,7 +18,6 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type CallEVMRequest struct {
@@ -35,7 +36,7 @@ type CallEVMResponse struct {
 
 func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
-	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
+	if err := types.Cbor.Decode(r.Body, request); err != nil {
 		rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}

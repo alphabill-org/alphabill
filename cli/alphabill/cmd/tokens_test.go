@@ -21,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -104,7 +103,7 @@ func TestRunTokensNode(t *testing.T) {
 			InvariantPredicate:       templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
-		attrBytes, err := cbor.Marshal(attr)
+		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
@@ -115,14 +114,14 @@ func TestRunTokensNode(t *testing.T) {
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			},
 		}
-		txBytes, _ := cbor.Marshal(tx)
+		txBytes, _ := types.Cbor.Marshal(tx)
 		protoTx := &alphabill.Transaction{Order: txBytes}
 		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 		require.NoError(t, err)
 
 		// failing case
 		tx.Payload.SystemID = 0x01000000 // incorrect system id
-		txBytes, err = cbor.Marshal(tx)
+		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		protoTx = &alphabill.Transaction{Order: txBytes}
 		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))

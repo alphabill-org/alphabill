@@ -66,7 +66,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 	}
 
 	latestLog := unit.logs[logSize-1]
-	unitDataBytes, err := cbor.Marshal(latestLog.NewUnitData)
+	unitDataBytes, err := types.Cbor.Marshal(latestLog.NewUnitData)
 	if err != nil {
 		s.err = fmt.Errorf("unable to encode unit data: %w", err)
 		return

@@ -20,7 +20,6 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +32,7 @@ func hashOfPrivateKey(t *testing.T, signer abcrypto.Signer) []byte {
 }
 
 func newTxPayload(t *testing.T, txType string, unitID []byte, timeout uint64, fcrID []byte, attr interface{}) *types.Payload {
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	return &types.Payload{
 		SystemID:   DefaultEvmTxSystemIdentifier,

@@ -13,7 +13,6 @@ type MemoryInstance struct {
 	maxWasmPages uint32
 }
 
-//nolint:unparam
 func (m *MemoryInstance) setMaxWasmPages(max uint32) {
 	m.maxWasmPages = max
 }

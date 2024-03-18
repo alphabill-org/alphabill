@@ -41,8 +41,8 @@ func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
 }
 
 func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttributes] {
-	return func(tx *types.TransactionOrder, attr *IdentityAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := i.validateIdentityTx(tx); err != nil {
+	return func(tx *types.TransactionOrder, attr *IdentityAttributes, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
+		if err := i.validateIdentityTx(tx, ctx); err != nil {
 			return nil, fmt.Errorf("invalid identity tx: %w", err)
 		}
 
@@ -50,7 +50,7 @@ func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttribute
 	}
 }
 
-func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder) error {
+func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxExecutionContext) error {
 	unitID := tx.UnitID()
 	u, err := i.state.GetUnit(unitID, false)
 	if err != nil {
@@ -61,7 +61,7 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder) error {
 	// that is, if the lock is present, bearer check must be performed only after the unit is unlocked, yielding new state
 	if u.IsStateLocked() {
 		return fmt.Errorf("identity tx: unit is state locked")
-	} else if u.IsStateLockReleased() {
+	} else if ctx.StateLockReleased {
 		// this is the transaction that was "on hold" due to the state lock
 		// do nothing, the state lock has been released
 	} else {

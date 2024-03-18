@@ -115,8 +115,17 @@ func (m *GenericTxSystem) pruneState(blockNr uint64) error {
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, rErr error) {
+	return m.doExecute(tx, false)
+}
+
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockReleased bool) (sm *types.ServerMetadata, rErr error) {
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
+	}
+
+	ctx := &TxExecutionContext{
+		CurrentBlockNr:    m.currentBlockNumber,
+		StateLockReleased: stateLockReleased,
 	}
 
 	savepointID := m.state.Savepoint()
@@ -156,7 +165,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 
-	// check state lock
+	// check state lock and release it if possible
 	rErr = m.validateUnitStateLock(tx)
 	if rErr != nil {
 		return nil, rErr
@@ -164,7 +173,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 
 	// proceed with the transaction execution
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, rErr = m.executors.Execute(tx, m.currentBlockNumber)
+	sm, rErr = m.executors.Execute(tx, ctx)
 	if rErr != nil {
 		return nil, rErr
 	}

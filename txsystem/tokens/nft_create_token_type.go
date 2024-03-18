@@ -13,7 +13,7 @@ import (
 )
 
 func (n *NonFungibleTokensModule) handleCreateNoneFungibleTokenTx() txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
-	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := n.validate(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid create non-fungible token tx: %w", err)
 		}

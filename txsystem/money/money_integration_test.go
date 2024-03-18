@@ -311,8 +311,6 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(idTx5))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTx5)
 	require.NoError(t, err, "identity tx failed")
-	// TODO: now lock again and then unlock with tx which locks again
-	// TODO: locking is working only for identity tx atm, but not for transfer tx
 	// lock again
 	idTxLock = createTx(initialBill.ID, txsystem.TxIdentity)
 	require.NoError(t, idTxLock.Payload.SetAttributes(&txsystem.IdentityAttributes{Nonce: test.RandomBytes(32)}))
@@ -338,6 +336,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(transferTx))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, transferTx)
 	require.NoError(t, err, "transfer tx should not fail")
+	// TODO: now lock again and then unlock with tx which locks again
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {

@@ -22,7 +22,7 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 }
 
 func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *SplitAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateSplitTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}
@@ -40,7 +40,7 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 				targetUnit.OwnerCondition,
 				&BillData{
 					V:        targetUnit.Amount,
-					T:        currentBlockNumber,
+					T:        ctx.CurrentBlockNr,
 					Backlink: txHash,
 				}))
 		}
@@ -50,7 +50,7 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 			func(data state.UnitData) (state.UnitData, error) {
 				return &BillData{
 					V:        attr.RemainingValue,
-					T:        currentBlockNumber,
+					T:        ctx.CurrentBlockNr,
 					Backlink: txHash,
 				}, nil
 			},

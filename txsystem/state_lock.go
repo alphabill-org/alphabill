@@ -88,7 +88,7 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 
 		// execute the tx that was "on hold"
 		if proof.Kind == StateUnlockExecute {
-			sm, err := m.Execute(txOnHold)
+			sm, err := m.doExecute(txOnHold, true)
 			if err != nil {
 				return fmt.Errorf("failed to execute tx that was on hold: %w", err)
 			}

@@ -20,7 +20,7 @@ var (
 )
 
 func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -55,7 +55,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V += uint64(v)
-			newBillData.T = currentBlockNumber
+			newBillData.T = ctx.CurrentBlockNr
 			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			newBillData.Locked = 0
 			return newBillData, nil

@@ -17,14 +17,14 @@ var (
 )
 
 func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TransferAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateTransferTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer tx: %w", err)
 		}
 		// calculate actual tx fee cost
 		fee := m.feeCalculator()
 		// update state
-		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, m.hashAlgorithm)
+		updateDataFunc := updateBillDataFunc(tx, ctx.CurrentBlockNr, m.hashAlgorithm)
 		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 		if err := m.state.Apply(
 			setOwnerFunc,

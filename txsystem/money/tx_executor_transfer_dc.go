@@ -9,7 +9,7 @@ import (
 )
 
 func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateTransferDCTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
@@ -37,7 +37,7 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 				}
 				bd.V = 0
-				bd.T = currentBlockNumber
+				bd.T = ctx.CurrentBlockNr
 				bd.Backlink = tx.Hash(m.hashAlgorithm)
 				return bd, nil
 			})

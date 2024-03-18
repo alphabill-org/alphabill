@@ -166,8 +166,10 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	}
 	sdrs := createSDRs(newBillID(2))
 	s := genesisState(t, initialBill, sdrs)
+	var txState *state.State
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		s = s.Clone()
+		txState = s
 		system, err := NewTxSystem(
 			observability.Default(t),
 			WithState(s),
@@ -244,7 +246,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
-	//transferInitialBillTxRecord := txRecord
+	transferInitialBillTxRecord := txRecord
 
 	// TODO: okay, preparations done, now we need to create an identity tx and check if it is accepted
 	// 1) identity tx without a state lock/unlock does nothing, even does not change the backlink
@@ -322,11 +324,20 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, idTxLock)
 	require.NoError(t, err, "identity tx failed")
 	// try the transfer to pubKey2
-	backlink := txRecord.TransactionOrder.Hash(crypto.SHA256)
+	backlink := transferInitialBillTxRecord.TransactionOrder.Hash(crypto.SHA256)
 	transferTx, _ := createBillTransfer(t, initialBill.ID, 100, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2)), backlink)
 	require.NoError(t, moneyPrt.SubmitTx(transferTx))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, transferTx)
 	require.Error(t, err, "transfer tx should fail")
+	// transfer with unlock
+	bill, err := txState.GetUnit(initialBill.ID, true)
+	require.NoError(t, err)
+	transferTx, _ = createBillTransfer(t, initialBill.ID, bill.Data().(*BillData).V, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2)), backlink)
+	require.NoError(t, transferTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
+	transferTx.StateUnlock = append([]byte{0}, transferTx.OwnerProof...)
+	require.NoError(t, moneyPrt.SubmitTx(transferTx))
+	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, transferTx)
+	require.NoError(t, err, "transfer tx should not fail")
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {

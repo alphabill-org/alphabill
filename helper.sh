@@ -180,6 +180,8 @@ local rpcPort=0
   # create a bootnodes
   local bootNodes=""
   bootNodes=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
+  # export GOLOG_LOG_LEVEL="info,pubsub=debug"
+
   # Start nodes
   i=1
   for keyf in $key_files

@@ -172,7 +172,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 			t.Fatal("partition node didn't shut down within timeout")
 		}
 	})
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 	require.NoError(t, tp.SubmitTxFromRPC(testtransaction.NewTransactionOrder(t)))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -186,7 +186,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 
 	// create new block
 	tp.CreateBlock(t)
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// create new proposal and certify it (but not yet finalize the block on the partition side)
 	tp.SubmitT1Timeout(t)
@@ -226,11 +226,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 			t.Fatal("partition node didn't shut down within timeout")
 		}
 	})
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// create new block
 	tp.CreateBlock(t)
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
 	latestRound := bl.GetRoundNumber()
@@ -268,11 +268,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 			t.Fatal("partition node didn't shut down within timeout")
 		}
 	})
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// create new block
 	tp.CreateBlock(t)
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
 	latestRound := bl.GetRoundNumber()
@@ -324,7 +324,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp := RunSingleNodePartition(t, system)
 	uc1 := tp.GetCommittedUC(t)
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// send new UC
 	rootRound := uc1.UnicitySeal.RootChainRoundNumber
@@ -1033,7 +1033,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -1094,7 +1094,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -1167,13 +1167,6 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
-	// no node identifier, cannot respond
-	req = &replication.LedgerReplicationRequest{
-		NodeIdentifier:   "foo",
-		BeginBlockNumber: 2,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
-	}
-	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "unknown node, signing public key for id foo not found")
 }
 
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) *types.Block {

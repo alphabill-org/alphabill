@@ -100,7 +100,7 @@ func (b *Block) InputRecord() (*InputRecord, error) {
 	return b.UnicityCertificate.InputRecord, nil
 }
 
-func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
+func (b *Block) IsValid() error {
 	if b == nil {
 		return errBlockIsNil
 	}
@@ -112,9 +112,6 @@ func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 	}
 	if b.UnicityCertificate == nil {
 		return fmt.Errorf("unicity certificate is nil")
-	}
-	if err := v(b.UnicityCertificate); err != nil {
-		return fmt.Errorf("unicity certificate validation failed: %w", err)
 	}
 	return nil
 }

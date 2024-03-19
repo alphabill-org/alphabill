@@ -343,7 +343,9 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 
 	// Open a connection to the bootstrap nodes.
 	// This is the only way to discover other peers, so let's do this as soon as possible.
-	n.peer.BootstrapConnect(ctx, n.log)
+	if err := n.peer.BootstrapConnect(ctx, n.log); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -24,7 +24,7 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		TransactionOrder: txOrder,
 		ServerMetadata:   serverMetadata,
 	}
-	expectedHash := "0x8c7ab71be696a84248ef0857cb4945712c66aad107335d13fb49bec6e4a31200"
+	expectedHash := "0x25ab5dbcca42fe18dcec00d91d66f8b3b8dc7fe1b3a618e52d96b654983ad21f"
 	expectedBytes, _ := cbor.Marshal(transactionRecord)
 
 	t.Run("Test Hash", func(t *testing.T) {
@@ -49,8 +49,8 @@ func TestTransactionRecordFunctions(t *testing.T) {
 	})
 
 	t.Run("Test GetActualFee", func(t *testing.T) {
-		require.Equal(t, uint64(1), transactionRecord.GetActualFee())
-		require.Equal(t, uint64(1), serverMetadata.GetActualFee())
+		require.EqualValues(t, uint64(1), transactionRecord.GetActualFee())
+		require.EqualValues(t, uint64(1), serverMetadata.GetActualFee())
 	})
 
 	t.Run("Test UnmarshalDetails", func(t *testing.T) {

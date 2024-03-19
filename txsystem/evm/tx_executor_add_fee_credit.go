@@ -55,7 +55,7 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if err = validator.ValidateAddFeeCredit(&fc.AddFCValidationContext{
 			Tx:                 tx,
 			Unit:               feeCreditRecordUnit,
-			CurrentRoundNumber: currentBlockNumber,
+			CurrentRoundNumber: ctx.CurrentBlockNr,
 		}); err != nil {
 			return nil, fmt.Errorf("addFC tx validation failed: %w", err)
 		}

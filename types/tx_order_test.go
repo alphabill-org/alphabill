@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"testing"
 
 	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
@@ -29,7 +30,7 @@ var (
 	targetValue           uint64   = 100
 	backlink                       = make([]byte, 32)
 
-	// 85                                       # array(5)
+	// 86                                       # array(6)
 	//   1A                                     #   uint32
 	//      01000001                            #     "\x01\x00\x00\x01"
 	//   68                                     #   text(8)
@@ -49,16 +50,18 @@ var (
 	//      18 45                               #     unsigned(69)
 	//      44                                  #     bytes(4)
 	//         20202020                         #       "    "
-	payloadInHEX = "85" +
+	payloadInHEX = "86" +
 		"1A01000001" + // SystemID
 		"687472616E73666572" + // Type
 		"58200000000000000000000000000000000000000000000000000000000000000000" + // UnitID
 		"834401020304186458200000000000000000000000000000000000000000000000000000000000000000" + // Attributes
+		"f6" + // State lock
 		"83182A18454420202020" // Client metadata
 )
 
 func TestMarshalPayload(t *testing.T) {
 	payloadBytes, err := createTxOrder(t).PayloadBytes()
+	fmt.Printf("payloadBytes: %x\n", payloadBytes)
 	require.NoError(t, err)
 	require.Equal(t, hexDecode(t, payloadInHEX), payloadBytes)
 }
@@ -80,14 +83,15 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	}, OwnerProof: make([]byte, 32)}
 	payloadBytes, err := order.PayloadBytes()
 	require.NoError(t, err)
-	// 85    # array(5)
+	// 86    # array(6)
 	//   00 #   zero, unsigned int
 	//   60 #   text(0)
 	//      #     ""
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
-	require.Equal(t, []byte{0x85, 0x00, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
+	//   f6 #   null, simple(22)
+	require.Equal(t, []byte{0x86, 0x00, 0x60, 0xf6, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
 	require.NoError(t, cbor.Unmarshal(payloadBytes, payload))

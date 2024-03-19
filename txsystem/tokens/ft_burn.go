@@ -19,7 +19,7 @@ var (
 )
 
 func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
@@ -38,7 +38,7 @@ func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecu
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
 				ftData.Value = 0
-				ftData.T = currentBlockNo
+				ftData.T = ctx.CurrentBlockNr
 				ftData.Backlink = txHash
 				return ftData, nil
 			},

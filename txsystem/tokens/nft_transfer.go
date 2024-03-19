@@ -12,7 +12,7 @@ import (
 )
 
 func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := n.validateTransferNonFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
 		}
@@ -28,7 +28,7 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
-				d.T = currentBlockNr
+				d.T = ctx.CurrentBlockNr
 				d.Backlink = tx.Hash(n.hashAlgorithm)
 				return d, nil
 			})); err != nil {

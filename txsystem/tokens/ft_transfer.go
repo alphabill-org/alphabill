@@ -13,7 +13,7 @@ import (
 )
 
 func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateTransferFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}
@@ -29,7 +29,7 @@ func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericE
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					d.T = currentBlockNr
+					d.T = ctx.CurrentBlockNr
 					d.Backlink = tx.Hash(m.hashAlgorithm)
 					return d, nil
 				})); err != nil {

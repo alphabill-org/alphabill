@@ -14,14 +14,14 @@ import (
 )
 
 func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[UnlockTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *UnlockTokenAttributes, roundNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *UnlockTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateUnlockTokenTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid unlock token tx: %w", err)
 		}
 		// update lock status, round number and backlink
 		updateFn := state.UpdateUnitData(tx.UnitID(),
 			func(data state.UnitData) (state.UnitData, error) {
-				return m.updateUnlockTokenData(data, tx, roundNumber)
+				return m.updateUnlockTokenData(data, tx, ctx.CurrentBlockNr)
 			})
 		if err := m.state.Apply(updateFn); err != nil {
 			return nil, fmt.Errorf("failed to update state: %w", err)

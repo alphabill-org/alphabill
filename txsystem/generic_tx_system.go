@@ -119,8 +119,11 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 }
 
 func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockReleased bool) (sm *types.ServerMetadata, rErr error) {
-	if err := m.validateGenericTransaction(tx); err != nil {
-		return nil, fmt.Errorf("invalid transaction: %w", err)
+
+	if !stateLockReleased { // this tx has already been validated before locking the state which is now released (otherwise tx might not pass timeout check)
+		if err := m.validateGenericTransaction(tx); err != nil {
+			return nil, fmt.Errorf("invalid transaction: %w", err)
+		}
 	}
 
 	ctx := &TxExecutionContext{
@@ -139,7 +142,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockRelease
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close free credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
-		if sm.ActualFee > 0 && !transactions.IsFeeCreditTx(tx) {
+		if !stateLockReleased && sm.ActualFee > 0 && !transactions.IsFeeCreditTx(tx) {
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				m.state.RollbackToSavepoint(savepointID)

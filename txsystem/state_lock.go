@@ -92,7 +92,9 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 			if err != nil {
 				return fmt.Errorf("failed to execute tx that was on hold: %w", err)
 			}
-			_ = sm.GetActualFee() // TODO: propagate the fee?
+			_ = sm.GetActualFee() // fees are taken when the tx is put on hold, so we ignore the fee here
+		} else {
+			// TODO: rollback for a tx that creates new unit must clean up the unit from the state tree
 		}
 	}
 

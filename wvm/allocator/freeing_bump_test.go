@@ -33,7 +33,7 @@ func TestPagesFromSize(t *testing.T) {
 }
 
 func TestShouldAllocatePropertly(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr, err := heap.Allocate(mem, 1)
@@ -42,7 +42,7 @@ func TestShouldAllocatePropertly(t *testing.T) {
 }
 
 func TestShouldAlwaysAlignPointerToMultiplesOf8(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(13)
 
 	ptr, err := heap.Allocate(mem, 1)
@@ -54,10 +54,10 @@ func TestShouldAlwaysAlignPointerToMultiplesOf8(t *testing.T) {
 }
 
 func TestShouldIncrementPointersProperly(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
-	ptr1, err := heap.Allocate(mem.(Memory), 1)
+	ptr1, err := heap.Allocate(mem, 1)
 	require.NoError(t, err)
 
 	ptr2, err := heap.Allocate(mem, 9)
@@ -78,7 +78,7 @@ func TestShouldIncrementPointersProperly(t *testing.T) {
 }
 
 func TestShouldFreeProperly(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr1, err := heap.Allocate(mem, 1)
@@ -104,7 +104,7 @@ func TestShouldFreeProperly(t *testing.T) {
 
 func TestShouldDeallocateAndReallocateProperly(t *testing.T) {
 	const paddedOffset = 16
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(13)
 
 	ptr1, err := heap.Allocate(mem, 1)
@@ -137,7 +137,7 @@ func TestShouldDeallocateAndReallocateProperly(t *testing.T) {
 }
 
 func TestShouldBuildLinkedListOfFreeAreasProperly(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	// given
@@ -172,8 +172,8 @@ func TestShouldBuildLinkedListOfFreeAreasProperly(t *testing.T) {
 }
 
 func TestShouldNotAllocIfTooLarge(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
-	mem.(*MemoryInstance).setMaxWasmPages(1)
+	mem := NewMemoryMock(t, 1)
+	mem.setMaxWasmPages(1)
 
 	heap := NewFreeingBumpHeapAllocator(13)
 
@@ -183,8 +183,8 @@ func TestShouldNotAllocIfTooLarge(t *testing.T) {
 }
 
 func TestShouldNotAllocateIfFull(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
-	mem.(*MemoryInstance).setMaxWasmPages(1)
+	mem := NewMemoryMock(t, 1)
+	mem.setMaxWasmPages(1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr1, err := heap.Allocate(mem, (PageSize/2)-HeaderSize)
@@ -198,7 +198,7 @@ func TestShouldNotAllocateIfFull(t *testing.T) {
 }
 
 func TestShouldAllocateMaxPossibleAllocationSize(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr, err := heap.Allocate(mem, MaxPossibleAllocations)
@@ -207,7 +207,7 @@ func TestShouldAllocateMaxPossibleAllocationSize(t *testing.T) {
 }
 
 func TestShouldNotAllocateIfRequestedSizeIsTooLarge(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr, err := heap.Allocate(mem, MaxPossibleAllocations+1)
@@ -216,8 +216,8 @@ func TestShouldNotAllocateIfRequestedSizeIsTooLarge(t *testing.T) {
 }
 
 func TestShouldReturnErrorWhenBumperGreaterThanHeapSize(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
-	mem.(*MemoryInstance).setMaxWasmPages(1)
+	mem := NewMemoryMock(t, 1)
+	mem.setMaxWasmPages(1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptrs := make([]uint32, 0)
@@ -256,7 +256,7 @@ func TestShouldReturnErrorWhenBumperGreaterThanHeapSize(t *testing.T) {
 }
 
 func TestShouldIncludePrefixesInTotalHeapSize(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(1)
 
 	ptr, err := heap.Allocate(mem, 9)
@@ -267,7 +267,7 @@ func TestShouldIncludePrefixesInTotalHeapSize(t *testing.T) {
 }
 
 func TestShouldCalculateTotalHeapSizeToZero(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(13)
 
 	ptr, err := heap.Allocate(mem, 42)
@@ -281,7 +281,7 @@ func TestShouldCalculateTotalHeapSizeToZero(t *testing.T) {
 }
 
 func TestShouldCalculateTotalSizeOfZero(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(19)
 
 	for idx := 1; idx < 10; idx++ {
@@ -311,7 +311,7 @@ func TestShouldGetMaxItemSizeFromIndex(t *testing.T) {
 }
 
 func TestDeallocateNeedsToMaintainLinkedList(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	// allocate and free some pointers
@@ -326,8 +326,8 @@ func TestDeallocateNeedsToMaintainLinkedList(t *testing.T) {
 
 func TestHeaderReadWrite(t *testing.T) {
 	roundtrip := func(h Header) {
-		mem := NewMemoryInstanceWithPages(t, 1)
-		writeHeaderInto(h, mem, 0)
+		mem := NewMemoryMock(t, 1)
+		require.NoError(t, writeHeaderInto(h, mem, 0))
 
 		readHeader, err := readHeaderFromMemory(mem, 0)
 		require.NoError(t, err)
@@ -343,8 +343,8 @@ func TestHeaderReadWrite(t *testing.T) {
 }
 
 func TestPoisonOOM(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
-	mem.(*MemoryInstance).setMaxWasmPages(1)
+	mem := NewMemoryMock(t, 1)
+	mem.setMaxWasmPages(1)
 
 	heap := NewFreeingBumpHeapAllocator(0)
 
@@ -370,7 +370,7 @@ func TestNOrders(t *testing.T) {
 }
 
 func TestAcceptsGrowingMemory(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
 	ptr1, err := heap.Allocate(mem, PageSize/2)
@@ -390,15 +390,15 @@ func TestAcceptsGrowingMemory(t *testing.T) {
 }
 
 func TestDoesNotAcceptShrinkingMemory(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 2)
+	mem := NewMemoryMock(t, 2)
 	heap := NewFreeingBumpHeapAllocator(0)
 	ptr, err := heap.Allocate(mem, PageSize/2)
 	require.NoError(t, err)
 	require.NotZero(t, ptr)
 
 	truncatedMem := make([]byte, PageSize)
-	copy(truncatedMem, mem.(*MemoryInstance).data[:PageSize])
-	mem.(*MemoryInstance).data = truncatedMem
+	copy(truncatedMem, mem.data[:PageSize])
+	mem.data = truncatedMem
 
 	ptr2, err := heap.Allocate(mem, PageSize/2)
 	require.Zero(t, ptr2)
@@ -406,18 +406,18 @@ func TestDoesNotAcceptShrinkingMemory(t *testing.T) {
 }
 
 func TestShouldGrowMemoryWhenRunningOutOfSpace(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 
-	require.Equal(t, uint32(1), mem.(*MemoryInstance).pages())
+	require.Equal(t, uint32(1), mem.pages())
 	ptr, err := heap.Allocate(mem, PageSize*2)
 	require.NoError(t, err)
 	require.NotZero(t, ptr)
-	require.Equal(t, uint32(3), mem.(*MemoryInstance).pages())
+	require.Equal(t, uint32(3), mem.pages())
 }
 
 func TestModifyingHeaderLeadsToAnError(t *testing.T) {
-	mem := NewMemoryInstanceWithPages(t, 1)
+	mem := NewMemoryMock(t, 1)
 	heap := NewFreeingBumpHeapAllocator(0)
 	ptr, err := heap.Allocate(mem, 5)
 	require.NoError(t, err)

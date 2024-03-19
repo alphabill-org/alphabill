@@ -17,20 +17,32 @@ var (
 )
 
 func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateTransferTx(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid transfer tx: %w", err)
+	return func(tx *types.TransactionOrder, attr *TransferAttributes, ctx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+		isLocked := false
+		if !ctx.StateLockReleased {
+			if err = m.validateTransferTx(tx, attr); err != nil {
+				return nil, fmt.Errorf("invalid transfer tx: %w", err)
+			}
+
+			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lock unit state: %w", err)
+			}
 		}
+
 		// calculate actual tx fee cost
 		fee := m.feeCalculator()
-		// update state
-		updateDataFunc := updateBillDataFunc(tx, ctx.CurrentBlockNr, m.hashAlgorithm)
-		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
-		if err := m.state.Apply(
-			setOwnerFunc,
-			updateDataFunc,
-		); err != nil {
-			return nil, fmt.Errorf("transfer: failed to update state: %w", err)
+
+		if !isLocked {
+			// update state
+			updateDataFunc := updateBillDataFunc(tx, ctx.CurrentBlockNr, m.hashAlgorithm)
+			setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
+			if err := m.state.Apply(
+				setOwnerFunc,
+				updateDataFunc,
+			); err != nil {
+				return nil, fmt.Errorf("transfer: failed to update state: %w", err)
+			}
 		}
 
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil

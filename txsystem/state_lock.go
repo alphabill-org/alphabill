@@ -14,8 +14,8 @@ import (
 type StateUnlockProofKind byte
 
 const (
-	StateUnlockExecute StateUnlockProofKind = iota
-	StateUnlockRollback
+	StateUnlockRollback StateUnlockProofKind = iota
+	StateUnlockExecute
 )
 
 type StateUnlockProof struct {
@@ -101,6 +101,7 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 	return nil
 }
 
+// LockUnitState locks the state of a unit if the state lock predicate evaluates to false
 func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s *state.State) (bool, error) {
 	unitID := tx.UnitID()
 	u, err := s.GetUnit(unitID, false)

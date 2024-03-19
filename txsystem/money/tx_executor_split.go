@@ -22,43 +22,55 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 }
 
 func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateSplitTx(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid split transaction: %w", err)
+	return func(tx *types.TransactionOrder, attr *SplitAttributes, ctx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+		isLocked := false
+		if !ctx.StateLockReleased {
+			if err = m.validateSplitTx(tx, attr); err != nil {
+				return nil, fmt.Errorf("invalid split transaction: %w", err)
+			}
+
+			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lock unit state: %w", err)
+			}
 		}
+
 		unitID := tx.UnitID()
-		txHash := tx.Hash(m.hashAlgorithm)
 		targetUnitIDs := []types.UnitID{unitID}
 
-		// add new units
-		var actions []state.Action
-		for i, targetUnit := range attr.TargetUnits {
-			newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
-			targetUnitIDs = append(targetUnitIDs, newUnitID)
-			actions = append(actions, state.AddUnit(
-				newUnitID,
-				targetUnit.OwnerCondition,
-				&BillData{
-					V:        targetUnit.Amount,
-					T:        ctx.CurrentBlockNr,
-					Backlink: txHash,
-				}))
-		}
+		if !isLocked {
+			txHash := tx.Hash(m.hashAlgorithm)
 
-		// update existing unit
-		actions = append(actions, state.UpdateUnitData(unitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				return &BillData{
-					V:        attr.RemainingValue,
-					T:        ctx.CurrentBlockNr,
-					Backlink: txHash,
-				}, nil
-			},
-		))
+			// add new units
+			var actions []state.Action
+			for i, targetUnit := range attr.TargetUnits {
+				newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
+				targetUnitIDs = append(targetUnitIDs, newUnitID)
+				actions = append(actions, state.AddUnit(
+					newUnitID,
+					targetUnit.OwnerCondition,
+					&BillData{
+						V:        targetUnit.Amount,
+						T:        ctx.CurrentBlockNr,
+						Backlink: txHash,
+					}))
+			}
 
-		// update state
-		if err := m.state.Apply(actions...); err != nil {
-			return nil, fmt.Errorf("state update failed: %w", err)
+			// update existing unit
+			actions = append(actions, state.UpdateUnitData(unitID,
+				func(data state.UnitData) (state.UnitData, error) {
+					return &BillData{
+						V:        attr.RemainingValue,
+						T:        ctx.CurrentBlockNr,
+						Backlink: txHash,
+					}, nil
+				},
+			))
+
+			// update state
+			if err := m.state.Apply(actions...); err != nil {
+				return nil, fmt.Errorf("state update failed: %w", err)
+			}
 		}
 		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}

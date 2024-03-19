@@ -49,19 +49,20 @@ func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttribute
 	}
 }
 
-func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxExecutionContext) error {
-	unitID := tx.UnitID()
-	u, err := i.state.GetUnit(unitID, false)
-	if err != nil {
-		return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
-	}
-
-	if err := i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
-		return fmt.Errorf("identity tx: %w", err)
-	}
-
+func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxExecutionContext) (err error) {
 	if !ctx.StateLockReleased {
-		_, err := LockUnitState(tx, i.pr, i.state)
+		unitID := tx.UnitID()
+		var u *state.Unit
+		u, err = i.state.GetUnit(unitID, false)
+		if err != nil {
+			return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
+		}
+
+		if err = i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
+			return fmt.Errorf("identity tx: %w", err)
+		}
+
+		_, err = LockUnitState(tx, i.pr, i.state)
 		if err != nil {
 			return fmt.Errorf("identity tx, failed to lock state: %w", err)
 		}

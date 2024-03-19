@@ -98,3 +98,33 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 
 	return nil
 }
+
+func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s *state.State) (bool, error) {
+	unitID := tx.UnitID()
+	u, err := s.GetUnit(unitID, false)
+	if err != nil {
+		return false, fmt.Errorf("unable to fetch the unit: %w", err)
+	}
+	if u.IsStateLocked() {
+		return false, fmt.Errorf("unit's '%s' is state locked", unitID)
+	}
+	// check if state has to be locked
+	if tx.Payload.StateLock != nil && len(tx.Payload.StateLock.ExecutionPredicate) != 0 {
+		// check if it evaluates to true without any input
+		err := pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
+		if err != nil {
+			// ignore 'err' as we are only interested if the predicate evaluates to true or not
+			txBytes, err := cbor.Marshal(tx)
+			if err != nil {
+				return false, fmt.Errorf("state lock: failed to marshal tx: %w", err)
+			}
+			// lock the state
+			action := state.SetStateLock(unitID, txBytes)
+			if err := s.Apply(action); err != nil {
+				return false, fmt.Errorf("state lock: failed to lock the state: %w", err)
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}

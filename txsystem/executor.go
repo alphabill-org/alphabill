@@ -15,7 +15,7 @@ type (
 
 	TxExecutionContext struct {
 		CurrentBlockNr    uint64
-		StateLockReleased bool
+		StateLockReleased bool // if true, the tx being executed was "on hold" and must use this flag to avoid locking the state again
 	}
 )
 

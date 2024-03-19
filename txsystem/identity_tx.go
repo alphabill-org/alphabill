@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 var _ Module = (*IdentityModule)(nil)
@@ -57,35 +56,14 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxE
 		return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
 	}
 
-	// depending on whether the unit has the state lock or not, the order of the checks is different
-	// that is, if the lock is present, bearer check must be performed only after the unit is unlocked, yielding new state
-	if u.IsStateLocked() {
-		return fmt.Errorf("identity tx: unit is state locked")
-	} else if ctx.StateLockReleased {
-		// this is the transaction that was "on hold" due to the state lock
-		// do nothing, the state lock has been released
-	} else {
-		// state not locked, check the bearer
-		if err := i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
-			return fmt.Errorf("identity tx: %w", err)
-		}
+	if err := i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
+		return fmt.Errorf("identity tx: %w", err)
+	}
 
-		// check if state has to be locked
-		if tx.Payload.StateLock != nil && len(tx.Payload.StateLock.ExecutionPredicate) != 0 {
-			// check if it evaluates to true without any input
-			err := i.pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
-			if err != nil {
-				// ignore 'err' as we are only interested if the predicate evaluates to true or not
-				txBytes, err := cbor.Marshal(tx)
-				if err != nil {
-					return fmt.Errorf("state lock: failed to marshal tx: %w", err)
-				}
-				// lock the state
-				action := state.SetStateLock(unitID, txBytes)
-				if err := i.state.Apply(action); err != nil {
-					return fmt.Errorf("state lock: failed to lock the state: %w", err)
-				}
-			}
+	if !ctx.StateLockReleased {
+		_, err := LockUnitState(tx, i.pr, i.state)
+		if err != nil {
+			return fmt.Errorf("identity tx, failed to lock state: %w", err)
 		}
 	}
 	return nil

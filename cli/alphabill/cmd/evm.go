@@ -21,9 +21,8 @@ import (
 type (
 	evmConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		GRPCServer *grpcServerConfiguration
-		RPCServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		RPCServer *rpc.ServerConfiguration
 	}
 )
 
@@ -32,9 +31,8 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		GRPCServer: &grpcServerConfiguration{},
-		RPCServer:  &rpc.ServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		RPCServer: &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -47,8 +45,6 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "evm")
-
-	config.GRPCServer.addConfigurationFlags(nodeCmd)
 	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
 
 	// mark the --tb-tx flag as mandatory for EVM nodes
@@ -140,5 +136,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, ownerIndexer, obs)
+	return run(ctx, "evm node", node, cfg.RPCServer, ownerIndexer, obs)
 }

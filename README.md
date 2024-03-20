@@ -6,9 +6,6 @@ Run `make build` to build the application. Executable will be built to `build/al
 
 * `golang` version 1.21. (https://go.dev/doc/install)
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
-* in order to rebuild everything including protobuf definitions (`make` or `make all`):
-  * `protoc` version 3.21.9+ (https://grpc.io/docs/protoc-installation)
-  * `protoc-gen-go` (https://grpc.io/docs/languages/go/quickstart/)
 
 # Money Partition
 
@@ -75,8 +72,7 @@ See [logging.md](./docs/logging.md) for information about log schema.
 # Distributed Tracing
 
 To enable tracing environment variable `AB_TRACING` (or command line flag `--tracing`) has
-to be set to one of the supported exporter names: `stdout`, `otlptracehttp`, `otlptracegrpc`
-or `zipkin`.
+to be set to one of the supported exporter names: `stdout`, `otlptracehttp` or `zipkin`.
 
 Exporter can be further configured using
 [General SDK Configuration](https://opentelemetry.io/docs/concepts/sdk-configuration/general-sdk-configuration/)
@@ -97,14 +93,14 @@ To enable trace exporter for test the `AB_TEST_TRACER` environment variable has 
 to desired exporter name, ie
 
 ```sh
-AB_TEST_TRACER=otlptracegrpc go test ./...
+AB_TEST_TRACER=otlptracehttp go test ./...
 ```
 
 The test tracing will pick up the same OTEL environment variables linked above except that
 some parameters are already "hardcoded":
 
 - "always_on" sampler is used (`OTEL_TRACES_SAMPLER`);
-- the `otlptracehttp` and `otlptracegrpc` exporters are created with "insecure client transport"
+- the `otlptracehttp` exporter is created with "insecure client transport"
   (`OTEL_EXPORTER_OTLP_INSECURE`);
 
 

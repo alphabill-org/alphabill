@@ -41,7 +41,6 @@ type (
 
 	historyIndex struct {
 		UnitProofIndexKeys [][]byte
-		TxIndexKey         []byte
 	}
 
 	ProofIndexer struct {
@@ -133,8 +132,8 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		}); err != nil {
 			return err
 		}
-		history.TxIndexKey = txoHash
-		// generate and store proofs for all updated units
+
+		// generate and store unit proofs for all updated units
 		txrHash := tx.Hash(p.hashAlgorithm)
 		for _, unitID := range tx.ServerMetadata.TargetUnits {
 			var unit *state.Unit
@@ -232,15 +231,12 @@ func (p *ProofIndexer) historyCleanup(ctx context.Context, round uint64) (err er
 		}
 	}()
 
-	if e := dbTx.Delete(history.TxIndexKey); e != nil {
-		err = errors.Join(err, fmt.Errorf("unable to delete tx index: %w", e))
-	}
 	for _, key := range history.UnitProofIndexKeys {
 		if e := dbTx.Delete(key); e != nil {
 			err = errors.Join(err, fmt.Errorf("unable to delete unit poof index: %w", e))
 		}
 	}
-	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Removed old proofs from block %d, index size %d", d, len(history.UnitProofIndexKeys)))
+	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Removed old unit proofs from round %d, index size %d", d, len(history.UnitProofIndexKeys)))
 	return err
 }
 

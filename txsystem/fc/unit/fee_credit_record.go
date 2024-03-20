@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/types"
-
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 // FeeCreditRecord state tree unit data of fee credit records.

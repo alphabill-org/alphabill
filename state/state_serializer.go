@@ -23,7 +23,7 @@ type (
 		_                  struct{} `cbor:",toarray"`
 		UnitID             types.UnitID
 		OwnerCondition     []byte
-		UnitData           cbor.RawMessage
+		UnitData           types.RawCBOR
 		UnitLedgerHeadHash []byte
 		UnitTreePath       []*mt.PathItem
 		HasLeft            bool

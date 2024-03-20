@@ -6,23 +6,33 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-type cborHandler struct{}
+type (
+	RawCBOR []byte
+
+	cborHandler struct {
+		encMode cbor.EncMode
+	}
+)
 
 var Cbor = cborHandler{}
 
 /*
 Set Core Deterministic Encoding as standard. See <https://www.rfc-editor.org/rfc/rfc8949.html#name-deterministically-encoded-c>.
 */
-func cborEncoder() (cbor.EncMode, error) {
+func (c cborHandler) cborEncoder() (cbor.EncMode, error) {
+	if c.encMode != nil {
+		return c.encMode, nil
+	}
 	encMode, err := cbor.CoreDetEncOptions().EncMode()
 	if err != nil {
 		return nil, err
 	}
+	c.encMode = encMode
 	return encMode, nil
 }
 
 func (c cborHandler) Marshal(v any) ([]byte, error) {
-	enc, err := cborEncoder()
+	enc, err := c.cborEncoder()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +44,7 @@ func (c cborHandler) Unmarshal(data []byte, v any) error {
 }
 
 func (c cborHandler) GetEncoder(w io.Writer) (*cbor.Encoder, error) {
-	enc, err := cborEncoder()
+	enc, err := c.cborEncoder()
 	if err != nil {
 		return nil, err
 	}

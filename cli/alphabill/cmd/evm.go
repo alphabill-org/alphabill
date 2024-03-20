@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/types"
-
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
@@ -15,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )

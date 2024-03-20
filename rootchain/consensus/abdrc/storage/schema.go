@@ -3,8 +3,6 @@ package storage
 import (
 	"fmt"
 
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
@@ -29,7 +27,7 @@ var VoteKey = []byte("vote")
 
 type VoteStore struct {
 	VoteType VoteType
-	VoteMsg  cbor.RawMessage
+	VoteMsg  types.RawCBOR
 }
 
 func certKey(id []byte) []byte {

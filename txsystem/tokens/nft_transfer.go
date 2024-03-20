@@ -29,19 +29,23 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 
 		if !isLocked {
 			// update state
-			if err := n.state.Apply(
-				state.SetOwner(unitID, attr.NewBearer),
-				state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*NonFungibleTokenData)
-					if !ok {
-						return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
-					}
-					d.T = ctx.CurrentBlockNr
-					d.Backlink = tx.Hash(n.hashAlgorithm)
-					return d, nil
-				})); err != nil {
+			if err = n.state.Apply(state.SetOwner(unitID, attr.NewBearer)); err != nil {
 				return nil, err
 			}
+		}
+
+		// backlink must be updated regardless of whether the unit is locked or not
+		if err = n.state.Apply(
+			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
+				d, ok := data.(*NonFungibleTokenData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
+				}
+				d.T = ctx.CurrentBlockNr
+				d.Backlink = tx.Hash(n.hashAlgorithm)
+				return d, nil
+			})); err != nil {
+			return nil, err
 		}
 
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil

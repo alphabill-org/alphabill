@@ -130,7 +130,7 @@ func NewHTTPServer(conf *ServerConfiguration, obs Observability, registrars ...R
 	// RPC HTTP handler
 	rpcRouter := router.PathPrefix("/rpc").Subrouter()
 	rpcRouter.Handle("", rpcServer)
-	rpcRouter.Use(handlers.CORS(), instrumentHTTP(rpcMeter, obs.Logger()))
+	rpcRouter.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(rpcMeter, obs.Logger()))
 
 	return &http.Server{
 		Addr:              conf.Address,
@@ -151,7 +151,7 @@ func NewRESTServer(addr string, maxBodySize int64, obs Observability, registrars
 	// Ignoring error to preserve the interface for now. The
 	// function will be removed once the move to JSON-RPC APIs is
 	// complete.
-	server,_ := NewHTTPServer(conf, obs, registrars...)
+	server, _ := NewHTTPServer(conf, obs, registrars...)
 	return server
 }
 

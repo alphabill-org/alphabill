@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"errors"
@@ -25,6 +26,7 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	logger := testlogger.New(t)
 	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
 	require.Equal(t, proofDB, indexer.GetDB())
+
 	// start indexing loop
 	ctx := context.Background()
 	unitID := make([]byte, 32)
@@ -32,21 +34,29 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	require.NoError(t, indexer.create(ctx, blockRound1))
 	blockRound2 := simulateInput(2, unitID)
 	require.NoError(t, indexer.create(ctx, blockRound2))
+
 	// add the same block again
 	require.ErrorContains(t, indexer.create(ctx, blockRound2), "block 2 already indexed")
 	blockRound3 := simulateInput(3, unitID)
 	require.NoError(t, indexer.create(ctx, blockRound3))
+
 	// run clean-up
 	require.NoError(t, indexer.historyCleanup(ctx, 3))
 	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
-	// verify history for round 1 is cleaned up
-	for _, transaction := range blockRound1.Block.Transactions {
-		oderHash := transaction.TransactionOrder.Hash(crypto.SHA256)
-		index := &struct {
-			RoundNumber  uint64
-			TxOrderIndex int
-		}{}
-		f, err := proofDB.Read(oderHash, index)
+
+	// verify round number 1 is correctly cleaned up
+	for _, txr := range blockRound1.Block.Transactions {
+		// verify tx index is not deleted
+		txoHash := txr.TransactionOrder.Hash(crypto.SHA256)
+		var index *TxIndex
+		f, err := proofDB.Read(txoHash, &index)
+		require.NoError(t, err)
+		require.True(t, f)
+
+		// verify unit proofs are deleted
+		var unitProof *types.UnitDataAndProof
+		unitProofKey := bytes.Join([][]byte{unitID, txoHash}, nil)
+		f, err = proofDB.Read(unitProofKey, &unitProof)
 		require.NoError(t, err)
 		require.False(t, f)
 	}
@@ -131,6 +141,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		require.NoError(t, err)
 		logger := testlogger.New(t)
 		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -158,14 +169,20 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return indexer.latestIndexedBlockNumber() == 3
 		}, test.WaitDuration, test.WaitTick)
-		// verify history for round 1 is cleaned up
+
+		// verify history for round 1 is correctly cleaned up
 		for _, transaction := range blockRound1.Block.Transactions {
-			oderHash := transaction.TransactionOrder.Hash(crypto.SHA256)
-			index := &struct {
-				RoundNumber  uint64
-				TxOrderIndex int
-			}{}
-			f, err := proofDB.Read(oderHash, index)
+			// verify tx index is not deleted
+			txoHash := transaction.TransactionOrder.Hash(crypto.SHA256)
+			var index *TxIndex
+			f, err := proofDB.Read(txoHash, &index)
+			require.NoError(t, err)
+			require.True(t, f)
+
+			// verify unit proofs are deleted
+			var unitProof *types.UnitDataAndProof
+			unitProofKey := bytes.Join([][]byte{unitID, txoHash}, nil)
+			f, err = proofDB.Read(unitProofKey, &unitProof)
 			require.NoError(t, err)
 			require.False(t, f)
 		}

@@ -127,7 +127,7 @@ func NewHTTPServer(conf *ServerConfiguration, obs Observability, registrars ...R
 	// RPC HTTP handler
 	rpcRouter := router.PathPrefix("/rpc").Subrouter()
 	rpcRouter.Handle("", rpcServer)
-	rpcRouter.Use(handlers.CORS(), instrumentHTTP(rpcMeter, obs.Logger()))
+	rpcRouter.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(rpcMeter, obs.Logger()))
 
 	return &http.Server{
 		Addr:              conf.Address,

@@ -145,7 +145,6 @@ local home=""
 local key_files=""
 local genesis_file=""
 local aPort=0
-local grpcPort=0
 local rpcPort=0
   case $1 in
     money)
@@ -153,7 +152,6 @@ local rpcPort=0
       key_files="testab/money*/money/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
       aPort=26666
-      grpcPort=26766
       rpcPort=26866
       ;;
     tokens)
@@ -161,7 +159,6 @@ local rpcPort=0
       key_files="testab/tokens*/tokens/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-2.json"
       aPort=28666
-      grpcPort=28766
       rpcPort=28866
       ;;
     evm)
@@ -169,7 +166,6 @@ local rpcPort=0
       key_files="testab/evm*/evm/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
       aPort=29666
-      grpcPort=29766
       rpcPort=29866
       ;;
     *)
@@ -193,12 +189,10 @@ local rpcPort=0
         --state "$(dirname $keyf)/node-genesis-state.cbor" \
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \
-        --server-address "localhost:$grpcPort" \
         --rpc-server-address "localhost:$rpcPort" \
         >> ${home}$i/"$1"/"$1".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
-    ((grpcPort=grpcPort+1))
     ((rpcPort=rpcPort+1))
   done
     echo "started $(($i-1)) $1 nodes"

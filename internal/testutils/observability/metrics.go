@@ -10,12 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/exporters/zipkin"
@@ -27,6 +24,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	tnop "go.opentelemetry.io/otel/trace/noop"
+
+	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -129,8 +129,6 @@ func newTraceProvider(exporter string, res *resource.Resource) (*sdktrace.Tracer
 		exp, err = stdouttrace.New()
 	case "otlptracehttp":
 		exp, err = otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure())
-	case "otlptracegrpc":
-		exp, err = otlptracegrpc.New(context.Background(), otlptracegrpc.WithInsecure())
 	case "zipkin":
 		exp, err = zipkin.New("")
 	default:

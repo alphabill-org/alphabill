@@ -16,12 +16,9 @@ import (
 
 const (
 	headerContentType = "Content-Type"
-	applicationJson   = "application/json"
-	applicationCBOR   = "application/cbor"
 
 	metricsScopeRPCAPI  = "rpc_api"
 	metricsScopeRESTAPI = "rest_api"
-	MetricsScopeGRPCAPI = "grpc_api"
 
 	DefaultMaxBodyBytes           int64 = 4194304 // 4MB
 	DefaultBatchItemLimit         int   = 1000
@@ -151,7 +148,7 @@ func NewRESTServer(addr string, maxBodySize int64, obs Observability, registrars
 	// Ignoring error to preserve the interface for now. The
 	// function will be removed once the move to JSON-RPC APIs is
 	// complete.
-	server,_ := NewHTTPServer(conf, obs, registrars...)
+	server, _ := NewHTTPServer(conf, obs, registrars...)
 	return server
 }
 

@@ -76,7 +76,6 @@ type partitionNode struct {
 	genesis      *genesis.PartitionNode
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
-	AddrGRPC     string
 	proofDB      keyvaluedb.KeyValueDB
 	cancel       context.CancelFunc
 	done         chan error

@@ -12,27 +12,36 @@ import (
 )
 
 func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := n.validateTransferNonFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
+	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+		isLocked := false
+		if !ctx.StateLockReleased {
+			if err = n.validateTransferNonFungibleToken(tx, attr); err != nil {
+				return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
+			}
+			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lock unit state: %w", err)
+			}
 		}
 		fee := n.feeCalculator()
 
 		unitID := tx.UnitID()
 
-		// update state
-		if err := n.state.Apply(
-			state.SetOwner(unitID, attr.NewBearer),
-			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				d, ok := data.(*NonFungibleTokenData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
-				}
-				d.T = ctx.CurrentBlockNr
-				d.Backlink = tx.Hash(n.hashAlgorithm)
-				return d, nil
-			})); err != nil {
-			return nil, err
+		if !isLocked {
+			// update state
+			if err := n.state.Apply(
+				state.SetOwner(unitID, attr.NewBearer),
+				state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
+					d, ok := data.(*NonFungibleTokenData)
+					if !ok {
+						return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
+					}
+					d.T = ctx.CurrentBlockNr
+					d.Backlink = tx.Hash(n.hashAlgorithm)
+					return d, nil
+				})); err != nil {
+				return nil, err
+			}
 		}
 
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil

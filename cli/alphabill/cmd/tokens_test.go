@@ -9,6 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/rpc"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -17,15 +24,9 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -68,7 +69,7 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
-		listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
+		rpcServerAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -78,7 +79,7 @@ func TestRunTokensNode(t *testing.T) {
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
-				" --server-address " + listenAddr
+				" --rpc-server-address " + rpcServerAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
@@ -86,11 +87,17 @@ func TestRunTokensNode(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// create rpc client
+		rpcClient, err := ethrpc.DialContext(ctx, buildRpcUrl(rpcServerAddr))
 		require.NoError(t, err)
-		defer conn.Close()
-		rpcClient := alphabill.NewAlphabillServiceClient(conn)
+		defer rpcClient.Close()
+
+		// wait for rpc server to start
+		require.Eventually(t, func() bool {
+			var res *rpc.NodeInfoResponse
+			err := rpcClient.CallContext(ctx, &res, "admin_getNodeInfo")
+			return err == nil && res != nil
+		}, test.WaitDuration, test.WaitTick)
 
 		// Test
 		// green path
@@ -114,17 +121,20 @@ func TestRunTokensNode(t *testing.T) {
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			},
 		}
-		txBytes, _ := types.Cbor.Marshal(tx)
-		protoTx := &alphabill.Transaction{Order: txBytes}
-		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+		txBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
+		var res types.Bytes
+		err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
+		require.NoError(t, err)
+		require.NotNil(t, res)
 
 		// failing case
+		var res2 types.Bytes
 		tx.Payload.SystemID = 0x01000000 // incorrect system id
 		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
-		protoTx = &alphabill.Transaction{Order: txBytes}
-		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+		err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))
 		require.ErrorContains(t, err, "invalid transaction system identifier")
+		require.Nil(t, res2)
 	})
 }

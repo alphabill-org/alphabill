@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -21,17 +23,9 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -56,8 +50,7 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
-	proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
 	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
@@ -66,47 +59,10 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initGRPCServer(node, grpcServerConf, obs, log)
-		if err != nil {
-			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
-		}
-
-		listener, err := net.Listen("tcp", grpcServerConf.Address)
-		if err != nil {
-			return fmt.Errorf("failed to open listener on %q for %s: %w", grpcServerConf.Address, name, err)
-		}
-
-		errch := make(chan error, 1)
-		go func() {
-			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server starting on %s", name, grpcServerConf.Address))
-			if err := grpcServer.Serve(listener); err != nil {
-				errch <- err
-				return
-			}
-			errch <- nil
-		}()
-
-		select {
-		case <-ctx.Done():
-			grpcServer.GracefulStop()
-			err := <-errch
-			if err != nil {
-				log.WarnContext(ctx, name+" gRPC server exited with error", logger.Error(err))
-			} else {
-				log.InfoContext(ctx, name+" gRPC server exited")
-			}
-			return ctx.Err()
-		case err := <-errch:
-			return err
-		}
-	})
-
-	g.Go(func() error {
 		if rpcServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, ownerIndexer, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
 		}
 		if rpcServerConf.Router != nil {
@@ -190,25 +146,6 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
 	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
-}
-
-func initGRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
-	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
-		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
-		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
-		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
-		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(obs.TracerProvider()))),
-	)
-	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
-
-	rpcServer, err := rpc.NewGRPCServer(node, obs, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
-	if err != nil {
-		return nil, err
-	}
-
-	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
-	return grpcServer, nil
 }
 
 func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,

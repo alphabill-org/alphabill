@@ -1,19 +1,24 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -217,4 +222,109 @@ func (ud *unitData) SummaryValueInput() uint64 {
 
 func (ud *unitData) Copy() state.UnitData {
 	return &unitData{I: ud.I}
+}
+
+var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
+
+type (
+	MockNode struct {
+		maxBlockNumber uint64
+		maxRoundNumber uint64
+		transactions   []*types.TransactionOrder
+		err            error
+		txs            txsystem.TransactionSystem
+	}
+
+	MockOwnerIndex struct {
+		err        error
+		ownerUnits map[string][]types.UnitID
+	}
+)
+
+func (mn *MockNode) TransactionSystemState() txsystem.StateReader {
+	return mn.txs.State()
+}
+
+func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+	if mn.err != nil {
+		return nil, nil, mn.err
+	}
+	return &types.TransactionRecord{}, &types.TxProof{}, nil
+}
+
+func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	if bytes.Equal(tx.UnitID(), failingUnitID) {
+		return nil, errors.New("failed")
+	}
+	if tx != nil {
+		mn.transactions = append(mn.transactions, tx)
+	}
+	return tx.Hash(crypto.SHA256), nil
+}
+
+func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	if blockNumber > mn.maxBlockNumber {
+		// empty block
+		return nil, nil
+	}
+	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
+}
+
+func (mn *MockNode) LatestBlockNumber() (uint64, error) {
+	return mn.maxBlockNumber, nil
+}
+
+func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+	if mn.err != nil {
+		return 0, mn.err
+	}
+	return mn.maxRoundNumber, nil
+}
+
+func (mn *MockNode) SystemIdentifier() types.SystemID {
+	return 0x00010000
+}
+
+func (mn *MockNode) GetPeer() *network.Peer {
+	return nil
+}
+
+func (mn *MockNode) SerializeState(writer io.Writer) error {
+	if mn.err != nil {
+		return mn.err
+	}
+	return nil
+}
+
+func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	return mn.ownerUnits[string(ownerID)], nil
+}
+
+func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
+	bt := &money.TransferAttributes{
+		NewBearer:   templates.AlwaysTrueBytes(),
+		TargetValue: 1,
+		Backlink:    nil,
+	}
+
+	attBytes, err := types.Cbor.Marshal(bt)
+	require.NoError(t, err)
+
+	order, err := types.Cbor.Marshal(&types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:         unitID,
+			Type:           money.PayloadTypeTransfer,
+			Attributes:     attBytes,
+			ClientMetadata: &types.ClientMetadata{Timeout: 0},
+		},
+		OwnerProof: []byte{1},
+	})
+	require.NoError(t, err)
+	return order
 }

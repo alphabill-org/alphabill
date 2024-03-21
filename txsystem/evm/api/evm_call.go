@@ -5,19 +5,18 @@ import (
 	"math/big"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/types"
-
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 type CallEVMRequest struct {
@@ -37,7 +36,7 @@ type CallEVMResponse struct {
 func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
 	if err := types.Cbor.Decode(r.Body, request); err != nil {
-		rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
+		WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}
 
@@ -53,7 +52,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.callContract(clonedState, attr)
 	if err != nil {
-		rpc.WriteCBORError(w, err, http.StatusBadRequest, a.log)
+		WriteCBORError(w, err, http.StatusBadRequest, a.log)
 		return
 	}
 	processingDetails := &evm.ProcessingDetails{
@@ -70,7 +69,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	processingDetails.Logs = stateDB.GetLogs()
 
-	rpc.WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
+	WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
 }
 
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {

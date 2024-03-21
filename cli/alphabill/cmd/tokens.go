@@ -20,9 +20,8 @@ import (
 type (
 	tokensConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		GRPCServer *grpcServerConfiguration
-		RPCServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		RPCServer *rpc.ServerConfiguration
 	}
 )
 
@@ -31,9 +30,8 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		GRPCServer: &grpcServerConfiguration{},
-		RPCServer:  &rpc.ServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		RPCServer: &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -47,7 +45,6 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "tokens")
 	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
-	config.GRPCServer.addConfigurationFlags(nodeCmd)
 
 	return nodeCmd
 }
@@ -120,5 +117,5 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, ownerIndexer, obs)
+	return run(ctx, "tokens node", node, cfg.RPCServer, ownerIndexer, obs)
 }

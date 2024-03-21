@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	promexp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -53,7 +52,7 @@ func newObservability(metrics, traces string) (*otelMetricsAndTrace, error) {
 		o.shutdownFuncs = append(o.shutdownFuncs, tp.Shutdown)
 	}
 
-	// set global propagator - gRPC/http/... middleware use global for default
+	// set global propagator - http/... middleware use global for default
 	// and it is unlikely we want to mock propagator in test
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
@@ -148,8 +147,6 @@ func (o *otelMetricsAndTrace) initTraceProvider(exporter string, res *resource.R
 		exp, err = stdouttrace.New()
 	case "otlptracehttp":
 		exp, err = otlptracehttp.New(context.Background())
-	case "otlptracegrpc":
-		exp, err = otlptracegrpc.New(context.Background())
 	case "zipkin":
 		exp, err = zipkin.New("")
 	default:

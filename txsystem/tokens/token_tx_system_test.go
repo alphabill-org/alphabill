@@ -362,7 +362,7 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
-	require.EqualError(t, err, fmt.Sprintf("tx order execution failed: invalid create non-fungible token tx: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &NonFungibleTokenTypeData{}, &mockUnitData{}))
+	require.EqualError(t, err, fmt.Sprintf("tx order execution failed: invalid create non-fungible token type tx: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {

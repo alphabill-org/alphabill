@@ -5,12 +5,15 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/wvm/instrument"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
@@ -25,17 +28,78 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 )
 
-//go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
+//go:embed testdata/add_one/add_one.wasm
 var addOneWasm []byte
 
 //go:embed testdata/missingHostAPI/target/wasm32-unknown-unknown/release/invalid_api.wasm
 var invalidAPIWasm []byte
 
-//go:embed testdata/p2pkh_v1/p2pkh.wasm
-var p2pkhV1Wasm []byte
+//go:embed testdata/infinite/infinite.wasm
+var infiniteWasm []byte
 
 //go:embed testdata/tickets.wasm
 var ticketsWasm []byte
+
+func Test_Gas(t *testing.T) {
+	obs := observability.Default(t)
+	env := &mockTxContext{
+		curRound: func() uint64 { return 1709683000 },
+	}
+	ctx := context.Background()
+	wvm, err := New(ctx, env, obs)
+	require.NoError(t, err)
+	intrumented, err := instrument.MeterGasAndStack(addOneWasm, 0)
+	m, err := wvm.runtime.Instantiate(ctx, intrumented)
+	require.NoError(t, err)
+	defer m.Close(ctx)
+	gas, ok := m.ExportedGlobal(instrument.GasCounter).(api.MutableGlobal)
+	require.True(t, ok)
+	gas.Set(20)
+	fn := m.ExportedFunction("add_one")
+	require.NotNil(t, fn)
+	res, err := fn.Call(ctx, 2)
+	gasRemaining := gas.Get()
+	// add one costs 14 gas units
+	require.EqualValues(t, 6, gasRemaining)
+	require.NoError(t, err)
+	require.EqualValues(t, res[0], 3)
+	// add exactly 14 units
+	gas.Set(14)
+	res, err = fn.Call(ctx, res[0])
+	gasRemaining = gas.Get()
+	require.EqualValues(t, 0, gasRemaining)
+	require.NoError(t, err)
+	require.EqualValues(t, res[0], 4)
+	// call again - out of gas
+	res, err = fn.Call(ctx, res[0])
+	require.Error(t, err)
+	require.Nil(t, res)
+	require.True(t, math.MaxUint64 == gas.Get())
+}
+
+func Test_InfiniteLoopExits(t *testing.T) {
+	obs := observability.Default(t)
+	env := &mockTxContext{
+		curRound: func() uint64 { return 1709683000 },
+	}
+	ctx := context.Background()
+	wvm, err := New(ctx, env, obs)
+	require.NoError(t, err)
+	intrumented, err := instrument.MeterGasAndStack(infiniteWasm, 0)
+	m, err := wvm.runtime.Instantiate(ctx, intrumented)
+	require.NoError(t, err)
+	defer m.Close(ctx)
+	gas, ok := m.ExportedGlobal(instrument.GasCounter).(api.MutableGlobal)
+	require.True(t, ok)
+	gas.Set(2000)
+	fn := m.ExportedFunction("ab_main")
+	require.NotNil(t, fn)
+	res, err := fn.Call(ctx)
+	require.Error(t, err)
+	gasRemaining := gas.Get()
+	require.True(t, math.MaxUint64 == gasRemaining)
+	require.Nil(t, res)
+}
 
 func Test_conference_tickets(t *testing.T) {
 
@@ -140,7 +204,7 @@ func Test_conference_tickets(t *testing.T) {
 
 		// should eval to "true"
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, 100000)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res)
@@ -148,7 +212,7 @@ func Test_conference_tickets(t *testing.T) {
 		// hakich way to change current round so now should eval to "false"
 		env.curRound = func() uint64 { return 1709684000 }
 		start = time.Now()
-		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, 100000)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
@@ -182,7 +246,7 @@ func Test_conference_tickets(t *testing.T) {
 
 		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTMint.Payload.UnitID...)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
+		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint, 100000)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
@@ -226,7 +290,7 @@ func Test_conference_tickets(t *testing.T) {
 
 		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate)
+		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate, 100000)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/alphabill-org/alphabill/wvm/instrument"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
@@ -180,11 +181,12 @@ Exec loads the WASM module in "predicate" and calls the "fName" function in it.
   - "fName" function signature must be no parameters and single i64 return value where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder) (_ uint64, err error) {
+func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder, gasLimit uint64) (_ uint64, err error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
-	m, err := vm.runtime.Instantiate(ctx, predicate)
+	instrPredicate, err := instrument.MeterGasAndStack(predicate, 0)
+	m, err := vm.runtime.Instantiate(ctx, instrPredicate)
 	if err != nil {
 		return 0, fmt.Errorf("failed to instantiate predicate code: %w", err)
 	}
@@ -194,7 +196,11 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	if global == nil {
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
-
+	gas, ok := m.ExportedGlobal(instrument.GasCounter).(api.MutableGlobal)
+	if !ok {
+		return 0, fmt.Errorf("instrumentation failed, gas counter not found")
+	}
+	gas.Set(gasLimit)
 	fn := m.ExportedFunction("_ab_sdk_version")
 	if fn != nil {
 		rsp, err := fn.Call(ctx)

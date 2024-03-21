@@ -316,7 +316,9 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		}
 		// node must have exited before block was indexed
 		if n.proofIndexer.latestIndexedBlockNumber() < bl.GetRoundNumber() {
-			n.proofIndexer.Handle(ctx, &bl, n.transactionSystem.State())
+			if err := n.proofIndexer.IndexBlock(ctx, &bl, n.transactionSystem.State()); err != nil {
+				return fmt.Errorf("failed to index block: %w", err)
+			}
 		}
 
 		// rebuild owner index

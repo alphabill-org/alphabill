@@ -1,3 +1,13 @@
+# Alphabill Partition Node JSON-RPC API
+
+- [admin_getNodeInfo](#admin_getnodeinfo)
+- [state_getRoundNumber](#state_getroundnumber)
+- [state_getUnit](#state_getunit)
+- [state_getUnitsByOwnerID](#state_getunitsbyownerid)
+- [state_sendTransaction](#state_sendtransaction)
+- [state_getTransactionProof](#state_gettransactionproof)
+- [state_getBlock](#state_getblock)
+
 ## admin_getNodeInfo
 Returns general information about the Alphabill partition node.
 
@@ -65,7 +75,7 @@ params: [
 ### Returns
 * *unit* (object)
   * `unitId` (string) - Hex encoded unit identifier.
-  * `data` (object) - Unit data depenending on the unit type.
+  * `data` (object) - Unit data depending on the unit type.
   * `ownerPredicate` (string) - Hex encoded owner predicate of the unit.
   * `stateProof` (object *stateProof*) - A proof of the state (contents of `data` and `ownerPredicate`) of the unit in the latest round.
 
@@ -82,7 +92,7 @@ Response
 ```
 
 ## state_getUnitsByOwnerID
-Returns units by owner identifier. Owner identifier is derived from
+Returns units identifiers by owner identifier. Owner identifier is derived from
 the owner predicate of the unit. Currently only SHA256 hash of the
 public key is used as the owner identifier.
 
@@ -108,6 +118,10 @@ curl -H 'Content-Type: application/json' \
 Response
 ```
 {"jsonrpc":"2.0","id":1,"result":["0x000000000000000000000000000000000000000000000000000000000000001100","0x000000000000000000000000000000000000000000000000000000000000001300","0x000000000000000000000000000000000000000000000000000000000000001200"]}
+```
+Or if transaction has not been executed:
+```
+{"jsonrpc":"2.0","id":1,"result":null}
 ```
 
 ## state_sendTransaction

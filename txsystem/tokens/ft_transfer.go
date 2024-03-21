@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
@@ -158,5 +157,5 @@ func (t *TransferFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		TypeID:                       t.TypeID,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

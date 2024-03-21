@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -111,7 +110,7 @@ func TestRunTokensNode(t *testing.T) {
 			InvariantPredicate:       templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
-		attrBytes, err := cbor.Marshal(attr)
+		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
@@ -122,7 +121,7 @@ func TestRunTokensNode(t *testing.T) {
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			},
 		}
-		txBytes, err := cbor.Marshal(tx)
+		txBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		var res types.Bytes
 		err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
@@ -132,7 +131,7 @@ func TestRunTokensNode(t *testing.T) {
 		// failing case
 		var res2 types.Bytes
 		tx.Payload.SystemID = 0x01000000 // incorrect system id
-		txBytes, err = cbor.Marshal(tx)
+		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))
 		require.ErrorContains(t, err, "invalid transaction system identifier")

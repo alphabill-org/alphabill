@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,13 +93,13 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	require.Equal(t, []byte{0x86, 0x00, 0x60, 0xf6, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
-	require.NoError(t, cbor.Unmarshal(payloadBytes, payload))
+	require.NoError(t, Cbor.Unmarshal(payloadBytes, payload))
 	require.EqualValues(t, order.Payload, payload)
 }
 
 func TestUnmarshalPayload(t *testing.T) {
 	payload := &Payload{}
-	require.NoError(t, cbor.Unmarshal(hexDecode(t, payloadInHEX), payload))
+	require.NoError(t, Cbor.Unmarshal(hexDecode(t, payloadInHEX), payload))
 
 	require.Equal(t, systemID, payload.SystemID)
 	require.Equal(t, payloadAttributesType, payload.Type)
@@ -165,7 +164,7 @@ func Test_Payload_SetAttributes(t *testing.T) {
 func createTxOrder(t *testing.T) *TransactionOrder {
 	attributes := &Attributes{NewBearer: newBearer, TargetValue: targetValue, Backlink: backlink}
 
-	attr, err := cbor.Marshal(attributes)
+	attr, err := Cbor.Marshal(attributes)
 	require.NoError(t, err)
 
 	order := &TransactionOrder{Payload: &Payload{

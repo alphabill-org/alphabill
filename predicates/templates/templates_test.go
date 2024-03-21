@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -187,7 +186,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		// valid owner proof struct (CBOR decoding is success) but invald data inside
 		// signature is of invalid length
 		signature := predicates.P2pkh256Signature{Sig: []byte{1, 2, 3}, PubKey: pubKey}
-		ownerProof, err := cbor.Marshal(signature)
+		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err := p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
@@ -195,7 +194,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// pubkey is of invalid length
 		signature = predicates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
-		ownerProof, err = cbor.Marshal(signature)
+		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
@@ -203,7 +202,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// pubKey hash doesn't match with the has of the pubKey in OP
 		signature = predicates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
-		ownerProof, err = cbor.Marshal(signature)
+		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `pubkey hash does not match`)
@@ -211,7 +210,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// set incorrect first byte, compressed key should start with 0x02 or 0x03
 		signature = predicates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
-		ownerProof, err = cbor.Marshal(signature)
+		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = p2pkh256_Execute(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to create verifier: public key decompress faield`)
@@ -222,7 +221,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		// create valid owner proof struct but invald data inside
 		// signature is of correct length but invalid
 		signature := predicates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: pubKey}
-		ownerProof, err := cbor.Marshal(signature)
+		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err := p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to verify signature: verification failed`)
@@ -246,29 +245,29 @@ func Test_templateBytes(t *testing.T) {
 	*/
 
 	t.Run("always false", func(t *testing.T) {
-		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}})
+		buf, err := types.Cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysFalseID}})
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(buf, alwaysFalseBytes), `CBOR representation of "always false" predicate template has changed (expected %X, got %X)`, alwaysFalseBytes, buf)
 		require.True(t, bytes.Equal(alwaysFalseBytes, AlwaysFalseBytes()))
 		pred := &predicates.Predicate{}
-		require.NoError(t, cbor.Unmarshal(buf, pred))
+		require.NoError(t, types.Cbor.Unmarshal(buf, pred))
 		require.Equal(t, pred.Code[0], AlwaysFalseID, "always false predicate ID")
 	})
 
 	t.Run("always true", func(t *testing.T) {
-		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysTrueID}})
+		buf, err := types.Cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{AlwaysTrueID}})
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(buf, alwaysTrueBytes), `CBOR representation of "always true" predicate template has changed (expected %X, got %X)`, alwaysTrueBytes, buf)
 		require.True(t, bytes.Equal(alwaysTrueBytes, AlwaysTrueBytes()))
 		pred := &predicates.Predicate{}
-		require.NoError(t, cbor.Unmarshal(buf, pred))
+		require.NoError(t, types.Cbor.Unmarshal(buf, pred))
 		require.Equal(t, pred.Code[0], AlwaysTrueID, "always true predicate ID")
 	})
 
 	t.Run("p2pkh", func(t *testing.T) {
 		pubKeyHash, err := hex.DecodeString("F52022BB450407D92F13BF1C53128A676BCF304818E9F41A5EF4EBEAE9C0D6B0")
 		require.NoError(t, err)
-		buf, err := cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: pubKeyHash})
+		buf, err := types.Cbor.Marshal(predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: pubKeyHash})
 		require.NoError(t, err)
 
 		fromHex, err := hex.DecodeString("830041025820F52022BB450407D92F13BF1C53128A676BCF304818E9F41A5EF4EBEAE9C0D6B0")

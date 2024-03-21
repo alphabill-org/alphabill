@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
@@ -114,7 +113,7 @@ func (j *JoinFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:                     j.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 func (j *JoinFungibleTokenAttributes) GetBurnTransactions() []*types.TransactionRecord {

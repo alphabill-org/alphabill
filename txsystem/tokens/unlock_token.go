@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[UnlockTokenAttributes] {
@@ -150,7 +149,7 @@ func (l *UnlockTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:                     l.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *UnlockTokenAttributes, d tokenData) error {

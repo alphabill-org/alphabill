@@ -65,7 +65,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	}
 
 	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
-	decoder := cbor.NewDecoder(crc32Reader)
+	decoder := types.Cbor.GetDecoder(crc32Reader)
 
 	var header header
 	err := decoder.Decode(&header)
@@ -122,7 +122,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			return nil, fmt.Errorf("unable to construct unit data: %w", err)
 		}
 
-		err = cbor.Unmarshal(nodeRecord.UnitData, &unitData)
+		err = types.Cbor.Unmarshal(nodeRecord.UnitData, &unitData)
 		if err != nil {
 			return nil, fmt.Errorf("unable to decode unit data: %w", err)
 		}
@@ -342,7 +342,10 @@ func (s *State) Prune() error {
 // Not concurrency safe. Should clone the state before calling this.
 func (s *State) Serialize(writer io.Writer, committed bool) error {
 	crc32Writer := NewCRC32Writer(writer)
-	encoder := cbor.NewEncoder(crc32Writer)
+	encoder, err := types.Cbor.GetEncoder(crc32Writer)
+	if err != nil {
+		return fmt.Errorf("unable to get encoder: %w", err)
+	}
 
 	header := &header{}
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 var cborNil = []byte{0xf6}
@@ -50,8 +49,6 @@ type (
 		MaxTransactionFee fct.Fee
 		FeeCreditRecordID []byte
 	}
-
-	RawCBOR []byte
 
 	PredicateBytes = Bytes
 
@@ -117,7 +114,7 @@ func (t *TransactionOrder) GetClientMaxTxFee() fct.Fee {
 
 func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	bytes, err := cbor.Marshal(t)
+	bytes, err := Cbor.Marshal(t)
 	if err != nil {
 		//TODO
 		panic(err)
@@ -149,7 +146,7 @@ no validation!
 The Payload.UnmarshalAttributes can be used to decode the attributes.
 */
 func (p *Payload) SetAttributes(attr any) error {
-	bytes, err := cbor.Marshal(attr)
+	bytes, err := Cbor.Marshal(attr)
 	if err != nil {
 		return fmt.Errorf("marshaling %T as tx attributes: %w", attr, err)
 	}
@@ -161,14 +158,11 @@ func (p *Payload) UnmarshalAttributes(v any) error {
 	if p == nil {
 		return errors.New("payload is nil")
 	}
-	if p.Attributes == nil {
-		return nil
-	}
-	return cbor.Unmarshal(p.Attributes, v)
+	return Cbor.Unmarshal(p.Attributes, v)
 }
 
 func (p *Payload) Bytes() ([]byte, error) {
-	return cbor.Marshal(p)
+	return Cbor.Marshal(p)
 }
 
 // BytesWithAttributeSigBytes TODO: AB-1016 remove this hack

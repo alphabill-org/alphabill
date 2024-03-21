@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
@@ -104,7 +103,7 @@ func (t *TransferNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		NFTTypeID:                    t.NFTTypeID,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 func (t *TransferNonFungibleTokenAttributes) GetNewBearer() []byte {

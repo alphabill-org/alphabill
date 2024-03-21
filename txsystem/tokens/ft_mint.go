@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
@@ -106,5 +105,5 @@ func (m *MintFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		Value:                            m.Value,
 		TokenCreationPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

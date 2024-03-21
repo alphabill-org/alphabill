@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -147,7 +146,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
 	var details ProcessingDetails
-	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
@@ -158,7 +157,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
@@ -186,7 +185,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	count = uint256.NewInt(2)
@@ -231,7 +230,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		Gas:   params.TxGas,
 		Nonce: 0,
 	}
-	attrBytes, err := cbor.Marshal(evmAttr)
+	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -254,7 +253,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 		Gas:   100000,
 		Nonce: nonce,
 	}
-	attrBytes, err := cbor.Marshal(evmAttr)
+	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -276,7 +275,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		Gas:   1000000,
 		Nonce: 1,
 	}
-	attrBytes, err := cbor.Marshal(evmAttr)
+	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{

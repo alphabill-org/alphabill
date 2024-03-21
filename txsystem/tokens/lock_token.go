@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockTokenAttributes] {
@@ -150,7 +149,7 @@ func (l *LockTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:                     l.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 type tokenData interface {

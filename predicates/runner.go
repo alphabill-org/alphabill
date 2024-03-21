@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const MaxPredicateBinSize = 65536
@@ -45,11 +44,7 @@ type (
 )
 
 func (p Predicate) AsBytes() (types.PredicateBytes, error) {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return nil, err
-	}
-	buf, err := enc.Marshal(p)
+	buf, err := types.Cbor.Marshal(p)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +53,7 @@ func (p Predicate) AsBytes() (types.PredicateBytes, error) {
 
 func ExtractPredicate(predicateBytes []byte) (*Predicate, error) {
 	predicate := &Predicate{}
-	if err := cbor.Unmarshal(predicateBytes, predicate); err != nil {
+	if err := types.Cbor.Unmarshal(predicateBytes, predicate); err != nil {
 		return nil, err
 	}
 	return predicate, nil

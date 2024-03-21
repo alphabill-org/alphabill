@@ -4,8 +4,7 @@ import (
 	"crypto"
 	"errors"
 
-	"github.com/alphabill-org/alphabill/txsystem/fc/types"
-	"github.com/fxamacker/cbor/v2"
+	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 )
 
 const (
@@ -28,7 +27,7 @@ type (
 
 	ServerMetadata struct {
 		_                 struct{} `cbor:",toarray"`
-		ActualFee         types.Fee
+		ActualFee         fct.Fee
 		TargetUnits       []UnitID
 		SuccessIndicator  TxStatus
 		ProcessingDetails RawCBOR
@@ -47,7 +46,7 @@ func (t *TransactionRecord) Hash(algorithm crypto.Hash) []byte {
 }
 
 func (t *TransactionRecord) Bytes() ([]byte, error) {
-	return cbor.Marshal(t)
+	return Cbor.Marshal(t)
 }
 
 func (t *TransactionRecord) UnmarshalProcessingDetails(v any) error {
@@ -57,14 +56,14 @@ func (t *TransactionRecord) UnmarshalProcessingDetails(v any) error {
 	return t.ServerMetadata.UnmarshalDetails(v)
 }
 
-func (t *TransactionRecord) GetActualFee() types.Fee {
+func (t *TransactionRecord) GetActualFee() fct.Fee {
 	if t == nil {
 		return 0
 	}
 	return t.ServerMetadata.GetActualFee()
 }
 
-func (sm *ServerMetadata) GetActualFee() types.Fee {
+func (sm *ServerMetadata) GetActualFee() fct.Fee {
 	if sm == nil {
 		return 0
 	}
@@ -75,5 +74,5 @@ func (sm *ServerMetadata) UnmarshalDetails(v any) error {
 	if sm == nil {
 		return errors.New("server metadata is nil")
 	}
-	return cbor.Unmarshal(sm.ProcessingDetails, v)
+	return Cbor.Unmarshal(sm.ProcessingDetails, v)
 }

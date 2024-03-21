@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
@@ -145,5 +144,5 @@ func (m *MintNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		DataUpdatePredicate:              m.DataUpdatePredicate,
 		TokenCreationPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

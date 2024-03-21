@@ -7,7 +7,6 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -90,11 +89,7 @@ func (u *Unit) LastLogIndex() int {
 }
 
 func MarshalUnitData(u UnitData) ([]byte, error) {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return nil, fmt.Errorf("cbor encoder init failed: %w", err)
-	}
-	return enc.Marshal(u)
+	return types.Cbor.Marshal(u)
 }
 
 func copyLogs(entries []*Log) []*Log {

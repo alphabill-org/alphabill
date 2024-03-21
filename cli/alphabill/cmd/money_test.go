@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -374,7 +373,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -386,7 +385,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 
 	var res types.Bytes
@@ -400,7 +399,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -412,7 +411,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 
 	var res types.Bytes

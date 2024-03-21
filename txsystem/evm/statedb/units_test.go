@@ -5,10 +5,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/types"
+
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,9 +34,7 @@ func TestStateObject_Write(t *testing.T) {
 		Suicided: false,
 	}
 	hasher := crypto.SHA256.New()
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	require.NoError(t, err)
-	res, err := enc.Marshal(so)
+	res, err := types.Cbor.Marshal(so)
 	require.NoError(t, err)
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
@@ -45,7 +44,7 @@ func TestStateObject_Write(t *testing.T) {
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var soFormSerialized StateObject
-	require.NoError(t, cbor.Unmarshal(res, &soFormSerialized))
+	require.NoError(t, types.Cbor.Unmarshal(res, &soFormSerialized))
 	require.Equal(t, so, &soFormSerialized)
 }
 

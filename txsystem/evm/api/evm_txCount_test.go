@@ -13,8 +13,8 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 		_     struct{} `cbor:",toarray"`
 		Nonce uint64
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.EqualValues(t, 333, resp.Nonce)
 }
 

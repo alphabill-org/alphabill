@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -60,7 +60,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return err
 	}
 	params := &genesis.EvmPartitionParams{}
-	if err = cbor.Unmarshal(pg.Params, params); err != nil {
+	if err = types.Cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
 

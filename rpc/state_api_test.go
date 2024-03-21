@@ -10,7 +10,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -136,11 +135,11 @@ func TestGetTransactionProof(t *testing.T) {
 		require.NotNil(t, res.TxProof)
 
 		var txRecord *types.TransactionRecord
-		err = cbor.Unmarshal(res.TxRecord, &txRecord)
+		err = types.Cbor.Unmarshal(res.TxRecord, &txRecord)
 		require.NoError(t, err)
 
 		var txProof *types.TxProof
-		err = cbor.Unmarshal(res.TxProof, &txProof)
+		err = types.Cbor.Unmarshal(res.TxProof, &txProof)
 		require.NoError(t, err)
 	})
 	t.Run("err", func(t *testing.T) {
@@ -165,7 +164,7 @@ func TestGetBlock(t *testing.T) {
 		require.NotNil(t, res)
 
 		var block *types.Block
-		err = cbor.Unmarshal(res, &block)
+		err = types.Cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, block.GetRoundNumber())
 	})
@@ -209,11 +208,7 @@ func (ud *unitData) Hash(hashAlgo crypto.Hash) []byte {
 }
 
 func (ud *unitData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(ud)
+	res, err := types.Cbor.Marshal(ud)
 	if err != nil {
 		return fmt.Errorf("unit data encode error: %w", err)
 	}
@@ -318,10 +313,10 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 		Backlink:    nil,
 	}
 
-	attBytes, err := cbor.Marshal(bt)
+	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	order, err := cbor.Marshal(&types.TransactionOrder{
+	order, err := types.Cbor.Marshal(&types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:         unitID,
 			Type:           money.PayloadTypeTransfer,

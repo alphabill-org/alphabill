@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,7 +84,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 		Data: common.Hex2Bytes(counterContractCode),
 		Gas:  600000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -93,7 +92,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
 	require.NotEqual(t, resp.ProcessingDetails.ContractAddr, common.Address{})
@@ -125,7 +124,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 		Value: big.NewInt(0),
 		Gas:   29000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -133,7 +132,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 
 	require.Equal(t, make([]byte, 32), resp.ProcessingDetails.ReturnData)
 
@@ -159,7 +158,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &CallEVMResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}, resp.ProcessingDetails.ReturnData)
 }
 
@@ -181,7 +180,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 		// To: is missing, should be a deployed contract address
 		Data: cABI.Methods["get"].ID,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -190,7 +189,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	// this is an ok call, no an error, but You have to pay for your nonsense
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &CallEVMResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
 	require.NotEqual(t, resp.ProcessingDetails.ContractAddr, common.Address{})
 	require.Empty(t, resp.ProcessingDetails.ReturnData, common.Address{})
@@ -216,7 +215,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type api.CallEVMRequest", resp.Err)
 }
 

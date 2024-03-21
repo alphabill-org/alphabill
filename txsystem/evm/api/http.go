@@ -6,14 +6,14 @@ import (
 	"net/http"
 
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 // WriteCBORResponse replies to the request with the given response and HTTP code.
 func WriteCBORResponse(w http.ResponseWriter, response any, statusCode int, log *slog.Logger) {
 	w.Header().Set("Content-Type", "application/cbor")
 	w.WriteHeader(statusCode)
-	if err := cbor.NewEncoder(w).Encode(response); err != nil {
+	if err := types.Cbor.Encode(w, response); err != nil {
 		log.Warn("failed to write CBOR response", logger.Error(err))
 	}
 }
@@ -24,7 +24,7 @@ func WriteCBORResponse(w http.ResponseWriter, response any, statusCode int, log 
 func WriteCBORError(w http.ResponseWriter, e error, code int, log *slog.Logger) {
 	w.Header().Set("Content-Type", "application/cbor")
 	w.WriteHeader(code)
-	if err := cbor.NewEncoder(w).Encode(struct {
+	if err := types.Cbor.Encode(w, struct {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{

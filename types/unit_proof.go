@@ -9,7 +9,6 @@ import (
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/tree/mt"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -41,15 +40,15 @@ type (
 
 	StateTreePathItem struct {
 		_                   struct{} `cbor:",toarray"`
-		UnitID              UnitID   `json:"unitId"`                     // (ι′)
-		LogsHash            Bytes    `json:"logsHash"`                   // (z)
-		Value               uint64   `json:"value,string"`               // (V)
+		UnitID              UnitID   `json:"unitId"`       // (ι′)
+		LogsHash            Bytes    `json:"logsHash"`     // (z)
+		Value               uint64   `json:"value,string"` // (V)
 		SiblingSummaryHash  Bytes    `json:"siblingSummaryHash"`
 		SiblingSummaryValue uint64   `json:"siblingSummaryValue,string"`
 	}
 
 	StateUnitData struct {
-		Data   cbor.RawMessage
+		Data   RawCBOR
 		Bearer Bytes
 	}
 
@@ -143,7 +142,7 @@ func (sd *StateUnitData) UnmarshalData(v any) error {
 	if sd.Data == nil {
 		return fmt.Errorf("state unit data is nil")
 	}
-	return cbor.Unmarshal(sd.Data, v)
+	return Cbor.Unmarshal(sd.Data, v)
 }
 
 func (sd *StateUnitData) Hash(hashAlgo crypto.Hash) []byte {

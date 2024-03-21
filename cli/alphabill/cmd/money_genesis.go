@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -173,7 +172,7 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	src := &genesis.MoneyPartitionParams{
 		SystemDescriptionRecords: sdrs,
 	}
-	res, err := cbor.Marshal(src)
+	res, err := types.Cbor.Marshal(src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
 	}

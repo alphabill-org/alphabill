@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,6 +30,6 @@ func TestAPI_GasPrice(t *testing.T) {
 		_        struct{} `cbor:",toarray"`
 		GasPrice string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, a.gasUnitPrice.String(), resp.GasPrice)
 }

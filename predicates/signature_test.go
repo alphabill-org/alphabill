@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 func Test_ExtractPubKey(t *testing.T) {
@@ -74,7 +74,7 @@ func Test_OwnerProofer(t *testing.T) {
 		ownerProof, err := proofer(data)
 		require.NoError(t, err)
 		sig := P2pkh256Signature{}
-		require.NoError(t, cbor.Unmarshal(ownerProof, &sig))
+		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.Equal(t, signature, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)
 	})
@@ -143,7 +143,7 @@ func Test_OwnerProoferForSigner(t *testing.T) {
 		ownerProof, err := proofer(data)
 		require.NoError(t, err)
 		sig := P2pkh256Signature{}
-		require.NoError(t, cbor.Unmarshal(ownerProof, &sig))
+		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.Equal(t, signature, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)
 	})
@@ -169,7 +169,7 @@ func Test_OwnerProoferSecp256K1(t *testing.T) {
 		ownerProof, err := proofer([]byte{0xD, 0xA, 0x7, 0xA})
 		require.NoError(t, err)
 		sig := P2pkh256Signature{}
-		require.NoError(t, cbor.Unmarshal(ownerProof, &sig))
+		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.NotEmpty(t, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)
 	})

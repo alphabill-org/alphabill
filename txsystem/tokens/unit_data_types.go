@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type NonFungibleTokenTypeData struct {
@@ -104,11 +103,7 @@ func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, curr
 }
 
 func (n *NonFungibleTokenTypeData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(n)
+	res, err := types.Cbor.Marshal(n)
 	if err != nil {
 		return fmt.Errorf("nft type serialization error: %w", err)
 	}
@@ -137,11 +132,7 @@ func (n *NonFungibleTokenTypeData) Copy() state.UnitData {
 }
 
 func (n *NonFungibleTokenData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(n)
+	res, err := types.Cbor.Marshal(n)
 	if err != nil {
 		return fmt.Errorf("ft data serialization error: %w", err)
 	}
@@ -178,11 +169,7 @@ func (n *NonFungibleTokenData) IsLocked() uint64 {
 }
 
 func (f *FungibleTokenTypeData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(f)
+	res, err := types.Cbor.Marshal(f)
 	if err != nil {
 		return fmt.Errorf("ft type serialization error: %w", err)
 	}
@@ -211,11 +198,7 @@ func (f *FungibleTokenTypeData) Copy() state.UnitData {
 }
 
 func (f *FungibleTokenData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(f)
+	res, err := types.Cbor.Marshal(f)
 	if err != nil {
 		return fmt.Errorf("ft data serialization error: %w", err)
 	}

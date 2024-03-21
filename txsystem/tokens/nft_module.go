@@ -29,7 +29,7 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 
 func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeCreateNFTType: n.handleCreateNoneFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
 		PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
 		PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
 		PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),

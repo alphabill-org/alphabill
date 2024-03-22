@@ -119,10 +119,6 @@ Response
 ```
 {"jsonrpc":"2.0","id":1,"result":["0x000000000000000000000000000000000000000000000000000000000000001100","0x000000000000000000000000000000000000000000000000000000000000001300","0x000000000000000000000000000000000000000000000000000000000000001200"]}
 ```
-Or if transaction has not been executed:
-```
-{"jsonrpc":"2.0","id":1,"result":null}
-```
 
 ## state_sendTransaction
 Sends a raw CBOR encoded signed transaction to the network. Returns
@@ -183,6 +179,10 @@ curl -H 'Content-Type: application/json' \
 Response
 ```
 {"jsonrpc":"2.0","id":1,"result":{"txRecord":"0x00","txProof":"0x00"}}
+```
+Or if transaction has not been executed:
+```
+{"jsonrpc":"2.0","id":1,"result":null}
 ```
 
 ## state_getBlock

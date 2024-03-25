@@ -45,7 +45,7 @@ Returns the round number of the latest unicity certificate.
 None
 
 ### Returns
-* *roundNumber* (number) - Round number of the latest unicity certificate.
+* *roundNumber* (string) - Round number of the latest unicity certificate.
 
 ### Example
 Request
@@ -56,7 +56,7 @@ curl -H 'Content-Type: application/json' \
 ```
 Response
 ```
-{"jsonrpc":"2.0","id":1,"result":30}
+{"jsonrpc":"2.0","id":1,"result":"30"}
 ```
 
 ## state_getUnit
@@ -189,10 +189,10 @@ Or if transaction has not been executed:
 Returns the raw CBOR encoded block for the given round number.
 
 ### Parameters
-1. *roundNumber* (number) - Round number to get the block for.
+1. *roundNumber* (string) - Round number to get the block for.
 ```
 params: [
-  1,
+  "1",
 ]
 ```
 
@@ -203,7 +203,7 @@ params: [
 Request
 ```
 curl -H 'Content-Type: application/json' \
-     -d '{"jsonrpc":"2.0","id":1,"method":"state_getBlock","params":[1]}' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"state_getBlock","params":["1"]}' \
      http://127.0.0.1:26866/rpc
 ```
 Response

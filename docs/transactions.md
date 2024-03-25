@@ -28,6 +28,8 @@
       - [Split Fungible Token](#split-fungible-token)
       - [Burn Fungible Token](#burn-fungible-token)
       - [Join Fungible Tokens](#join-fungible-tokens)
+      - [Lock Token](#lock-token)
+      - [Unlock Token](#unlock-token)
       - [Add Fee Credit](#add-fee-credit-1)
       - [Close Fee Credit](#close-fee-credit-1)
 - [Examples](#examples)
@@ -58,16 +60,16 @@ Data items in the top-level array:
 1. *Payload* (array) is described in section [*Payload*](#payload).
 
 2. *OwnerProof* (byte string) contains the arguments to satisfy the
-owner condition of the unit specified by *Payload*.*UnitID*. The most
+owner predicate of the unit specified by *Payload*.*UnitID*. The most
 common example of *OwnerProof* is a digital signature signing the CBOR
 encoded *Payload*.
 
 3. *FeeProof* (byte string) contains the arguments to satisfy the
-owner condition of the fee credit record specified by
+owner predicate of the fee credit record specified by
 *Payload*.*ClientMetadata*.*FeeCreditRecordID*. The most common
 example of *FeeProof* is a digital signature signing the CBOR encoded
 *Payload*. *FeeProof* can be set to ```null``` (CBOR simple value 22)
-in case *OwnerProof* also satisfies the owner condition of the fee
+in case *OwnerProof* also satisfies the owner predicate of the fee
 credit record.
 
 ### *Payload*
@@ -77,19 +79,19 @@ signature and consists of the following (with example values):
 
 ```
 /Payload/ [
-    /SystemIdentifier/ 0x04030201,
-    /Type/             "trans",
-    /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
-    /Attributes/       [/omitted, Type dependent/],
-    /ClientMetadata/   [/omitted/]
+    /SystemID/       0x04030201,
+    /Type/           "trans",
+    /UnitID/         h'000000000000000000000000000000000000000000000000000000000000000100',
+    /Attributes/     [/omitted, Type dependent/],
+    /ClientMetadata/ [/omitted/]
 ]
 ```
 
 Data items in the *Payload* array:
 
-1. *SystemIdentifier* (32bit uint) is a 4-byte identifier of the
-transaction system/partition that is supposed to execute the
-transaction. *SystemIdentifier*s currently in use:
+1. *SystemID* (32bit uint) is a 4-byte identifier of the transaction
+system/partition that is supposed to execute the
+transaction. *SystemID*s currently in use:
 
     - `0x00000001` - money partition
     - `0x00000002` - tokens partition 
@@ -182,7 +184,7 @@ transferred bill is unchanged.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the bill.
+1. *TargetOwner* (byte string) is the new owner predicate of the bill.
 2. *TargetValue* (unsigned integer) must be equal to the value of the
    bill. The reason for including the value of the bill in the
    transaction order is to enable the recipient of the transaction to
@@ -193,7 +195,7 @@ transferred bill is unchanged.
 ##### Split Bill
 
 This transaction splits a bill into two or more bills, creating new
-bills with new owner conditions (*TargetUnit*.*TargetOwner*) and
+bills with new owner predicates (*TargetUnit*.*TargetOwner*) and
 values (*TargetUnit*.*TargetValue*). The value of the bill being split
 is reduced by the values of the new bills and is specified in the
 *RemainingValue* attribute. The sums of *TargetUnit*.*TargetValue*s
@@ -218,12 +220,11 @@ split.
 1. *TargetUnits* (array) is an array of *TargetUnit* data items. Each
    *TargetUnit* is an array of two data items:
    1. *TargetValue* (unsigned integer) is the value of the new bill.
-   2. *TargetOwner* (byte string) is the owner condition of the new bill.
+   2. *TargetOwner* (byte string) is the owner predicate of the new bill.
 2. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill being split.
-
 
 ##### Lock Bill
 
@@ -263,7 +264,7 @@ in locked status.
 *TransactionOrder*.*Payload*.*Type* = "unlock"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
-/lockAttributes/ [
+/unlockAttributes/ [
     /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
 ]
 ```
@@ -317,14 +318,14 @@ with [Lock Bill](#lock-bill) transaction.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /OwnerCondition/   h'',
+    /OwnerPredicate/   h'',
     /DcTransfers/      [/omitted/],
     /DcTransferProofs/ [/omitted/],
     /TargetValue/      3
 ]
 ```
 
-1. *OwnerCondition* (byte string) is the new owner condition of the target bill.
+1. *OwnerPredicate* (byte string) is the new owner predicate of the target bill.
 2. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
@@ -429,21 +430,21 @@ Fee Credit](#add-fee-credit) transaction.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transFCAttributes/ [
-    /Amount/                 100000000,
-    /TargetSystemIdentifier/ 0x00000002,
-    /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
-    /EarliestAdditionTime/   13,
-    /LatestAdditionTime/     23,
-    /TargetUnitBacklink/     null,
-    /Backlink/               h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
+    /Amount/               100000000,
+    /TargetSystemID/       0x00000002,
+    /TargetUnitID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
+    /EarliestAdditionTime/ 13,
+    /LatestAdditionTime/   23,
+    /TargetUnitBacklink/   null,
+    /Backlink/             h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
 ]
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
    paying fees in the target partition. A bill can be transferred to
    partially.
-2. *TargetSystemIdentifier* (32bit uint) is the system identifier of
-   the target partition where the *Amount* can be spent on fees.
+2. *TargetSystemID* (32bit uint) is the system identifier of the
+   target partition where the *Amount* can be spent on fees.
 3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
    Credit](#add-fee-credit) transaction).
@@ -485,7 +486,7 @@ record being created/updated.
 ```
 
 1. *TargetOwner* (byte string, optional) is the owner
-   condition for the created fee credit record. It needs to be
+   predicate for the created fee credit record. It needs to be
    satisfied by the *TransactionOrder*.*FeeProof* data item of the
    transactions using the record to pay fees.
 2. *FeeCreditTransfer* (array) is a record of the [Transfer to Fee
@@ -613,7 +614,7 @@ This transaction creates a non-fungible token type.
    controls creating new tokens of this type.
 7. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
-   their owner condition.
+   their owner predicate.
 8. *DataUpdatePredicate* (byte string) is the clause that all tokens
    of this type (and of subtypes) inherit into their data update
    predicates.
@@ -629,7 +630,7 @@ This transaction creates a new non-fungible token.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /createNTokenAttributes/ [
-    /OwnerCondition/                   h'',
+    /OwnerPredicate/                   h'',
     /TypeID/                           h'',
     /Name/                             "",
     /URI/                              "",
@@ -639,7 +640,7 @@ This transaction creates a new non-fungible token.
 ]
 ```
 
-1. *OwnerCondition* (byte string) is the initial owner condition of
+1. *OwnerPredicate* (byte string) is the initial owner predicate of
    the new token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
@@ -656,7 +657,8 @@ This transaction creates a new non-fungible token.
 
 ##### Transfer Non-fungible Token
 
-This transaction transfers a non-fungible token to a new owner.
+This transaction transfers a non-fungible token to a new owner. The
+token must not be in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "transNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -670,7 +672,7 @@ This transaction transfers a non-fungible token to a new owner.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the
+1. *TargetOwner* (byte string) is the new owner predicate of the
    token.
 2. *Nonce* (byte string) is an optional nonce.
 3. *Backlink* (byte string) is the backlink to the previous
@@ -682,7 +684,8 @@ This transaction transfers a non-fungible token to a new owner.
 
 ##### Update Non-fungible Token
 
-This transaction updates the data of a non-fungible token.
+This transaction updates the data of a non-fungible token. The token
+must not be in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "updateNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -740,7 +743,7 @@ This transaction creates a fungible token type.
    controls creating new tokens of this type.
 8. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
-   their owner condition.
+   their owner predicate.
 9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
@@ -760,7 +763,7 @@ This transaction creates a new fungible token.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the initial owner condition of
+1. *TargetOwner* (byte string) is the initial owner predicate of
    the new token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
@@ -772,7 +775,8 @@ This transaction creates a new fungible token.
 ##### Transfer Fungible Token
 
 This transaction transfers a fungible token to a new owner. The value
-of the transferred token is unchanged.
+of the transferred token is unchanged. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "transFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -787,7 +791,7 @@ of the transferred token is unchanged.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the
+1. *TargetOwner* (byte string) is the new owner predicate of the
    token.
 2. *TargetValue* (unsigned integer) must be equal to the value of the
    token. The reason for including the value of the token in the
@@ -804,11 +808,12 @@ of the transferred token is unchanged.
 ##### Split Fungible Token
 
 This transaction splits a fungible token in two, creating a new
-fungible token with a new owner condition (*TargetOwner*) and value
+fungible token with a new owner predicate (*TargetOwner*) and value
 (*TargetValue*). The value of the token being split is reduced by the
 value of the new token and is specified in the *RemainingValue*
 attribute. The sum of *TargetValue* and *RemainingValue* must be equal
-to the value of the token before the split.
+to the value of the token before the split. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "splitFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -824,7 +829,7 @@ to the value of the token before the split.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new
+1. *TargetOwner* (byte string) is the owner predicate of the new
    token.
 2. *TargetValue* (unsigned integer) is the value of the new token.
 3. *Nonce* (byte string) is an optional nonce.
@@ -841,7 +846,8 @@ to the value of the token before the split.
 
 This transaction "burns" (deletes) a fungible token to be later joined
 into a larger-value fungible token with the [Join Fungible
-Token](#join-fungible-tokens) transaction.
+Token](#join-fungible-tokens) transaction. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "burnFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -872,7 +878,9 @@ Token](#join-fungible-tokens) transaction.
 ##### Join Fungible Tokens
 
 This transaction joins the values of [burned
-tokens](#burn-fungible-token) into a target token of the same type.
+tokens](#burn-fungible-token) into a target token of the same
+type. The target token is [unlocked](#unlock-token) automatically if
+it was in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "joinFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -899,6 +907,62 @@ tokens](#burn-fungible-token) into a target token of the same type.
 4. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
+
+##### Lock Token
+
+This transaction locks the specified token. Locked non-fungible tokens
+cannot be [transferred](#transfer-non-fungible-token) or
+[updated](#update-non-fungible-token). Locked fungible tokens cannot
+be [transferred](#transfer-fungible-token), [split](#split-fungible-token)
+or [burned](#burn-fungible-token). Unlocking can happen manually with the
+[Unlock Token](#unlock-token) transaction or automatically with the
+[Join Fungible Token](#join-fungible-tokens) transaction for fungible tokens.
+
+Locking of the tokens is optional. However, it is recommended to lock
+the target fungible token while joining is in progress, to prevent
+other transactions from changing its state and thus making the final
+[join](#join-fungible-tokens) transaction fail. The specified lock
+status must be non-zero value and the targeted token must be unlocked.
+
+*TransactionOrder*.*Payload*.*Type* = "lockToken"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockTokenAttributes/ [
+    /LockStatus/                   1,
+    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /InvariantPredicateSignatures/ [h'']
+]
+```
+
+1. *LockStatus* (uint64) is the status of the lock,
+   must be non-zero value.
+2. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+3. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
+
+##### Unlock Token
+
+This transaction unlocks the specified token. Unlocking can also
+happen automatically when [joining](#join-fungible-tokens) fungible
+tokens. The targeted token must be in locked status.
+
+*TransactionOrder*.*Payload*.*Type* = "unlockToken"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/unlockTokenAttributes/ [
+    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /InvariantPredicateSignatures/ [h'']
+]
+```
+
+1. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+2. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
+
 
 ##### Add Fee Credit
 
@@ -959,9 +1023,9 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ 1,
-        /Type/             "split",
-        /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
+        /SystemID/ 1,
+        /Type/     "split",
+        /UnitID/   h'000000000000000000000000000000000000000000000000000000000000000100',
         /splitAttributes/ [
             /TargetUnits/ [
                 /TargetUnit/ [
@@ -1023,9 +1087,9 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ 1,
-        /Type/             "trans",
-        /UnitID/           h'6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00',
+        /SystemID/ 1,
+        /Type/     "trans",
+        /UnitID/   h'6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00',
         /transAttributes/ [
             /TargetOwner/ h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
             /TargetValue/ 200000000,

@@ -36,8 +36,12 @@ func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI
 }
 
 // GetRoundNumber returns the round number of the latest UC seen by node.
-func (s *StateAPI) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return s.node.GetLatestRoundNumber(ctx)
+func (s *StateAPI) GetRoundNumber(ctx context.Context) (types.Uint64, error) {
+	roundNumber, err := s.node.GetLatestRoundNumber(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return types.Uint64(roundNumber), nil
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
@@ -119,8 +123,8 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) 
 }
 
 // GetBlock returns block for the given block number.
-func (s *StateAPI) GetBlock(ctx context.Context, blockNumber uint64) (types.Bytes, error) {
-	block, err := s.node.GetBlock(ctx, blockNumber)
+func (s *StateAPI) GetBlock(ctx context.Context, blockNumber types.Uint64) (types.Bytes, error) {
+	block, err := s.node.GetBlock(ctx, uint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
 	}

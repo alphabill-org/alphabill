@@ -12,8 +12,8 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -145,7 +145,7 @@ func TestEvmGenesis_WithParameters(t *testing.T) {
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
 	params := &genesis.EvmPartitionParams{}
-	require.NoError(t, cbor.Unmarshal(pn.Params, params))
+	require.NoError(t, types.Cbor.Unmarshal(pn.Params, params))
 	require.EqualValues(t, 100000, params.BlockGasLimit)
 	require.EqualValues(t, 1111111, params.GasUnitPrice)
 }

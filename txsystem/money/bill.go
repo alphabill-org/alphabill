@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type BillData struct {
@@ -19,11 +18,7 @@ type BillData struct {
 }
 
 func (b *BillData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(b)
+	res, err := types.Cbor.Marshal(b)
 	if err != nil {
 		return fmt.Errorf("unit data encode error: %w", err)
 	}

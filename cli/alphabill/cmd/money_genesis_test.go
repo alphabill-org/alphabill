@@ -12,8 +12,8 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,7 +142,7 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	require.NotNil(t, pg)
 
 	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
+	err = types.Cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
 	require.Len(t, params.SystemDescriptionRecords, 1)
@@ -174,7 +174,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NotNil(t, pg)
 
 	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
+	err = types.Cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
 	require.Equal(t, sdr, params.SystemDescriptionRecords[0])

@@ -18,7 +18,6 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1253,17 +1252,17 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 }
 
 func copyUC(t *testing.T, uc *types.UnicityCertificate) *types.UnicityCertificate {
-	bytes, err := cbor.Marshal(uc)
+	bytes, err := types.Cbor.Marshal(uc)
 	require.NoError(t, err)
 	newUC := &types.UnicityCertificate{}
-	require.NoError(t, cbor.Unmarshal(bytes, newUC))
+	require.NoError(t, types.Cbor.Unmarshal(bytes, newUC))
 	return newUC
 }
 
 func copyBlock(t *testing.T, b *types.Block) *types.Block {
-	bytes, err := cbor.Marshal(b)
+	bytes, err := types.Cbor.Marshal(b)
 	require.NoError(t, err)
 	newBlock := &types.Block{}
-	require.NoError(t, cbor.Unmarshal(bytes, newBlock))
+	require.NoError(t, types.Cbor.Unmarshal(bytes, newBlock))
 	return newBlock
 }

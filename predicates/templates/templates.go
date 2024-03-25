@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -51,7 +50,7 @@ func p2pkh256_Execute(pubKeyHash, sig []byte, txo *types.TransactionOrder, env p
 	}
 
 	p2pkh256Signature := predicates.P2pkh256Signature{}
-	if err := cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
+	if err := types.Cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
 		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {
@@ -98,23 +97,23 @@ func NewP2pkh256FromKeyHash(pubKeyHash []byte) predicates.Predicate {
 }
 
 func NewP2pkh256BytesFromKey(pubKey []byte) types.PredicateBytes {
-	pb, _ := cbor.Marshal(NewP2pkh256FromKey(pubKey))
+	pb, _ := types.Cbor.Marshal(NewP2pkh256FromKey(pubKey))
 	return pb
 }
 
 func NewP2pkh256BytesFromKeyHash(pubKeyHash []byte) types.PredicateBytes {
-	pb, _ := cbor.Marshal(NewP2pkh256FromKeyHash(pubKeyHash))
+	pb, _ := types.Cbor.Marshal(NewP2pkh256FromKeyHash(pubKeyHash))
 	return pb
 }
 
 func NewP2pkh256SignatureBytes(sig, pubKey []byte) []byte {
-	sb, _ := cbor.Marshal(predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
+	sb, _ := types.Cbor.Marshal(predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
 	return sb
 }
 
 func ExtractPubKeyHashFromP2pkhPredicate(pb []byte) ([]byte, error) {
 	predicate := &predicates.Predicate{}
-	if err := cbor.Unmarshal(pb, predicate); err != nil {
+	if err := types.Cbor.Unmarshal(pb, predicate); err != nil {
 		return nil, fmt.Errorf("extracting predicate: %w", err)
 	}
 	if predicate.Tag != TemplateStartByte {

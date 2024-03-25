@@ -4,8 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +23,7 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		ServerMetadata:   serverMetadata,
 	}
 	expectedHash := "0x8c7ab71be696a84248ef0857cb4945712c66aad107335d13fb49bec6e4a31200"
-	expectedBytes, _ := cbor.Marshal(transactionRecord)
+	expectedBytes, _ := Cbor.Marshal(transactionRecord)
 
 	t.Run("Test Hash", func(t *testing.T) {
 		require.Equal(t, expectedHash, hexutil.Encode(transactionRecord.Hash(crypto.SHA256)))

@@ -4,8 +4,9 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/fxamacker/cbor/v2"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/types"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,14 +24,14 @@ func TestFCR_HashIsCalculatedCorrectly(t *testing.T) {
 
 	// calculate expected hash
 	hasher.Reset()
-	res, err := cbor.Marshal(fcr)
+	res, err := types.Cbor.Marshal(fcr)
 	require.NoError(t, err)
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	require.Equal(t, expectedHash, actualHash)
 	// check all fields serialized
 	var fcrFromSerialized FeeCreditRecord
-	require.NoError(t, cbor.Unmarshal(res, &fcrFromSerialized))
+	require.NoError(t, types.Cbor.Unmarshal(res, &fcrFromSerialized))
 	require.Equal(t, fcr, &fcrFromSerialized)
 }
 

@@ -5,7 +5,6 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +74,7 @@ func WithClientMetadata(m *types.ClientMetadata) Option {
 
 func WithAttributes(attr any) Option {
 	return func(tx *types.TransactionOrder) error {
-		bytes, err := cbor.Marshal(attr)
+		bytes, err := types.Cbor.Marshal(attr)
 		if err != nil {
 			return err
 		}

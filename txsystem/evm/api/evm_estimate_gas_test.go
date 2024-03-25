@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/rpc"
@@ -14,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 		Value: big.NewInt(0),
 		Gas:   600000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -43,7 +44,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 
 	require.EqualValues(t, 177717, resp.GasUsed)
 }
@@ -70,14 +71,14 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 		Value: big.NewInt(0),
 		Gas:   100000000000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &EstimateGasResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.EqualValues(t, 23377, resp.GasUsed)
 
 	call = &CallEVMRequest{
@@ -87,14 +88,14 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 		Value: big.NewInt(0),
 		// no gas, then by default block gas is used as max
 	}
-	callReq, err = cbor.Marshal(call)
+	callReq, err = types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder = httptest.NewRecorder()
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp = &EstimateGasResponse{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.EqualValues(t, 44813, resp.GasUsed)
 }
 
@@ -120,7 +121,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 		Value: big.NewInt(0),
 		Gas:   22000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -130,7 +131,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Contains(t, resp.Err, "gas required exceeds allowance")
 }
 
@@ -156,7 +157,7 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 		Value: big.NewInt(0),
 		Gas:   21000,
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -166,7 +167,7 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Contains(t, resp.Err, "gas required exceeds allowance")
 }
 
@@ -193,7 +194,7 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 		Data:  fnCall,
 		Value: big.NewInt(0),
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -203,7 +204,7 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, resp.Err, "execution reverted: can only be reset to 0")
 }
 
@@ -229,7 +230,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 		Gas:   50000,
 		Value: big.NewInt(0),
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -239,7 +240,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, resp.Err, "gas required exceeds allowance (50000)")
 }
 
@@ -261,7 +262,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 		Data:  []byte{0, 0, 0, 0, 1, 2, 3},
 		Value: big.NewInt(0),
 	}
-	callReq, err := cbor.Marshal(call)
+	callReq, err := types.Cbor.Marshal(call)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
@@ -271,7 +272,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Contains(t, resp.Err, "execution reverted")
 }
 
@@ -296,6 +297,6 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 		_   struct{} `cbor:",toarray"`
 		Err string
 	}{}
-	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
+	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type api.CallEVMRequest", resp.Err)
 }

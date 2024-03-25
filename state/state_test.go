@@ -10,7 +10,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,11 +33,7 @@ type TestData struct {
 }
 
 func (t *TestData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(t)
+	res, err := types.Cbor.Marshal(t)
 	if err != nil {
 		return fmt.Errorf("test data serialization error: %w", err)
 	}
@@ -838,11 +833,7 @@ func (p *pruneUnitData) Hash(hashAlgo crypto.Hash) []byte {
 }
 
 func (p *pruneUnitData) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(p)
+	res, err := types.Cbor.Marshal(p)
 	if err != nil {
 		return fmt.Errorf("unit data encode error: %w", err)
 	}
@@ -865,7 +856,10 @@ func unitDataConstructor(_ types.UnitID) (UnitData, error) {
 func createSerializedState(t *testing.T, s *State, h *header, checksum uint32) *bytes.Buffer {
 	buf := &bytes.Buffer{}
 	crc32Writer := NewCRC32Writer(buf)
-	encoder := cbor.NewEncoder(crc32Writer)
+	encoder, err := types.Cbor.GetEncoder(crc32Writer)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	require.NoError(t, encoder.Encode(h))
 

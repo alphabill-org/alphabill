@@ -197,7 +197,9 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 
 		// networks have no protocols registered so sending data must fail
 		msg := []byte{3, 2, 1}
-		err = nw1.sendMsg(context.Background(), msg, "test/p", 100*time.Millisecond, peer2.ID())
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err = sendMsg(ctx, nw1.self, "test/p", msg, peer2.ID())
 		require.EqualError(t, err, `open p2p stream: failed to negotiate protocol: protocols not supported: [test/p]`)
 	})
 
@@ -221,7 +223,9 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		//peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 		msg := []byte{3, 2, 1}
-		err = nw1.sendMsg(context.Background(), msg, "test/p", 100*time.Millisecond, peer2.ID())
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err = sendMsg(ctx, nw1.self, "test/p", msg, peer2.ID())
 		require.EqualError(t, err, "open p2p stream: failed to find any peer in table")
 	})
 
@@ -240,7 +244,9 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		peer2.Close()
 
 		msg := []byte{3, 2, 1}
-		err = nw1.sendMsg(context.Background(), msg, "test/p", 100*time.Millisecond, peer2.ID())
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err = sendMsg(ctx, nw1.self, "test/p", msg, peer2.ID())
 		require.ErrorContains(t, err, fmt.Sprintf("open p2p stream: failed to dial: failed to dial %s: all dials failed", peer2.ID()))
 		require.ErrorContains(t, err, `connection refused`)
 	})
@@ -264,7 +270,9 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		msg := []byte{3, 2, 1}
-		err = nw1.sendMsg(ctx, msg, "test/p", 100*time.Millisecond, peer2.ID())
+		ctx, cancel = context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		err = sendMsg(ctx, nw1.self, "test/p", msg, peer2.ID())
 		require.EqualError(t, err, `open p2p stream: failed to dial: context canceled`)
 	})
 
@@ -287,7 +295,9 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		msg := &testMsg{Name: "oh my!", Value: 555}
 		data, err := serializeMsg(msg)
 		require.NoError(t, err)
-		require.NoError(t, nw1.sendMsg(context.Background(), data, "test/p", 100*time.Millisecond, peer2.ID()))
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		require.NoError(t, sendMsg(ctx, nw1.self, "test/p", data, peer2.ID()))
 
 		select {
 		case rm := <-nw2.ReceivedChannel():

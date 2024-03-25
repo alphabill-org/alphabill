@@ -3,8 +3,6 @@ package types
 import (
 	"crypto"
 	"errors"
-
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -46,7 +44,7 @@ func (t *TransactionRecord) Hash(algorithm crypto.Hash) []byte {
 }
 
 func (t *TransactionRecord) Bytes() ([]byte, error) {
-	return cbor.Marshal(t)
+	return Cbor.Marshal(t)
 }
 
 func (t *TransactionRecord) UnmarshalProcessingDetails(v any) error {
@@ -74,5 +72,5 @@ func (sm *ServerMetadata) UnmarshalDetails(v any) error {
 	if sm == nil {
 		return errors.New("server metadata is nil")
 	}
-	return cbor.Unmarshal(sm.ProcessingDetails, v)
+	return Cbor.Unmarshal(sm.ProcessingDetails, v)
 }

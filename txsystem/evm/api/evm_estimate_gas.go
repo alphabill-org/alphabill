@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 type EstimateGasResponse struct {
@@ -22,8 +22,8 @@ type EstimateGasResponse struct {
 
 func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
-	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
-		rpc.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
+	if err := types.Cbor.Decode(r.Body, request); err != nil {
+		WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}
 	callAttr := &evm.TxAttributes{
@@ -72,7 +72,7 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 			// call or transaction will never be accepted no matter how much gas it is
 			// assigned.
 			// Return the error and that is it.
-			rpc.WriteCBORError(w, err, http.StatusBadRequest, a.log)
+			WriteCBORError(w, err, http.StatusBadRequest, a.log)
 			return
 		}
 		if failed {
@@ -85,24 +85,24 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 	if hi == cap {
 		failed, result, err := executable(hi)
 		if err != nil {
-			rpc.WriteCBORError(w, err, http.StatusBadRequest, a.log)
+			WriteCBORError(w, err, http.StatusBadRequest, a.log)
 			return
 		}
 		if failed {
 			if result != nil && result.Err != vm.ErrOutOfGas {
 				if len(result.Revert()) > 0 {
-					rpc.WriteCBORError(w, newRevertError(result), http.StatusBadRequest, a.log)
+					WriteCBORError(w, newRevertError(result), http.StatusBadRequest, a.log)
 					return
 				}
-				rpc.WriteCBORError(w, result.Err, http.StatusBadRequest, a.log)
+				WriteCBORError(w, result.Err, http.StatusBadRequest, a.log)
 				return
 			}
 			// Otherwise, the specified gas cap is too low
-			rpc.WriteCBORError(w, fmt.Errorf("gas required exceeds allowance (%d)", cap), http.StatusBadRequest, a.log)
+			WriteCBORError(w, fmt.Errorf("gas required exceeds allowance (%d)", cap), http.StatusBadRequest, a.log)
 			return
 		}
 	}
-	rpc.WriteCBORResponse(w, &EstimateGasResponse{GasUsed: hi}, http.StatusOK, a.log)
+	WriteCBORResponse(w, &EstimateGasResponse{GasUsed: hi}, http.StatusOK, a.log)
 }
 
 func newRevertError(result *core.ExecutionResult) error {

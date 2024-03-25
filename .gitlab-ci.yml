@@ -59,7 +59,7 @@ build:
   stage: build
   extends: .go-cache
   script:
-    - make build build_scripts
+    - make build
   artifacts:
     paths:
       - build

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"crypto"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 		}
 	}()
 
-	network, err := NewLibP2PValidatorNetwork(&Peer{host: h}, opts, observability.Default(t))
+	network, err := NewLibP2PValidatorNetwork(context.Background(), 1, &Peer{host: h}, opts, observability.Default(t))
 	require.NoError(t, err)
 	require.NotNil(t, network)
 }

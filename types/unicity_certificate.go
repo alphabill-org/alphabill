@@ -154,6 +154,14 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	return nil
 }
 
+func (x *UnicityCertificate) IsSuccessor(prevUC *UnicityCertificate) bool {
+	return x.GetRoundNumber() == prevUC.GetRoundNumber() + 1
+}
+
+func (x *UnicityCertificate) IsDuplicate(prevUC *UnicityCertificate) bool {
+	return x.GetRootRoundNumber() == prevUC.GetRootRoundNumber()
+}
+
 func (x *UnicityCertificate) IsRepeat(prevUC *UnicityCertificate) bool {
 	return isRepeat(prevUC, x)
 }

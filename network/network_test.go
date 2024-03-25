@@ -13,7 +13,7 @@ import (
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	obs := observability.Default(t)
-	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetworkOptions, obs)
+	net, err := NewLibP2PValidatorNetwork(context.Background(), 1, createPeer(t), DefaultValidatorNetworkOptions, obs)
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)

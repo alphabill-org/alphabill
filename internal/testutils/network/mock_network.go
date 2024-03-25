@@ -149,7 +149,11 @@ func (m *MockNet) ProcessTransactions(ctx context.Context, txProcessor network.T
 	}
 }
 
-func (m *MockNet) ForwardTransactions(ctx context.Context, receiver peer.ID) {
+func (m *MockNet) ForwardTransactions(ctx context.Context, receiverFunc network.TxReceiver) {
+}
+
+func (n *MockNet) PublishBlock(ctx context.Context, block *types.Block) error {
+	return nil
 }
 
 type msgProtocol struct {

@@ -27,9 +27,9 @@ func Test_addrToPage(t *testing.T) {
 		p, err = addrToPage(uint64(WasmPageSize*4 + 1))
 		require.NoError(t, err)
 		require.EqualValues(t, 5, p)
-		p, err = addrToPage(uint64(WasmPageSize) * MaxWasmPages)
+		p, err = addrToPage(uint64(WasmPageSize) * MaxPages)
 		require.NoError(t, err)
-		require.EqualValues(t, MaxWasmPages, p)
+		require.EqualValues(t, MaxPages, p)
 	})
 	t.Run("error", func(t *testing.T) {
 		p, err := addrToPage(uint64(4*1024*1024*1024 + 1))
@@ -103,12 +103,30 @@ func TestAllocateOverLimit(t *testing.T) {
 	mem := NewMemoryMock(t, 1)
 	mem.setMaxWasmPages(4)
 	allocator := NewBumpAllocator(8)
-	for i := 0; i < 3; i++ {
-		ptr, err := allocator.Alloc(mem, WasmPageSize)
-		require.NoError(t, err)
-		require.NoError(t, allocator.Free(mem, ptr))
-	}
-	ptr, err := allocator.Alloc(mem, WasmPageSize)
-	require.EqualError(t, err, "cannot grow linear memory: from 4 pages to 8 pages")
+	// allocate 1024 Kb
+	ptr, err := allocator.Alloc(mem, 1024)
+	require.NoError(t, err)
+	require.NoError(t, allocator.Free(mem, ptr))
+	require.EqualValues(t, 1, allocator.arenaSize/WasmPageSize)
+	// allocate 1 full page - nof pages required is doubled and is now 2
+	ptr, err = allocator.Alloc(mem, WasmPageSize)
+	require.NoError(t, err)
+	require.NoError(t, allocator.Free(mem, ptr))
+	require.EqualValues(t, 2, allocator.arenaSize/WasmPageSize)
+	// allocate another page - nof pages are doubled again and is now 4
+	ptr, err = allocator.Alloc(mem, WasmPageSize)
+	require.NoError(t, err)
+	require.NoError(t, allocator.Free(mem, ptr))
+	require.EqualValues(t, 4, allocator.arenaSize/WasmPageSize)
+	// allocate another page - no need to allocate more we have enough at this point
+	ptr, err = allocator.Alloc(mem, WasmPageSize)
+	require.NoError(t, err)
+	require.NoError(t, allocator.Free(mem, ptr))
+	require.EqualValues(t, 4, allocator.arenaSize/WasmPageSize)
+	// can allocate 1Kb - we would need 5 pages, but max is set to 4 so this will fail
+	ptr, err = allocator.Alloc(mem, 1024)
+	require.NoError(t, err)
+	ptr, err = allocator.Alloc(mem, WasmPageSize)
+	require.EqualError(t, err, "linera memory grow error: from 4 pages to 5 pages")
 	require.EqualValues(t, 0, ptr)
 }

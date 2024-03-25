@@ -10,12 +10,12 @@ type MemoryMockup struct {
 	maxWasmPages uint32
 }
 
-func (m *MemoryMockup) setMaxWasmPages(max uint32) {
-	m.maxWasmPages = max
-}
-
 func (m *MemoryMockup) Max() uint32 {
 	return m.maxWasmPages
+}
+
+func (m *MemoryMockup) setMaxWasmPages(max uint32) {
+	m.maxWasmPages = max
 }
 
 func (m *MemoryMockup) pages() uint32 {

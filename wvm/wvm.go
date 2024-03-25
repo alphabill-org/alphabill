@@ -38,8 +38,8 @@ const (
 
 type (
 	Allocator interface {
-		Allocate(mem allocator.Memory, size uint32) (uint32, error)
-		Deallocate(mem allocator.Memory, ptr uint32) error
+		Alloc(mem allocator.LinearMemory, size uint32) (uint32, error)
+		Free(mem allocator.LinearMemory, ptr uint32) error
 	}
 
 	VmContext struct {
@@ -123,7 +123,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 	}
 
 	size := uint32(len(buf))
-	addr, err := vmCtx.Alloc.Allocate(mem, size)
+	addr, err := vmCtx.Alloc.Alloc(NewWazeroMemoryWrapper(mem), size)
 	if err != nil {
 		return 0, fmt.Errorf("allocating memory: %w", err)
 
@@ -203,7 +203,7 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 
 	// do we need to create new mem manager for each predicate?
 	hb := api.DecodeU32(global.Get())
-	vm.ctx.Alloc = allocator.NewFreeingBumpHeapAllocator(hb)
+	vm.ctx.Alloc = allocator.NewBumpAllocator(hb)
 	vm.ctx.curPrg.mod = m
 	vm.ctx.curPrg.varIdx = handle_max_reserved
 	defer vm.ctx.EndEval()

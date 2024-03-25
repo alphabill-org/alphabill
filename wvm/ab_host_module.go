@@ -65,7 +65,7 @@ func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
 		return 0
 	}
 	dataLen := uint32(len(Value))
-	offset, err := rtCtx.Alloc.Allocate(m.Memory(), dataLen)
+	offset, err := rtCtx.Alloc.Alloc(NewWazeroMemoryWrapper(m.Memory()), dataLen)
 	if err != nil {
 		rtCtx.log.WarnContext(ctx, "program state file memory allocation failed failed: %w", err)
 	}
@@ -125,7 +125,7 @@ func extFree(observe Observability) api.GoModuleFunc {
 		log.DebugContext(ctx, fmt.Sprintf("%s.Free(%d)", mod.Name(), addr))
 		allocator := ctx.Value(runtimeContextKey).(*VmContext).Alloc
 
-		if err := allocator.Deallocate(mod.Memory(), addr); err != nil {
+		if err := allocator.Free(NewWazeroMemoryWrapper(mod.Memory()), addr); err != nil {
 			panic(err)
 		}
 	}
@@ -138,7 +138,7 @@ func extMalloc(observe Observability) api.GoModuleFunc {
 
 		// Allocate memory
 		size := api.DecodeU32(stack[0])
-		res, err := allocator.Allocate(mod.Memory(), size)
+		res, err := allocator.Alloc(NewWazeroMemoryWrapper(mod.Memory()), size)
 		if err != nil {
 			panic(err)
 		}

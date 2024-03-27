@@ -62,6 +62,7 @@ type (
 		vars   map[uint64]any
 		varIdx uint64          // "handle generator" for vars
 		env    EvalEnvironment // callback to the tx system
+		sdkVer uint32          // what SDK version current (predicate) program uses
 	}
 
 	EvalEnvironment interface {
@@ -74,7 +75,7 @@ type (
 
 	// translates AB types to WASM consumable representation
 	Encoder interface {
-		Encode(obj any, getHandle handleFunc) ([]byte, error)
+		Encode(obj any, getHandle func(obj any) uint64) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder) ([]byte, error)
 		UnitData(unit *state.Unit) ([]byte, error)
 	}
@@ -110,6 +111,7 @@ func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
 
 func (vmc *VmContext) EndEval() {
 	vmc.curPrg.mod = nil
+	vmc.curPrg.sdkVer = 0
 	clear(vmc.curPrg.vars)
 }
 
@@ -136,7 +138,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 }
 
 // New - creates new wazero based wasm vm
-func New(ctx context.Context, env EvalEnvironment, observe Observability, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, enc Encoder, env EvalEnvironment, observe Observability, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -167,7 +169,7 @@ func New(ctx context.Context, env EvalEnvironment, observe Observability, opts .
 				env:  env,
 				vars: map[uint64]any{},
 			},
-			encoder: TXSystemEncoder{},
+			encoder: enc,
 			factory: ABTypesFactory{},
 			Storage: options.storage,
 			log:     observe.Logger(),
@@ -177,10 +179,10 @@ func New(ctx context.Context, env EvalEnvironment, observe Observability, opts .
 
 /*
 Exec loads the WASM module in "predicate" and calls the "fName" function in it.
-  - "fName" function signature must be no parameters and single i64 return value where
+  - "fName" function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder) (_ uint64, err error) {
+func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -195,10 +197,10 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
 
-	fn := m.ExportedFunction("_ab_sdk_version")
-	if fn != nil {
+	if fn := m.ExportedFunction("_ab_sdk_version"); fn != nil {
 		rsp, err := fn.Call(ctx)
-		vm.ctx.log.DebugContext(ctx, fmt.Sprintf("SDK: %v = %v", rsp, err))
+		vm.ctx.curPrg.sdkVer = api.DecodeU32(rsp[0])
+		vm.ctx.log.DebugContext(ctx, fmt.Sprintf("SDK: %d (%v) = %v", vm.ctx.curPrg.sdkVer, rsp, err))
 	}
 
 	// do we need to create new mem manager for each predicate?
@@ -210,7 +212,7 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
 	vm.ctx.curPrg.vars[handle_current_args] = args
 
-	fn = m.ExportedFunction(fName)
+	fn := m.ExportedFunction(fName)
 	if fn == nil {
 		return 0, fmt.Errorf("module doesn't export function %q", fName)
 	}
@@ -223,10 +225,10 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	if err != nil {
 		return 0, fmt.Errorf("calling %s returned error: %w", fName, err)
 	}
+	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), fName, res))
 	if len(res) != 1 {
 		return 0, fmt.Errorf("unexpected return value length %v", len(res))
 	}
-	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), fName, res))
 	return res[0], nil
 }
 
@@ -243,17 +245,43 @@ func vmContext(ctx context.Context) *VmContext {
 	return rtCtx
 }
 
+/*
+hostAPI allows to use more convenient function signature for implementing Wazero host
+module functions.
+  - the execution context is extracted from env and passed as param to the func;
+  - when API func returns error we stop the execution of the predicate;
+*/
 func hostAPI(f func(vec *VmContext, mod api.Module, stack []uint64) error) api.GoModuleFunc {
 	return func(ctx context.Context, mod api.Module, stack []uint64) {
 		rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
 		if rtCtx == nil {
 			// when ctx doesn't contain the value something has gone very wrong...
+			// instead of panic attempt to close the module?
 			panic("context doesn't contain VM context value")
 		}
 		if err := f(rtCtx, mod, stack); err != nil {
 			rtCtx.log.ErrorContext(ctx, "host API returned error", logger.Error(err))
-			rtCtx.curPrg.mod.CloseWithExitCode(ctx, 0xFF0000FF)
+			rtCtx.curPrg.mod.CloseWithExitCode(ctx, 0xBAD00BAD)
 		}
+	}
+}
+
+type EvalResult int
+
+const (
+	EvalResultTrue  EvalResult = 1
+	EvalResultFalse EvalResult = 2
+	EvalResultError EvalResult = 3
+)
+
+func PredicateEvalResult(code uint64) (EvalResult, uint64) {
+	switch {
+	case code == 0:
+		return EvalResultTrue, 0
+	case code&0xFF == 1:
+		return EvalResultFalse, code >> 8
+	default:
+		return EvalResultError, code
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 // AB "common types", ie not tx system specific stuff
 type ABTypesFactory struct{}
 
+// must be "tx system id + type id"?
+// or we only support generic types here?
 func (ABTypesFactory) create_obj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {
@@ -33,7 +35,4 @@ const (
 	type_id_tx_order  = 1
 	type_id_tx_record = 8
 	type_id_tx_proof  = 9
-
-	type_id_NFT_data = 5
-	type_id_NFT_type = 6
 )

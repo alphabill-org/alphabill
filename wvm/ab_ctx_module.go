@@ -9,12 +9,15 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/wvm/encoder"
 )
 
 /*
 addContextModule adds "context" module to the "rt".
 This module provides access to "current predicate evaluation context", ie current transaction,
 predicate arguments, round number etc.
+
+encoder and factory as arguments so wouldn't need to go through context?
 */
 func addContextModule(ctx context.Context, rt wazero.Runtime, observe Observability) error {
 	_, err := rt.NewHostModuleBuilder("context").
@@ -51,10 +54,10 @@ func args_cbor_array(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err := cbor.Unmarshal(args, &data); err != nil {
 		return fmt.Errorf("decoding arguments as array of CBOR: %w", err)
 	}
-	var buf wasmEnc
-	buf.writeUInt32(uint32(len(data)))
+	var buf encoder.WasmEnc
+	buf.WriteUInt32(uint32(len(data)))
 	for _, v := range data {
-		buf.writeBytes(v)
+		buf.WriteBytes(v)
 	}
 	addr, err := vec.writeToMemory(mod, buf)
 	if err != nil {
@@ -106,7 +109,7 @@ func expTxAttributes(vec *VmContext, mod api.Module, stack []uint64) error {
 
 	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
 	if err != nil {
-		return fmt.Errorf("readin tx order variable: %w", err)
+		return fmt.Errorf("reading tx order variable: %w", err)
 	}
 	buf, err := vec.encoder.TxAttributes(txo)
 	if err != nil {

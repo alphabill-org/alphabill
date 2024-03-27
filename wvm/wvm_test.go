@@ -23,6 +23,9 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/wvm/encoder"
+	moneyenc "github.com/alphabill-org/alphabill/wvm/encoder/money"
+	tokenenc "github.com/alphabill-org/alphabill/wvm/encoder/token"
 )
 
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
@@ -56,6 +59,12 @@ func Test_conference_tickets(t *testing.T) {
 	// not ideal but we use org and attendee also for trustbase
 	// the testblock.CreateProof takes single signer as trustbase and used id "test" for it
 	trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
+
+	enc := encoder.TXSystemEncoder{}
+	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(enc.RegisterAttrEncoder))
+	require.NoError(t, tokenenc.RegisterUnitDataEncoders(enc.RegisterUnitDataEncoder))
+	require.NoError(t, moneyenc.RegisterTxAttributeEncoders(enc.RegisterAttrEncoder))
+	//require.NoError(t, enc.RegisterTxAttributeEncoders(moneyenc.RegisterTxAttributeEncoders, func(aei encoder.AttrEncID) bool { return aei.Attr == money.PayloadTypeTransfer }))
 
 	// create tx record and tx proof pair for money transfer and serialize them into
 	// CBOR array usable as predicate argument for mint and update token tx
@@ -134,7 +143,7 @@ func Test_conference_tickets(t *testing.T) {
 			}))
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), env, obs)
+		wvm, err := New(context.Background(), enc, env, obs)
 		require.NoError(t, err)
 		args := []byte{} // predicate expects no arguments
 
@@ -177,7 +186,7 @@ func Test_conference_tickets(t *testing.T) {
 			curRound:  func() uint64 { return 1709683000 },
 		}
 
-		wvm, err := New(context.Background(), env, observability.Default(t))
+		wvm, err := New(context.Background(), enc, env, observability.Default(t))
 		require.NoError(t, err)
 
 		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTMint.Payload.UnitID...)))
@@ -186,7 +195,7 @@ func Test_conference_tickets(t *testing.T) {
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
-		require.EqualValues(t, 0x102, res)
+		require.EqualValues(t, 0x0208, res)
 	})
 
 	t.Run("update_data", func(t *testing.T) {
@@ -221,7 +230,7 @@ func Test_conference_tickets(t *testing.T) {
 			curRound:  func() uint64 { return 1709683000 },
 		}
 
-		wvm, err := New(context.Background(), env, observability.Default(t))
+		wvm, err := New(context.Background(), enc, env, observability.Default(t))
 		require.NoError(t, err)
 
 		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
@@ -230,7 +239,7 @@ func Test_conference_tickets(t *testing.T) {
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
-		require.EqualValues(t, 0x102, res)
+		require.EqualValues(t, 0x0208, res)
 	})
 }
 
@@ -243,7 +252,7 @@ func TestNew(t *testing.T) {
 	env := &mockTxContext{}
 
 	require.NoError(t, err)
-	wvm, err := New(ctx, env, obs, WithStorage(memDB))
+	wvm, err := New(ctx, encoder.TXSystemEncoder{}, env, obs, WithStorage(memDB))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -113,7 +114,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
-				bd.V = bd.V + addedCredit - reclaimedCredit
+				bd.V = bd.V + uint64(addedCredit-reclaimedCredit)
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)
@@ -141,7 +142,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}
-				bd.V = bd.V + spentFeeSum
+				bd.V = bd.V + uint64(spentFeeSum)
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)

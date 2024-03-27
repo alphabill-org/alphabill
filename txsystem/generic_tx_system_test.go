@@ -86,7 +86,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := mockModule{
 			executors: map[string]ExecuteFunc{
-				"tx-type": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+				"tx-type": func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
 					return nil, expErr
 				},
 			},
@@ -100,7 +100,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := mockModule{executors: map[string]ExecuteFunc{
-			"tx-type": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+			"tx-type": func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
 				return &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}, nil
 			},
 		},

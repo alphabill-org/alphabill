@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 

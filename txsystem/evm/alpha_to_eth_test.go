@@ -7,6 +7,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -101,13 +102,13 @@ func Test_getAddressFromPredicateArg(t *testing.T) {
 
 func Test_alphaToWeiAndBack(t *testing.T) {
 	alpha := uint64(1)
-	wei := alphaToWei(alpha)
+	wei := alphaToWei(uint64(alpha))
 	require.EqualValues(t, "10000000000", wei.String())
 	mia := weiToAlpha(wei)
 	require.EqualValues(t, alpha, mia)
 
 	alpha = uint64(99)
-	wei = alphaToWei(alpha)
+	wei = alphaToWei(uint64(alpha))
 	mia = weiToAlpha(wei)
 	require.EqualValues(t, alpha, mia)
 }
@@ -139,7 +140,7 @@ func Test_alphaToWei(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := alphaToWei(tt.args.alpha); !reflect.DeepEqual(got, tt.want) {
+			if got := alphaToWei(uint64(tt.args.alpha)); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("alphaToWei() = %v, want %v", got, tt.want)
 			}
 		})
@@ -208,7 +209,7 @@ func Test_weiToAlpha(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := weiToAlpha(tt.args.wei); got != tt.want {
+			if got := uint64(weiToAlpha(tt.args.wei)); got != tt.want {
 				t.Errorf("weiToAlpha() = %v, want %v", got, tt.want)
 			}
 		})

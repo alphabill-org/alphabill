@@ -1,7 +1,6 @@
 package evm
 
 import (
-	"context"
 	gocrypto "crypto"
 	"fmt"
 	"math/big"
@@ -28,10 +27,8 @@ type (
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
-		execPredicate           PredicateExecutor
+		execPredicate           predicates.PredicateExecutor
 	}
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 
 	Option func(*Options)
 )

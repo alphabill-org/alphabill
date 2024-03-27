@@ -11,10 +11,11 @@ var cborNil = []byte{0xf6}
 
 type (
 	TransactionOrder struct {
-		_          struct{} `cbor:",toarray"`
-		Payload    *Payload
-		OwnerProof []byte
-		FeeProof   []byte
+		_           struct{} `cbor:",toarray"`
+		Payload     *Payload
+		OwnerProof  []byte
+		FeeProof    []byte
+		StateUnlock []byte // two CBOR data items: [0|1]+[<state lock/rollback predicate input>]
 	}
 
 	Payload struct {
@@ -23,7 +24,14 @@ type (
 		Type           string
 		UnitID         UnitID
 		Attributes     RawCBOR
+		StateLock      *StateLock
 		ClientMetadata *ClientMetadata
+	}
+
+	StateLock struct {
+		_                  struct{} `cbor:",toarray"`
+		ExecutionPredicate []byte   // this predicate has to be either nil or evaluate to true in order to execute the transaction
+		RollbackPredicate  []byte   // if this predicate evaluates to true, the lock is released and the "on hold" transaction is discarded
 	}
 
 	ClientMetadata struct {

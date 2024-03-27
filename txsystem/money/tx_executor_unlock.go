@@ -15,7 +15,7 @@ var (
 )
 
 func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] {
-	return func(tx *types.TransactionOrder, attr *UnlockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *UnlockAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -38,7 +38,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 				return nil, fmt.Errorf("unlock tx: unit %v does not contain bill data", unitID)
 			}
 			newBillData.Locked = 0
-			newBillData.T = currentBlockNumber
+			newBillData.T = ctx.CurrentBlockNr
 			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			return newBillData, nil
 		})

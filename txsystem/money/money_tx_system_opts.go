@@ -1,7 +1,6 @@
 package money
 
 import (
-	"context"
 	"crypto"
 	"fmt"
 
@@ -24,12 +23,10 @@ type (
 		trustBase                map[string]abcrypto.Verifier
 		systemDescriptionRecords []*genesis.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
-		exec                     PredicateExecutor
+		exec                     predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
 func defaultOptions() (*Options, error) {
@@ -87,7 +84,7 @@ func WithFeeCalculator(calc fc.FeeCalculator) Option {
 WithPredicateExecutor allows to replace the default predicate executor function.
 Should be used by tests only.
 */
-func WithPredicateExecutor(exec PredicateExecutor) Option {
+func WithPredicateExecutor(exec predicates.PredicateExecutor) Option {
 	return func(g *Options) {
 		if exec != nil {
 			g.exec = exec

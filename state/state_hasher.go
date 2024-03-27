@@ -43,6 +43,8 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 	// bearer update
 	unit.bearer = unit.latestUnitBearer()
 
+	unit.stateLockTx = unit.latestStateLockTx()
+
 	// D - unit data
 	unit.data = unit.latestUnitData()
 

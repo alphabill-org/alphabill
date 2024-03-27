@@ -30,6 +30,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
+
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -394,7 +395,7 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
-	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
+	} else if ucIR.SumOfEarnedFees != uint64(sumOfEarnedFees) {
 		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
@@ -461,7 +462,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if pr.GetBlockFees() != sumOfEarnedFees {
+	if pr.GetBlockFees() != uint64(sumOfEarnedFees) {
 		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.GetBlockFees(), sumOfEarnedFees))
 		n.revertState()
 		return
@@ -1236,7 +1237,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 				PreviousHash:    prevStateHash,
 				Hash:            stateHash,
 				SummaryValue:    summary,
-				SumOfEarnedFees: n.sumOfEarnedFees,
+				SumOfEarnedFees: uint64(n.sumOfEarnedFees),
 			},
 		},
 	}

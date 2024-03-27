@@ -10,6 +10,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedTokenUnitID)
 	roundNo := uint64(11)
-	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
@@ -103,7 +104,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			attr := &UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -122,7 +123,7 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
-	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
@@ -225,7 +226,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			attr := &UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})

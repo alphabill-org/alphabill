@@ -49,7 +49,7 @@ type (
 
 	StateUnitData struct {
 		Data   RawCBOR
-		Bearer Bytes
+		Bearer PredicateBytes
 	}
 
 	UnitDataAndProof struct {

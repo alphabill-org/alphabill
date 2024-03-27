@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestAddFC_AddNewFeeCredit(t *testing.T) {
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
 
-	sm, err := execFn(tx, attr, 10)
+	sm, err := execFn(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -60,7 +61,7 @@ func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 	existingFCR := &unit.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
-	sm, err := execFn(tx, attr, 10)
+	sm, err := execFn(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 

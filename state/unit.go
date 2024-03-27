@@ -16,6 +16,7 @@ type (
 		logsHash            []byte               // root value of the hash tree built on the logs
 		bearer              types.PredicateBytes // current bearer condition
 		data                UnitData             // current data of the unit
+		stateLockTx         []byte               // bytes of transaction that locked the unit
 		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
 		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
@@ -34,6 +35,7 @@ type (
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
 		NewBearer          types.PredicateBytes
 		NewUnitData        UnitData
+		NewStateLockTx     []byte
 	}
 )
 
@@ -51,6 +53,7 @@ func (u *Unit) Clone() *Unit {
 	return &Unit{
 		logs:                copyLogs(u.logs),
 		bearer:              bytes.Clone(u.bearer),
+		stateLockTx:         bytes.Clone(u.stateLockTx),
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,
 		summaryCalculated:   false,
@@ -63,6 +66,14 @@ func (u *Unit) String() string {
 
 func (u *Unit) Bearer() types.PredicateBytes {
 	return bytes.Clone(u.bearer)
+}
+
+func (u *Unit) IsStateLocked() bool {
+	return len(u.stateLockTx) > 0
+}
+
+func (u *Unit) StateLockTx() []byte {
+	return bytes.Clone(u.stateLockTx)
 }
 
 func (u *Unit) Data() UnitData {
@@ -98,12 +109,16 @@ func (l *Log) Clone() *Log {
 		UnitLedgerHeadHash: bytes.Clone(l.UnitLedgerHeadHash),
 		NewBearer:          bytes.Clone(l.NewBearer),
 		NewUnitData:        copyData(l.NewUnitData),
+		NewStateLockTx:     bytes.Clone(l.NewStateLockTx),
 	}
 }
 
 func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.NewBearer)
+	if l.NewStateLockTx != nil {
+		hasher.Write(l.NewStateLockTx)
+	}
 	if l.NewUnitData != nil {
 		// todo: change Hash interface to allow errors
 		_ = l.NewUnitData.Write(hasher)
@@ -131,4 +146,12 @@ func (u *Unit) latestUnitData() UnitData {
 		return u.data
 	}
 	return u.logs[l-1].NewUnitData
+}
+
+func (u *Unit) latestStateLockTx() []byte {
+	l := len(u.logs)
+	if l == 0 {
+		return u.stateLockTx
+	}
+	return u.logs[l-1].NewStateLockTx
 }

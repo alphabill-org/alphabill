@@ -27,7 +27,7 @@ var (
 )
 
 func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -50,8 +50,8 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
-			newBillData.V -= attr.Amount
-			newBillData.T = currentBlockNumber
+			newBillData.V -= uint64(attr.Amount)
+			newBillData.T = ctx.CurrentBlockNr
 			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			return newBillData, nil
 		})
@@ -90,7 +90,7 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if attr.Amount > bd.V {
+	if uint64(attr.Amount) > bd.V {
 		return ErrInvalidFCValue
 	}
 	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {

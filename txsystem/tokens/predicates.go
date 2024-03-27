@@ -3,6 +3,7 @@ package tokens
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 )
@@ -25,7 +26,7 @@ func runChainedPredicates[T state.UnitData](
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
 	args [][]byte,
-	exec func(pred, arg []byte, txo *types.TransactionOrder) error,
+	exec predicates.PredicateRunner,
 	iter func(d T) (types.UnitID, []byte),
 	getUnit func(id types.UnitID, committed bool) (*state.Unit, error),
 ) error {

@@ -18,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 
@@ -57,7 +57,7 @@ func newAddFCTx(t *testing.T, unitID []byte, attr *transactions.AddFeeCreditAttr
 	return tx
 }
 
-func evmTestFeeCalculator() fct.Fee {
+func evmTestFeeCalculator() uint64 {
 	return 2
 }
 
@@ -150,8 +150,8 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 			TransactionOrder: testutils.NewTransferFC(t, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
 			ServerMetadata:   nil,
 		}))
-	closeFCAmount := fct.Fee(20)
-	closeFCFee := fct.Fee(2)
+	closeFCAmount := uint64(20)
+	closeFCFee := uint64(2)
 	closeFCAttr := testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(closeFCAmount))
 	closureTx := testutils.WithReclaimFCClosureTx(
 		&types.TransactionRecord{

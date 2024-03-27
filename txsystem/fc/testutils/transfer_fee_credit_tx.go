@@ -3,7 +3,6 @@ package testutils
 import (
 	"testing"
 
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
@@ -55,7 +54,7 @@ func NewTransferFCAttr(opts ...TransferFeeCreditOption) *transactions.TransferFe
 	return defaultTx
 }
 
-func WithAmount(amount fct.Fee) TransferFeeCreditOption {
+func WithAmount(amount uint64) TransferFeeCreditOption {
 	return func(tx *transactions.TransferFeeCreditAttributes) TransferFeeCreditOption {
 		tx.Amount = amount
 		return nil

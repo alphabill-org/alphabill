@@ -3,7 +3,6 @@ package money
 import (
 	"testing"
 
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
@@ -17,8 +16,8 @@ func TestTxRecording(t *testing.T) {
 	f := newFeeCreditTxRecorder(nil, 0, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
-	transferFCAmount := fct.Fee(10)
-	transferFCFee := fct.Fee(1)
+	transferFCAmount := uint64(10)
+	transferFCFee := uint64(1)
 	attr := testutils.NewTransferFCAttr(testutils.WithAmount(transferFCAmount))
 	f.recordTransferFC(
 		&transferFeeCreditTx{
@@ -31,9 +30,9 @@ func TestTxRecording(t *testing.T) {
 		},
 	)
 
-	closeFCAmount := fct.Fee(20)
-	closeFCFee := fct.Fee(2)
-	reclaimFCFee := fct.Fee(3)
+	closeFCAmount := uint64(20)
+	closeFCFee := uint64(2)
+	reclaimFCFee := uint64(3)
 
 	closeFCAttr := testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(closeFCAmount))
 	closureTx := testutils.WithReclaimFCClosureTx(

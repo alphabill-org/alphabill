@@ -6,7 +6,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/state"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -15,7 +15,7 @@ import (
 // not to be confused with fee credit bills which contain aggregate fees for a given partition.
 type FeeCreditRecord struct {
 	_        struct{} `cbor:",toarray"`
-	Balance  fct.Fee  // current balance
+	Balance  uint64   // current balance
 	Backlink []byte   // hash of the last “addFC”, "closeFC", "lockFC" or "unlockFC" transaction
 	Timeout  uint64   // the earliest round number when this record may be “garbage collected” if the balance goes to zero
 	Locked   uint64   // locked status of the fee credit record, non-zero value means locked

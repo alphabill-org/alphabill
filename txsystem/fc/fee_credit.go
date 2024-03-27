@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -38,11 +38,11 @@ type (
 		feeCreditRecordUnitType []byte
 	}
 
-	FeeCalculator func() fct.Fee
+	FeeCalculator func() uint64
 )
 
-func FixedFee(fee fct.Fee) FeeCalculator {
-	return func() fct.Fee {
+func FixedFee(fee uint64) FeeCalculator {
+	return func() uint64 {
 		return fee
 	}
 }

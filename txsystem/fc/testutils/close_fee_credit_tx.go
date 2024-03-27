@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
 	}
 }
 
-func WithCloseFCAmount(amount fct.Fee) CloseFCOption {
+func WithCloseFCAmount(amount uint64) CloseFCOption {
 	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
 		tx.Amount = amount
 		return nil

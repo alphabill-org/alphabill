@@ -5,8 +5,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 )
 
 var cborNil = []byte{0xf6}
@@ -19,13 +17,6 @@ type (
 		FeeProof    []byte
 		StateUnlock []byte // two CBOR data items: [0|1]+[<state lock/rollback predicate input>]
 	}
-
-	//TransactionProofs struct { // TODO
-	//	_           struct{} `cbor:",toarray"`
-	//	Owner       []byte
-	//	Fee         []byte
-	//	StateUnlock []byte
-	//}
 
 	Payload struct {
 		_              struct{} `cbor:",toarray"`
@@ -46,7 +37,7 @@ type (
 	ClientMetadata struct {
 		_                 struct{} `cbor:",toarray"`
 		Timeout           uint64
-		MaxTransactionFee fct.Fee
+		MaxTransactionFee uint64
 		FeeCreditRecordID []byte
 	}
 
@@ -105,7 +96,7 @@ func (t *TransactionOrder) GetClientFeeCreditRecordID() []byte {
 	return t.Payload.ClientMetadata.FeeCreditRecordID
 }
 
-func (t *TransactionOrder) GetClientMaxTxFee() fct.Fee {
+func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
 	if t.Payload == nil || t.Payload.ClientMetadata == nil {
 		return 0
 	}

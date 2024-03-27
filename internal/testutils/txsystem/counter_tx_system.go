@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -34,7 +34,7 @@ type CounterTxSystem struct {
 	committedUC *types.UnicityCertificate
 
 	// fee charged for each tx
-	Fee fct.Fee
+	Fee uint64
 
 	// mutex guarding all CounterTxSystem fields
 	mu sync.Mutex

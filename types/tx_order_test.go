@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"testing"
 
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +22,7 @@ var (
 	payloadAttributesType          = "transfer"
 	unitID                         = make([]byte, 32)
 	timeout               uint64   = 42
-	maxFee                fct.Fee  = 69
+	maxFee                uint64   = 69
 	feeCreditRecordID              = []byte{32, 32, 32, 32}
 	newBearer                      = []byte{1, 2, 3, 4}
 	targetValue           uint64   = 100

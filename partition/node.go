@@ -30,7 +30,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
@@ -91,7 +91,7 @@ type (
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		proposedTransactions        []*types.TransactionRecord
-		sumOfEarnedFees             fct.Fee
+		sumOfEarnedFees             uint64
 		pendingBlockProposal        *types.Block
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
@@ -303,7 +303,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 				luc.GetRoundNumber(), luc.InputRecord.BlockHash, bl.GetRoundNumber(), bl.Header.PreviousBlockHash)
 		}
 		var state txsystem.StateSummary
-		var sumOfEarnedFees fct.Fee
+		var sumOfEarnedFees uint64
 		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
@@ -387,7 +387,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 }
 
-func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees fct.Fee, ucIR *types.InputRecord) error {
+func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
 	if ucIR == nil {
 		return errors.New("unicity certificate input record is nil")
 	}
@@ -401,11 +401,11 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees fct.Fee, u
 	return nil
 }
 
-func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, fct.Fee, error) {
+func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, uint64, error) {
 	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(attribute.Int64("round", int64(round))))
 	defer span.End()
 
-	var sumOfEarnedFees fct.Fee
+	var sumOfEarnedFees uint64
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
 	}
@@ -1096,7 +1096,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStateHash) {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("received block does not extend last unicity certificate"))
 		}
-		var sumOfEarnedFees fct.Fee
+		var sumOfEarnedFees uint64
 		state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, latestProcessedRoundNumber+1, b.Transactions)
 		if err != nil {
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err))

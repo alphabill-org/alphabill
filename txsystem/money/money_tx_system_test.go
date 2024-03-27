@@ -18,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
@@ -41,7 +41,7 @@ var (
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	fcrID         = NewFeeCreditRecordID(nil, []byte{88})
-	fcrAmount     = fct.Fee(1e8)
+	fcrAmount     = uint64(1e8)
 	moneySystemID = DefaultSystemIdentifier
 )
 
@@ -655,7 +655,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	transferFC := testutils.NewTransferFC(t,
 		testutils.NewTransferFCAttr(
 			testutils.WithBacklink(nil),
-			testutils.WithAmount(fct.Fee(txAmount)),
+			testutils.WithAmount(uint64(txAmount)),
 			testutils.WithTargetRecordID(fcrUnitID),
 		),
 		testtransaction.WithUnitId(initialBillID),
@@ -716,7 +716,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	targetBacklink = lockTx.Hash(crypto.SHA256)
 	closeFC := testutils.NewCloseFC(t,
 		testutils.NewCloseFCAttr(
-			testutils.WithCloseFCAmount(fct.Fee(remainingValue)),
+			testutils.WithCloseFCAmount(uint64(remainingValue)),
 			testutils.WithCloseFCTargetUnitID(initialBillID),
 			testutils.WithCloseFCTargetUnitBacklink(targetBacklink),
 		),

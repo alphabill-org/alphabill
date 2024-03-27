@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
-	fct "github.com/alphabill-org/alphabill/txsystem/fc/types"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -20,7 +20,7 @@ func DelCredit(id types.UnitID) state.Action {
 }
 
 // IncrCredit increments the balance of given FeeCreditRecord
-func IncrCredit(id types.UnitID, value fct.Fee, timeout uint64, transactionRecordHash []byte) state.Action {
+func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecordHash []byte) state.Action {
 	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {
@@ -37,7 +37,7 @@ func IncrCredit(id types.UnitID, value fct.Fee, timeout uint64, transactionRecor
 }
 
 // DecrCredit decrements the balance of given FeeCreditRecord
-func DecrCredit(id types.UnitID, value fct.Fee) state.Action {
+func DecrCredit(id types.UnitID, value uint64) state.Action {
 	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {

@@ -111,6 +111,9 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
+		if u.stateLockTx != nil && stateLockTx != nil {
+			return errors.New("unit already has a state lock")
+		}
 		cloned := u.Clone()
 		cloned.stateLockTx = stateLockTx
 		if err = s.Update(id, cloned); err != nil {

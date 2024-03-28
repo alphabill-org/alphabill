@@ -38,12 +38,12 @@ const (
 
 type (
 	Allocator interface {
-		Allocate(mem allocator.Memory, size uint32) (uint32, error)
-		Deallocate(mem allocator.Memory, ptr uint32) error
+		Alloc(mem allocator.Memory, size uint32) (uint32, error)
+		Free(mem allocator.Memory, ptr uint32) error
 	}
 
 	VmContext struct {
-		Alloc   Allocator
+		MemMngr Allocator
 		Storage keyvaluedb.KeyValueDB
 		curPrg  *EvalContext
 		encoder Encoder
@@ -125,7 +125,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 	}
 
 	size := uint32(len(buf))
-	addr, err := vmCtx.Alloc.Allocate(mem, size)
+	addr, err := vmCtx.MemMngr.Alloc(mem, size)
 	if err != nil {
 		return 0, fmt.Errorf("allocating memory: %w", err)
 
@@ -205,7 +205,7 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 
 	// do we need to create new mem manager for each predicate?
 	hb := api.DecodeU32(global.Get())
-	vm.ctx.Alloc = allocator.NewFreeingBumpHeapAllocator(hb)
+	vm.ctx.MemMngr = allocator.NewBumpAllocator(hb, m.Memory().Definition())
 	vm.ctx.curPrg.mod = m
 	vm.ctx.curPrg.varIdx = handle_max_reserved
 	defer vm.ctx.EndEval()
@@ -261,7 +261,9 @@ func hostAPI(f func(vec *VmContext, mod api.Module, stack []uint64) error) api.G
 		}
 		if err := f(rtCtx, mod, stack); err != nil {
 			rtCtx.log.ErrorContext(ctx, "host API returned error", logger.Error(err))
-			rtCtx.curPrg.mod.CloseWithExitCode(ctx, 0xBAD00BAD)
+			if err = rtCtx.curPrg.mod.CloseWithExitCode(ctx, 0xBAD00BAD); err != nil {
+				rtCtx.log.ErrorContext(ctx, "host API close with exit", logger.Error(err))
+			}
 		}
 	}
 }

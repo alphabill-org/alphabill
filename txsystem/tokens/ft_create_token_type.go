@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -10,19 +9,18 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
-func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
+func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateCreateFungibleTokenType(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := m.validateCreateFungibleTokenType(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := m.feeCalculator()
 
 		unitID := tx.UnitID()
 		// update state
-		if err := options.state.Apply(
+		if err := m.state.Apply(
 			state.AddUnit(unitID, templates.AlwaysTrueBytes(), newFungibleTokenTypeData(attr)),
 		); err != nil {
 			return nil, err
@@ -32,7 +30,7 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 	}
 }
 
-func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+func (m *FungibleTokensModule) validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -60,7 +58,7 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		return fmt.Errorf("invalid decimal places. maximum allowed value %v, got %v", maxDecimalPlaces, decimalPlaces)
 	}
 
-	u, err := s.GetUnit(unitID, false)
+	u, err := m.state.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit %v exists", unitID)
 	}
@@ -69,7 +67,7 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 	}
 
 	if attr.ParentTypeID != nil {
-		_, parentData, err := getUnit[*FungibleTokenTypeData](s, attr.ParentTypeID)
+		parentData, err := getUnitData[*FungibleTokenTypeData](m.state.GetUnit, attr.ParentTypeID)
 		if err != nil {
 			return err
 		}
@@ -78,26 +76,20 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		}
 	}
 
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		attr.ParentTypeID,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.SubTypeCreationPredicate
+		attr.SubTypeCreationPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.SubTypeCreationPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("SubTypeCreationPredicate: %w", err)
 	}
-
-	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return err
-	}
-	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
+	return nil
 }
 
 func (c *CreateFungibleTokenTypeAttributes) GetSymbol() string {
@@ -185,5 +177,5 @@ func (c *CreateFungibleTokenTypeAttributes) SigBytes() ([]byte, error) {
 		InvariantPredicate:                 c.InvariantPredicate,
 		SubTypeCreationPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

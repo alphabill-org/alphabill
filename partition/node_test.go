@@ -72,8 +72,8 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 
 	uc1 := tp.GetCommittedUC(t)
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
@@ -82,15 +82,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	require.NoError(t, db.Write(util.Uint64ToBytes(1), newBlock1))
 	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
 	// add transactions from block 4 as pending block
-	proposal := &pendingBlockProposal{
-		RoundNumber:    newBlock3.GetRoundNumber(),
-		ProposerNodeId: newBlock3.GetProposerID(),
-		PrevHash:       newBlock2.UnicityCertificate.InputRecord.Hash,
-		StateHash:      newBlock3.UnicityCertificate.InputRecord.Hash,
-		Transactions:   newBlock3.Transactions,
-		StateSummary:   make([]byte, 8),
-	}
-	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
+	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), newBlock3))
 	// start node with db filled
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -161,6 +153,9 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.True(t, ContainsTransaction(block3, tx1))
 	require.True(t, ContainsTransaction(block3, tx2))
 	require.False(t, ContainsTransaction(block3, transfer))
+
+	_, _, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(33))
+	require.ErrorIs(t, err, ErrIndexNotFound)
 }
 
 // create non-empty block #1 -> empty block #2 -> empty block #3 -> non-empty block #4
@@ -439,6 +434,7 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 	// when UC with modified IR.SumOfEarnedFees is received
 	tp.SubmitT1Timeout(t)
 	uc := tp.IssueBlockUC(t)
+	uc.InputRecord = copyIR(uc.InputRecord)
 	uc.InputRecord.SumOfEarnedFees += 1
 	tp.SubmitUnicityCertificate(uc)
 
@@ -613,7 +609,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
-	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0, false))
+	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
 	require.NoError(t, tp.partition.startNewRound(context.Background(), tp.partition.luc.Load()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
 	hash := txo.Hash(tp.partition.configuration.hashAlgorithm)
@@ -643,7 +639,7 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	tp := RunSingleNodePartition(t, system, WithProofIndex(db, 0, false))
+	tp := RunSingleNodePartition(t, system, WithProofIndex(db, 0))
 	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrIndexNotFound)
 	require.Nil(t, record)

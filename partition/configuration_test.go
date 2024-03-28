@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -60,7 +59,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, tt.args.txs, logger.New(t))
+			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, tt.args.txs)
 			require.ErrorIs(t, tt.wantErr, err)
 			require.Nil(t, c)
 		})
@@ -71,7 +70,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -94,18 +93,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	selector := NewDefaultLeaderSelector()
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(
-		signer,
-		pg,
-		&testtxsystem.CounterTxSystem{},
-		logger.New(t),
-		WithTxValidator(&AlwaysValidTransactionValidator{}),
-		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
-		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
-		WithLeaderSelector(selector),
-		WithBlockStore(blockStore),
-		WithT1Timeout(t1Timeout),
-	)
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -137,7 +125,7 @@ func TestGetPublicKey_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 
 	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
@@ -150,7 +138,7 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	_, err = conf.GetSigningPublicKey("1")
 	require.ErrorContains(t, err, "public key for id 1 not found")
@@ -161,7 +149,7 @@ func TestGetRootNodes(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, logger.New(t))
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	nodes, err := conf.getRootNodes()
 	require.NoError(t, err)

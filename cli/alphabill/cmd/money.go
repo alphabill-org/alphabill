@@ -9,9 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -19,9 +20,8 @@ import (
 type (
 	moneyNodeConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		grpcServer *grpcServerConfiguration
-		rpcServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		rpcServer *rpc.ServerConfiguration
 	}
 
 	// moneyNodeRunnable is the function that is run after configuration is loaded.
@@ -37,7 +37,6 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 			Base: baseConfig,
 		},
 		Node:      &startNodeConfiguration{},
-		grpcServer: &grpcServerConfiguration{},
 		rpcServer: &rpc.ServerConfiguration{},
 	}
 	var nodeCmd = &cobra.Command{
@@ -54,7 +53,6 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "money")
 	addRPCServerConfigurationFlags(nodeCmd, config.rpcServer)
-	config.grpcServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -65,7 +63,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	if err := cbor.Unmarshal(pg.Params, params); err != nil {
+	if err := types.Cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
@@ -114,7 +112,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	txs, err := money.NewTxSystem(
-		log,
+		obs,
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
@@ -124,10 +122,13 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-
-	return run(ctx, "money node", node, cfg.grpcServer, cfg.rpcServer, proofStore, obs)
+	return run(ctx, "money node", node, cfg.rpcServer, ownerIndexer, obs)
 }

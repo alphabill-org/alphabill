@@ -35,7 +35,7 @@ const (
 	boltRootChainStoreFileName = "rootchain.db"
 	rootPortCmdFlag            = "root-listener"
 	rootBootStrapNodesCmdFlag  = "bootnodes"
-	defaultNetworkTimeout      = 1 * time.Second
+	defaultNetworkTimeout      = 300 * time.Millisecond
 )
 
 type rootNodeConfig struct {

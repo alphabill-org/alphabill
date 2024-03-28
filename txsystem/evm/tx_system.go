@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -37,7 +36,10 @@ type TxSystem struct {
 }
 
 func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
-	options := DefaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, fmt.Errorf("default configuration: %w", err)
+	}
 	for _, option := range opts {
 		option(options)
 	}
@@ -80,7 +82,7 @@ func (m *TxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *TxSystem) State() *state.State {
+func (m *TxSystem) State() txsystem.StateReader {
 	return m.state.Clone()
 }
 
@@ -190,11 +192,4 @@ func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
 
 func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
-}
-
-func (m *TxSystem) SerializeState(writer io.Writer, committed bool) error {
-	header := &state.Header{
-		SystemIdentifier: m.systemIdentifier,
-	}
-	return m.state.Serialize(writer, header, committed)
 }

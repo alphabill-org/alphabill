@@ -6,7 +6,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 // FeeCreditRecord state tree unit data of fee credit records.
@@ -21,11 +21,7 @@ type FeeCreditRecord struct {
 }
 
 func (b *FeeCreditRecord) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(b)
+	res, err := types.Cbor.Marshal(b)
 	if err != nil {
 		return fmt.Errorf("fee credit serialization error: %w", err)
 	}

@@ -6,21 +6,22 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 type (
 	tokensConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		GRPCServer *grpcServerConfiguration
-		RPCServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		RPCServer *rpc.ServerConfiguration
 	}
 )
 
@@ -29,9 +30,8 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		GRPCServer: &grpcServerConfiguration{},
-		RPCServer:  &rpc.ServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		RPCServer: &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -45,7 +45,6 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "tokens")
 	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
-	config.GRPCServer.addConfigurationFlags(nodeCmd)
 
 	return nodeCmd
 }
@@ -101,7 +100,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	}
 
 	txs, err := tokens.NewTxSystem(
-		log,
+		obs,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
@@ -110,9 +109,13 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
+	return run(ctx, "tokens node", node, cfg.RPCServer, ownerIndexer, obs)
 }

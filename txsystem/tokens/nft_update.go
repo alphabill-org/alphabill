@@ -2,27 +2,24 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
-func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
+func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := validateUpdateNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+		if err := n.validateUpdateNonFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := n.feeCalculator()
 		unitID := tx.UnitID()
 
 		// update state
-		if err := options.state.Apply(
+		if err := n.state.Apply(
 			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
 				d, ok := data.(*NonFungibleTokenData)
 				if !ok {
@@ -30,7 +27,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 				}
 				d.Data = attr.Data
 				d.T = currentBlockNr
-				d.Backlink = tx.Hash(options.hashAlgorithm)
+				d.Backlink = tx.Hash(n.hashAlgorithm)
 				return d, nil
 			})); err != nil {
 			return nil, err
@@ -40,7 +37,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 	}
 }
 
-func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
@@ -48,7 +45,7 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if !unitID.HasType(NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
-	u, err := s.GetUnit(unitID, false)
+	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {
 		return err
 	}
@@ -62,26 +59,24 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if !bytes.Equal(data.Backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
 	}
-	ps, err := getChainedPredicates[*NonFungibleTokenTypeData](
-		hashAlgorithm,
-		s,
+
+	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx); err != nil {
+		return fmt.Errorf("data update predicate: %w", err)
+	}
+	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		tx,
 		data.NftType,
-		func(d *NonFungibleTokenTypeData) []byte {
-			return d.DataUpdatePredicate
+		attr.DataUpdateSignatures[1:],
+		n.execPredicate,
+		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.DataUpdatePredicate
 		},
-		func(d *NonFungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		n.state.GetUnit,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf(`token type DataUpdatePredicate: %w`, err)
 	}
-	ps = append([]predicates.PredicateBytes{data.DataUpdatePredicate}, ps...)
-	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return err
-	}
-	return verifyPredicates(ps, attr.DataUpdateSignatures, sigBytes)
+	return nil
 }
 
 func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {
@@ -115,5 +110,5 @@ func (u *UpdateNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:             u.Backlink,
 		DataUpdateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }

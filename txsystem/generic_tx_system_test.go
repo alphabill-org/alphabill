@@ -7,29 +7,29 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/types"
 )
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("system ID param is mandatory", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(nil, nil, nil)
+		txSys, err := NewGenericTxSystem(0, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `system ID must be assigned`)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		logr := logger.New(t)
+		obs := observability.Default(t)
 		feeCheck := func(tx *types.TransactionOrder) error { return errors.New("FCC") }
 		txSys, err := NewGenericTxSystem(
-			logr,
+			1,
 			feeCheck,
 			nil,
-			WithSystemIdentifier(1),
+			obs,
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, txSys.systemIdentifier)
-		require.Equal(t, logr, txSys.log)
+		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.checkFeeCreditBalance)
 		require.EqualError(t, txSys.checkFeeCreditBalance(nil), "FCC")
 	})
@@ -39,10 +39,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	createTxSystem := func(t *testing.T, modules []Module) *GenericTxSystem {
 		txs, err := NewGenericTxSystem(
-			logger.New(t),
+			1,
 			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
 			modules,
-			WithSystemIdentifier(1),
+			observability.Default(t),
 		)
 		require.NoError(t, err)
 		txs.currentBlockNumber = 837644
@@ -115,15 +115,15 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 
-	// these tests shouldn't need logger but create one and share it for all sub-tests
-	logr := logger.New(t)
+	// share observability between all sub-tests
+	obs := observability.Default(t)
 
 	createTxSystem := func(t *testing.T) *GenericTxSystem {
 		txs, err := NewGenericTxSystem(
-			logr,
+			1,
 			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
 			nil, // test doesn't depend on modules
-			WithSystemIdentifier(1),
+			obs,
 		)
 		require.NoError(t, err)
 		txs.currentBlockNumber = 837644

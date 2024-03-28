@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -21,17 +23,9 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -56,8 +50,7 @@ type startNodeConfiguration struct {
 	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, grpcServerConf *grpcServerConfiguration, rpcServerConf *rpc.ServerConfiguration,
-	proofStore keyvaluedb.KeyValueDB, obs Observability) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
 	log := obs.Logger()
 	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 
@@ -66,57 +59,25 @@ func run(ctx context.Context, name string, node *partition.Node, grpcServerConf 
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		grpcServer, err := initGRPCServer(node, grpcServerConf, obs, log)
-		if err != nil {
-			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
-		}
-
-		listener, err := net.Listen("tcp", grpcServerConf.Address)
-		if err != nil {
-			return fmt.Errorf("failed to open listener on %q for %s: %w", grpcServerConf.Address, name, err)
-		}
-
-		errch := make(chan error, 1)
-		go func() {
-			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server starting on %s", name, grpcServerConf.Address))
-			if err := grpcServer.Serve(listener); err != nil {
-				errch <- err
-				return
-			}
-			errch <- nil
-		}()
-
-		select {
-		case <-ctx.Done():
-			grpcServer.GracefulStop()
-			err := <-errch
-			if err != nil {
-				log.WarnContext(ctx, name+" gRPC server exited with error", logger.Error(err))
-			} else {
-				log.InfoContext(ctx, name+" gRPC server exited")
-			}
-			return ctx.Err()
-		case err := <-errch:
-			return err
-		}
-	})
-
-	g.Go(func() error {
 		if rpcServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
 		routers := []rpc.Registrar{
-			rpc.NodeEndpoints(node, proofStore, obs),
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
-			rpc.InfoEndpoints(node, name, node.GetPeer(), log),
 		}
 		if rpcServerConf.Router != nil {
 			routers = append(routers, rpcServerConf.Router)
 		}
-		rpcServerConf.APIs = []rpc.API{{
-			Namespace: "state",
-			Service:   rpc.NewStateAPI(node),
-		}}
+		rpcServerConf.APIs = []rpc.API{
+			{
+				Namespace: "state",
+				Service:   rpc.NewStateAPI(node, ownerIndexer),
+			},
+			{
+				Namespace: "admin",
+				Service:   rpc.NewAdminAPI(node, name, node.GetPeer(), log),
+			},
+		}
 
 		rpcServer, err := rpc.NewHTTPServer(rpcServerConf, obs, routers...)
 		if err != nil {
@@ -180,8 +141,6 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	}
 	sort.Sort(validatorIdentifiers)
 
-	// Assume monolithic root chain for now and only extract the id of the first root node.
-	// Assume monolithic root chain is also a bootstrap node.
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -189,27 +148,8 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
 }
 
-func initGRPCServer(node *partition.Node, cfg *grpcServerConfiguration, obs partition.Observability, log *slog.Logger) (*grpc.Server, error) {
-	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
-		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
-		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
-		grpc.UnaryInterceptor(rpc.InstrumentMetricsUnaryServerInterceptor(obs.Meter(rpc.MetricsScopeGRPCAPI), log)),
-		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(obs.TracerProvider()))),
-	)
-	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
-
-	rpcServer, err := rpc.NewGRPCServer(node, obs, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
-	if err != nil {
-		return nil, err
-	}
-
-	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
-	return grpcServer, nil
-}
-
 func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
-	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, obs Observability) (*partition.Node, error) {
+	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -232,8 +172,8 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
-		partition.WithProofIndex(proofStore, 20, cfg.WithOwnerIndex),
-		// TODO history size!
+		partition.WithProofIndex(proofStore, 20), // TODO history size!
+		partition.WithOwnerIndex(ownerIndexer),
 	}
 
 	node, err := partition.NewNode(
@@ -301,6 +241,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {
 	cmd.Flags().StringVar(&c.Address, "rpc-server-address", "",
 		"Specifies the TCP address for the RPC server to listen on, in the form \"host:port\". RPC server isn't initialised if Address is empty. (default \"\")")
+
 	cmd.Flags().DurationVar(&c.ReadTimeout, "rpc-server-read-timeout", 0,
 		"The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. (default 0)")
 	cmd.Flags().DurationVar(&c.ReadHeaderTimeout, "rpc-server-read-header-timeout", 0,
@@ -317,4 +258,23 @@ func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfigurati
 		"The maximum number of requests in a batch.")
 	cmd.Flags().IntVar(&c.BatchResponseSizeLimit, "rpc-server-batch-response-size-limit", rpc.DefaultBatchResponseSizeLimit,
 		"The maximum number of response bytes across all requests in a batch.")
+
+	hideFlags(cmd,
+		"rpc-server-read-timeout",
+		"rpc-server-read-header-timeout",
+		"rpc-server-write-timeout",
+		"rpc-server-idle-timeout",
+		"rpc-server-max-header",
+		"rpc-server-max-body",
+		"rpc-server-batch-item-limit",
+		"rpc-server-batch-response-size-limit",
+	)
+}
+
+func hideFlags(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.Flags().MarkHidden(flag); err != nil {
+			panic(err)
+		}
+	}
 }

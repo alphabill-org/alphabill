@@ -10,13 +10,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -53,7 +51,7 @@ type moneyGenesisConfig struct {
 	OutputState        string
 	InitialBillID      types.UnitID
 	InitialBillValue   uint64 `validate:"gte=0"`
-	InitialBillOwner   predicates.PredicateBytes
+	InitialBillOwner   types.PredicateBytes
 	DCMoneySupplyValue uint64   `validate:"gte=0"`
 	T2Timeout          uint32   `validate:"gte=0"`
 	SDRFiles           []string // system description record files
@@ -174,7 +172,7 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	src := &genesis.MoneyPartitionParams{
 		SystemDescriptionRecords: sdrs,
 	}
-	res, err := cbor.Marshal(src)
+	res, err := types.Cbor.Marshal(src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
 	}
@@ -281,7 +279,5 @@ func writeStateFile(path string, s *state.State, systemID types.SystemID) error 
 	if err != nil {
 		return err
 	}
-	return s.Serialize(stateFile, &state.Header{
-		SystemIdentifier: systemID,
-	}, false)
+	return s.Serialize(stateFile, false)
 }

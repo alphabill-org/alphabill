@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/fxamacker/cbor/v2"
 )
 
 type ProcessingDetails struct {
@@ -34,7 +33,7 @@ func errorToStr(err error) string {
 	return ""
 }
 func (d *ProcessingDetails) Bytes() ([]byte, error) {
-	return cbor.Marshal(d)
+	return types.Cbor.Marshal(d)
 }
 
 func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {

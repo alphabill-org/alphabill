@@ -1,11 +1,11 @@
 package types
 
 import (
+	"crypto"
 	"encoding/hex"
 	"errors"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,13 +88,13 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	require.Equal(t, []byte{0x85, 0x00, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
-	require.NoError(t, cbor.Unmarshal(payloadBytes, payload))
+	require.NoError(t, Cbor.Unmarshal(payloadBytes, payload))
 	require.EqualValues(t, order.Payload, payload)
 }
 
 func TestUnmarshalPayload(t *testing.T) {
 	payload := &Payload{}
-	require.NoError(t, cbor.Unmarshal(hexDecode(t, payloadInHEX), payload))
+	require.NoError(t, Cbor.Unmarshal(hexDecode(t, payloadInHEX), payload))
 
 	require.Equal(t, systemID, payload.SystemID)
 	require.Equal(t, payloadAttributesType, payload.Type)
@@ -111,6 +111,22 @@ func TestUnmarshalPayload(t *testing.T) {
 	require.Equal(t, timeout, clientMetadata.Timeout)
 	require.Equal(t, maxFee, clientMetadata.MaxTransactionFee)
 	require.Equal(t, feeCreditRecordID, clientMetadata.FeeCreditRecordID)
+}
+
+func TestUnmarshalAttributes(t *testing.T) {
+	txOrder := createTxOrder(t)
+	attributes := &Attributes{}
+	require.NoError(t, txOrder.UnmarshalAttributes(attributes))
+	require.Equal(t, newBearer, attributes.NewBearer)
+	require.Equal(t, targetValue, attributes.TargetValue)
+	require.Equal(t, backlink, attributes.Backlink)
+	require.Equal(t, UnitID(unitID), txOrder.UnitID())
+	require.Equal(t, systemID, txOrder.SystemID())
+	require.Equal(t, timeout, txOrder.Timeout())
+	require.Equal(t, payloadAttributesType, txOrder.PayloadType())
+	require.Equal(t, feeCreditRecordID, txOrder.GetClientFeeCreditRecordID())
+	require.Equal(t, maxFee, txOrder.GetClientMaxTxFee())
+	require.NotNil(t, txOrder.Hash(crypto.SHA256))
 }
 
 func Test_TransactionOrder_SetOwnerProof(t *testing.T) {
@@ -143,7 +159,7 @@ func Test_Payload_SetAttributes(t *testing.T) {
 func createTxOrder(t *testing.T) *TransactionOrder {
 	attributes := &Attributes{NewBearer: newBearer, TargetValue: targetValue, Backlink: backlink}
 
-	attr, err := cbor.Marshal(attributes)
+	attr, err := Cbor.Marshal(attributes)
 	require.NoError(t, err)
 
 	order := &TransactionOrder{Payload: &Payload{

@@ -1,4 +1,7 @@
 #!/bin/bash
+
+rootPortStart=26662
+
 # generate logger configuration file
 function generate_log_configuration() {
   # to iterate over all home directories
@@ -29,20 +32,16 @@ EOT
   done
   return 0
 }
-# default to get the set-up up and running configure root nodes as bootnodes
-function generate_boot_nodes() {
-    local rootPort=$1
-    local bootNodes=""
-    for keyf in testab/rootchain*/rootchain/keys.json
-    do
-      id=$(build/alphabill identifier -k $keyf | tail -n1)
-      bootNodes="$id@/ip4/127.0.0.1/tcp/$rootPort,$bootNodes"
-      ((rootPort=rootPort+1))
-    done
-    if [ -n "$bootNodes" ]; then
-      bootNodes=${bootNodes%,}
+# generate bootstrap parameter from key file and port
+function generate_boot_node() {
+    local keyf=$1
+    local rootPort=$2
+    if [[ ! -f $keyf ]]; then
+      echo "bootstrap parameter generation error: file missing $keyf"
+      exit 1
     fi
-   echo "$bootNodes"
+    id=$(build/alphabill identifier -k $keyf | tail -n1)
+    echo "$id@/ip4/127.0.0.1/tcp/$rootPort"
 }
 
 # generates genesis files
@@ -117,10 +116,10 @@ function generate_root_genesis() {
 }
 
 function start_root_nodes() {
-  local port=26662
-  # create a bootnodes
-  local bootNodes=""
-  bootNodes=$(generate_boot_nodes "$port")
+  # use root node 1 as bootstrap node
+  local bootNode=""
+  local port=$rootPortStart
+  bootNode=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -128,7 +127,13 @@ function start_root_nodes() {
       echo "Root genesis files do not exist, generate setup!" 1>&2
       exit 1
     fi
-    build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNodes" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+    if [[ $i -eq 1 ]]; then
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          # give bootstrap node a head start
+          sleep 0.200
+    else
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+    fi
     ((port=port+1))
     ((i=i+1))
   done
@@ -140,7 +145,6 @@ local home=""
 local key_files=""
 local genesis_file=""
 local aPort=0
-local grpcPort=0
 local rpcPort=0
   case $1 in
     money)
@@ -148,7 +152,6 @@ local rpcPort=0
       key_files="testab/money*/money/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
       aPort=26666
-      grpcPort=26766
       rpcPort=26866
       ;;
     tokens)
@@ -156,7 +159,6 @@ local rpcPort=0
       key_files="testab/tokens*/tokens/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-2.json"
       aPort=28666
-      grpcPort=28766
       rpcPort=28866
       ;;
     evm)
@@ -164,7 +166,6 @@ local rpcPort=0
       key_files="testab/evm*/evm/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
       aPort=29666
-      grpcPort=29766
       rpcPort=29866
       ;;
     *)
@@ -174,7 +175,7 @@ local rpcPort=0
   esac
   # create a bootnodes
   local bootNodes=""
-  bootNodes=$(generate_boot_nodes "26662")
+  bootNodes=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   # Start nodes
   i=1
   for keyf in $key_files
@@ -188,12 +189,10 @@ local rpcPort=0
         --state "$(dirname $keyf)/node-genesis-state.cbor" \
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \
-        --server-address "localhost:$grpcPort" \
         --rpc-server-address "localhost:$rpcPort" \
         >> ${home}$i/"$1"/"$1".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
-    ((grpcPort=grpcPort+1))
     ((rpcPort=rpcPort+1))
   done
     echo "started $(($i-1)) $1 nodes"

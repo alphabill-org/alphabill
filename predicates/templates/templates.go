@@ -8,26 +8,13 @@ import (
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 const (
 	AlwaysFalseID byte = iota
 	AlwaysTrueID
 	P2pkh256ID
-)
-
-type (
-	PredicateTemplate interface {
-		ID() byte
-		Execute(bytes, sig, sigData []byte) error
-	}
-
-	AlwaysTrue struct{}
-
-	AlwaysFalse struct{}
-
-	P2pkh256 struct{}
 )
 
 var (
@@ -37,69 +24,68 @@ var (
 	cborNull = []byte{0xf6}
 )
 
-func (t *AlwaysTrue) ID() byte {
-	return AlwaysTrueID
-}
-
-func (t *AlwaysTrue) Execute(_, sig, _ []byte) error {
-	if len(sig) == 0 || (bytes.Equal(sig, cborNull)) {
-		return nil
+func alwaysTrue_Execute(params, args []byte) (bool, error) {
+	// do not allow to piggyback any additional data on "always true" predicate
+	if (len(params) == 0 || (bytes.Equal(params, cborNull))) && (len(args) == 0 || (bytes.Equal(args, cborNull))) {
+		return true, nil
 	}
 
-	return fmt.Errorf("always true predicate requires signature to be empty, got: '%X'", sig)
+	return false, fmt.Errorf(`"always true" predicate arguments must be empty`)
 }
 
-func (t *AlwaysFalse) ID() byte {
-	return AlwaysFalseID
+func alwaysFalse_Execute(params, args []byte) (bool, error) {
+	// do not allow to piggyback any additional data on "always false" predicate
+	if (len(params) == 0 || (bytes.Equal(params, cborNull))) && (len(args) == 0 || (bytes.Equal(args, cborNull))) {
+		return false, nil
+	}
+
+	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func (t *AlwaysFalse) Execute(_, _, _ []byte) error {
-	// we can ignore the signature here because the tx will never be accepted into the block
-	return errors.New("always false")
-}
+func p2pkh256_Execute(pubKeyHash, sig []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+	// when AB-1012 gets resolved should call txo.PayloadBytes() instead
+	payloadBytes, err := env.PayloadBytes(txo)
+	if err != nil {
+		return false, fmt.Errorf("reading transaction payload bytes: %w", err)
+	}
 
-func (t *P2pkh256) ID() byte {
-	return P2pkh256ID
-}
-
-func (t *P2pkh256) Execute(pubKeyHash, sig, sigData []byte) error {
 	p2pkh256Signature := predicates.P2pkh256Signature{}
-	if err := cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
-		return fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
+	if err := types.Cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
+		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {
-		return fmt.Errorf("invalid pubkey hash size: expected 32, got %d (%X)", len(pubKeyHash), pubKeyHash)
+		return false, fmt.Errorf("invalid pubkey hash size: expected 32, got %d (%X)", len(pubKeyHash), pubKeyHash)
 	}
 	if len(p2pkh256Signature.Sig) != 65 {
-		return fmt.Errorf("invalid signature size:expected 65, got %d (%X)", len(p2pkh256Signature.Sig), p2pkh256Signature.Sig)
+		return false, fmt.Errorf("invalid signature size: expected 65, got %d (%X)", len(p2pkh256Signature.Sig), p2pkh256Signature.Sig)
 	}
 	if len(p2pkh256Signature.PubKey) != 33 {
-		return fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
+		return false, fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
 	}
 	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
-		return errors.New("pubkey hash does not match")
+		return false, errors.New("pubkey hash does not match")
 	}
 
 	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
 	if err != nil {
-		return fmt.Errorf("failed to create verifier: %w", err)
+		return false, fmt.Errorf("failed to create verifier: %w", err)
 	}
-	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, sigData); err != nil {
-		return fmt.Errorf("failed to verify signature: %w", err)
+	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
+		return false, fmt.Errorf("failed to verify signature: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
-func AlwaysFalseBytes() predicates.PredicateBytes {
+func AlwaysFalseBytes() types.PredicateBytes {
 	return alwaysFalseBytes
 }
 
-func AlwaysTrueArgBytes() []byte {
-	return cborNull
+func AlwaysTrueBytes() types.PredicateBytes {
+	return alwaysTrueBytes
 }
 
-func AlwaysTrueBytes() predicates.PredicateBytes {
-	return alwaysTrueBytes
+func EmptyArgument() []byte {
+	return cborNull
 }
 
 func NewP2pkh256FromKey(pubKey []byte) predicates.Predicate {
@@ -110,24 +96,24 @@ func NewP2pkh256FromKeyHash(pubKeyHash []byte) predicates.Predicate {
 	return predicates.Predicate{Tag: TemplateStartByte, Code: []byte{P2pkh256ID}, Params: pubKeyHash}
 }
 
-func NewP2pkh256BytesFromKey(pubKey []byte) predicates.PredicateBytes {
-	pb, _ := cbor.Marshal(NewP2pkh256FromKey(pubKey))
+func NewP2pkh256BytesFromKey(pubKey []byte) types.PredicateBytes {
+	pb, _ := types.Cbor.Marshal(NewP2pkh256FromKey(pubKey))
 	return pb
 }
 
-func NewP2pkh256BytesFromKeyHash(pubKeyHash []byte) predicates.PredicateBytes {
-	pb, _ := cbor.Marshal(NewP2pkh256FromKeyHash(pubKeyHash))
+func NewP2pkh256BytesFromKeyHash(pubKeyHash []byte) types.PredicateBytes {
+	pb, _ := types.Cbor.Marshal(NewP2pkh256FromKeyHash(pubKeyHash))
 	return pb
 }
 
 func NewP2pkh256SignatureBytes(sig, pubKey []byte) []byte {
-	sb, _ := cbor.Marshal(predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
+	sb, _ := types.Cbor.Marshal(predicates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
 	return sb
 }
 
 func ExtractPubKeyHashFromP2pkhPredicate(pb []byte) ([]byte, error) {
 	predicate := &predicates.Predicate{}
-	if err := cbor.Unmarshal(pb, predicate); err != nil {
+	if err := types.Cbor.Unmarshal(pb, predicate); err != nil {
 		return nil, fmt.Errorf("extracting predicate: %w", err)
 	}
 	if predicate.Tag != TemplateStartByte {

@@ -8,21 +8,20 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
-func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
+func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		sum, err := validateJoinFungibleToken(tx, attr, options)
+		sum, err := m.validateJoinFungibleToken(tx, attr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
 		}
-		fee := options.feeCalculator()
+		fee := m.feeCalculator()
 
 		// update state
 		unitID := tx.UnitID()
-		h := tx.Hash(options.hashAlgorithm)
-		if err := options.state.Apply(
+		h := tx.Hash(m.hashAlgorithm)
+		if err := m.state.Apply(
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*FungibleTokenData)
@@ -43,8 +42,8 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 	}
 }
 
-func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, options *Options) (uint64, error) {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), options.state)
+func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes) (uint64, error) {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return 0, err
 	}
@@ -79,45 +78,31 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		if !bytes.Equal(btxAttr.TargetTokenBacklink, attr.Backlink) {
 			return 0, fmt.Errorf("burn tx target token backlink does not match with join transaction backlink: burnTx %X, joinTx %X", btxAttr.TargetTokenBacklink, attr.Backlink)
 		}
-		if err = types.VerifyTxProof(proofs[i], btx, options.trustBase, options.hashAlgorithm); err != nil {
+		if err = types.VerifyTxProof(proofs[i], btx, m.trustBase, m.hashAlgorithm); err != nil {
 			return 0, fmt.Errorf("proof is not valid: %w", err)
 		}
 	}
 	if !bytes.Equal(d.Backlink, attr.Backlink) {
 		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
 	}
-	predicates, err := getChainedPredicates[*FungibleTokenTypeData](
-		options.hashAlgorithm,
-		options.state,
+
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+		return 0, fmt.Errorf("evaluating bearer predicate: %w", err)
+	}
+	err = runChainedPredicates[*FungibleTokenTypeData](
+		tx,
 		d.TokenType,
-		func(d *FungibleTokenTypeData) []byte {
-			return d.InvariantPredicate
+		attr.InvariantPredicateSignatures,
+		m.execPredicate,
+		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+			return d.ParentTypeId, d.InvariantPredicate
 		},
-		func(d *FungibleTokenTypeData) types.UnitID {
-			return d.ParentTypeId
-		},
+		m.state.GetUnit,
 	)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return sum, verifyOwnership(bearer, predicates, &joinFungibleTokenOwnershipProver{tx: tx, attr: attr})
-}
-
-type joinFungibleTokenOwnershipProver struct {
-	tx   *types.TransactionOrder
-	attr *JoinFungibleTokenAttributes
-}
-
-func (t *joinFungibleTokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t *joinFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.attr.InvariantPredicateSignatures
-}
-
-func (t *joinFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+	return sum, nil
 }
 
 func (j *JoinFungibleTokenAttributes) SigBytes() ([]byte, error) {
@@ -128,7 +113,7 @@ func (j *JoinFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:                     j.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 func (j *JoinFungibleTokenAttributes) GetBurnTransactions() []*types.TransactionRecord {

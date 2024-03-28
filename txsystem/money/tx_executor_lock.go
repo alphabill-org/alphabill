@@ -2,26 +2,24 @@ package money
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/types"
 )
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
-func handleLockTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[LockAttributes] {
+func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 	return func(tx *types.TransactionOrder, attr *LockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
-		unit, _ := s.GetUnit(unitID, false)
+		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
 			return nil, fmt.Errorf("lock tx: unit not found %X", tx.UnitID())
 		}
-		if err := txsystem.VerifyUnitOwnerProof(tx, unit.Bearer()); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
 		billData, ok := unit.Data().(*BillData)
@@ -39,13 +37,13 @@ func handleLockTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalcu
 			}
 			newBillData.Locked = attr.LockStatus
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			return newBillData, nil
 		})
-		if err := s.Apply(action); err != nil {
+		if err := m.state.Apply(action); err != nil {
 			return nil, fmt.Errorf("lock tx: failed to update state: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: feeCalc(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 

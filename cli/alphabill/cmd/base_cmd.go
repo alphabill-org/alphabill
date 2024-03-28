@@ -112,13 +112,13 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration, obsF Factor
 }
 
 // initializeConfig reads in config file and ENV variables if set.
-func (config *baseConfiguration) initializeConfig(cmd *cobra.Command) error {
+func (r *baseConfiguration) initializeConfig(cmd *cobra.Command) error {
 	v := viper.New()
 
-	config.initConfigFileLocation()
+	r.initConfigFileLocation()
 
-	if config.configFileExists() {
-		v.SetConfigFile(config.CfgFile)
+	if r.configFileExists() {
+		v.SetConfigFile(r.CfgFile)
 	}
 
 	// Attempt to read the config file, gracefully ignoring errors

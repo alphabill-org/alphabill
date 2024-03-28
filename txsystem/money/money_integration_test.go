@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/partition/event"
@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +49,7 @@ func TestPartition_Ok(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
-			logger.New(t),
+			observability.Default(t),
 			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
@@ -171,11 +170,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	sdrs := createSDRs(newBillID(99))
 	txsState = genesisState(t, initialBill, sdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		var err error
-		// trustBase = tb
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
-			logger.New(t),
+			observability.Default(t),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithSystemDescriptionRecords(sdrs),
@@ -287,7 +284,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		DcTransferProofs: dcRecordsProofs,
 		TargetValue:      sum,
 	}
-	swapBytes, err := cbor.Marshal(swapAttr)
+	swapBytes, err := types.Cbor.Marshal(swapAttr)
 	require.NoError(t, err)
 
 	// create swap tx
@@ -304,7 +301,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   templates.AlwaysTrueArgBytes(),
+		FeeProof:   templates.EmptyArgument(),
 	}
 	require.NoError(t, swapTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
 

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 func serializeMsg(msg any) ([]byte, error) {
-	data, err := cbor.Marshal(msg)
+	data, err := types.Cbor.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling %T as CBOR: %w", msg, err)
 	}
@@ -31,8 +31,7 @@ func deserializeMsg(r io.Reader, msg any) error {
 		return fmt.Errorf("unexpected data length zero")
 	}
 
-	dec := cbor.NewDecoder(io.LimitReader(src, int64(length64)))
-	if err := dec.Decode(msg); err != nil {
+	if err := types.Cbor.Decode(io.LimitReader(src, int64(length64)), msg); err != nil {
 		return fmt.Errorf("decoding message data: %w", err)
 	}
 

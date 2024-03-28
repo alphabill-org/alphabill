@@ -9,10 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -20,9 +21,8 @@ import (
 type (
 	evmConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		GRPCServer *grpcServerConfiguration
-		RPCServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		RPCServer *rpc.ServerConfiguration
 	}
 )
 
@@ -31,9 +31,8 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		GRPCServer: &grpcServerConfiguration{},
-		RPCServer:  &rpc.ServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		RPCServer: &rpc.ServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -46,8 +45,6 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "evm")
-
-	config.GRPCServer.addConfigurationFlags(nodeCmd)
 	addRPCServerConfigurationFlags(nodeCmd, config.RPCServer)
 
 	// mark the --tb-tx flag as mandatory for EVM nodes
@@ -63,7 +60,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return err
 	}
 	params := &genesis.EvmPartitionParams{}
-	if err = cbor.Unmarshal(pg.Params, params); err != nil {
+	if err = types.Cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
 
@@ -124,7 +121,11 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, obs)
+	var ownerIndexer *partition.OwnerIndexer
+	if cfg.Node.WithOwnerIndex {
+		ownerIndexer = partition.NewOwnerIndexer(log)
+	}
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
@@ -135,5 +136,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, "evm node", node, cfg.GRPCServer, cfg.RPCServer, proofStore, obs)
+	return run(ctx, "evm node", node, cfg.RPCServer, ownerIndexer, obs)
 }

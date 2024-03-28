@@ -8,10 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-	"github.com/tetratelabs/wazero"
-
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/hash"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -23,9 +19,13 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill/wvm/allocator"
 	"github.com/alphabill-org/alphabill/wvm/encoder"
 	moneyenc "github.com/alphabill-org/alphabill/wvm/encoder/money"
 	tokenenc "github.com/alphabill-org/alphabill/wvm/encoder/token"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero"
 )
 
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
@@ -257,6 +257,20 @@ func TestNew(t *testing.T) {
 	require.NotNil(t, wvm)
 
 	require.NoError(t, wvm.Close(ctx))
+}
+
+func TestReadHeapBase(t *testing.T) {
+	env := &mockTxContext{
+		curRound: func() uint64 { return 1709683000 },
+	}
+	enc := encoder.TXSystemEncoder{}
+	wvm, err := New(context.Background(), enc, env, observability.Default(t))
+	require.NoError(t, err)
+	_, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, nil, nil)
+	require.Error(t, err)
+	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
+	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
+	require.EqualValues(t, 8400, wvm.ctx.MemMngr.(*allocator.BumpAllocator).HeapBase())
 }
 
 func Benchmark_wazero_call_wasm_fn(b *testing.B) {

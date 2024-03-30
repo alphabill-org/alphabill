@@ -22,7 +22,6 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -437,9 +436,7 @@ func TestBillData_AddToHasher(t *testing.T) {
 	}
 
 	hasher := crypto.SHA256.New()
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	require.NoError(t, err)
-	res, err := enc.Marshal(bd)
+	res, err := types.Cbor.Marshal(bd)
 	require.NoError(t, err)
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
@@ -449,7 +446,7 @@ func TestBillData_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var bdFormSerialized BillData
-	require.NoError(t, cbor.Unmarshal(res, &bdFormSerialized))
+	require.NoError(t, types.Cbor.Unmarshal(res, &bdFormSerialized))
 	require.Equal(t, bd, &bdFormSerialized)
 }
 
@@ -833,7 +830,7 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, value uint64, bearer 
 		TargetValue: value,
 		Backlink:    backlink,
 	}
-	rawBytes, err := cbor.Marshal(bt)
+	rawBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, bt
@@ -845,7 +842,7 @@ func createLockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.Tr
 		LockStatus: 1,
 		Backlink:   backlink,
 	}
-	rawBytes, err := cbor.Marshal(lockTxAttr)
+	rawBytes, err := types.Cbor.Marshal(lockTxAttr)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, lockTxAttr
@@ -856,7 +853,7 @@ func createUnlockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.
 	unlockTxAttr := &UnlockAttributes{
 		Backlink: backlink,
 	}
-	rawBytes, err := cbor.Marshal(unlockTxAttr)
+	rawBytes, err := types.Cbor.Marshal(unlockTxAttr)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, unlockTxAttr
@@ -910,7 +907,7 @@ func createDCTransferAndSwapTxs(
 		DcTransferProofs: proofs,
 		TargetValue:      targetValue,
 	}
-	rawBytes, err := cbor.Marshal(bt)
+	rawBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return dcTransfers, tx
@@ -924,7 +921,7 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, val uint64, backlink []
 		TargetUnitBacklink: targetBacklink,
 		Backlink:           backlink,
 	}
-	rawBytes, err := cbor.Marshal(bt)
+	rawBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, bt
@@ -937,7 +934,7 @@ func createSplit(t *testing.T, fromID types.UnitID, targetUnits []*TargetUnit, r
 		RemainingValue: remainingValue,
 		Backlink:       backlink,
 	}
-	rawBytes, err := cbor.Marshal(bt)
+	rawBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, bt

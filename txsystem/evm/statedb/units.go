@@ -6,11 +6,12 @@ import (
 	"hash"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/types"
+
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -46,11 +47,7 @@ type AlphaBillLink struct {
 }
 
 func (s *StateObject) Write(hasher hash.Hash) error {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return err
-	}
-	res, err := enc.Marshal(s)
+	res, err := types.Cbor.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("unit data encode error: %w", err)
 	}

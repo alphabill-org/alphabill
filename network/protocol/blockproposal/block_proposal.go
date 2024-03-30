@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -55,7 +54,7 @@ func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher.Write(x.SystemIdentifier.Bytes())
 	hasher.Write([]byte(x.NodeIdentifier))
 
-	ucBytes, err := cbor.Marshal(x.UnicityCertificate)
+	ucBytes, err := types.Cbor.Marshal(x.UnicityCertificate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}

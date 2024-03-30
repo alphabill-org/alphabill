@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -502,7 +501,7 @@ func Test_execute(t *testing.T) {
 			require.Len(t, metadata.TargetUnits, tt.wantUpdatedUnits)
 			require.NotNil(t, metadata.ProcessingDetails)
 			var details ProcessingDetails
-			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))
+			require.NoError(t, types.Cbor.Unmarshal(metadata.ProcessingDetails, &details))
 			if tt.wantDetails.ErrorDetails != "" {
 				require.Equal(t, details.ErrorDetails, tt.wantDetails.ErrorDetails)
 			}
@@ -621,7 +620,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
 	var details ProcessingDetails
-	require.NoError(t, cbor.Unmarshal(res.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(res.ProcessingDetails, &details))
 	require.EqualValues(t, b.UnicityCertificate.InputRecord.BlockHash, details.ReturnData)
 	// query not existing block
 	callContract.Nonce++
@@ -629,7 +628,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
-	require.NoError(t, cbor.Unmarshal(res.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(res.ProcessingDetails, &details))
 	// expect 0H to be returned
 	require.EqualValues(t, make([]byte, 32), details.ReturnData)
 }

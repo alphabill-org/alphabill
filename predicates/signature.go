@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 
 	"github.com/alphabill-org/alphabill/crypto"
 )
@@ -25,11 +25,7 @@ type Signer interface {
 }
 
 func EncodeSignature(sig, pubKey []byte) ([]byte, error) {
-	enc, err := cbor.CanonicalEncOptions().EncMode()
-	if err != nil {
-		return nil, fmt.Errorf("creating CBOR encoder: %w", err)
-	}
-	return enc.Marshal(P2pkh256Signature{Sig: sig, PubKey: pubKey})
+	return types.Cbor.Marshal(P2pkh256Signature{Sig: sig, PubKey: pubKey})
 }
 
 func ExtractPubKey(ownerProof []byte) ([]byte, error) {
@@ -37,7 +33,7 @@ func ExtractPubKey(ownerProof []byte) ([]byte, error) {
 		return nil, errors.New("empty owner proof as input")
 	}
 	sig := P2pkh256Signature{}
-	if err := cbor.Unmarshal(ownerProof, &sig); err != nil {
+	if err := types.Cbor.Unmarshal(ownerProof, &sig); err != nil {
 		return nil, fmt.Errorf("decoding owner proof as Signature: %w", err)
 	}
 	return sig.PubKey, nil

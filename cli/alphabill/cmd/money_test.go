@@ -11,6 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
+	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -19,16 +26,9 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type envVar [2]string
@@ -85,17 +85,10 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		},
 		// Validator configuration from flags
 		{
-			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-send-msg-size=65 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
+			args: "money --rpc-server-address=srv:1234",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.grpcServer = &grpcServerConfiguration{
-					Address:                 "srv:1234",
-					MaxGetBlocksBatchSize:   55,
-					MaxSendMsgSize:          65,
-					MaxRecvMsgSize:          66,
-					MaxConnectionAgeMs:      77,
-					MaxConnectionAgeGraceMs: 88,
-				}
+				sc.rpcServer.Address = "srv:1234"
 				return sc
 			}(),
 		},
@@ -121,21 +114,21 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		{
 			args: "money",
 			envVars: []envVar{
-				{"AB_SERVER_ADDRESS", "srv:1234"},
+				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.grpcServer.Address = "srv:1234"
+				sc.rpcServer.Address = "srv:1234"
 				return sc
 			}(),
 		}, {
-			args: "money --server-address=srv:666",
+			args: "money --rpc-server-address=srv:666",
 			envVars: []envVar{
-				{"AB_SERVER_ADDRESS", "srv:1234"},
+				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.grpcServer.Address = "srv:666"
+				sc.rpcServer.Address = "srv:666"
 				return sc
 			}(),
 		}, {
@@ -215,8 +208,7 @@ func TestMoneyNodeConfig_ConfigFile(t *testing.T) {
 	logCfgFilename := filepath.Join(tmpDir, "custom-log-conf.yaml")
 
 	configFileContents := `
-server-address: "srv:1234"
-server-max-recv-msg-size: 9999
+rpc-server-address: "srv:1234"
 logger-config: "` + logCfgFilename + `"
 `
 
@@ -229,8 +221,7 @@ logger-config: "` + logCfgFilename + `"
 	expectedConfig := defaultMoneyNodeConfiguration()
 	expectedConfig.Base.CfgFile = cfgFilename
 	expectedConfig.Base.LogCfgFile = logCfgFilename
-	expectedConfig.grpcServer.Address = "srv:1234"
-	expectedConfig.grpcServer.MaxRecvMsgSize = 9999
+	expectedConfig.rpcServer.Address = "srv:1234"
 
 	// Set up runner mock
 	var actualConfig *moneyNodeConfiguration
@@ -263,12 +254,6 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			LedgerReplicationMaxBlocks: 1000,
 			LedgerReplicationMaxTx:     10000,
 			WithOwnerIndex:             true,
-		},
-		grpcServer: &grpcServerConfiguration{
-			Address:               defaultServerAddr,
-			MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
-			MaxRecvMsgSize:        defaultMaxRecvMsgSize,
-			MaxSendMsgSize:        defaultMaxSendMsgSize,
 		},
 		rpcServer: &rpc.ServerConfiguration{
 			Address:                "",
@@ -306,7 +291,6 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
-		moneyNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 		logF := testobserve.NewFactory(t)
 
 		appStoppedWg := sync.WaitGroup{}
@@ -340,7 +324,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
-		rpcNodeAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
+		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -350,8 +334,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
 				" -k " + keysFileLocation +
-				" --server-address " + moneyNodeAddr +
-				" --rpc-server-address " + rpcNodeAddr
+				" --rpc-server-address " + rpcServerAddress
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
@@ -360,11 +343,18 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		}()
 
 		t.Log("Started money node and dialing...")
-		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, moneyNodeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+		// create rpc client
+		rpcClient, err := ethrpc.DialContext(ctx, buildRpcUrl(rpcServerAddress))
 		require.NoError(t, err)
-		defer conn.Close()
-		rpcClient := alphabill.NewAlphabillServiceClient(conn)
+		defer rpcClient.Close()
+
+		// wait for rpc server to start
+		require.Eventually(t, func() bool {
+			var res *rpc.NodeInfoResponse
+			err := rpcClient.CallContext(ctx, &res, "admin_getNodeInfo")
+			return err == nil && res != nil
+		}, testutils.WaitDuration, testutils.WaitTick)
 
 		// Test cases
 		makeSuccessfulPayment(t, ctx, rpcClient)
@@ -377,13 +367,13 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	})
 }
 
-func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	initialBillID := defaultInitialBillID
 	attr := &money.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -395,35 +385,48 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
-	protoTx := &alphabill.Transaction{Order: txBytes}
-	_, err = txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+
+	var res types.Bytes
+	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
 	require.NoError(t, err)
+	require.NotNil(t, res)
 }
 
-func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
-	wrongBillID := money.NewBillID(nil, []byte{6})
+func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	attr := &money.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
-	attrBytes, err := cbor.Marshal(attr)
+	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
-			UnitID:         wrongBillID,
+			UnitID:         defaultInitialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       0,
+			SystemID:       0, // invalid system id
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,
 	}
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
-	protoTx := &alphabill.Transaction{Order: txBytes}
-	response, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
-	require.Error(t, err)
-	require.Nil(t, response, "Failing payment should not return response")
+
+	var res types.Bytes
+	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
+	require.ErrorContains(t, err, "failed to submit transaction to the network: expected 00000001, got 00000000: invalid transaction system identifier")
+	require.Nil(t, res, "Failing payment should not return response")
+}
+
+func buildRpcUrl(url string) string {
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
+	url = strings.TrimSuffix(url, "/")
+	if !strings.HasSuffix(url, "/rpc") {
+		url = url + "/rpc"
+	}
+	return url
 }

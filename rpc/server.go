@@ -16,12 +16,9 @@ import (
 
 const (
 	headerContentType = "Content-Type"
-	applicationJson   = "application/json"
-	applicationCBOR   = "application/cbor"
 
 	metricsScopeRPCAPI  = "rpc_api"
 	metricsScopeRESTAPI = "rest_api"
-	MetricsScopeGRPCAPI = "grpc_api"
 
 	DefaultMaxBodyBytes           int64 = 4194304 // 4MB
 	DefaultBatchItemLimit         int   = 1000

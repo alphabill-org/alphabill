@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -20,9 +20,8 @@ import (
 type (
 	moneyNodeConfiguration struct {
 		baseNodeConfiguration
-		Node       *startNodeConfiguration
-		grpcServer *grpcServerConfiguration
-		rpcServer  *rpc.ServerConfiguration
+		Node      *startNodeConfiguration
+		rpcServer *rpc.ServerConfiguration
 	}
 
 	// moneyNodeRunnable is the function that is run after configuration is loaded.
@@ -37,9 +36,8 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:       &startNodeConfiguration{},
-		grpcServer: &grpcServerConfiguration{},
-		rpcServer:  &rpc.ServerConfiguration{},
+		Node:      &startNodeConfiguration{},
+		rpcServer: &rpc.ServerConfiguration{},
 	}
 	var nodeCmd = &cobra.Command{
 		Use:   "money",
@@ -55,7 +53,6 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 
 	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "money")
 	addRPCServerConfigurationFlags(nodeCmd, config.rpcServer)
-	config.grpcServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -66,7 +63,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	if err := cbor.Unmarshal(pg.Params, params); err != nil {
+	if err := types.Cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
@@ -133,5 +130,5 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", node, cfg.grpcServer, cfg.rpcServer, proofStore, ownerIndexer, obs)
+	return run(ctx, "money node", node, cfg.rpcServer, ownerIndexer, obs)
 }

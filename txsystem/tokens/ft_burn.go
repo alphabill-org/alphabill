@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -98,7 +96,7 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		Backlink:                     b.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	return cbor.Marshal(signatureAttr)
+	return types.Cbor.Marshal(signatureAttr)
 }
 
 func (b *BurnFungibleTokenAttributes) GetTypeID() types.UnitID {

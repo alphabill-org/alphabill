@@ -912,7 +912,14 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 	}
 	n.sendEvent(event.BlockFinalized, b)
 
-	n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
+	if isInitializing {
+		// ProofIndexer not running yet, index synchronously
+		if err := n.proofIndexer.IndexBlock(ctx, b, n.transactionSystem.State()); err != nil {
+			return fmt.Errorf("failed to index block: %w", err)
+		}
+	} else {
+		n.proofIndexer.Handle(ctx, b, n.transactionSystem.State())
+	}
 
 	if n.ownerIndexer != nil {
 		if err := n.ownerIndexer.IndexBlock(b, n.transactionSystem.State()); err != nil {

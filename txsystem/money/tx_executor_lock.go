@@ -1,7 +1,6 @@
 package money
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -37,7 +36,7 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 			}
 			newBillData.Locked = attr.LockStatus
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			newBillData.Counter += 1
 			return newBillData, nil
 		})
 		if err := m.state.Apply(action); err != nil {
@@ -60,8 +59,8 @@ func validateLockTx(attr *LockAttributes, bd *BillData) error {
 	if attr.LockStatus == 0 {
 		return ErrInvalidLockStatus
 	}
-	if !bytes.Equal(attr.Backlink, bd.Backlink) {
-		return ErrInvalidBacklink
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	return nil
 }

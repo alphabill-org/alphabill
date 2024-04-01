@@ -1,7 +1,6 @@
 package money
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -27,7 +26,6 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}
 		unitID := tx.UnitID()
-		txHash := tx.Hash(m.hashAlgorithm)
 		targetUnitIDs := []types.UnitID{unitID}
 
 		// add new units
@@ -39,19 +37,23 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 				newUnitID,
 				targetUnit.OwnerCondition,
 				&BillData{
-					V:        targetUnit.Amount,
-					T:        currentBlockNumber,
-					Backlink: txHash,
+					V:       targetUnit.Amount,
+					T:       currentBlockNumber,
+					Counter: 0,
 				}))
 		}
 
 		// update existing unit
 		actions = append(actions, state.UpdateUnitData(unitID,
 			func(data state.UnitData) (state.UnitData, error) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+				}
 				return &BillData{
-					V:        attr.RemainingValue,
-					T:        currentBlockNumber,
-					Backlink: txHash,
+					V:       attr.RemainingValue,
+					T:       currentBlockNumber,
+					Counter: bd.Counter + 1,
 				}, nil
 			},
 		))
@@ -83,8 +85,8 @@ func validateSplit(data state.UnitData, attr *SplitAttributes) error {
 	if bd.IsLocked() {
 		return ErrBillLocked
 	}
-	if !bytes.Equal(attr.Backlink, bd.Backlink) {
-		return fmt.Errorf("the transaction backlink 0x%x is not equal to unit backlink 0x%x", attr.Backlink, bd.Backlink)
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	if len(attr.TargetUnits) == 0 {
 		return errors.New("target units are empty")

@@ -47,8 +47,6 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 			return nil, fmt.Errorf("invalid swap transaction: %w", err)
 		}
 
-		h := tx.Hash(m.hashAlgorithm)
-
 		// reduce dc-money supply by target value and update timeout and backlink
 		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 			func(data state.UnitData) (state.UnitData, error) {
@@ -58,7 +56,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 				}
 				bd.V -= attr.TargetValue
 				bd.T = currentBlockNumber
-				bd.Backlink = h
+				bd.Counter += 1
 				return bd, nil
 			},
 		)
@@ -71,7 +69,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 				}
 				bd.V += attr.TargetValue
 				bd.T = currentBlockNumber
-				bd.Backlink = h
+				bd.Counter += 1
 				bd.Locked = 0
 				return bd, nil
 			})
@@ -102,7 +100,6 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if !ok {
 		return errors.New("DC-money supply invalid data type")
 	}
-
 	if dcMoneySupplyBill.V < c.attr.TargetValue {
 		return errors.New("insufficient DC-money supply")
 	}
@@ -153,11 +150,10 @@ func (c *swapValidationContext) validateSwapTx() error {
 		if !bytes.Equal(dcTx.attributes.TargetUnitID, c.tx.UnitID()) {
 			return errors.New("dust transfer order target unit id is not equal to swap tx unit id")
 		}
-		// 8. bill transfer orders contain correct target backlinks
-		if !bytes.Equal(dcTx.attributes.TargetUnitBacklink, billData.Backlink) {
-			return fmt.Errorf("dust transfer target backlink is not equal to target unit backlink: expected %X vs provided %X",
-				billData.Backlink, dcTx.attributes.TargetUnitBacklink)
-
+		// 8. bill transfer orders contain correct target counter values
+		if dcTx.attributes.TargetUnitCounter != billData.Counter {
+			return fmt.Errorf("dust transfer target counter is not equal to target unit counter: "+
+				"expected %X vs provided %X", billData.Counter, dcTx.attributes.TargetUnitCounter)
 		}
 		// 9. transaction proofs of the bill transfer orders verify
 		if err := types.VerifyTxProof(c.attr.DcTransferProofs[i], dcTx.tx, c.trustBase, c.hashAlgorithm); err != nil {

@@ -150,12 +150,12 @@ Each partition defines its own unit types. For each unit type, a set
 of valid transaction types is defined. And for each transaction type,
 an array of valid attributes is defined.
 
-A common attribute for many transaction types is *Backlink*, which
-links a transaction back to the previous transaction with the same
-unit and thus makes the order of transactions unambiguous. *Backlink*
-is calculated as the hash of the raw CBOR encoded bytes of the
-*TransactionOrder* data item. Hash algorithm is defined by each
-partition.
+A common attribute for many transaction types is *Counter*, which
+is incremented by one for each transaction with the same
+unit and thus makes the order of transactions unambiguous. *Counter*
+value in a transaction must be equal to the current *Counter* value
+in the state tree. Upon successful execution of the transaction, the
+*Counter* value is incremented by 1.
 
 #### Money Partition
 
@@ -180,7 +180,7 @@ transferred bill is unchanged.
 /transAttributes/ [
     /TargetOwner/ h'5376A8014F01411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A8769AC01',
     /TargetValue/ 999999800099999996,
-    /Backlink/    h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
+    /Counter/     123
 ]
 ```
 
@@ -189,8 +189,7 @@ transferred bill is unchanged.
    bill. The reason for including the value of the bill in the
    transaction order is to enable the recipient of the transaction to
    learn the received amount without having to look up the bill.
-3. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill.
+3. *Counter* (unsigned integer) is the current counter value of this bill.
 
 ##### Split Bill
 
@@ -213,7 +212,7 @@ split.
         ]
     ],
     /RemainingValue/ 999999899999999996,
-    /Backlink/       h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+    /Counter/        123
 ]
 ```
 
@@ -223,8 +222,8 @@ split.
    2. *TargetOwner* (byte string) is the owner predicate of the new bill.
 2. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
-3. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill being split.
+3. *Counter* (unsigned integer) is the current counter value of the 
+   bill being split.
 
 ##### Lock Bill
 
@@ -244,14 +243,14 @@ must be unlocked.
 ```
 /lockAttributes/ [
     /LockStatus/ 1,
-    /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
+    /Counter/   0
 ]
 ```
 
 1. *LockStatus* (unsigned integer) is the status of the lock, 
    must be non-zero value.
-2. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill.
+2. *Counter* (unsigned integer) is the current counter value 
+   of this bill.
 
 ##### Unlock Bill
 
@@ -265,12 +264,12 @@ in locked status.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /unlockAttributes/ [
-    /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
+    /Counter/   123
 ]
 ```
 
-1. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill.
+1. *Counter* (unsigned integer) is the current counter value 
+   of this bill.
 
 ##### Transfer Bill to Dust Collector
 
@@ -289,10 +288,10 @@ a larger-value bill.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Value/              999999899999999996,
-    /TargetUnitID/       h'',
-    /TargetUnitBacklink/ h'',
-    /Backlink/           h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+    /Value/             999999899999999996,
+    /TargetUnitID/      h'',
+    /TargetUnitCounter/ 123,
+    /Counter/           321
 ]
 ```
 
@@ -301,11 +300,10 @@ a larger-value bill.
 2. *TargetUnitID* (byte string) is the *UnitID* of the target bill for the
    [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
    transaction.
-3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill 
+3. *TargetUnitCounter* (unsigned integer) is the *Counter* of the target bill 
    for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
    transaction.
-4. *Backlink* (byte string) is the backlink to the previous transaction
-   with the bill.
+4. *Counter* (unsigned integer) is the current counter value of this bill.
 
 ##### Swap Bills With Dust Collector
 
@@ -436,7 +434,7 @@ Fee Credit](#add-fee-credit) transaction.
     /EarliestAdditionTime/ 13,
     /LatestAdditionTime/   23,
     /TargetUnitBacklink/   null,
-    /Backlink/             h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
+    /Counter/              123
 ]
 ```
 
@@ -459,8 +457,7 @@ Fee Credit](#add-fee-credit) transaction.
 6. *TargetUnitBacklink* (byte string) is the hash of the last fee credit 
    transaction (addFC, closeFC, lockFC, unlockFC) executed for the
    *TargetUnitID* in the target partition, or `null` if it does not exist yet.
-7. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill.
+7. *Counter* (unsigned integer) is the current counter value of this bill.
 
 ##### Add Fee Credit
 
@@ -508,9 +505,10 @@ Note that fee credit records cannot be closed partially.
 
 This transaction must be followed by a [Reclaim Fee
 Credit](#reclaim-fee-credit) transaction to avoid losing the closed
-fee credit. The *TargetUnitBacklink* attribute fixes the current state of the bill
-used to reclaim the closed fee credit, and any other transaction with
-the bill would invalidate that backlink.
+fee credit. The *TargetUnitCounter* attribute fixes the current 
+state of the bill used to reclaim the closed fee credit, 
+and any other transaction with the bill would invalidate that 
+counter.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "closeFC"\
@@ -518,9 +516,9 @@ the bill would invalidate that backlink.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/             100000000,
-    /TargetUnitID/       h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA500',
-    /TargetUnitBacklink/ h''
+    /Amount/            100000000,
+    /TargetUnitID/      h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA500',
+    /TargetUnitCounter/ 123
 ]
 ```
 
@@ -528,9 +526,8 @@ the bill would invalidate that backlink.
    credit record.
 2. *TargetUnitID* (byte string) is the *UnitID* of the existing bill
    in the money partition that is used to reclaim the fee credit.
-3. *TargetUnitBacklink* (byte string) is the backlink to the previous
-   transaction with the bill in the money partition that is used to
-   reclaim the fee credit.
+3. *TargetUnitCounter* (unsigned integer) is the current counter value
+   of the target bill where to reclaim fee credits in money partition.
 
 ##### Reclaim Fee Credit
 
@@ -548,7 +545,7 @@ with [Lock Bill](#lock-bill) transaction.
 /reclFCAttributes/ [
     /CloseFeeCredit/      [/TransactionRecord/],
     /CloseFeeCreditProof/ [/TransactionProof/],
-    /Backlink/            h''
+    /Counter/             123
 ]
 ```
 
@@ -560,8 +557,8 @@ with [Lock Bill](#lock-bill) transaction.
     transaction provided in *CloseFeeCredit* attribute. Necessary for
     the money partition to verify the amount closed as fee credit in
     the target partition.
-3. *Backlink* (byte string) is the backlink to the previous
-   transaction with the bill receiving the reclaimed fee credit.
+3. *Counter* (unsigned integer) is the current counter value
+   of the bill receiving the reclaimed fee credit.
 
 #### Tokens Partition
 
@@ -1030,7 +1027,7 @@ Extended Diagnostic Notation with annotations:
                 ]
             ],
             /RemainingValue/ 300000001,
-            /Backlink/       h'BC152AA13AC535563179C06E4F40EC26E4BDFE6E6252E720E794B4735BA5C6EC'
+            /Counter/        123
         ],
         /ClientMetadata/ [
             /Timeout/           28,
@@ -1085,7 +1082,7 @@ Extended Diagnostic Notation with annotations:
         /transAttributes/ [
             /TargetOwner/ h'830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0',
             /TargetValue/ 200000000,
-            /Backlink/    h'DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1'
+            /Counter/     123
         ],
         /ClientMetadata/ [
             /Timeout/           31,

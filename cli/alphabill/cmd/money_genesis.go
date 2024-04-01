@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -15,8 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -215,9 +216,9 @@ func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 
 func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &money.BillData{
-		V:        config.InitialBillValue,
-		T:        0,
-		Backlink: nil,
+		V:       config.InitialBillValue,
+		T:       0,
+		Counter: 0,
 	}))
 	if err == nil {
 		err = s.AddUnitLog(config.InitialBillID, zeroHash)
@@ -227,9 +228,9 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 
 func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &money.BillData{
-		V:        config.DCMoneySupplyValue,
-		T:        0,
-		Backlink: nil,
+		V:       config.DCMoneySupplyValue,
+		T:       0,
+		Counter: 0,
 	}))
 	if err == nil {
 		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
@@ -260,9 +261,9 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		}
 
 		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &money.BillData{
-			V:        0,
-			T:        0,
-			Backlink: nil,
+			V:       0,
+			T:       0,
+			Counter: 0,
 		}))
 		if err != nil {
 			return err

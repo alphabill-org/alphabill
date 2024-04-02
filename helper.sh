@@ -203,6 +203,8 @@ function start_non_validator_partition_nodes() {
   count=$2
   home="testab/$partition-non-validator"
 
+  echo "starting $count non-validator $partition nodes"
+
   # Set up partition specific variables
   case $partition in
       money)
@@ -226,13 +228,22 @@ function start_non_validator_partition_nodes() {
 
   # Start non-validator partition nodes
   for i in $(seq $count); do
-    echo "starting non-validator $partition node" $i
-
     if [[ ! -d ${home}$i ]]; then
       build/alphabill $partition-genesis --home ${home}$i -g $sdrFlags
       generate_log_configuration ${home}$i
     fi
 
+    rpcServerAddress="localhost:$rpcPort"
+
+    # Already started?
+    if lsof -i:$rpcPort >/dev/null; then
+      echo "non-validator $partition node" $i "already running? ($rpcServerAddress in use)"
+      ((p2pPort=p2pPort+1))
+      ((rpcPort=rpcPort+1))
+      continue
+    fi
+
+    echo "starting non-validator $partition node" $i "($rpcServerAddress)"
     build/alphabill $partition \
       --home ${home}$i \
       --db ${home}$i/$partition/blocks.db \
@@ -242,11 +253,9 @@ function start_non_validator_partition_nodes() {
       --state ${home}$i/$partition/node-genesis-state.cbor \
       --address "/ip4/127.0.0.1/tcp/$p2pPort" \
       --bootnodes="$bootNodes" \
-      --rpc-server-address "localhost:$rpcPort" \
+      --rpc-server-address $rpcServerAddress \
       >> ${home}$i/$partition/$partition.log 2>&1 &
     ((p2pPort=p2pPort+1))
     ((rpcPort=rpcPort+1))
   done
-
-  echo "started $i non-validator $partition nodes"
 }

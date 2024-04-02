@@ -114,7 +114,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
-				bd.V = bd.V + uint64(addedCredit-reclaimedCredit)
+				bd.V = bd.V + addedCredit - reclaimedCredit
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)
@@ -142,7 +142,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}
-				bd.V = bd.V + uint64(spentFeeSum)
+				bd.V = bd.V + spentFeeSum
 				return bd, nil
 			})
 		err = f.state.Apply(updateData)

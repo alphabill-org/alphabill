@@ -655,7 +655,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	transferFC := testutils.NewTransferFC(t,
 		testutils.NewTransferFCAttr(
 			testutils.WithBacklink(nil),
-			testutils.WithAmount(uint64(txAmount)),
+			testutils.WithAmount(txAmount),
 			testutils.WithTargetRecordID(fcrUnitID),
 		),
 		testtransaction.WithUnitId(initialBillID),
@@ -716,7 +716,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	targetBacklink = lockTx.Hash(crypto.SHA256)
 	closeFC := testutils.NewCloseFC(t,
 		testutils.NewCloseFCAttr(
-			testutils.WithCloseFCAmount(uint64(remainingValue)),
+			testutils.WithCloseFCAmount(remainingValue),
 			testutils.WithCloseFCTargetUnitID(initialBillID),
 			testutils.WithCloseFCTargetUnitBacklink(targetBacklink),
 		),

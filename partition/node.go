@@ -397,7 +397,7 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
-	} else if ucIR.SumOfEarnedFees != uint64(sumOfEarnedFees) {
+	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
 		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
@@ -464,7 +464,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if pr.GetBlockFees() != uint64(sumOfEarnedFees) {
+	if pr.GetBlockFees() != sumOfEarnedFees {
 		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.GetBlockFees(), sumOfEarnedFees))
 		n.revertState()
 		return
@@ -1239,7 +1239,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 				PreviousHash:    prevStateHash,
 				Hash:            stateHash,
 				SummaryValue:    summary,
-				SumOfEarnedFees: uint64(n.sumOfEarnedFees),
+				SumOfEarnedFees: n.sumOfEarnedFees,
 			},
 		},
 	}

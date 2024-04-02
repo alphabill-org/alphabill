@@ -91,8 +91,8 @@ func VerifyUnitStateProof(u *UnitStateProof, algorithm crypto.Hash, unitData *St
 	}
 	ir := u.UnicityCertificate.InputRecord
 	hash, summary := u.CalculateSateTreeOutput(algorithm)
-	if !bytes.Equal(util.Uint64ToBytes(uint64(summary)), ir.SummaryValue) {
-		return fmt.Errorf("invalid summary value: expected %X, got %X", ir.SummaryValue, util.Uint64ToBytes(uint64(summary)))
+	if !bytes.Equal(util.Uint64ToBytes(summary), ir.SummaryValue) {
+		return fmt.Errorf("invalid summary value: expected %X, got %X", ir.SummaryValue, util.Uint64ToBytes(summary))
 	}
 	if !bytes.Equal(hash, ir.Hash) {
 		return fmt.Errorf("invalid state root hash: expected %X, got %X", ir.Hash, hash)

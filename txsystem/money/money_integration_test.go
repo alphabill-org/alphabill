@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -22,8 +25,6 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -129,7 +130,6 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecord.ServerMetadata.GetActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
-	_ = txRecord
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
@@ -246,9 +246,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// split initial bill using N-way split where N=nofDustToSwap
 	amount := uint64(1)
-	_, _, transferRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
+	_, _, _, err = moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
-	_ = transferRecord
 	total -= fcrAmount
 
 	var targetUnits []*TargetUnit

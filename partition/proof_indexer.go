@@ -62,6 +62,19 @@ func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uin
 	}
 }
 
+func (p *ProofIndexer) IndexBlock(ctx context.Context, block *types.Block, state UnitAndProof) error {
+	roundNumber := block.GetRoundNumber()
+	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("indexing block %v", roundNumber))
+	if err := p.create(ctx, block, state); err != nil {
+		return fmt.Errorf("creating index failed: %w", err)
+	}
+	// clean-up
+	if err := p.historyCleanup(ctx, roundNumber); err != nil {
+		return fmt.Errorf("index clean-up failed: %w", err)
+	}
+	return nil
+}
+
 func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state UnitAndProof) {
 	select {
 	case <-ctx.Done():
@@ -82,25 +95,18 @@ func (p *ProofIndexer) loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case b := <-p.blockCh:
-			roundNumber := b.Block.GetRoundNumber()
-			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("indexing block %v", roundNumber))
-			if err := p.create(ctx, b); err != nil {
-				p.log.Warn(fmt.Sprintf("indexing block %v failed", roundNumber), logger.Error(err))
-			}
-			// clean-up
-			if err := p.historyCleanup(ctx, roundNumber); err != nil {
-				p.log.Warn("index clean-up failed", logger.Error(err))
+			if err := p.IndexBlock(ctx, b.Block, b.State); err != nil {
+				p.log.Warn(fmt.Sprintf("indexing block %v failed", b.Block.GetRoundNumber()), logger.Error(err))
 			}
 		}
 	}
 }
 
 // create - creates proof index DB entries
-func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err error) {
-	if bas.Block.GetRoundNumber() <= p.latestIndexedBlockNumber() {
-		return fmt.Errorf("block %d already indexed", bas.Block.GetRoundNumber())
+func (p *ProofIndexer) create(ctx context.Context, block *types.Block, stateReader UnitAndProof) (err error) {
+	if block.GetRoundNumber() <= p.latestIndexedBlockNumber() {
+		return fmt.Errorf("block %d already indexed", block.GetRoundNumber())
 	}
-	block := bas.Block
 	dbTx, err := p.storage.StartTx()
 	if err != nil {
 		return fmt.Errorf("start DB transaction failed: %w", err)
@@ -127,7 +133,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		// write down tx index for generating block proofs
 		txoHash := tx.TransactionOrder.Hash(p.hashAlgorithm)
 		if err = dbTx.Write(txoHash, &TxIndex{
-			RoundNumber:  bas.Block.GetRoundNumber(),
+			RoundNumber:  block.GetRoundNumber(),
 			TxOrderIndex: i,
 		}); err != nil {
 			return err
@@ -137,7 +143,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 		txrHash := tx.Hash(p.hashAlgorithm)
 		for _, unitID := range tx.ServerMetadata.TargetUnits {
 			var unit *state.Unit
-			unit, err = bas.State.GetUnit(unitID, true)
+			unit, err = stateReader.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
@@ -147,7 +153,7 @@ func (p *ProofIndexer) create(ctx context.Context, bas *BlockAndState) (err erro
 				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {
 					continue
 				}
-				usp, e := bas.State.CreateUnitStateProof(unitID, j)
+				usp, e := stateReader.CreateUnitStateProof(unitID, j)
 				if e != nil {
 					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", unitID, e))
 					continue

@@ -28,6 +28,8 @@
       - [Split Fungible Token](#split-fungible-token)
       - [Burn Fungible Token](#burn-fungible-token)
       - [Join Fungible Tokens](#join-fungible-tokens)
+      - [Lock Token](#lock-token)
+      - [Unlock Token](#unlock-token)
       - [Add Fee Credit](#add-fee-credit-1)
       - [Close Fee Credit](#close-fee-credit-1)
 - [Examples](#examples)
@@ -58,16 +60,16 @@ Data items in the top-level array:
 1. *Payload* (array) is described in section [*Payload*](#payload).
 
 2. *OwnerProof* (byte string) contains the arguments to satisfy the
-owner condition of the unit specified by *Payload*.*UnitID*. The most
+owner predicate of the unit specified by *Payload*.*UnitID*. The most
 common example of *OwnerProof* is a digital signature signing the CBOR
 encoded *Payload*.
 
 3. *FeeProof* (byte string) contains the arguments to satisfy the
-owner condition of the fee credit record specified by
+owner predicate of the fee credit record specified by
 *Payload*.*ClientMetadata*.*FeeCreditRecordID*. The most common
 example of *FeeProof* is a digital signature signing the CBOR encoded
 *Payload*. *FeeProof* can be set to ```null``` (CBOR simple value 22)
-in case *OwnerProof* also satisfies the owner condition of the fee
+in case *OwnerProof* also satisfies the owner predicate of the fee
 credit record.
 
 ### *Payload*
@@ -77,23 +79,23 @@ signature and consists of the following (with example values):
 
 ```
 /Payload/ [
-    /SystemIdentifier/ 0x04030201,
-    /Type/             "trans",
-    /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
-    /Attributes/       [/omitted, Type dependent/],
-    /ClientMetadata/   [/omitted/]
+    /SystemID/       1,
+    /Type/           "trans",
+    /UnitID/         h'000000000000000000000000000000000000000000000000000000000000000100',
+    /Attributes/     [/omitted, Type dependent/],
+    /ClientMetadata/ [/omitted/]
 ]
 ```
 
 Data items in the *Payload* array:
 
-1. *SystemIdentifier* (32bit uint) is a 4-byte identifier of the
-transaction system/partition that is supposed to execute the
-transaction. *SystemIdentifier*s currently in use:
+1. *SystemID* (unsigned integer) is the identifier of the transaction
+system/partition that is supposed to execute the transaction. *SystemID*s
+currently in use:
 
-    - `0x00000001` - money partition
-    - `0x00000002` - tokens partition 
-    - `0x00000003` - EVM partition 
+    - *1* - money partition
+    - *2* - tokens partition
+    - *3* - EVM partition
 
 2. *Type* (text string) is the type of the transaction. See section
 [Transaction Types](#transaction-types) for the list of supported values and
@@ -157,7 +159,7 @@ partition.
 
 #### Money Partition
 
-System identifier: 0x00000001
+*SystemID*: 1
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
@@ -182,7 +184,7 @@ transferred bill is unchanged.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the bill.
+1. *TargetOwner* (byte string) is the new owner predicate of the bill.
 2. *TargetValue* (unsigned integer) must be equal to the value of the
    bill. The reason for including the value of the bill in the
    transaction order is to enable the recipient of the transaction to
@@ -193,7 +195,7 @@ transferred bill is unchanged.
 ##### Split Bill
 
 This transaction splits a bill into two or more bills, creating new
-bills with new owner conditions (*TargetUnit*.*TargetOwner*) and
+bills with new owner predicates (*TargetUnit*.*TargetOwner*) and
 values (*TargetUnit*.*TargetValue*). The value of the bill being split
 is reduced by the values of the new bills and is specified in the
 *RemainingValue* attribute. The sums of *TargetUnit*.*TargetValue*s
@@ -218,12 +220,11 @@ split.
 1. *TargetUnits* (array) is an array of *TargetUnit* data items. Each
    *TargetUnit* is an array of two data items:
    1. *TargetValue* (unsigned integer) is the value of the new bill.
-   2. *TargetOwner* (byte string) is the owner condition of the new bill.
+   2. *TargetOwner* (byte string) is the owner predicate of the new bill.
 2. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill being split.
-
 
 ##### Lock Bill
 
@@ -247,7 +248,7 @@ must be unlocked.
 ]
 ```
 
-1. *LockStatus* (uint64) is the status of the lock, 
+1. *LockStatus* (unsigned integer) is the status of the lock, 
    must be non-zero value.
 2. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
@@ -263,7 +264,7 @@ in locked status.
 *TransactionOrder*.*Payload*.*Type* = "unlock"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
-/lockAttributes/ [
+/unlockAttributes/ [
     /Backlink/   h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
 ]
 ```
@@ -317,14 +318,14 @@ with [Lock Bill](#lock-bill) transaction.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /OwnerCondition/   h'',
+    /OwnerPredicate/   h'',
     /DcTransfers/      [/omitted/],
     /DcTransferProofs/ [/omitted/],
     /TargetValue/      3
 ]
 ```
 
-1. *OwnerCondition* (byte string) is the new owner condition of the target bill.
+1. *OwnerPredicate* (byte string) is the new owner predicate of the target bill.
 2. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
@@ -372,7 +373,7 @@ unlocks the target bill.
 ]
 ```
 
-1. *LockStatus* (uint64) is the new lock status. Must be non-zero value.
+1. *LockStatus* (unsigned integer) is the new lock status. Must be non-zero value.
 2. *Backlink* (byte string) is the last hash of 
    [Lock Fee Credit](#lock-fee-credit), 
    [Unlock Fee Credit](#unlock-fee-credit),
@@ -429,21 +430,21 @@ Fee Credit](#add-fee-credit) transaction.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transFCAttributes/ [
-    /Amount/                 100000000,
-    /TargetSystemIdentifier/ 0x00000002,
-    /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
-    /EarliestAdditionTime/   13,
-    /LatestAdditionTime/     23,
-    /TargetUnitBacklink/     null,
-    /Backlink/               h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
+    /Amount/               100000000,
+    /TargetSystemID/       2,
+    /TargetUnitID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
+    /EarliestAdditionTime/ 13,
+    /LatestAdditionTime/   23,
+    /TargetUnitBacklink/   null,
+    /Backlink/             h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
 ]
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
    paying fees in the target partition. A bill can be transferred to
    partially.
-2. *TargetSystemIdentifier* (32bit uint) is the system identifier of
-   the target partition where the *Amount* can be spent on fees.
+2. *TargetSystemID* (unsigned integer) is the system identifier of the
+   target partition where the *Amount* can be spent on fees.
 3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
    Credit](#add-fee-credit) transaction).
@@ -485,7 +486,7 @@ record being created/updated.
 ```
 
 1. *TargetOwner* (byte string, optional) is the owner
-   condition for the created fee credit record. It needs to be
+   predicate for the created fee credit record. It needs to be
    satisfied by the *TransactionOrder*.*FeeProof* data item of the
    transactions using the record to pay fees.
 2. *FeeCreditTransfer* (array) is a record of the [Transfer to Fee
@@ -564,7 +565,7 @@ with [Lock Bill](#lock-bill) transaction.
 
 #### Tokens Partition
 
-System identifier: *0x00000002*
+*SystemID*: *2*
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
@@ -613,7 +614,7 @@ This transaction creates a non-fungible token type.
    controls creating new tokens of this type.
 7. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
-   their owner condition.
+   their owner predicate.
 8. *DataUpdatePredicate* (byte string) is the clause that all tokens
    of this type (and of subtypes) inherit into their data update
    predicates.
@@ -629,7 +630,7 @@ This transaction creates a new non-fungible token.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /createNTokenAttributes/ [
-    /OwnerCondition/                   h'',
+    /OwnerPredicate/                   h'',
     /TypeID/                           h'',
     /Name/                             "",
     /URI/                              "",
@@ -639,7 +640,7 @@ This transaction creates a new non-fungible token.
 ]
 ```
 
-1. *OwnerCondition* (byte string) is the initial owner condition of
+1. *OwnerPredicate* (byte string) is the initial owner predicate of
    the new token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
@@ -656,7 +657,8 @@ This transaction creates a new non-fungible token.
 
 ##### Transfer Non-fungible Token
 
-This transaction transfers a non-fungible token to a new owner.
+This transaction transfers a non-fungible token to a new owner. The
+token must not be in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "transNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -670,7 +672,7 @@ This transaction transfers a non-fungible token to a new owner.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the
+1. *TargetOwner* (byte string) is the new owner predicate of the
    token.
 2. *Nonce* (byte string) is an optional nonce.
 3. *Backlink* (byte string) is the backlink to the previous
@@ -682,7 +684,8 @@ This transaction transfers a non-fungible token to a new owner.
 
 ##### Update Non-fungible Token
 
-This transaction updates the data of a non-fungible token.
+This transaction updates the data of a non-fungible token. The token
+must not be in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "updateNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -740,7 +743,7 @@ This transaction creates a fungible token type.
    controls creating new tokens of this type.
 8. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
-   their owner condition.
+   their owner predicate.
 9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
@@ -760,7 +763,7 @@ This transaction creates a new fungible token.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the initial owner condition of
+1. *TargetOwner* (byte string) is the initial owner predicate of
    the new token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
@@ -772,7 +775,8 @@ This transaction creates a new fungible token.
 ##### Transfer Fungible Token
 
 This transaction transfers a fungible token to a new owner. The value
-of the transferred token is unchanged.
+of the transferred token is unchanged. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "transFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -787,7 +791,7 @@ of the transferred token is unchanged.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the new owner condition of the
+1. *TargetOwner* (byte string) is the new owner predicate of the
    token.
 2. *TargetValue* (unsigned integer) must be equal to the value of the
    token. The reason for including the value of the token in the
@@ -804,11 +808,12 @@ of the transferred token is unchanged.
 ##### Split Fungible Token
 
 This transaction splits a fungible token in two, creating a new
-fungible token with a new owner condition (*TargetOwner*) and value
+fungible token with a new owner predicate (*TargetOwner*) and value
 (*TargetValue*). The value of the token being split is reduced by the
 value of the new token and is specified in the *RemainingValue*
 attribute. The sum of *TargetValue* and *RemainingValue* must be equal
-to the value of the token before the split.
+to the value of the token before the split. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "splitFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -824,7 +829,7 @@ to the value of the token before the split.
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new
+1. *TargetOwner* (byte string) is the owner predicate of the new
    token.
 2. *TargetValue* (unsigned integer) is the value of the new token.
 3. *Nonce* (byte string) is an optional nonce.
@@ -841,7 +846,8 @@ to the value of the token before the split.
 
 This transaction "burns" (deletes) a fungible token to be later joined
 into a larger-value fungible token with the [Join Fungible
-Token](#join-fungible-tokens) transaction.
+Token](#join-fungible-tokens) transaction. The token must not be in
+[locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "burnFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -872,7 +878,9 @@ Token](#join-fungible-tokens) transaction.
 ##### Join Fungible Tokens
 
 This transaction joins the values of [burned
-tokens](#burn-fungible-token) into a target token of the same type.
+tokens](#burn-fungible-token) into a target token of the same
+type. The target token is [unlocked](#unlock-token) automatically if
+it was in [locked](#lock-token) status.
 
 *TransactionOrder*.*Payload*.*Type* = "joinFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -900,6 +908,62 @@ tokens](#burn-fungible-token) into a target token of the same type.
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
 
+##### Lock Token
+
+This transaction locks the specified token. Locked non-fungible tokens
+cannot be [transferred](#transfer-non-fungible-token) or
+[updated](#update-non-fungible-token). Locked fungible tokens cannot
+be [transferred](#transfer-fungible-token), [split](#split-fungible-token)
+or [burned](#burn-fungible-token). Unlocking can happen manually with the
+[Unlock Token](#unlock-token) transaction or automatically with the
+[Join Fungible Token](#join-fungible-tokens) transaction for fungible tokens.
+
+Locking of the tokens is optional. However, it is recommended to lock
+the target fungible token while joining is in progress, to prevent
+other transactions from changing its state and thus making the final
+[join](#join-fungible-tokens) transaction fail. The specified lock
+status must be non-zero value and the targeted token must be unlocked.
+
+*TransactionOrder*.*Payload*.*Type* = "lockToken"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/lockTokenAttributes/ [
+    /LockStatus/                   1,
+    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /InvariantPredicateSignatures/ [h'']
+]
+```
+
+1. *LockStatus* (unsigned integer) is the status of the lock,
+   must be non-zero value.
+2. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+3. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
+
+##### Unlock Token
+
+This transaction unlocks the specified token. Unlocking can also
+happen automatically when [joining](#join-fungible-tokens) fungible
+tokens. The targeted token must be in locked status.
+
+*TransactionOrder*.*Payload*.*Type* = "unlockToken"\
+*TransactionOrder*.*Payload*.*Attributes* contains:
+```
+/unlockTokenAttributes/ [
+    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /InvariantPredicateSignatures/ [h'']
+]
+```
+
+1. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+2. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
+
+
 ##### Add Fee Credit
 
 Same as the [Add Fee Credit](#add-fee-credit) transaction in the money
@@ -920,7 +984,7 @@ Extended Diagnostic Notation to raw hex encoded CBOR format.
 
 Raw hex encoded transaction:
 ```
-8385016573706c697458210000000000000000000000000000000000000000000000000000000000000001008382821a05f5e100582683000281582062c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d821a0bebc2005826830002815820411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a1b0de0b6b389969afd5820d064c1fb52b454760e29bf9c3012cb893bf8a4d633bc9a71b50ba51166b27c938319024f015821b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa00f5867825841d80b1a7b9777f00a7975a90a5d16773458678febbb3cef9e3d1e2df6659ed21d0295ea32b13843ffbd160f51813397c7c3217c5ea8b15955ac0c4378c16fe40b0058210227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
+8385016573706c697458215a6af25f2a257c91f528e04d5c026e090ddf387a06ad9e155c009b821df602bf008381821a0bebc200582683004102582062c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d1a11e1a3015820bc152aa13ac535563179c06e4f40ec26e4bdfe6e6252e720e794b4735ba5c6ec83181c015821411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a0f586782584174faf21cfc0a37bd6d4ec3fd6a946516b4c9ab5817fe0bd1c6588ecc93d08f0220bfd1d76a26c733e0e56f99e268363226b255833f29602a849367a288432c0c0158210225fd546b19683bed7663a83f97b1a1545a52f180f432ee1748fc3b51090eba5cf6
 ```
 
 Same hex encoded data with annotations:
@@ -931,27 +995,23 @@ Same hex encoded data with annotations:
       65                                # text(5)
          73706C6974                     # "split"
       58 21                             # bytes(33)
-         000000000000000000000000000000000000000000000000000000000000000100 # "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000"
+         5A6AF25F2A257C91F528E04D5C026E090DDF387A06AD9E155C009B821DF602BF00 # "Zj\xF2_*%|\x91\xF5(\xE0M\\\u0002n\t\r\xDF8z\u0006\xAD\x9E\u0015\\\u0000\x9B\x82\u001D\xF6\u0002\xBF\u0000"
       83                                # array(3)
-         82                             # array(2)
-            82                          # array(2)
-               1A 05F5E100              # unsigned(100000000)
-               58 26                    # bytes(38)
-                  83000281582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D # "\x83\u0000\u0002\x81X b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D"
+         81                             # array(1)
             82                          # array(2)
                1A 0BEBC200              # unsigned(200000000)
                58 26                    # bytes(38)
-                  830002815820411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A # "\x83\u0000\u0002\x81X A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:"
-         1B 0DE0B6B389969AFD            # unsigned(999999999499999997)
+                  83004102582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D # "\x83\u0000A\u0002X b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D"
+         1A 11E1A301                    # unsigned(300000001)
          58 20                          # bytes(32)
-            D064C1FB52B454760E29BF9C3012CB893BF8A4D633BC9A71B50BA51166B27C93 # "\xD0d\xC1\xFBR\xB4Tv\u000E)\xBF\x9C0\u0012ˉ;\xF8\xA4\xD63\xBC\x9Aq\xB5\v\xA5\u0011f\xB2|\x93"
+            BC152AA13AC535563179C06E4F40EC26E4BDFE6E6252E720E794B4735BA5C6EC # "\xBC\u0015*\xA1:\xC55V1y\xC0nO@\xEC&\xE4\xBD\xFEnbR\xE7 甴s[\xA5\xC6\xEC"
       83                                # array(3)
-         19 024F                        # unsigned(591)
+         18 1C                          # unsigned(28)
          01                             # unsigned(1)
          58 21                          # bytes(33)
-            B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA00F # "\xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ\u000F"
+            411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F # "A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:\u000F"
    58 67                                # bytes(103)
-      825841D80B1A7B9777F00A7975A90A5D16773458678FEBBB3CEF9E3D1E2DF6659ED21D0295EA32B13843FFBD160F51813397C7C3217C5EA8B15955AC0C4378C16FE40B0058210227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C # "\x82XA\xD8\v\u001A{\x97w\xF0\nyu\xA9\n]\u0016w4Xg\x8F\xEB\xBB<\xEF\x9E=\u001E-\xF6e\x9E\xD2\u001D\u0002\x95\xEA2\xB18C\xFF\xBD\u0016\u000FQ\x813\x97\xC7\xC3!|^\xA8\xB1YU\xAC\fCx\xC1o\xE4\v\u0000X!\u0002'\xE8t\xB8\u0000\xCA1\x9B{Ä\xDF\xC6?\x91^\t\x84\u0017\xB5I\xED\xB45%\xAE\xE5\u0011\xA6۽\x9C"
+      82584174FAF21CFC0A37BD6D4EC3FD6A946516B4C9AB5817FE0BD1C6588ECC93D08F0220BFD1D76A26C733E0E56F99E268363226B255833F29602A849367A288432C0C0158210225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "\x82XAt\xFA\xF2\u001C\xFC\n7\xBDmN\xC3\xFDj\x94e\u0016\xB4ɫX\u0017\xFE\v\xD1\xC6X\x8E̓Џ\u0002 \xBF\xD1\xD7j&\xC73\xE0\xE5o\x99\xE2h62&\xB2U\x83?)`*\x84\x93g\xA2\x88C,\f\u0001X!\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
    F6                                   # primitive(22)
 ```
 
@@ -959,30 +1019,26 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ 1,
-        /Type/             "split",
-        /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
+        /SystemID/ 1,
+        /Type/     "split",
+        /UnitID/   h'5A6AF25F2A257C91F528E04D5C026E090DDF387A06AD9E155C009B821DF602BF00',
         /splitAttributes/ [
             /TargetUnits/ [
                 /TargetUnit/ [
-                    /TargetValue/ 100000000,
-                    /TargetOwner/ h'83000281582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D'
-                ],
-                /TargetUnit/ [
                     /TargetValue/ 200000000,
-                    /TargetOwner/ h'830002815820411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A'
+                    /TargetOwner/ h'83004102582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D'
                 ]
             ],
-            /RemainingValue/ 999999999499999997,
-            /Backlink/       h'D064C1FB52B454760E29BF9C3012CB893BF8A4D633BC9A71B50BA51166B27C93'
+            /RemainingValue/ 300000001,
+            /Backlink/       h'BC152AA13AC535563179C06E4F40EC26E4BDFE6E6252E720E794B4735BA5C6EC'
         ],
         /ClientMetadata/ [
-            /Timeout/           591,
+            /Timeout/           28,
             /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA00F'
+            /FeeCreditRecordID/ h'411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F'
         ]
     ],
-    /OwnerProof/ h'825841D80B1A7B9777F00A7975A90A5D16773458678FEBBB3CEF9E3D1E2DF6659ED21D0295EA32B13843FFBD160F51813397C7C3217C5EA8B15955AC0C4378C16FE40B0058210227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C',
+    /OwnerProof/ h'82584174FAF21CFC0A37BD6D4EC3FD6A946516B4C9AB5817FE0BD1C6588ECC93D08F0220BFD1D76A26C733E0E56F99E268363226B255833F29602A849367A288432C0C0158210225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C',
     /FeeProof/   null
 ]
 ```
@@ -991,7 +1047,7 @@ Extended Diagnostic Notation with annotations:
 
 Raw hex encoded transaction:
 ```
-838501657472616e7358216f1d819ff441c203faa98133ac5acf3ab04d398a6a26d5f79794a7241cce166f0083582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc200582062a0acc76c31d9f8c5e7009cafec766af40a7fddb3a7b8aa8ce804a85033b1fd83182401582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f58675354015fbc6496ffa12d63a145e817495b0fdc7d59fe9a4e5263b84af13ffaacdc3421308c602f19bfc92c9f6b2b036f37a94e65fd5bcc8539775f2559b65cb8b4b733015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
+838501657472616e7358212ee0c0d33035f3556609871d5fd9cb0a345f87625b26c343991102e4355eeb1c00835826830041025820b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa01a0bebc2005820dc6b998fab136e8476c53fff42452f157dec1aa07846154b2fbece3c45f9f8b183181f01582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f586782584130267277c3552378e7f3873c14c56b89a48e3cf79753f95775e3128be0e2aacc467762f6b9b220102738e0f1734caa8af879b259291916cadb8cf6fdf143f9f3015821036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
 ```
 
 Same hex encoded data with annotations:
@@ -1002,20 +1058,20 @@ Same hex encoded data with annotations:
       65                                # text(5)
          7472616E73                     # "trans"
       58 21                             # bytes(33)
-         6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00 # "o\u001D\x81\x9F\xF4A\xC2\u0003\xFA\xA9\x813\xACZ\xCF:\xB0M9\x8Aj&\xD5\xF7\x97\x94\xA7$\u001C\xCE\u0016o\u0000"
+         2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00 # ".\xE0\xC0\xD305\xF3Uf\t\x87\u001D_\xD9\xCB\n4_\x87b[&\xC3C\x99\u0011\u0002\xE45^\xEB\u001C\u0000"
       83                                # array(3)
-         58 2A                          # bytes(42)
-            5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01 # "Sv\xA8\u0001O\u0001\xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ\x87i\xAC\u0001"
+         58 26                          # bytes(38)
+            830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0 # "\x83\u0000A\u0002X \xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ"
          1A 0BEBC200                    # unsigned(200000000)
          58 20                          # bytes(32)
-            62A0ACC76C31D9F8C5E7009CAFEC766AF40A7FDDB3A7B8AA8CE804A85033B1FD # "b\xA0\xAC\xC7l1\xD9\xF8\xC5\xE7\u0000\x9C\xAF\xECvj\xF4\n\u007Fݳ\xA7\xB8\xAA\x8C\xE8\u0004\xA8P3\xB1\xFD"
+            DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1 # "\xDCk\x99\x8F\xAB\u0013n\x84v\xC5?\xFFBE/\u0015}\xEC\u001A\xA0xF\u0015K/\xBE\xCE<E\xF9\xF8\xB1"
       83                                # array(3)
-         18 24                          # unsigned(36)
+         18 1F                          # unsigned(31)
          01                             # unsigned(1)
          58 21                          # bytes(33)
             62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F # "b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\u000F"
    58 67                                # bytes(103)
-      5354015FBC6496FFA12D63A145E817495B0FDC7D59FE9A4E5263B84AF13FFAACDC3421308C602F19BFC92C9F6B2B036F37A94E65FD5BCC8539775F2559B65CB8B4B733015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "ST\u0001_\xBCd\x96\xFF\xA1-c\xA1E\xE8\u0017I[\u000F\xDC}Y\xFE\x9ANRc\xB8J\xF1?\xFA\xAC\xDC4!0\x8C`/\u0019\xBF\xC9,\x9Fk+\u0003o7\xA9Ne\xFD[̅9w_%Y\xB6\\\xB8\xB4\xB73\u0001U\u0001\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
+      82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "\x82XA0&rw\xC3U#x\xE7\xF3\x87<\u0014\xC5k\x89\xA4\x8E<\xF7\x97S\xF9Wu\xE3\u0012\x8B\xE0\xE2\xAA\xCCFwb\xF6\xB9\xB2 \u0010'8\xE0\xF1sL\xAA\x8A\xF8y\xB2Y)\u0019\u0016\xCAی\xF6\xFD\xF1C\xF9\xF3\u0001X!\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
    F6                                   # primitive(22)
 ```
 
@@ -1023,21 +1079,21 @@ Extended Diagnostic Notation with annotations:
 ```
 /TransactionOrder/ [
     /Payload/ [
-        /SystemIdentifier/ 1,
-        /Type/             "trans",
-        /UnitID/           h'6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00',
+        /SystemID/ 1,
+        /Type/     "trans",
+        /UnitID/   h'2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00',
         /transAttributes/ [
-            /TargetOwner/ h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
+            /TargetOwner/ h'830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0',
             /TargetValue/ 200000000,
-            /Backlink/    h'62A0ACC76C31D9F8C5E7009CAFEC766AF40A7FDDB3A7B8AA8CE804A85033B1FD'
+            /Backlink/    h'DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1'
         ],
         /ClientMetadata/ [
-            /Timeout/           36,
+            /Timeout/           31,
             /MaxTransactionFee/ 1,
             /FeeCreditRecordID/ h'62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F'
         ]
     ],
-    /OwnerProof/ h'5354015FBC6496FFA12D63A145E817495B0FDC7D59FE9A4E5263B84AF13FFAACDC3421308C602F19BFC92C9F6B2B036F37A94E65FD5BCC8539775F2559B65CB8B4B733015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724'
+    /OwnerProof/ h'82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724'
     /FeeProof/   null
 ]
 ```

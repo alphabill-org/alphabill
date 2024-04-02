@@ -1,13 +1,10 @@
 package types
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
 )
-
-var cborNil = []byte{0xf6}
 
 type (
 	TransactionOrder struct {
@@ -170,25 +167,4 @@ func (p *Payload) BytesWithAttributeSigBytes(attrs SigBytesProvider) ([]byte, er
 		ClientMetadata: p.ClientMetadata,
 	}
 	return payload.Bytes()
-}
-
-// MarshalCBOR returns r or CBOR nil if r is nil.
-func (r RawCBOR) MarshalCBOR() ([]byte, error) {
-	if len(r) == 0 || bytes.Equal(r, cborNil) {
-		return cborNil, nil
-	}
-	return r, nil
-}
-
-// UnmarshalCBOR creates a copy of data and saves to *r.
-func (r *RawCBOR) UnmarshalCBOR(data []byte) error {
-	if r == nil {
-		return errors.New("UnmarshalCBOR on nil pointer")
-	}
-	if bytes.Equal(data, cborNil) {
-		return nil
-	}
-	*r = make([]byte, len(data))
-	copy(*r, data)
-	return nil
 }

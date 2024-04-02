@@ -6,7 +6,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshalText_OK(t *testing.T) {
+func TestUint64MarshalText_OK(t *testing.T) {
+	var u Uint64 = 999
+	marshaled, err := u.MarshalText()
+	require.NoError(t, err)
+	require.Equal(t, string(marshaled), "999")
+
+	var unmarshaled Uint64
+	err = unmarshaled.UnmarshalText(marshaled)
+	require.NoError(t, err)
+	require.Equal(t, u, unmarshaled)
+}
+
+func TestBytesMarshalText_OK(t *testing.T) {
 	var bytes Bytes = []byte{1, 2, 3, 4, 5, 6, 7}
 	marshaled, err := bytes.MarshalText()
 	require.NoError(t, err)
@@ -18,14 +30,14 @@ func TestMarshalText_OK(t *testing.T) {
 	require.Equal(t, bytes, unmarshaled)
 }
 
-func TestMarshalText_ZeroLengthSliceIsNil(t *testing.T) {
+func TestBytesMarshalText_ZeroLengthSliceIsNil(t *testing.T) {
 	zeroLengthSlice := make(Bytes, 0)
 	marshaled, err := zeroLengthSlice.MarshalText()
 	require.NoError(t, err)
 	require.Nil(t, marshaled)
 }
 
-func TestUnmarshalText_ZeroLengthSliceIsNil(t *testing.T) {
+func TestBytesUnmarshalText_ZeroLengthSliceIsNil(t *testing.T) {
 	zeroLengthSlice := make(Bytes, 0)
 	var b Bytes
 	err := b.UnmarshalText(zeroLengthSlice)

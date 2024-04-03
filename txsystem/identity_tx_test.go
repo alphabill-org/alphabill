@@ -63,7 +63,7 @@ func Test_IdentityModule_validateIdentityTx(t *testing.T) {
 				require.Len(t, actions, 1)
 				// actions[0] is a function, check its name via reflection
 				funcName := runtime.FuncForPC(reflect.ValueOf(actions[0]).Pointer()).Name()
-				require.Contains(t, funcName, "state.SetStateLock")
+				require.Contains(t, funcName, "SetStateLock")
 				return nil
 			},
 		}

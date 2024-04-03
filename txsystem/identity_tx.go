@@ -23,7 +23,7 @@ type IdentityAttributes struct {
 	Nonce []byte
 }
 
-func NewIdentityModule(state UnitState) Module {
+func NewIdentityModule(state UnitState) *IdentityModule {
 	engines, err := predicates.Dispatcher(templates.New())
 	if err != nil {
 		panic(fmt.Errorf("creating predicate executor: %w", err))

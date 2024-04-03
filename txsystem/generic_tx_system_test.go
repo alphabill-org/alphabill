@@ -2,9 +2,12 @@ package txsystem
 
 import (
 	"errors"
+	"io"
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -185,4 +188,123 @@ type mockModule struct {
 
 func (mm mockModule) TxExecutors() map[string]ExecuteFunc {
 	return mm.executors
+}
+
+type mockUnitState struct {
+	ApplyFunc               func(actions ...state.Action) error
+	IsCommittedFunc         func() bool
+	CalculateRootFunc       func() (uint64, []byte, error)
+	PruneFunc               func() error
+	GetUnitFunc             func(id types.UnitID, committed bool) (*state.Unit, error)
+	AddUnitLogFunc          func(id types.UnitID, transactionRecordHash []byte) error
+	CloneFunc               func() *state.State
+	CommitFunc              func(uc *types.UnicityCertificate) error
+	CommittedUCFunc         func() *types.UnicityCertificate
+	SerializeFunc           func(writer io.Writer, committed bool) error
+	TraverseFunc            func(traverser avl.Traverser[types.UnitID, *state.Unit])
+	RevertFunc              func()
+	RollbackToSavepointFunc func(int)
+	ReleaseToSavepointFunc  func(int)
+	SavepointFunc           func() int
+}
+
+func (m *mockUnitState) Apply(actions ...state.Action) error {
+	if m.ApplyFunc != nil {
+		return m.ApplyFunc(actions...)
+	}
+	return nil
+}
+
+func (m *mockUnitState) IsCommitted() bool {
+	if m.IsCommittedFunc != nil {
+		return m.IsCommittedFunc()
+	}
+	return false
+}
+
+func (m *mockUnitState) CalculateRoot() (uint64, []byte, error) {
+	if m.CalculateRootFunc != nil {
+		return m.CalculateRootFunc()
+	}
+	return 0, nil, nil
+}
+
+func (m *mockUnitState) Prune() error {
+	if m.PruneFunc != nil {
+		return m.PruneFunc()
+	}
+	return nil
+}
+
+func (m *mockUnitState) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	if m.GetUnitFunc != nil {
+		return m.GetUnitFunc(id, committed)
+	}
+	return nil, nil
+}
+
+func (m *mockUnitState) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
+	if m.AddUnitLogFunc != nil {
+		return m.AddUnitLogFunc(id, transactionRecordHash)
+	}
+	return nil
+}
+
+func (m *mockUnitState) Clone() *state.State {
+	if m.CloneFunc != nil {
+		return m.CloneFunc()
+	}
+	return nil
+}
+
+func (m *mockUnitState) Commit(uc *types.UnicityCertificate) error {
+	if m.CommitFunc != nil {
+		return m.CommitFunc(uc)
+	}
+	return nil
+}
+
+func (m *mockUnitState) CommittedUC() *types.UnicityCertificate {
+	if m.CommittedUCFunc != nil {
+		return m.CommittedUCFunc()
+	}
+	return nil
+}
+
+func (m *mockUnitState) Serialize(writer io.Writer, committed bool) error {
+	if m.SerializeFunc != nil {
+		return m.SerializeFunc(writer, committed)
+	}
+	return nil
+}
+
+func (m *mockUnitState) Traverse(traverser avl.Traverser[types.UnitID, *state.Unit]) {
+	if m.TraverseFunc != nil {
+		m.TraverseFunc(traverser)
+	}
+}
+
+func (m *mockUnitState) Revert() {
+	if m.RevertFunc != nil {
+		m.RevertFunc()
+	}
+}
+
+func (m *mockUnitState) RollbackToSavepoint(id int) {
+	if m.RollbackToSavepointFunc != nil {
+		m.RollbackToSavepointFunc(id)
+	}
+}
+
+func (m *mockUnitState) ReleaseToSavepoint(id int) {
+	if m.ReleaseToSavepointFunc != nil {
+		m.ReleaseToSavepointFunc(id)
+	}
+}
+
+func (m *mockUnitState) Savepoint() int {
+	if m.SavepointFunc != nil {
+		return m.SavepointFunc()
+	}
+	return 0
 }

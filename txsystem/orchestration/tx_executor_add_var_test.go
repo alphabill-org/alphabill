@@ -3,6 +3,8 @@ package orchestration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -11,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAddVar_AddNewUnit_OK(t *testing.T) {
@@ -94,6 +95,29 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 
 	// and owner predicate remains the same
 	require.Equal(t, opts.ownerPredicate, u.Bearer())
+}
+
+func TestAddVar_NOK(t *testing.T) {
+	// create module
+	opts, err := defaultOptions()
+	require.NoError(t, err)
+	opts.state = state.NewEmptyState()
+	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(test.RandomBytes(32))
+
+	module, err := NewModule(opts)
+	require.NoError(t, err)
+	execFn := module.handleAddVarTx().ExecuteFunc()
+
+	// execute addVar tx with empty owner proof to simulate error
+	txo := testtransaction.NewTransactionOrder(t,
+		testtransaction.WithUnitId(NewVarID(nil, test.RandomBytes(32))),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithPayloadType(PayloadTypeAddVAR),
+		testtransaction.WithAttributes(AddVarAttributes{}),
+	)
+	serverMetadata, err := execFn(txo, 11)
+	require.ErrorContains(t, err, "invalid 'addVar' tx")
+	require.Nil(t, serverMetadata)
 }
 
 func TestAddVar_Validation(t *testing.T) {

@@ -65,6 +65,10 @@ case $1 in
       cmd="evm-genesis"
       home="testab/evm"
       ;;
+  orchestration)
+      cmd="orchestration-genesis"
+      home="testab/orchestration"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -167,6 +171,13 @@ local rpcPort=0
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
       aPort=29666
       rpcPort=29866
+      ;;
+    orchestration)
+      home="testab/orchestration"
+      key_files="testab/orchestration*/orchestration/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-4.json"
+      aPort=30666
+      rpcPort=30866
       ;;
     *)
       echo "error: unknown partition $1" >&2

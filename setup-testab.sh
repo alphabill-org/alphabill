@@ -82,4 +82,4 @@ fi
 generate_root_genesis $root_nodes
 
 # generate log configuration for all nodes
-generate_log_configuration
+generate_log_configuration "testab/*/"

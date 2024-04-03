@@ -218,16 +218,21 @@ func TestProvidesAndDiscoverNodes(t *testing.T) {
 	require.Len(t, peers, 2)
 }
 
+func createPeer(t *testing.T) *Peer {
+	return createBootstrappedPeer(t, nil, []peer.ID{})
+}
+
 /*
 createPeer returns new Peer configured with random port on localhost and registers
 cleanup for it (ie in the end of the test peer.Close is called).
 */
-func createPeer(t *testing.T) *Peer {
+func createBootstrappedPeer(t *testing.T, bootstrapPeers []peer.AddrInfo, validators []peer.ID) *Peer {
 	keyPair := generateKeyPair(t)
 	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)
 	require.NoError(t, err)
 
-	peerConf, err := NewPeerConfiguration(randomTestAddressStr, keyPair, nil, []peer.ID{peerID})
+	validators = append(validators, peerID)
+	peerConf, err := NewPeerConfiguration(randomTestAddressStr, keyPair, bootstrapPeers, validators)
 	require.NoError(t, err)
 
 	p, err := NewPeer(context.Background(), peerConf, logger.New(t), nil)

@@ -30,3 +30,6 @@ CVE-2018-1098
 
 # We do not use go-ethereum GraphQL endpoint
 CVE-2023-42319
+
+# We are not using quic-go, it's transitive from libp2p
+CVE-2024-22189

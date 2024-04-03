@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -28,7 +29,7 @@ type Module interface {
 type GenericTxSystem struct {
 	systemIdentifier      types.SystemID
 	hashAlgorithm         crypto.Hash
-	state                 *state.State
+	state                 UnitState //*state.State
 	currentBlockNumber    uint64
 	executors             TxExecutors
 	checkFeeCreditBalance func(tx *types.TransactionOrder) error
@@ -44,6 +45,24 @@ type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 	Logger() *slog.Logger
+}
+
+type UnitState interface {
+	Apply(actions ...state.Action) error
+	IsCommitted() bool
+	CalculateRoot() (uint64, []byte, error)
+	Prune() error
+	GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+	AddUnitLog(id types.UnitID, transactionRecordHash []byte) error
+	Clone() *state.State
+	Commit(uc *types.UnicityCertificate) error
+	CommittedUC() *types.UnicityCertificate
+	Serialize(writer io.Writer, committed bool) error
+	Traverse(traverser avl.Traverser[types.UnitID, *state.Unit])
+	Revert()
+	RollbackToSavepoint(int)
+	ReleaseToSavepoint(int)
+	Savepoint() int
 }
 
 func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
@@ -66,7 +85,7 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		pr:                    options.predicateRunner,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	modules = append(modules, NewIdentityModule(txs, txs.state))
+	modules = append(modules, NewIdentityModule(txs.state))
 
 	for _, module := range modules {
 		if err := txs.executors.Add(module.TxExecutors()); err != nil {

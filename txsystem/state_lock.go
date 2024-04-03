@@ -102,7 +102,7 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 }
 
 // LockUnitState locks the state of a unit if the state lock predicate evaluates to false
-func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s *state.State) (bool, error) {
+func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s UnitState) (bool, error) {
 	unitID := tx.UnitID()
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {

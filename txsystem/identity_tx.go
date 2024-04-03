@@ -14,9 +14,8 @@ var _ Module = (*IdentityModule)(nil)
 const TxIdentity = "identity"
 
 type IdentityModule struct {
-	txExecutor TransactionExecutor
-	state      *state.State
-	pr         predicates.PredicateRunner
+	state UnitState
+	pr    predicates.PredicateRunner
 }
 
 type IdentityAttributes struct {
@@ -24,13 +23,13 @@ type IdentityAttributes struct {
 	Nonce []byte
 }
 
-func NewIdentityModule(txExecutor TransactionExecutor, state *state.State) Module {
+func NewIdentityModule(state UnitState) Module {
 	engines, err := predicates.Dispatcher(templates.New())
 	if err != nil {
 		panic(fmt.Errorf("creating predicate executor: %w", err))
 	}
 	pr := predicates.NewPredicateRunner(engines.Execute, state)
-	return &IdentityModule{txExecutor: txExecutor, state: state, pr: pr}
+	return &IdentityModule{state: state, pr: pr}
 }
 
 func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
@@ -50,6 +49,14 @@ func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttribute
 }
 
 func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxExecutionContext) (err error) {
+	if tx.Payload == nil {
+		return fmt.Errorf("missing payload")
+	}
+
+	if tx.Payload.Type != TxIdentity {
+		return fmt.Errorf("invalid tx type: %s", tx.Payload.Type)
+	}
+
 	if !ctx.StateLockReleased {
 		unitID := tx.UnitID()
 		var u *state.Unit

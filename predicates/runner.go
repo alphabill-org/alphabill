@@ -129,7 +129,7 @@ func NewPredicateRunner(
 	executor PredicateExecutor,
 	// state of the tx system which executes transactions using this wrapper (ie this var
 	// is cached and forwarded to predicate engine on subsequent calls)
-	state *state.State,
+	state unitState,
 ) PredicateRunner {
 	env := &execEnv{state: state}
 	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
@@ -146,7 +146,11 @@ func NewPredicateRunner(
 
 // execEnv implements TxContext suitable for most tx systems.
 type execEnv struct {
-	state *state.State
+	state unitState
+}
+
+type unitState interface {
+	GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 }
 
 func (ee *execEnv) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {

@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"crypto"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -102,20 +103,20 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	}()
 
 	// peer1 starts processing
-	peer1TxCount := 0
+	var peer1TxCount atomic.Int32
 	go func() error {
 		network1.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
-			peer1TxCount++
+			peer1TxCount.Add(1)
 			return nil
 		})
 		return nil
 	}()
 
 	// peer2 starts processing
-	peer2TxCount := 0
+	var peer2TxCount atomic.Int32
 	go func() error {
 		network2.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
-			peer2TxCount++
+			peer2TxCount.Add(1)
 			return nil
 		})
 		return nil
@@ -132,7 +133,7 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return peer1TxCount == 50 && peer2TxCount == 50
+		return peer1TxCount.Load() == 50 && peer2TxCount.Load() == 50
 	}, test.WaitDuration, test.WaitTick)
 
 	peer1Conns := peer3.Network().ConnsToPeer(peer1.ID())

@@ -494,6 +494,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		roundTO := time.Second
 		pacemaker, err := NewPacemaker(minRoundLen, roundTO, observability.Default(t))
 		require.NoError(t, err)
+		start := time.Now()
 		pacemaker.Reset(context.Background(), 4, nil, nil)
 		defer pacemaker.Stop()
 
@@ -506,7 +507,6 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, tc)
 
-		start := time.Now()
 		select {
 		case e := <-pacemaker.StatusEvents():
 			if e != pmsRoundTimeout {

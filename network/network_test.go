@@ -6,10 +6,37 @@ import (
 	"testing"
 	"time"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 )
+
+type testStrMsg struct {
+	_    struct{} `cbor:",toarray"`
+	Info string
+}
+
+type testMsgContainer struct {
+	msgs []*testStrMsg
+}
+
+func (t *testMsgContainer) PushBack(msg *testStrMsg) {
+	t.msgs = append(t.msgs, msg)
+}
+
+func (t *testMsgContainer) PopFront() any {
+	if len(t.msgs) == 0 {
+		panic("pop on empty container")
+	}
+	var msg *testStrMsg
+	msg, t.msgs = t.msgs[0], t.msgs[1:]
+	return msg
+}
+
+func (t *testMsgContainer) Len() int {
+	return len(t.msgs)
+}
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	obs := observability.Default(t)
@@ -183,6 +210,121 @@ func Test_LibP2PNetwork_Send(t *testing.T) {
 	})
 }
 
+func Test_LibP2PNetwork_SendMsgs(t *testing.T) {
+	t.Run("success, messages to other peer", func(t *testing.T) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+
+		peer2 := createPeer(t)
+		nw2, err := newLibP2PNetwork(peer2, 2, obs)
+		require.NoError(t, err)
+		// need to init peerstore manually, otherwise peers can't dial each other
+		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+
+		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testStrMsg{}, timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(receiveProtocolDescription{protocolID: "test/p", typeFn: func() any { return &testStrMsg{} }}))
+		msgQueue := &testMsgContainer{}
+		msgQueue.PushBack(&testStrMsg{Info: "test message1"})
+		msgQueue.PushBack(&testStrMsg{Info: "test message2"})
+
+		require.NoError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()))
+		// wait for messages received
+		require.Eventually(t, func() bool { return len(nw2.receivedMsgs) == 2 }, test.WaitDuration, test.WaitTick)
+		// message one
+		rm := <-nw2.ReceivedChannel()
+		require.EqualValues(t, "test message1", rm.(*testStrMsg).Info)
+		rm = <-nw2.ReceivedChannel()
+		require.EqualValues(t, "test message2", rm.(*testStrMsg).Info)
+	})
+	t.Run("fails, receiver has room for only one message", func(t *testing.T) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+
+		peer2 := createPeer(t)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
+		require.NoError(t, err)
+		// need to init peerstore manually, otherwise peers can't dial each other
+		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+
+		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testStrMsg{}, timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(receiveProtocolDescription{protocolID: "test/p", typeFn: func() any { return &testStrMsg{} }}))
+		msgQueue := &testMsgContainer{}
+		for i := 1; i <= 4; i++ {
+			msgQueue.PushBack(&testStrMsg{Info: fmt.Sprintf("make a test message that is a bit longer to simulate real messages: test message %v", i)})
+		}
+		// NB! All messages are sent successfully? - actually, no 3 messages get dropped.
+		// Since all messages were successfully added to the out buffer and also received,
+		// but later dropped - there is no error here.
+		require.NoError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()))
+		// wait for messages received
+		require.Eventually(t, func() bool { return len(nw2.receivedMsgs) == 1 }, test.WaitDuration, test.WaitTick)
+		// message one
+		rm := <-nw2.ReceivedChannel()
+		require.EqualValues(t, "make a test message that is a bit longer to simulate real messages: test message 1", rm.(*testStrMsg).Info)
+	})
+	t.Run("fails, stream reset by receiver while still sending", func(t *testing.T) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+
+		peer2 := createPeer(t)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
+		require.NoError(t, err)
+		// need to init peerstore manually, otherwise peers can't dial each other
+		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+
+		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testStrMsg{}, timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(receiveProtocolDescription{protocolID: "test/p", typeFn: func() any { return &testStrMsg{} }}))
+		msgQueue := &testMsgContainer{}
+		for i := 1; i <= 10000; i++ {
+			msgQueue.PushBack(&testStrMsg{Info: fmt.Sprintf("make a test message that is a bit longer to simulate real messages: test message %v", i)})
+		}
+		require.EqualError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()), "stream write error stream reset\nclosing p2p stream: stream reset")
+	})
+	t.Run("unknown protocol type", func(t *testing.T) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+
+		peer2 := createPeer(t)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
+		require.NoError(t, err)
+		// need to init peerstore manually, otherwise peers can't dial each other
+		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+		type fooMsg struct{}
+		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: fooMsg{}, timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(receiveProtocolDescription{protocolID: "test/p", typeFn: func() any { return &testStrMsg{} }}))
+		msgQueue := &testMsgContainer{}
+		for i := 1; i <= 4; i++ {
+			msgQueue.PushBack(&testStrMsg{Info: fmt.Sprintf("make a test message that is a bit longer to simulate real messages: test message %v", i)})
+		}
+		require.EqualError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()), "no protocol registered for messages of type *network.testStrMsg")
+	})
+	t.Run("not able to dial", func(t *testing.T) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		nw1, err := newLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+
+		peer2 := createPeer(t)
+		nw2, err := newLibP2PNetwork(peer2, 1, obs)
+		require.NoError(t, err)
+		require.NoError(t, nw1.registerSendProtocol(sendProtocolDescription{protocolID: "test/p", msgType: testStrMsg{}, timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(receiveProtocolDescription{protocolID: "test/p", typeFn: func() any { return &testStrMsg{} }}))
+		msgQueue := &testMsgContainer{}
+		for i := 1; i <= 4; i++ {
+			msgQueue.PushBack(&testStrMsg{Info: fmt.Sprintf("make a test message that is a bit longer to simulate real messages: test message %v", i)})
+		}
+		require.EqualError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()), "opening p2p stream failed to find any peer in table")
+	})
+}
+
 func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 	t.Run("unknown protocol", func(t *testing.T) {
 		peer1 := createPeer(t)
@@ -241,7 +383,7 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		// need to init peerstores manually, otherwise peers can't dial each other...
 		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
 		// ...but close peer2 network connection
-		peer2.Close()
+		require.NoError(t, peer2.Close())
 
 		msg := []byte{3, 2, 1}
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

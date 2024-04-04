@@ -71,9 +71,9 @@ type validatorNetwork struct {
 	txFwdBy  metric.Int64Counter
 	txFwdTo  metric.Int64Counter
 
-	gs                   *pubsub.PubSub
-	gsTopicBlock         *pubsub.Topic
-	gsSubscriptionBlock  *pubsub.Subscription
+	gs                  *pubsub.PubSub
+	gsTopicBlock        *pubsub.Topic
+	gsSubscriptionBlock *pubsub.Subscription
 }
 
 type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
@@ -108,30 +108,30 @@ func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, sel
 	sendProtocolDescriptions := []sendProtocolDescription{
 		{
 			protocolID: ProtocolLedgerReplicationReq,
-			timeout: opts.LedgerReplicationRequestTimeout,
-			msgType: replication.LedgerReplicationRequest{}},
+			timeout:    opts.LedgerReplicationRequestTimeout,
+			msgType:    replication.LedgerReplicationRequest{}},
 		{
 			protocolID: ProtocolLedgerReplicationResp,
-			timeout: opts.LedgerReplicationResponseTimeout,
-			msgType: replication.LedgerReplicationResponse{},
+			timeout:    opts.LedgerReplicationResponseTimeout,
+			msgType:    replication.LedgerReplicationResponse{},
 		},
 	}
 	if self.IsValidator() {
 		sendProtocolDescriptions = append(sendProtocolDescriptions,
 			sendProtocolDescription{
 				protocolID: ProtocolBlockProposal,
-				timeout: opts.BlockProposalTimeout,
-				msgType: blockproposal.BlockProposal{},
+				timeout:    opts.BlockProposalTimeout,
+				msgType:    blockproposal.BlockProposal{},
 			},
 			sendProtocolDescription{
 				protocolID: ProtocolBlockCertification,
-				timeout: opts.BlockCertificationTimeout,
-				msgType: certification.BlockCertificationRequest{},
+				timeout:    opts.BlockCertificationTimeout,
+				msgType:    certification.BlockCertificationRequest{},
 			},
 			sendProtocolDescription{
 				protocolID: ProtocolHandshake,
-				timeout: opts.HandshakeTimeout,
-				msgType: handshake.Handshake{},
+				timeout:    opts.HandshakeTimeout,
+				msgType:    handshake.Handshake{},
 			},
 		)
 	}
@@ -142,7 +142,7 @@ func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, sel
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolLedgerReplicationReq,
-			typeFn: func() any { return &replication.LedgerReplicationRequest{} },
+			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
 		},
 		{
 			protocolID: ProtocolLedgerReplicationResp,
@@ -378,7 +378,9 @@ func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 			continue
 		}
 
-		n.receivedMsg(msg.ReceivedFrom, msg.GetTopic(), block)
+		if err = n.receivedMsg(msg.ReceivedFrom, msg.GetTopic(), block); err != nil {
+			n.log.WarnContext(ctx, "failed to receive block", logger.Error(err))
+		}
 	}
 }
 

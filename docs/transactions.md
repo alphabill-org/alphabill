@@ -1,10 +1,12 @@
-# Raw Transaction Format
+# Alphabill Raw Transaction Format
+
+The following sections specify the format used for Alphabill raw transactions.
 
 - [*TransactionOrder*](#transactionorder)
   - [*Payload*](#payload)
     - [*ClientMetadata*](#clientmetadata)
   - [Transaction Types](#transaction-types)
-    - [Money Partition](#money-partition)
+    - [Money Partition Transaction Types](#money-partition-transaction-types)
       - [Transfer Bill](#transfer-bill)
       - [Split Bill](#split-bill)
       - [Lock Bill](#lock-bill)
@@ -17,11 +19,11 @@
       - [Add Fee Credit](#add-fee-credit)
       - [Close Fee Credit](#close-fee-credit)
       - [Reclaim Fee Credit](#reclaim-fee-credit)
-    - [Tokens Partition](#tokens-partition)
-      - [Create Non-fungible Token Type](#create-non-fungible-token-type)
-      - [Create Non-fungible Token](#create-non-fungible-token)
-      - [Transfer Non-fungible Token](#transfer-non-fungible-token)
-      - [Update Non-fungible Token](#update-non-fungible-token)
+    - [Tokens Partition Transaction Types](#tokens-partition-transaction-types)
+      - [Create Non-Fungible Token Type](#create-non-fungible-token-type)
+      - [Create Non-Fungible Token](#create-non-fungible-token)
+      - [Transfer Non-Fungible Token](#transfer-non-fungible-token)
+      - [Update Non-Fungible Token](#update-non-fungible-token)
       - [Create Fungible Token Type](#create-fungible-token-type)
       - [Create Fungible Token](#create-fungible-token)
       - [Transfer Fungible Token](#transfer-fungible-token)
@@ -157,13 +159,17 @@ is calculated as the hash of the raw CBOR encoded bytes of the
 *TransactionOrder* data item. Hash algorithm is defined by each
 partition.
 
-#### Money Partition
+Alphabill transaction types are documented in sections [Money
+Partition Transaction Types](#money-partition-transaction-types) and
+[Tokens Partition Transaction Types](#tokens-partition-transaction-types).
+
+#### Money Partition Transaction Types
 
 *SystemID*: 1
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
-Valid type parts in *UnitID* and the corresponding unit types: 
+Valid type parts in *UnitID* and the corresponding unit types:
 - *h'00'* - bill
 - *h'0f'* - fee credit record
 
@@ -228,13 +234,13 @@ split.
 
 ##### Lock Bill
 
-This transaction locks the specified bill, making the bill impossible 
+This transaction locks the specified bill, making the bill impossible
 to spend before unlocking it first. The unlocking can happen manually
-with the [Unlock](#unlock-bill) transaction or automatically on 
+with the [Unlock Bill](#unlock-bill) transaction or automatically on
 certain transactions e.g.
 [Swap with Dust Collector](#swap-bills-with-dust-collector) or
 [Reclaim Fee Credit](#reclaim-fee-credit).
-Locking of the bills is optional, however, it is necessary in order to 
+Locking of the bills is optional, however, it is necessary in order to
 prevent failures due to concurrent modifications by other transactions.
 The specified lock status must be non-zero value and the targeted bill
 must be unlocked.
@@ -248,7 +254,7 @@ must be unlocked.
 ]
 ```
 
-1. *LockStatus* (unsigned integer) is the status of the lock, 
+1. *LockStatus* (unsigned integer) is the status of the lock,
    must be non-zero value.
 2. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
@@ -256,7 +262,7 @@ must be unlocked.
 ##### Unlock Bill
 
 This transaction unlocks the specified bill, making the bill spendable
-again. The unlocking can also happen automatically on certain transactions 
+again. The unlocking can also happen automatically on certain transactions
 e.g. [Swap with Dust Collector](#swap-bills-with-dust-collector) or
 [Reclaim Fee Credit](#reclaim-fee-credit). The targeted bill must be
 in locked status.
@@ -274,13 +280,13 @@ in locked status.
 
 ##### Transfer Bill to Dust Collector
 
-This transaction transfers a bill to a special owner - Dust Collector
-(DC). After transferring multiple bills to DC, the transferred bills 
-can be joined into an existing bill DC with the [Swap Bills With Dust
-Collector](#swap-bills-with-dust-collector) transaction. The target bill 
-must be chosen beforehand and should not be used between the transactions.
-To ensure that, the target bill should be locked using a 
-[Lock Bill](#lock-bill) transaction.
+This transaction transfers a bill to a special owner—Dust Collector
+(DC). After transferring multiple bills to DC, the transferred bills
+can be joined into an existing bill with the [Swap Bills With Dust
+Collector](#swap-bills-with-dust-collector) transaction. The target
+bill must be chosen beforehand and should not be used between the
+transactions.  To ensure that, the target bill should be locked using
+a [Lock Bill](#lock-bill) transaction.
 
 Dust is not defined, any bills can be transferred to DC and joined into
 a larger-value bill.
@@ -299,10 +305,10 @@ a larger-value bill.
 1. *Value* (unsigned integer) is the value of the bill
    transferred to DC with this transaction.
 2. *TargetUnitID* (byte string) is the *UnitID* of the target bill for the
-   [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   [Swap Bills With Dust Collector](#swap-bills-with-dust-collector)
    transaction.
-3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill 
-   for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill
+   for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector)
    transaction.
 4. *Backlink* (byte string) is the backlink to the previous transaction
    with the bill.
@@ -311,7 +317,7 @@ a larger-value bill.
 
 This transaction joins the bills previously [transferred to
 DC](#transfer-bill-to-dust-collector) into a target bill.
-It also unlocks the target bill, if it was previously locked 
+It also unlocks the target bill, if it was previously locked
 with [Lock Bill](#lock-bill) transaction.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
@@ -334,33 +340,41 @@ with [Lock Bill](#lock-bill) transaction.
    The order of this array must match the order of *DcTransfers*
    array, so that a transaction and its corresponding proof have the
    same index.
-4. *TargetValue* (unsigned integer) is the value added to the target bill 
+4. *TargetValue* (unsigned integer) is the value added to the target bill
    and must be equal to the sum of the values of the bills transferred to
    DC for this swap.
 
 ##### Lock Fee Credit
 
-Adding and reclaiming fee credits are multistep protocols, and it’s advisable 
-to lock the target unit to prevent failures due to concurrent modifications by other transactions.
+Adding and reclaiming fee credits are multistep protocols, and it’s
+advisable to lock the target unit to prevent failures due to
+concurrent modifications by other transactions.
 
 More specifically, for adding fee credits:
-* If the target fee credit record exists, it should be locked using a lockFC transaction in
-the target partition.
-* The amount to be added to fee credits should be paid using a transFC transaction in
-the money partition. To prevent replay attacks, the transFC transaction must identify
-the target record and its current state.
-* The transferred value is added to the target record using an addFC transaction in the
-target partition. As this transaction completes the fee transfer process, it also unlocks
+* If the target fee credit record exists, it should be locked using a
+[Lock Fee Credit](#lock-fee-credit) transaction in the target
+partition.
+* The amount to be added to fee credits should be paid using a
+[Transfer to Fee Credit](#transfer-to-fee-credit) transaction in the
+money partition. To prevent replay attacks, the [Transfer to Fee
+Credit](#transfer-to-fee-credit) transaction must identify the target
+record and its current state.
+* The transferred value is added to the target record using an [Add
+Fee Credit](#add-fee-credit) transaction in the target partition. As
+this transaction completes the fee transfer process, it also unlocks
 the target record.
 
 And for reclaiming fee credits:
-* The target bill should be locked using a [Lock Bill](#lock-bill) transaction in the money partition.
-* The fee credit should be closed using a [Close Fee Credit](#close-fee-credit) transaction in the target partition.
-To prevent replay attacks, the [Close Fee Credit](#close-fee-credit) transaction must 
-identify the target bill and its current state.
-* The reclaimed value is added to the target bill using a [Reclaim Fee Credit](#reclaim-fee-credit)
-transaction in the money partition. As this transaction completes the fee transfer process, it also 
-unlocks the target bill.
+* The target bill should be locked using a [Lock Bill](#lock-bill)
+  transaction in the money partition.
+* The fee credit should be closed using a [Close Fee
+Credit](#close-fee-credit) transaction in the target partition. To
+prevent replay attacks, the [Close Fee Credit](#close-fee-credit)
+transaction must identify the target bill and its current state.
+* The reclaimed value is added to the target bill using a [Reclaim Fee
+Credit](#reclaim-fee-credit) transaction in the money partition. As
+this transaction completes the fee transfer process, it also unlocks
+the target bill.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "lockFC"\
@@ -374,8 +388,8 @@ unlocks the target bill.
 ```
 
 1. *LockStatus* (unsigned integer) is the new lock status. Must be non-zero value.
-2. *Backlink* (byte string) is the last hash of 
-   [Lock Fee Credit](#lock-fee-credit), 
+2. *Backlink* (byte string) is the last hash of
+   [Lock Fee Credit](#lock-fee-credit),
    [Unlock Fee Credit](#unlock-fee-credit),
    [Add Fee Credit](#add-fee-credit) or
    [Close Fee Credit](#close-fee-credit)
@@ -383,9 +397,9 @@ unlocks the target bill.
 
 ##### Unlock Fee Credit
 
-This transaction unlocks the specified fee credit record. 
-Note that it's not required to manually unlock the unit 
-as the fee credit record is automatically unlocked on 
+This transaction unlocks the specified fee credit record.
+Note that it's not required to manually unlock the unit
+as the fee credit record is automatically unlocked on
 [Add Fee Credit](#add-fee-credit) transaction.
 
 *TransactionOrder*.*FeeProof* = `null`\
@@ -402,7 +416,7 @@ as the fee credit record is automatically unlocked on
    [Lock Fee Credit](#lock-fee-credit),
    [Unlock Fee Credit](#unlock-fee-credit),
    [Add Fee Credit](#add-fee-credit) or
-   [Close Fee Credit](#close-fee-credit) 
+   [Close Fee Credit](#close-fee-credit)
    transaction with the fee credit record.
 
 ##### Transfer to Fee Credit
@@ -420,9 +434,8 @@ accordingly. *ClientMetadata*.*MaxTransactionFee* still applies.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
-Credit](#transfer-to-fee-credit) transaction, because the *TargetUnitBacklink*
-attribute in this transaction contains the backlink to the last [Add
-Fee Credit](#add-fee-credit) transaction.
+Credit](#transfer-to-fee-credit) transaction, to notify the target
+partition of the new credit.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "transFC"\
@@ -442,7 +455,7 @@ Fee Credit](#add-fee-credit) transaction.
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
    paying fees in the target partition. A bill can be transferred to
-   partially.
+   fee credits either fully or partially.
 2. *TargetSystemID* (unsigned integer) is the system identifier of the
    target partition where the *Amount* can be spent on fees.
 3. *TargetUnitID* (byte string) is the target fee credit record
@@ -456,9 +469,12 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *TargetUnitBacklink* (byte string) is the hash of the last fee credit 
-   transaction (addFC, closeFC, lockFC, unlockFC) executed for the
-   *TargetUnitID* in the target partition, or `null` if it does not exist yet.
+6. *TargetUnitBacklink* (byte string) is the hash of the last fee
+   credit transaction ([Add Fee Credit](#add-fee-credit), [Close Fee
+   Credit](#close-fee-credit), [Lock Fee Credit](#lock-fee-credit),
+   [Unlock Fee Credit](#unlock-fee-credit)) executed for the
+   *TargetUnitID* in the target partition, or `null` if it does not
+   exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
 
@@ -504,7 +520,7 @@ This transaction closes a fee credit record and makes it possible to
 reclaim the money with the [Reclaim Fee Credit](#reclaim-fee-credit)
 transaction on the money partition.
 
-Note that fee credit records cannot be closed partially. 
+Note that fee credit records cannot be closed partially.
 
 This transaction must be followed by a [Reclaim Fee
 Credit](#reclaim-fee-credit) transaction to avoid losing the closed
@@ -527,18 +543,19 @@ the bill would invalidate that backlink.
 1. *Amount* (unsigned integer) is the current balance of the fee
    credit record.
 2. *TargetUnitID* (byte string) is the *UnitID* of the existing bill
-   in the money partition that is used to reclaim the fee credit.
+   in the money partition that will receive the reclaimed fee credit
+   amount.
 3. *TargetUnitBacklink* (byte string) is the backlink to the previous
-   transaction with the bill in the money partition that is used to
-   reclaim the fee credit.
+   transaction with the bill in the money partition that will receive
+   the reclaimed fee credit amount.
 
 ##### Reclaim Fee Credit
 
 This transaction reclaims the fee credit, previously closed with a
 [Close Fee Credit](#close-fee-credit) transaction in a target
-partition, to an existing bill in the money partition.
-It also unlocks the target bill, if it was previously locked
-with [Lock Bill](#lock-bill) transaction.
+partition, to an existing bill in the money partition.  It also
+unlocks the target bill, if it was previously locked with [Lock
+Bill](#lock-bill) transaction.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "reclFC"\
@@ -563,13 +580,13 @@ with [Lock Bill](#lock-bill) transaction.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill receiving the reclaimed fee credit.
 
-#### Tokens Partition
+#### Tokens Partition Transaction Types
 
 *SystemID*: *2*
 
 *UnitID* length: 32 bytes unit part + 1 byte type part
 
-Valid type parts in *UnitID* and the corresponding unit types: 
+Valid type parts in *UnitID* and the corresponding unit types:
 - *h'20'* - fungible token type
 - *h'21'* - fungible token
 - *h'22'* - non-fungible token type
@@ -578,7 +595,7 @@ Valid type parts in *UnitID* and the corresponding unit types:
 
 Hash algorithm: SHA-256
 
-##### Create Non-fungible Token Type
+##### Create Non-Fungible Token Type
 
 This transaction creates a non-fungible token type.
 
@@ -622,7 +639,7 @@ This transaction creates a non-fungible token type.
    array of inputs to satisfy the subtype creation predicates of all
    parents.
 
-##### Create Non-fungible Token
+##### Create Non-Fungible Token
 
 This transaction creates a new non-fungible token.
 
@@ -655,7 +672,7 @@ This transaction creates a new non-fungible token.
    array of inputs to satisfy the token creation predicates of all
    parent types.
 
-##### Transfer Non-fungible Token
+##### Transfer Non-Fungible Token
 
 This transaction transfers a non-fungible token to a new owner. The
 token must not be in [locked](#lock-token) status.
@@ -679,10 +696,10 @@ token must not be in [locked](#lock-token) status.
    transaction with the token.
 4. *TypeID* (byte string) is the type of the token.
 5. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
-##### Update Non-fungible Token
+##### Update Non-Fungible Token
 
 This transaction updates the data of a non-fungible token. The token
 must not be in [locked](#lock-token) status.
@@ -702,7 +719,7 @@ must not be in [locked](#lock-token) status.
 2. *Backlink* (byte string) is the backlink to the previous transaction
    with the token.
 3. *DataUpdateSignatures* (array of byte strings) is an array of inputs
-   to satisfy the token data update predicates down the inheritance
+   to satisfy the token data update predicates up the inheritance
    chain.
 
 ##### Create Fungible Token Type
@@ -802,7 +819,7 @@ of the transferred token is unchanged. The token must not be in
    transaction with the token.
 5. *TypeID* (byte string) is the type of the token.
 6. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 ##### Split Fungible Token
@@ -839,7 +856,7 @@ to the value of the token before the split. The token must not be in
 6. *RemainingValue* (unsigned integer) is the remaining value of the
    token being split.
 7. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 ##### Burn Fungible Token
@@ -864,7 +881,7 @@ Token](#join-fungible-tokens) transaction. The token must not be in
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *TargetTokenID* (byte string) is the token id of the target token 
+3. *TargetTokenID* (byte string) is the token id of the target token
    that this burn is to be [joined into](#join-fungible-tokens).
 4. *TargetTokenBacklink* (byte string) is the backlink to the previous
    transaction with the fungible token that this burn is to be [joined
@@ -872,7 +889,7 @@ Token](#join-fungible-tokens) transaction. The token must not be in
 5. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
 6. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 ##### Join Fungible Tokens
@@ -900,12 +917,12 @@ it was in [locked](#lock-token) status.
    included multiple times.
 2. *BurnTransactionProofs* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction proofs. The order of this
-   array must match the order of *BurnTransactions* array, so that a 
+   array must match the order of *BurnTransactions* array, so that a
    transaction and its corresponding proof have the same index.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the target token.
 4. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 ##### Lock Token
@@ -939,7 +956,7 @@ status must be non-zero value and the targeted token must be unlocked.
 2. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
 3. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 ##### Unlock Token
@@ -960,7 +977,7 @@ tokens. The targeted token must be in locked status.
 1. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
 2. *InvariantPredicateSignatures* (array of byte strings) is an array
-   of inputs to satisfy the token type invariant predicates down the
+   of inputs to satisfy the token type invariant predicates up the
    inheritance chain.
 
 
@@ -974,11 +991,68 @@ partition.
 Same as the [Close Fee Credit](#close-fee-credit) transaction in the
 money partition.
 
-## Examples
+## Raw Transaction Examples
 
 The raw hex encoded transactions in these examples can be inspected
-with online CBOR decoders[^3][^4]. The same tools can also encode the
-Extended Diagnostic Notation to raw hex encoded CBOR format.
+with online CBOR decoders (such as [https://cbor.me](https://cbor.me)
+and [https://cbor.nemo157.com](https://cbor.nemo157.com)). The same
+tools can also encode the Extended Diagnostic Notation to raw hex
+encoded CBOR format.
+
+### Transfer Bill
+
+Raw hex encoded transaction:
+```
+838501657472616e7358212ee0c0d33035f3556609871d5fd9cb0a345f87625b26c343991102e4355eeb1c00835826830041025820b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa01a0bebc2005820dc6b998fab136e8476c53fff42452f157dec1aa07846154b2fbece3c45f9f8b183181f01582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f586782584130267277c3552378e7f3873c14c56b89a48e3cf79753f95775e3128be0e2aacc467762f6b9b220102738e0f1734caa8af879b259291916cadb8cf6fdf143f9f3015821036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
+```
+
+Same hex encoded data with annotations:
+```
+83                                      # array(3)
+   85                                   # array(5)
+      01                                # unsigned(1)
+      65                                # text(5)
+         7472616E73                     # "trans"
+      58 21                             # bytes(33)
+         2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00
+      83                                # array(3)
+         58 26                          # bytes(38)
+            830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0
+         1A 0BEBC200                    # unsigned(200000000)
+         58 20                          # bytes(32)
+            DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1
+      83                                # array(3)
+         18 1F                          # unsigned(31)
+         01                             # unsigned(1)
+         58 21                          # bytes(33)
+            62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F
+   58 67                                # bytes(103)
+      82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724
+   F6                                   # primitive(22)
+```
+
+Extended Diagnostic Notation with annotations:
+```
+/TransactionOrder/ [
+    /Payload/ [
+        /SystemID/ 1,
+        /Type/     "trans",
+        /UnitID/   h'2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00',
+        /transAttributes/ [
+            /TargetOwner/ h'830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0',
+            /TargetValue/ 200000000,
+            /Backlink/    h'DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1'
+        ],
+        /ClientMetadata/ [
+            /Timeout/           31,
+            /MaxTransactionFee/ 1,
+            /FeeCreditRecordID/ h'62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F'
+        ]
+    ],
+    /OwnerProof/ h'82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724'
+    /FeeProof/   null
+]
+```
 
 ### Split Bill
 
@@ -995,23 +1069,23 @@ Same hex encoded data with annotations:
       65                                # text(5)
          73706C6974                     # "split"
       58 21                             # bytes(33)
-         5A6AF25F2A257C91F528E04D5C026E090DDF387A06AD9E155C009B821DF602BF00 # "Zj\xF2_*%|\x91\xF5(\xE0M\\\u0002n\t\r\xDF8z\u0006\xAD\x9E\u0015\\\u0000\x9B\x82\u001D\xF6\u0002\xBF\u0000"
+         5A6AF25F2A257C91F528E04D5C026E090DDF387A06AD9E155C009B821DF602BF00
       83                                # array(3)
          81                             # array(1)
             82                          # array(2)
                1A 0BEBC200              # unsigned(200000000)
                58 26                    # bytes(38)
-                  83004102582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D # "\x83\u0000A\u0002X b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D"
+                  83004102582062C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D
          1A 11E1A301                    # unsigned(300000001)
          58 20                          # bytes(32)
-            BC152AA13AC535563179C06E4F40EC26E4BDFE6E6252E720E794B4735BA5C6EC # "\xBC\u0015*\xA1:\xC55V1y\xC0nO@\xEC&\xE4\xBD\xFEnbR\xE7 甴s[\xA5\xC6\xEC"
+            BC152AA13AC535563179C06E4F40EC26E4BDFE6E6252E720E794B4735BA5C6EC
       83                                # array(3)
          18 1C                          # unsigned(28)
          01                             # unsigned(1)
          58 21                          # bytes(33)
-            411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F # "A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:\u000F"
+            411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F
    58 67                                # bytes(103)
-      82584174FAF21CFC0A37BD6D4EC3FD6A946516B4C9AB5817FE0BD1C6588ECC93D08F0220BFD1D76A26C733E0E56F99E268363226B255833F29602A849367A288432C0C0158210225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "\x82XAt\xFA\xF2\u001C\xFC\n7\xBDmN\xC3\xFDj\x94e\u0016\xB4ɫX\u0017\xFE\v\xD1\xC6X\x8E̓Џ\u0002 \xBF\xD1\xD7j&\xC73\xE0\xE5o\x99\xE2h62&\xB2U\x83?)`*\x84\x93g\xA2\x88C,\f\u0001X!\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
+      82584174FAF21CFC0A37BD6D4EC3FD6A946516B4C9AB5817FE0BD1C6588ECC93D08F0220BFD1D76A26C733E0E56F99E268363226B255833F29602A849367A288432C0C0158210225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C
    F6                                   # primitive(22)
 ```
 
@@ -1043,64 +1117,7 @@ Extended Diagnostic Notation with annotations:
 ]
 ```
 
-### Transfer Bill
-
-Raw hex encoded transaction:
-```
-838501657472616e7358212ee0c0d33035f3556609871d5fd9cb0a345f87625b26c343991102e4355eeb1c00835826830041025820b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa01a0bebc2005820dc6b998fab136e8476c53fff42452f157dec1aa07846154b2fbece3c45f9f8b183181f01582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f586782584130267277c3552378e7f3873c14c56b89a48e3cf79753f95775e3128be0e2aacc467762f6b9b220102738e0f1734caa8af879b259291916cadb8cf6fdf143f9f3015821036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
-```
-
-Same hex encoded data with annotations:
-```
-83                                      # array(3)
-   85                                   # array(5)
-      01                                # unsigned(1)
-      65                                # text(5)
-         7472616E73                     # "trans"
-      58 21                             # bytes(33)
-         2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00 # ".\xE0\xC0\xD305\xF3Uf\t\x87\u001D_\xD9\xCB\n4_\x87b[&\xC3C\x99\u0011\u0002\xE45^\xEB\u001C\u0000"
-      83                                # array(3)
-         58 26                          # bytes(38)
-            830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0 # "\x83\u0000A\u0002X \xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ"
-         1A 0BEBC200                    # unsigned(200000000)
-         58 20                          # bytes(32)
-            DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1 # "\xDCk\x99\x8F\xAB\u0013n\x84v\xC5?\xFFBE/\u0015}\xEC\u001A\xA0xF\u0015K/\xBE\xCE<E\xF9\xF8\xB1"
-      83                                # array(3)
-         18 1F                          # unsigned(31)
-         01                             # unsigned(1)
-         58 21                          # bytes(33)
-            62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F # "b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\u000F"
-   58 67                                # bytes(103)
-      82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "\x82XA0&rw\xC3U#x\xE7\xF3\x87<\u0014\xC5k\x89\xA4\x8E<\xF7\x97S\xF9Wu\xE3\u0012\x8B\xE0\xE2\xAA\xCCFwb\xF6\xB9\xB2 \u0010'8\xE0\xF1sL\xAA\x8A\xF8y\xB2Y)\u0019\u0016\xCAی\xF6\xFD\xF1C\xF9\xF3\u0001X!\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
-   F6                                   # primitive(22)
-```
-
-Extended Diagnostic Notation with annotations:
-```
-/TransactionOrder/ [
-    /Payload/ [
-        /SystemID/ 1,
-        /Type/     "trans",
-        /UnitID/   h'2EE0C0D33035F3556609871D5FD9CB0A345F87625B26C343991102E4355EEB1C00',
-        /transAttributes/ [
-            /TargetOwner/ h'830041025820B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA0',
-            /TargetValue/ 200000000,
-            /Backlink/    h'DC6B998FAB136E8476C53FFF42452F157DEC1AA07846154B2FBECE3C45F9F8B1'
-        ],
-        /ClientMetadata/ [
-            /Timeout/           31,
-            /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F'
-        ]
-    ],
-    /OwnerProof/ h'82584130267277C3552378E7F3873C14C56B89A48E3CF79753F95775E3128BE0E2AACC467762F6B9B220102738E0F1734CAA8AF879B259291916CADB8CF6FDF143F9F3015821036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724'
-    /FeeProof/   null
-]
-```
-
 ## References
 
 [^1]: https://www.rfc-editor.org/rfc/rfc8949
 [^2]: https://www.rfc-editor.org/rfc/rfc8610#appendix-G
-[^3]: https://cbor.me/
-[^4]: https://cbor.nemo157.com/

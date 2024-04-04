@@ -92,7 +92,7 @@ Response
 ```
 
 ## state_getUnitsByOwnerID
-Returns units identifiers by owner identifier. Owner identifier is derived from
+Returns unit identifiers by owner identifier. Owner identifier is derived from
 the owner predicate of the unit. Currently only SHA256 hash of the
 public key is used as the owner identifier.
 
@@ -122,7 +122,7 @@ Response
 
 ## state_sendTransaction
 Sends a raw CBOR encoded signed transaction to the network. Returns
-the transaction hash, that can be used in with `state_getTransactionProof`
+the transaction hash, that can be used with `state_getTransactionProof`
 method to confirm the execution of the transaction.
 
 ### Parameters

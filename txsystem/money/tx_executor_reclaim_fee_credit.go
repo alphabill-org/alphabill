@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	ErrReclaimFCInvalidTargetUnit         = errors.New("invalid target unit")
-	ErrReclaimFCInvalidTxFee              = errors.New("the transaction fees cannot exceed the transferred value")
-	ErrReclaimFCInvalidTargetUnitBacklink = errors.New("invalid target unit backlink")
+	ErrReclaimFCInvalidTargetUnit        = errors.New("invalid target unit")
+	ErrReclaimFCInvalidTxFee             = errors.New("the transaction fees cannot exceed the transferred value")
+	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
 func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
@@ -56,7 +56,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 			}
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			newBillData.Counter += 1
 			newBillData.Locked = 0
 			return newBillData, nil
 		}
@@ -101,11 +101,11 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFee
 	if !bytes.Equal(tx.UnitID(), closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit
 	}
-	if !bytes.Equal(bd.Backlink, closeFCAttr.TargetUnitBacklink) {
-		return ErrReclaimFCInvalidTargetUnitBacklink
+	if bd.Counter != closeFCAttr.TargetUnitCounter {
+		return ErrReclaimFCInvalidTargetUnitCounter
 	}
-	if !bytes.Equal(bd.Backlink, attr.Backlink) {
-		return ErrInvalidBacklink
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	//
 	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.Payload.ClientMetadata.MaxTransactionFee > closeFCAttr.Amount {

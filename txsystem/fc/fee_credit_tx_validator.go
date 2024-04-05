@@ -201,9 +201,6 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if len(closeFCAttributes.TargetUnitID) == 0 {
 		return errors.New("TargetUnitID is empty")
 	}
-	if len(closeFCAttributes.TargetUnitBacklink) == 0 {
-		return errors.New("TargetUnitBacklink is empty")
-	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
 	if tx.GetClientMaxTxFee() > fcr.Balance {

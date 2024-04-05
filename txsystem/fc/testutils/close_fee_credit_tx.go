@@ -14,7 +14,7 @@ func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts 
 		attr = NewCloseFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeCloseFeeCredit),
 	)
@@ -36,9 +36,9 @@ func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttribute
 
 func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
 	return &transactions.CloseFeeCreditAttributes{
-		Amount:             amount,
-		TargetUnitID:       unitID,
-		TargetUnitBacklink: targetUnitBacklink,
+		Amount:            amount,
+		TargetUnitID:      unitID,
+		TargetUnitCounter: targetUnitCounter,
 	}
 }
 
@@ -56,9 +56,9 @@ func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
 	}
 }
 
-func WithCloseFCTargetUnitBacklink(targetUnitBacklink []byte) CloseFCOption {
+func WithCloseFCTargetUnitCounter(counter uint64) CloseFCOption {
 	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
-		tx.TargetUnitBacklink = targetUnitBacklink
+		tx.TargetUnitCounter = counter
 		return nil
 	}
 }

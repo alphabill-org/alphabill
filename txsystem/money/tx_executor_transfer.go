@@ -1,8 +1,6 @@
 package money
 
 import (
-	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -24,7 +22,7 @@ func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttribut
 		// calculate actual tx fee cost
 		fee := m.feeCalculator()
 		// update state
-		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, m.hashAlgorithm)
+		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber)
 		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 		if err := m.state.Apply(
 			setOwnerFunc,
@@ -45,14 +43,14 @@ func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *TransferAt
 	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	return validateAnyTransfer(unit.Data(), attr.Backlink, attr.TargetValue)
+	return validateTransfer(unit.Data(), attr)
 }
 
 func validateTransfer(data state.UnitData, attr *TransferAttributes) error {
-	return validateAnyTransfer(data, attr.Backlink, attr.TargetValue)
+	return validateAnyTransfer(data, attr.Counter, attr.TargetValue)
 }
 
-func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint64) error {
+func validateAnyTransfer(data state.UnitData, counter uint64, targetValue uint64) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return ErrInvalidDataType
@@ -60,8 +58,8 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 	if bd.IsLocked() {
 		return ErrBillLocked
 	}
-	if !bytes.Equal(backlink, bd.Backlink) {
-		return ErrInvalidBacklink
+	if bd.Counter != counter {
+		return ErrInvalidCounter
 	}
 	if targetValue != bd.V {
 		return ErrInvalidBillValue
@@ -69,7 +67,7 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 	return nil
 }
 
-func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64, hashAlgorithm crypto.Hash) state.Action {
+func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64) state.Action {
 	unitID := tx.UnitID()
 	return state.UpdateUnitData(unitID,
 		func(data state.UnitData) (state.UnitData, error) {
@@ -78,7 +76,7 @@ func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64, h
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.T = currentBlockNumber
-			bd.Backlink = tx.Hash(hashAlgorithm)
+			bd.Counter += 1
 			return bd, nil
 		})
 }

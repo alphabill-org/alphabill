@@ -1220,7 +1220,7 @@ func initState(t *testing.T) *state.State {
 func createTx(t *testing.T, unitID types.UnitID, attributes any, payloadType string) *types.TransactionOrder {
 	return testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithFeeProof(nil),
@@ -1232,7 +1232,7 @@ func createTx(t *testing.T, unitID types.UnitID, attributes any, payloadType str
 func createTxRecord(t *testing.T, unitID types.UnitID, attributes any, payloadType string) *types.TransactionRecord {
 	return testtransaction.NewTransactionRecord(
 		t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithFeeProof(nil),
@@ -1244,7 +1244,7 @@ func createTxRecord(t *testing.T, unitID types.UnitID, attributes any, payloadTy
 func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID types.UnitID) *types.TransactionOrder {
 	return testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithPayloadType(payloadType),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),

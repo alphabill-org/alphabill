@@ -310,7 +310,7 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: 1,
-		Backlink:    nil,
+		Counter:     0,
 	}
 
 	attBytes, err := types.Cbor.Marshal(bt)

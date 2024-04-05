@@ -37,7 +37,7 @@ func WithSystemID(id types.SystemID) Option {
 	}
 }
 
-func WithUnitId(id []byte) Option {
+func WithUnitID(id []byte) Option {
 	return func(tx *types.TransactionOrder) error {
 		tx.Payload.UnitID = id
 		return nil

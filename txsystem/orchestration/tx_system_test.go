@@ -34,7 +34,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 	unitID := NewVarID(nil, test.RandomBytes(32))
 	roundNumber := uint64(10)
 	txo := createAddVarTx(t, signer, AddVarAttributes{},
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: roundNumber + 1}),
 	)
 

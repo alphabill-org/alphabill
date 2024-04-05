@@ -78,6 +78,13 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 		// transaction is expired
 		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
 	}
+
+	if tx.Payload != nil && tx.Payload.ClientMetadata != nil {
+		if n := len(tx.Payload.ClientMetadata.ReferenceNumber); n > 32 {
+			return fmt.Errorf("maximum allowed length of the ReferenceNumber is 32 bytes, got %d bytes", n)
+		}
+	}
+
 	return nil
 }
 

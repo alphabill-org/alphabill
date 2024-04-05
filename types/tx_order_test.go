@@ -39,17 +39,19 @@ var (
 	//         01020304                      #       "\x01\x02\x03\x04"
 	//      18 64                            #     unsigned(100)
 	//      18 7b                            #     unsigned(123)
-	//   83                                  #   array(3)
+	//   84                                  #   array(4)
 	//      18 2a                            #     unsigned(42)
 	//      18 45                            #     unsigned(69)
 	//      44                               #     bytes(4)
 	//         20202020                      #       "    "
+	//      43                               #     bytes(3)
+	//         524546                        #       "REF"
 	payloadInHEX = "85" +
 		"1A01000001" + // SystemID
 		"687472616E73666572" + // Type
 		"58200000000000000000000000000000000000000000000000000000000000000000" + // UnitID
 		"8344010203041864187b" + // Attributes
-		"83182a18454420202020" // Client metadata
+		"84182a1845442020202043524546" // Client metadata
 )
 
 func TestMarshalPayload(t *testing.T) {
@@ -168,6 +170,7 @@ func createTxOrder(t *testing.T) *TransactionOrder {
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 			FeeCreditRecordID: feeCreditRecordID,
+			ReferenceNumber:   []byte("REF"),
 		},
 	}}
 	return order

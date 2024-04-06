@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -58,47 +59,6 @@ type (
 	}
 )
 
-// This code is borrowed from the go-ipfs bootstrap process
-func bootstrapConnect(ctx context.Context, ph host.Host, peers []peer.AddrInfo, log *slog.Logger) error {
-	errs := make(chan error, len(peers))
-	var wg sync.WaitGroup
-	for _, p := range peers {
-		// performed asynchronously because when performed synchronously, if
-		// one `Connect` call hangs, subsequent calls are more likely to
-		// fail/abort due to an expiring context.
-		// Also, performed asynchronously for dial speed.
-		wg.Add(1)
-		go func(p peer.AddrInfo) {
-			defer wg.Done()
-
-			ph.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.PermanentAddrTTL)
-			if err := ph.Connect(ctx, p); err != nil {
-				log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", ph.ID(), p.ID, err))
-				errs <- err
-				return
-			}
-			log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", ph.ID(), p.ID))
-		}(p)
-	}
-	wg.Wait()
-
-	// our failure condition is when no connection attempt succeeded.
-	// So drain the errs channel, counting the results.
-	close(errs)
-	count := 0
-	var allErr error
-	for err := range errs {
-		if err != nil {
-			count++
-			allErr = errors.Join(allErr, err)
-		}
-	}
-	if count == len(peers) {
-		return fmt.Errorf("failed to bootstrap: %w", allErr)
-	}
-	return nil
-}
-
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
@@ -145,19 +105,56 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	if err != nil {
 		return nil, err
 	}
-	// Open a connection to the bootstrap nodes.
-	// This is the only way to discover other peers, so let's do this as soon as possible.
-	if len(conf.BootstrapPeers) > 0 {
-		if err = bootstrapConnect(ctx, h, conf.BootstrapPeers, log); err != nil {
-			return nil, fmt.Errorf("bootstrap error: %w", err)
-		}
-	}
 	if err = kademliaDHT.Bootstrap(ctx); err != nil {
 		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
 	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
 	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
 	return p, nil
+}
+
+// This code is borrowed from the go-ipfs bootstrap process
+func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
+	if len(p.conf.BootstrapPeers) == 0 {
+		return nil
+	}
+
+	errs := make(chan error, len(p.conf.BootstrapPeers))
+	var wg sync.WaitGroup
+	for _, peerAddr := range p.conf.BootstrapPeers {
+		// performed asynchronously because when performed synchronously, if
+		// one `Connect` call hangs, subsequent calls are more likely to
+		// fail/abort due to an expiring context.
+		// Also, performed asynchronously for dial speed.
+		wg.Add(1)
+		go func(peerAddr peer.AddrInfo) {
+			defer wg.Done()
+			p.host.Peerstore().AddAddrs(peerAddr.ID, peerAddr.Addrs, peerstore.PermanentAddrTTL)
+			if err := p.host.Connect(ctx, peerAddr); err != nil {
+				log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", p.host.ID(), peerAddr.ID, err))
+				errs <- err
+				return
+			}
+			log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", p.host.ID(), peerAddr.ID))
+		}(peerAddr)
+	}
+	wg.Wait()
+
+	// our failure condition is when no connection attempt succeeded.
+	// So drain the errs channel, counting the results.
+	close(errs)
+	count := 0
+	var allErr error
+	for err := range errs {
+		if err != nil {
+			count++
+			allErr = errors.Join(allErr, err)
+		}
+	}
+	if count == len(p.conf.BootstrapPeers) {
+		return fmt.Errorf("failed to bootstrap: %w", allErr)
+	}
+	return nil
 }
 
 // ID returns the identifier associated with this Peer.
@@ -176,6 +173,10 @@ func (p *Peer) String() string {
 
 func (p *Peer) Validators() []peer.ID {
 	return p.validators
+}
+
+func (p *Peer) IsValidator() bool {
+	return slices.Contains(p.validators, p.ID())
 }
 
 func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {

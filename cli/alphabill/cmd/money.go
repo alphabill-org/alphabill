@@ -88,7 +88,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
-	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
+	keys, err := LoadKeys(cfg.Node.KeyFile, true, false)
 	if err != nil {
 		return fmt.Errorf("failed to load node keys: %w", err)
 	}

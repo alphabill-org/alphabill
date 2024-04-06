@@ -102,12 +102,12 @@ func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
 
 func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	bytes, err := Cbor.Marshal(t)
+	b, err := Cbor.Marshal(t)
 	if err != nil {
 		//TODO
 		panic(err)
 	}
-	hasher.Write(bytes)
+	hasher.Write(b)
 	return hasher.Sum(nil)
 }
 

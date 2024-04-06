@@ -22,8 +22,9 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		TransactionOrder: txOrder,
 		ServerMetadata:   serverMetadata,
 	}
-	expectedHash := "0x25ab5dbcca42fe18dcec00d91d66f8b3b8dc7fe1b3a618e52d96b654983ad21f"
-	expectedBytes, _ := Cbor.Marshal(transactionRecord)
+	expectedHash := "0xedd5f712774a81e6a17ee11fdaf0498d4f2b1f8e32ccd8abbf7d1612374f6e32"
+	expectedBytes, err := Cbor.Marshal(transactionRecord)
+	require.NoError(t, err)
 
 	t.Run("Test Hash", func(t *testing.T) {
 		require.Equal(t, expectedHash, hexutil.Encode(transactionRecord.Hash(crypto.SHA256)))

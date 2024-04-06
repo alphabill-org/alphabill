@@ -29,32 +29,32 @@ func TestTransfer(t *testing.T) {
 	}{
 		{
 			name: "Ok",
-			bd:   newBillData(100, []byte{6}),
-			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{6}},
+			bd:   newBillData(100, 6),
+			attr: &TransferAttributes{TargetValue: 100, Counter: 6},
 			res:  nil,
 		},
 		{
 			name: "LockedBill",
-			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
-			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Counter: 6},
+			attr: &TransferAttributes{TargetValue: 100, Counter: 6},
 			res:  ErrBillLocked,
 		},
 		{
 			name: "InvalidBalance",
-			bd:   newBillData(100, []byte{6}),
-			attr: &TransferAttributes{TargetValue: 101, Backlink: []byte{6}},
+			bd:   newBillData(100, 6),
+			attr: &TransferAttributes{TargetValue: 101, Counter: 6},
 			res:  ErrInvalidBillValue,
 		},
 		{
-			name: "InvalidBacklink",
-			bd:   newBillData(100, []byte{6}),
-			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{5}},
-			res:  ErrInvalidBacklink,
+			name: "InvalidCounter",
+			bd:   newBillData(100, 6),
+			attr: &TransferAttributes{TargetValue: 100, Counter: 5},
+			res:  ErrInvalidCounter,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTransfer(tt.bd, tt.attr)
+			err := validateAnyTransfer(tt.bd, tt.attr.Counter, tt.attr.TargetValue)
 			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
@@ -73,43 +73,43 @@ func TestTransferDC(t *testing.T) {
 	}{
 		{
 			name: "Ok",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &TransferDCAttributes{
 				TargetUnitID: test.RandomBytes(32),
 				Value:        100,
-				Backlink:     []byte{6},
+				Counter:      6,
 			},
 			res: nil,
 		},
 		{
 			name: "LockedBill",
-			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Counter: 6},
 			attr: &TransferDCAttributes{
 				TargetUnitID: test.RandomBytes(32),
 				Value:        101,
-				Backlink:     []byte{6},
+				Counter:      6,
 			},
 			res: ErrBillLocked,
 		},
 		{
 			name: "InvalidBalance",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &TransferDCAttributes{
 				TargetUnitID: test.RandomBytes(32),
 				Value:        101,
-				Backlink:     []byte{6},
+				Counter:      6,
 			},
 			res: ErrInvalidBillValue,
 		},
 		{
-			name: "InvalidBacklink",
-			bd:   newBillData(100, []byte{6}),
+			name: "InvalidCounter",
+			bd:   newBillData(100, 6),
 			attr: &TransferDCAttributes{
 				TargetUnitID: test.RandomBytes(32),
 				Value:        100,
-				Backlink:     test.RandomBytes(32),
+				Counter:      7,
 			},
-			res: ErrInvalidBacklink,
+			res: ErrInvalidCounter,
 		},
 	}
 	for _, tt := range tests {
@@ -133,143 +133,143 @@ func TestSplit(t *testing.T) {
 	}{
 		{
 			name: "Ok 2-way split",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 		},
 		{
 			name: "Ok 3-way split",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 80,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 		},
 		{
 			name: "BillLocked",
-			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Counter: 6},
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "bill is already locked",
 		},
 		{
-			name: "Invalid backlink",
-			bd:   newBillData(100, []byte{6}),
+			name: "Invalid counter",
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
-				Backlink:       []byte{5},
+				Counter:        7,
 			},
-			err: "the transaction backlink 0x05 is not equal to unit backlink 0x06",
+			err: ErrInvalidCounter.Error(),
 		},
 		{
 			name: "Target units are empty",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits:    []*TargetUnit{},
 				RemainingValue: 1,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "target units are empty",
 		},
 		{
 			name: "Target unit is nil",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits:    []*TargetUnit{nil},
 				RemainingValue: 100,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "target unit is nil",
 		},
 		{
 			name: "Target unit amount is zero",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 0, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 100,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "target unit amount is zero at index 0",
 		},
 		{
 			name: "Target unit owner condition is empty",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 1, OwnerCondition: []byte{}},
 				},
 				RemainingValue: 100,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "target unit owner condition is empty at index 0",
 		},
 		{
 			name: "Target unit amount overflow",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: math.MaxUint64, OwnerCondition: templates.AlwaysTrueBytes()},
 					{Amount: 1, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 100,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "failed to add target unit amounts",
 		},
 		{
 			name: "Remaining value is zero",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 0,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "remaining value is zero",
 		},
 		{
 			name: "Amount plus remaining value is less than bill value",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 79,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "the sum of the values to be transferred plus the remaining value must equal the value of the bill",
 		},
 		{
 			name: "Amount plus remaining value is greater than bill value",
-			bd:   newBillData(100, []byte{6}),
+			bd:   newBillData(100, 6),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 81,
-				Backlink:       []byte{6},
+				Counter:        6,
 			},
 			err: "the sum of the values to be transferred plus the remaining value must equal the value of the bill",
 		},
@@ -338,9 +338,9 @@ func TestSwap(t *testing.T) {
 			err:  "dust transfer order target unit id is not equal to swap tx unit id",
 		},
 		{
-			name: "invalid target backlink",
-			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetBacklinkSwap(t, signer)),
-			err:  "dust transfer target backlink is not equal to target unit backlink",
+			name: "invalid target counter",
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetCounterSwap(t, signer)),
+			err:  "dust transfer target counter is not equal to target unit counter",
 		},
 		{
 			name: "InvalidProofsNil",
@@ -371,7 +371,7 @@ func TestSwap(t *testing.T) {
 }
 
 func TestTransferFC(t *testing.T) {
-	backlink := []byte{4}
+	counter := uint64(4)
 	tests := []struct {
 		name    string
 		bd      *BillData
@@ -380,13 +380,13 @@ func TestTransferFC(t *testing.T) {
 	}{
 		{
 			name:    "Ok",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, nil),
 			wantErr: nil,
 		},
 		{
 			name:    "LockedBill",
-			bd:      &BillData{Locked: 1, V: 101, Backlink: backlink},
+			bd:      &BillData{Locked: 1, V: 101, Counter: counter},
 			tx:      testutils.NewTransferFC(t, nil),
 			wantErr: ErrBillLocked,
 		},
@@ -398,25 +398,25 @@ func TestTransferFC(t *testing.T) {
 		},
 		{
 			name:    "TargetSystemIdentifier is zero",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID(0))),
 			wantErr: ErrTargetSystemIdentifierEmpty,
 		},
 		{
 			name:    "TargetRecordID is nil",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetRecordID(nil))),
 			wantErr: ErrTargetRecordIDEmpty,
 		},
 		{
 			name:    "TargetRecordID is empty",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetRecordID([]byte{}))),
 			wantErr: ErrTargetRecordIDEmpty,
 		},
 		{
 			name: "AdditionTime invalid",
-			bd:   newBillData(101, backlink),
+			bd:   newBillData(101, counter),
 			tx: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(
 				testutils.WithEarliestAdditionTime(2),
 				testutils.WithLatestAdditionTime(1),
@@ -425,25 +425,25 @@ func TestTransferFC(t *testing.T) {
 		},
 		{
 			name:    "Invalid amount",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(102))),
 			wantErr: ErrInvalidFCValue,
 		},
 		{
 			name:    "Invalid fee",
-			bd:      newBillData(101, backlink),
+			bd:      newBillData(101, counter),
 			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(1))),
 			wantErr: ErrInvalidFeeValue,
 		},
 		{
-			name:    "Invalid backlink",
-			bd:      newBillData(101, backlink),
-			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithBacklink([]byte("not backlink")))),
-			wantErr: ErrInvalidBacklink,
+			name:    "Invalid counter",
+			bd:      newBillData(101, counter),
+			tx:      testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithCounter(counter+10))),
+			wantErr: ErrInvalidCounter,
 		},
 		{
 			name: "RecordID exists",
-			bd:   newBillData(101, backlink),
+			bd:   newBillData(101, counter),
 			tx: testutils.NewTransferFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{0}}),
 			),
@@ -451,7 +451,7 @@ func TestTransferFC(t *testing.T) {
 		},
 		{
 			name: "Fee proof exists",
-			bd:   newBillData(101, backlink),
+			bd:   newBillData(101, counter),
 			tx: testutils.NewTransferFC(t, nil,
 				testtransaction.WithFeeProof([]byte{0, 0, 0, 0}),
 			),
@@ -479,8 +479,8 @@ func TestReclaimFC(t *testing.T) {
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
 
 	var (
-		amount   = uint64(100)
-		backlink = []byte{4}
+		amount  = uint64(100)
+		counter = uint64(4)
 	)
 
 	tests := []struct {
@@ -492,7 +492,7 @@ func TestReclaimFC(t *testing.T) {
 	}{
 		{
 			name:    "Ok",
-			bd:      newBillData(amount, backlink),
+			bd:      newBillData(amount, counter),
 			tx:      testutils.NewReclaimFC(t, signer, nil),
 			wantErr: nil,
 		},
@@ -504,7 +504,7 @@ func TestReclaimFC(t *testing.T) {
 		},
 		{
 			name: "Fee credit record exists",
-			bd:   newBillData(amount, backlink),
+			bd:   newBillData(amount, counter),
 			tx: testutils.NewReclaimFC(t, signer, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{0}}),
 			),
@@ -512,7 +512,7 @@ func TestReclaimFC(t *testing.T) {
 		},
 		{
 			name: "Fee proof exists",
-			bd:   newBillData(amount, backlink),
+			bd:   newBillData(amount, counter),
 			tx: testutils.NewReclaimFC(t, signer, nil,
 				testtransaction.WithFeeProof([]byte{0, 0, 0, 0}),
 			),
@@ -520,15 +520,15 @@ func TestReclaimFC(t *testing.T) {
 		},
 		{
 			name: "Invalid target unit",
-			bd:   newBillData(amount, backlink),
+			bd:   newBillData(amount, counter),
 			tx: testutils.NewReclaimFC(t, signer, nil,
-				testtransaction.WithUnitId(NewFeeCreditRecordID(nil, []byte{2})),
+				testtransaction.WithUnitID(NewFeeCreditRecordID(nil, []byte{2})),
 			),
 			wantErr: ErrReclaimFCInvalidTargetUnit,
 		},
 		{
 			name: "Invalid tx fee",
-			bd:   newBillData(amount, backlink),
+			bd:   newBillData(amount, counter),
 			tx: testutils.NewReclaimFC(t, signer,
 				testutils.NewReclaimFCAttr(t, signer,
 					testutils.WithReclaimFCClosureTx(
@@ -536,7 +536,7 @@ func TestReclaimFC(t *testing.T) {
 							TransactionOrder: testutils.NewCloseFC(t,
 								testutils.NewCloseFCAttr(
 									testutils.WithCloseFCAmount(2),
-									testutils.WithCloseFCTargetUnitBacklink(backlink),
+									testutils.WithCloseFCTargetUnitCounter(counter),
 								),
 							),
 							ServerMetadata: &types.ServerMetadata{ActualFee: 10},
@@ -547,20 +547,20 @@ func TestReclaimFC(t *testing.T) {
 			wantErr: ErrReclaimFCInvalidTxFee,
 		},
 		{
-			name:    "Invalid target unit backlink",
-			bd:      newBillData(amount, []byte("target unit backlink not equal to bill backlink")),
+			name:    "Invalid target unit counter",
+			bd:      newBillData(amount, counter+1),
 			tx:      testutils.NewReclaimFC(t, signer, nil),
-			wantErr: ErrReclaimFCInvalidTargetUnitBacklink,
+			wantErr: ErrReclaimFCInvalidTargetUnitCounter,
 		},
 		{
-			name:    "Invalid backlink",
-			bd:      newBillData(amount, backlink),
-			tx:      testutils.NewReclaimFC(t, signer, testutils.NewReclaimFCAttr(t, signer, testutils.WithReclaimFCBacklink([]byte("backlink not equal")))),
-			wantErr: ErrInvalidBacklink,
+			name:    "Invalid counter",
+			bd:      newBillData(amount, counter),
+			tx:      testutils.NewReclaimFC(t, signer, testutils.NewReclaimFCAttr(t, signer, testutils.WithReclaimFCCounter(counter+1))),
+			wantErr: ErrInvalidCounter,
 		},
 		{
 			name: "Invalid proof",
-			bd:   newBillData(amount, backlink),
+			bd:   newBillData(amount, counter),
 			tx: testutils.NewReclaimFC(t, signer, testutils.NewReclaimFCAttr(t, signer,
 				testutils.WithReclaimFCClosureProof(newInvalidProof(t, signer)),
 			)),
@@ -586,6 +586,7 @@ func TestReclaimFC(t *testing.T) {
 }
 
 func TestLockTx(t *testing.T) {
+	counter := uint64(5)
 	tests := []struct {
 		name string
 		bd   *BillData
@@ -594,38 +595,38 @@ func TestLockTx(t *testing.T) {
 	}{
 		{
 			name: "Ok",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
-			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 1},
+			bd:   &BillData{Counter: counter, Locked: 0},
+			attr: &LockAttributes{Counter: counter, LockStatus: 1},
 		},
 		{
 			name: "attr is nil",
-			bd:   &BillData{Backlink: []byte{5}},
+			bd:   &BillData{Counter: counter},
 			attr: nil,
 			res:  ErrTxAttrNil,
 		},
 		{
 			name: "bill data is nil",
 			bd:   nil,
-			attr: &LockAttributes{Backlink: []byte{5}},
+			attr: &LockAttributes{Counter: counter},
 			res:  ErrBillNil,
 		},
 		{
 			name: "bill is already locked",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
-			attr: &LockAttributes{Backlink: []byte{5}},
+			bd:   &BillData{Counter: counter, Locked: 1},
+			attr: &LockAttributes{Counter: counter},
 			res:  ErrBillLocked,
 		},
 		{
 			name: "zero lock value",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
-			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 0},
+			bd:   &BillData{Counter: counter, Locked: 0},
+			attr: &LockAttributes{Counter: counter, LockStatus: 0},
 			res:  ErrInvalidLockStatus,
 		},
 		{
-			name: "invalid backlink",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
-			attr: &LockAttributes{Backlink: []byte{6}, LockStatus: 1},
-			res:  ErrInvalidBacklink,
+			name: "invalid counter",
+			bd:   &BillData{Counter: counter, Locked: 0},
+			attr: &LockAttributes{Counter: counter + 1, LockStatus: 1},
+			res:  ErrInvalidCounter,
 		},
 	}
 	for _, tt := range tests {
@@ -641,6 +642,7 @@ func TestLockTx(t *testing.T) {
 }
 
 func TestUnlockTx(t *testing.T) {
+	counter := uint64(5)
 	tests := []struct {
 		name string
 		bd   *BillData
@@ -649,32 +651,32 @@ func TestUnlockTx(t *testing.T) {
 	}{
 		{
 			name: "Ok",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
-			attr: &UnlockAttributes{Backlink: []byte{5}},
+			bd:   &BillData{Counter: counter, Locked: 1},
+			attr: &UnlockAttributes{Counter: counter},
 		},
 		{
 			name: "attr is nil",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			bd:   &BillData{Counter: counter, Locked: 1},
 			attr: nil,
 			res:  ErrTxAttrNil,
 		},
 		{
 			name: "bill data is nil",
 			bd:   nil,
-			attr: &UnlockAttributes{Backlink: []byte{5}},
+			attr: &UnlockAttributes{Counter: counter},
 			res:  ErrBillNil,
 		},
 		{
 			name: "bill is already unlocked",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
-			attr: &UnlockAttributes{Backlink: []byte{5}},
+			bd:   &BillData{Counter: counter, Locked: 0},
+			attr: &UnlockAttributes{Counter: counter},
 			res:  ErrBillUnlocked,
 		},
 		{
-			name: "invalid backlink",
-			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
-			attr: &UnlockAttributes{Backlink: []byte{6}},
-			res:  ErrInvalidBacklink,
+			name: "invalid counter",
+			bd:   &BillData{Counter: counter, Locked: 1},
+			attr: &UnlockAttributes{Counter: counter + 1},
+			res:  ErrInvalidCounter,
 		},
 	}
 	for _, tt := range tests {
@@ -696,13 +698,13 @@ func newInvalidTargetValueSwap(t *testing.T, signer abcrypto.Signer) *types.Tran
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        90,
-		Backlink:     []byte{6},
+		Counter:      6,
 	})
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
@@ -726,13 +728,13 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: []byte{0},
 		Value:        100,
-		Backlink:     []byte{6},
+		Counter:      6,
 	})
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
@@ -749,14 +751,14 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 	return txo
 }
 
-func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	transferId := newBillID(1)
-	swapId := newBillID(255)
-	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		TargetUnitID:       swapId,
-		Value:              100,
-		Backlink:           []byte{6},
-		TargetUnitBacklink: []byte{7},
+func newInvalidTargetCounterSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+	transferID := newBillID(1)
+	swapID := newBillID(255)
+	return createSwapDCTransactionOrder(t, signer, swapID, createTransferDCTransactionRecord(t, transferID, &TransferDCAttributes{
+		TargetUnitID:      swapID,
+		Value:             100,
+		Counter:           6,
+		TargetUnitCounter: 7,
 	}))
 }
 
@@ -772,7 +774,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
-			Backlink:     []byte{6},
+			Counter:      6,
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
@@ -781,7 +783,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      dcTransfers,
@@ -810,7 +812,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
-			Backlink:     []byte{6},
+			Counter:      6,
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
@@ -818,7 +820,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      dcTransfers,
@@ -842,11 +844,11 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 		t,
 		testtransaction.WithSystemID(0),
 		testtransaction.WithPayloadType(PayloadTypeTransDC),
-		testtransaction.WithUnitId(transferId),
+		testtransaction.WithUnitID(transferId),
 		testtransaction.WithAttributes(&TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
-			Backlink:     []byte{6},
+			Counter:      6,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -864,13 +866,13 @@ func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) *types.Transaction
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        100,
-		Backlink:     []byte{6},
+		Counter:      6,
 	})
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
@@ -893,13 +895,13 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        100,
-		Backlink:     []byte{6},
+		Counter:      6,
 	})
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
@@ -932,7 +934,7 @@ func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        100,
-		Backlink:     []byte{6},
+		Counter:      0,
 	}))
 }
 
@@ -945,7 +947,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
+		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      transferDCRecords,
@@ -967,7 +969,7 @@ func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *Tr
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeTransDC),
-		testtransaction.WithUnitId(transferID),
+		testtransaction.WithUnitID(transferID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -978,8 +980,8 @@ func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *Tr
 	return transferDCRecord
 }
 
-func newBillData(v uint64, backlink []byte) *BillData {
-	return &BillData{V: v, Backlink: backlink}
+func newBillData(v uint64, counter uint64) *BillData {
+	return &BillData{V: v, Counter: counter}
 }
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
@@ -1022,14 +1024,14 @@ func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	unit := state.NewUnit(templates.NewP2pkh256BytesFromKey(pubKey), &BillData{
-		V:        0,
-		T:        0,
-		Backlink: nil,
+		V:       0,
+		T:       0,
+		Counter: 0,
 	})
 	dcMoneySupplyUnit := state.NewUnit(nil, &BillData{
-		V:        1e8,
-		T:        0,
-		Backlink: nil,
+		V:       1e8,
+		T:       0,
+		Counter: 0,
 	})
 	s := &stateMock{units: map[string]*state.Unit{
 		string(tx.UnitID()):                unit,

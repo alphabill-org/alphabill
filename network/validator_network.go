@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,9 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/txbuffer"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p-pubsub"
+	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,6 +31,7 @@ const (
 	ProtocolBlockProposal         = "/ab/block-proposal/0.0.1"
 	ProtocolLedgerReplicationReq  = "/ab/replication-req/0.0.1"
 	ProtocolLedgerReplicationResp = "/ab/replication-resp/0.0.1"
+	TopicPrefixBlock              = "/ab/block/0.0.1/"
 )
 
 var DefaultValidatorNetworkOptions = ValidatorNetworkOptions{
@@ -65,16 +70,22 @@ type validatorNetwork struct {
 	txBuffer *txbuffer.TxBuffer
 	txFwdBy  metric.Int64Counter
 	txFwdTo  metric.Int64Counter
+
+	gs                  *pubsub.PubSub
+	gsTopicBlock        *pubsub.Topic
+	gsSubscriptionBlock *pubsub.Subscription
 }
 
 type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
+
+type TxReceiver func() peer.ID
 
 /*
 NewLibP2PValidatorNetwork creates a new LibP2PNetwork based validator network.
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
+func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, self *Peer, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
 	base, err := newLibP2PNetwork(self, opts.ReceivedChannelCapacity, obs)
 	if err != nil {
 		return nil, err
@@ -90,30 +101,45 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 		txBuffer:      txBuffer,
 	}
 
+	if err := n.initGossipSub(ctx, systemID); err != nil {
+		return nil, fmt.Errorf("initializing gossip protocol: %w", err)
+	}
+
 	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolBlockProposal, timeout: opts.BlockProposalTimeout, msgType: blockproposal.BlockProposal{}},
-		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout, msgType: certification.BlockCertificationRequest{}},
-		{protocolID: ProtocolLedgerReplicationReq, timeout: opts.LedgerReplicationRequestTimeout, msgType: replication.LedgerReplicationRequest{}},
-		{protocolID: ProtocolLedgerReplicationResp, timeout: opts.LedgerReplicationResponseTimeout, msgType: replication.LedgerReplicationResponse{}},
-		{protocolID: ProtocolHandshake, timeout: opts.HandshakeTimeout, msgType: handshake.Handshake{}},
+		{
+			protocolID: ProtocolLedgerReplicationReq,
+			timeout:    opts.LedgerReplicationRequestTimeout,
+			msgType:    replication.LedgerReplicationRequest{}},
+		{
+			protocolID: ProtocolLedgerReplicationResp,
+			timeout:    opts.LedgerReplicationResponseTimeout,
+			msgType:    replication.LedgerReplicationResponse{},
+		},
+	}
+	if self.IsValidator() {
+		sendProtocolDescriptions = append(sendProtocolDescriptions,
+			sendProtocolDescription{
+				protocolID: ProtocolBlockProposal,
+				timeout:    opts.BlockProposalTimeout,
+				msgType:    blockproposal.BlockProposal{},
+			},
+			sendProtocolDescription{
+				protocolID: ProtocolBlockCertification,
+				timeout:    opts.BlockCertificationTimeout,
+				msgType:    certification.BlockCertificationRequest{},
+			},
+			sendProtocolDescription{
+				protocolID: ProtocolHandshake,
+				timeout:    opts.HandshakeTimeout,
+				msgType:    handshake.Handshake{},
+			},
+		)
 	}
 	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering send protocols: %w", err)
 	}
 
 	receiveProtocolDescriptions := []receiveProtocolDescription{
-		{
-			protocolID: ProtocolBlockProposal,
-			typeFn:     func() any { return &blockproposal.BlockProposal{} },
-		},
-		{
-			protocolID: ProtocolInputForward,
-			handler:    n.handleTransactions,
-		},
-		{
-			protocolID: ProtocolUnicityCertificates,
-			typeFn:     func() any { return &types.UnicityCertificate{} },
-		},
 		{
 			protocolID: ProtocolLedgerReplicationReq,
 			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
@@ -122,6 +148,22 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 			protocolID: ProtocolLedgerReplicationResp,
 			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
+	}
+	if self.IsValidator() {
+		receiveProtocolDescriptions = append(receiveProtocolDescriptions,
+			receiveProtocolDescription{
+				protocolID: ProtocolBlockProposal,
+				typeFn:     func() any { return &blockproposal.BlockProposal{} },
+			},
+			receiveProtocolDescription{
+				protocolID: ProtocolInputForward,
+				handler:    n.handleTransactions,
+			},
+			receiveProtocolDescription{
+				protocolID: ProtocolUnicityCertificates,
+				typeFn:     func() any { return &types.UnicityCertificate{} },
+			},
+		)
 	}
 	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering receive protocols: %w", err)
@@ -132,6 +174,40 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetworkOptions, obs Obs
 	}
 
 	return n, nil
+}
+
+func (n *validatorNetwork) initGossipSub(ctx context.Context, systemID types.SystemID) error {
+	gs, err := pubsub.NewGossipSub(ctx, n.self.host)
+	if err != nil {
+		return err
+	}
+
+	topic := TopicPrefixBlock + systemID.String()
+	n.log.InfoContext(ctx, fmt.Sprintf("Joining gossipsub topic %s", topic))
+
+	// Both validators and non-validators join the topic mesh. It should be possible though
+	// for validators not to join the mesh and just publish to the topic (fan-out).
+	n.gsTopicBlock, err = gs.Join(topic, pubsub.WithTopicMessageIdFn(
+		func(msg *pubsub_pb.Message) string {
+			hasher := crypto.SHA256.New()
+			hasher.Write(msg.Data)
+			return hex.EncodeToString(hasher.Sum(nil))
+		}),
+	)
+	if err != nil {
+		return err
+	}
+
+	// Only non-validators subscribe to receive new blocks
+	if !n.self.IsValidator() {
+		n.log.InfoContext(ctx, fmt.Sprintf("Subscribing to gossipsub topic %s", topic))
+		n.gsSubscriptionBlock, err = n.gsTopicBlock.Subscribe()
+		if err != nil {
+			return fmt.Errorf("subscribing to topic '%s': %w", topic, err)
+		}
+		go n.handleBlocks(ctx)
+	}
+	return nil
 }
 
 func (n *validatorNetwork) initMetrics(obs Observability) (err error) {
@@ -160,6 +236,15 @@ func (n *validatorNetwork) AddTransaction(ctx context.Context, tx *types.Transac
 	return n.txBuffer.Add(ctx, tx)
 }
 
+func (n *validatorNetwork) PublishBlock(ctx context.Context, block *types.Block) error {
+	blockBytes, err := cbor.Marshal(block)
+	if err != nil {
+		return err
+	}
+
+	return n.gsTopicBlock.Publish(ctx, blockBytes)
+}
+
 func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor TxProcessor) {
 	ctx, span := n.tracer.Start(ctx, "validatorNetwork.ProcessTransactions")
 	defer span.End()
@@ -175,9 +260,24 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 	}
 }
 
-func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver peer.ID) {
-	ctx, span := n.tracer.Start(ctx, "validatorNetwork.ForwardTransactions", trace.WithAttributes(attribute.Stringer("receiver", receiver)))
-	defer span.End()
+func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc TxReceiver) {
+	receiver := receiverFunc()
+	if n.self.IsValidator() {
+		var span trace.Span
+		ctx, span = n.tracer.Start(ctx, "validatorNetwork.ForwardTransactions",
+			trace.WithAttributes(attribute.Stringer("receiver", receiver)))
+		defer span.End()
+	}
+
+	var openStreams []libp2pNetwork.Stream
+	defer func() {
+		for _, s := range openStreams {
+			if err := s.Close(); err != nil {
+				n.log.WarnContext(ctx, "closing p2p stream", logger.Error(err))
+			}
+		}
+	}()
+
 	var stream libp2pNetwork.Stream
 	for {
 		tx, err := n.txBuffer.Remove(ctx)
@@ -191,11 +291,17 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 				attribute.NewSet(attribute.String("tx", tx.PayloadType()), attribute.String("status", status))))
 		}
 
-		n.log.DebugContext(ctx,
-			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
-			logger.UnitID(tx.UnitID()))
+		curReceiver := receiverFunc()
+		if stream == nil || curReceiver != receiver {
+			// Receiver has changed, close the stream to previous receiver.
+			if stream != nil {
+				if err := stream.Close(); err != nil {
+					n.log.WarnContext(ctx, "closing p2p stream", logger.Error(err))
+				}
+				openStreams = openStreams[:len(openStreams)-1]
+			}
+			receiver = curReceiver
 
-		if stream == nil {
 			var err error
 			stream, err = n.self.CreateStream(ctx, receiver, ProtocolInputForward)
 			if err != nil {
@@ -203,12 +309,12 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiver pee
 				addToMetric("err")
 				return
 			}
-			defer func() {
-				if err := stream.Close(); err != nil {
-					n.log.WarnContext(ctx, "closing p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
-				}
-			}()
+			openStreams = append(openStreams, stream)
 		}
+
+		n.log.DebugContext(ctx,
+			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
+			logger.UnitID(tx.UnitID()))
 
 		data, err := serializeMsg(tx)
 		if err != nil {
@@ -254,6 +360,27 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(
 			attribute.String("tx", tx.PayloadType()),
 			attribute.String("status", statusCodeOfTxBufferError(err))))
+	}
+}
+
+func (n *validatorNetwork) handleBlocks(ctx context.Context) {
+	for {
+		msg, err := n.gsSubscriptionBlock.Next(ctx)
+		if err != nil {
+			n.log.WarnContext(ctx, "getting block from topic", logger.Error(err))
+			continue
+		}
+
+		block := &types.Block{}
+		err = cbor.Unmarshal(msg.Data, block)
+		if err != nil {
+			n.log.WarnContext(ctx, "failed to decode block", logger.Error(err))
+			continue
+		}
+
+		if err = n.receivedMsg(msg.ReceivedFrom, msg.GetTopic(), block); err != nil {
+			n.log.WarnContext(ctx, "failed to receive block", logger.Error(err))
+		}
 	}
 }
 

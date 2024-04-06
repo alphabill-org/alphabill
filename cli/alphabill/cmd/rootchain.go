@@ -207,6 +207,9 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate consensus manager: %w", err)
 	}
+	if err := host.BootstrapConnect(ctx, log); err != nil {
+		return err
+	}
 	node, err := rootchain.New(
 		host,
 		partitionNet,

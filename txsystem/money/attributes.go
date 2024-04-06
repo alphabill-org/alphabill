@@ -18,22 +18,22 @@ type (
 		_           struct{} `cbor:",toarray"`
 		NewBearer   []byte
 		TargetValue uint64
-		Backlink    []byte
+		Counter     uint64
 	}
 
 	TransferDCAttributes struct {
-		_                  struct{} `cbor:",toarray"`
-		Value              uint64
-		TargetUnitID       []byte
-		TargetUnitBacklink []byte
-		Backlink           []byte
+		_                 struct{} `cbor:",toarray"`
+		Value             uint64
+		TargetUnitID      []byte
+		TargetUnitCounter uint64
+		Counter           uint64
 	}
 
 	SplitAttributes struct {
 		_              struct{} `cbor:",toarray"`
 		TargetUnits    []*TargetUnit
 		RemainingValue uint64
-		Backlink       []byte
+		Counter        uint64
 	}
 
 	TargetUnit struct {
@@ -53,11 +53,11 @@ type (
 	LockAttributes struct {
 		_          struct{} `cbor:",toarray"`
 		LockStatus uint64   // status of the lock, non-zero value means locked
-		Backlink   []byte
+		Counter    uint64
 	}
 
 	UnlockAttributes struct {
-		_        struct{} `cbor:",toarray"`
-		Backlink []byte
+		_       struct{} `cbor:",toarray"`
+		Counter uint64
 	}
 )

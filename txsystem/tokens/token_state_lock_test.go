@@ -25,7 +25,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	transferTx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
@@ -60,7 +60,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	updateTx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
 			Data:     test.RandomBytes(10),
@@ -81,7 +81,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	updateTx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(createClientMetadata()),

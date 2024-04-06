@@ -26,6 +26,7 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
 				bd.V += attr.Value
+				bd.Counter += 1
 				return bd, nil
 			})
 
@@ -38,7 +39,7 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 				}
 				bd.V = 0
 				bd.T = ctx.CurrentBlockNr
-				bd.Backlink = tx.Hash(m.hashAlgorithm)
+				bd.Counter += 1
 				return bd, nil
 			})
 
@@ -72,5 +73,5 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *Transfer
 }
 
 func validateTransferDC(data state.UnitData, tx *TransferDCAttributes) error {
-	return validateAnyTransfer(data, tx.Backlink, tx.Value)
+	return validateAnyTransfer(data, tx.Counter, tx.Value)
 }

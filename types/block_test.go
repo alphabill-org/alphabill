@@ -2,7 +2,6 @@ package types
 
 import (
 	"crypto"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,16 +90,13 @@ func TestBlock_SystemID(t *testing.T) {
 }
 
 func TestBlock_IsValid(t *testing.T) {
-	validFn := func(uc *UnicityCertificate) error {
-		return nil
-	}
 	t.Run("Block is nil", func(t *testing.T) {
 		var b *Block = nil
-		require.EqualError(t, b.IsValid(validFn), "block is nil")
+		require.EqualError(t, b.IsValid(), "block is nil")
 	})
 	t.Run("Header is nil", func(t *testing.T) {
 		b := &Block{}
-		require.EqualError(t, b.IsValid(validFn), "block error: block header is nil")
+		require.EqualError(t, b.IsValid(), "block error: block header is nil")
 	})
 	t.Run("Transactions is nil", func(t *testing.T) {
 		b := &Block{
@@ -110,7 +106,7 @@ func TestBlock_IsValid(t *testing.T) {
 				PreviousBlockHash: []byte{1, 2, 3},
 			},
 		}
-		require.EqualError(t, b.IsValid(validFn), "transactions is nil")
+		require.EqualError(t, b.IsValid(), "transactions is nil")
 	})
 	t.Run("UC is nil", func(t *testing.T) {
 		b := &Block{
@@ -121,22 +117,7 @@ func TestBlock_IsValid(t *testing.T) {
 			},
 			Transactions: make([]*TransactionRecord, 0),
 		}
-		require.EqualError(t, b.IsValid(validFn), "unicity certificate is nil")
-	})
-	t.Run("UC not valid", func(t *testing.T) {
-		notValidFn := func(uc *UnicityCertificate) error {
-			return fmt.Errorf("some error occurred")
-		}
-		b := &Block{
-			Header: &Header{
-				SystemID:          SystemID(1),
-				ProposerID:        "test",
-				PreviousBlockHash: []byte{1, 2, 3},
-			},
-			Transactions:       make([]*TransactionRecord, 0),
-			UnicityCertificate: &UnicityCertificate{},
-		}
-		require.EqualError(t, b.IsValid(notValidFn), "unicity certificate validation failed: some error occurred")
+		require.EqualError(t, b.IsValid(), "unicity certificate is nil")
 	})
 	t.Run("valid", func(t *testing.T) {
 		b := &Block{
@@ -148,7 +129,7 @@ func TestBlock_IsValid(t *testing.T) {
 			Transactions:       make([]*TransactionRecord, 0),
 			UnicityCertificate: &UnicityCertificate{},
 		}
-		require.NoError(t, b.IsValid(validFn))
+		require.NoError(t, b.IsValid())
 	})
 }
 

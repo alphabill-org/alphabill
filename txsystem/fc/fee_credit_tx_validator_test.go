@@ -74,7 +74,7 @@ func TestAddFC(t *testing.T) {
 			name: "UnitID has wrong type",
 			unit: nil,
 			tx: testutils.NewAddFC(t, signer, nil,
-				testtransaction.WithUnitId([]byte{1}),
+				testtransaction.WithUnitID([]byte{1}),
 			),
 			wantErrMsg: "invalid unit identifier",
 		},
@@ -324,7 +324,7 @@ func TestCloseFC(t *testing.T) {
 			name: "UnitID has wrong type",
 			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testutils.NewCloseFC(t, nil,
-				testtransaction.WithUnitId([]byte{8}),
+				testtransaction.WithUnitID([]byte{8}),
 			),
 			wantErrMsg: "invalid unit identifier",
 		},
@@ -365,18 +365,6 @@ func TestCloseFC(t *testing.T) {
 			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:         testutils.NewCloseFC(t, testutils.NewCloseFCAttr(testutils.WithCloseFCTargetUnitID([]byte{}))),
 			wantErrMsg: "TargetUnitID is empty",
-		},
-		{
-			name:       "Nil target unit backlink",
-			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
-			tx:         testutils.NewCloseFC(t, testutils.NewCloseFCAttr(testutils.WithCloseFCTargetUnitBacklink(nil))),
-			wantErrMsg: "TargetUnitBacklink is empty",
-		},
-		{
-			name:       "Empty target unit backlink",
-			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
-			tx:         testutils.NewCloseFC(t, testutils.NewCloseFCAttr(testutils.WithCloseFCTargetUnitBacklink([]byte{}))),
-			wantErrMsg: "TargetUnitBacklink is empty",
 		},
 		{
 			name: "Invalid fee",
@@ -448,7 +436,7 @@ func TestLockFC(t *testing.T) {
 			name: "unit id type part is not fee credit record",
 			ctx: newLockFCValidationContext(
 				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Backlink: []byte{4}}),
-				testutils.NewLockFC(t, testutils.NewLockFCAttr(), testtransaction.WithUnitId(
+				testutils.NewLockFC(t, testutils.NewLockFCAttr(), testtransaction.WithUnitID(
 					types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
 				),
 			),
@@ -575,7 +563,7 @@ func TestUnlockFC(t *testing.T) {
 			name: "unit id type part is not fee credit record",
 			ctx: newUnlockFCValidationContext(
 				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Backlink: []byte{4}}),
-				testutils.NewUnlockFC(t, testutils.NewUnlockFCAttr(), testtransaction.WithUnitId(
+				testutils.NewUnlockFC(t, testutils.NewUnlockFCAttr(), testtransaction.WithUnitID(
 					types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
 				),
 			),

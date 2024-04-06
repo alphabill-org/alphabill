@@ -1,7 +1,6 @@
 package money
 
 import (
-	"bytes"
 	"fmt"
 	"hash"
 
@@ -10,11 +9,11 @@ import (
 )
 
 type BillData struct {
-	_        struct{}    `cbor:",toarray"`
-	V        uint64      `json:"value,string"`      // The monetary value of this bill
-	T        uint64      `json:"lastUpdate,string"` // The round number of the last transaction with the bill
-	Backlink types.Bytes `json:"backlink"`          // Backlink (256-bit hash)
-	Locked   uint64      `json:"locked,string"`     // locked status of the bill, non-zero value means locked
+	_       struct{} `cbor:",toarray"`
+	V       uint64   `json:"value,string"`      // The monetary value of this bill
+	T       uint64   `json:"lastUpdate,string"` // The round number of the last transaction with the bill
+	Counter uint64   `json:"counter"`           // The transaction counter of this bill
+	Locked  uint64   `json:"locked,string"`     // locked status of the bill, non-zero value means locked
 }
 
 func (b *BillData) Write(hasher hash.Hash) error {
@@ -32,10 +31,10 @@ func (b *BillData) SummaryValueInput() uint64 {
 
 func (b *BillData) Copy() state.UnitData {
 	return &BillData{
-		V:        b.V,
-		T:        b.T,
-		Backlink: bytes.Clone(b.Backlink),
-		Locked:   b.Locked,
+		V:       b.V,
+		T:       b.T,
+		Counter: b.Counter,
+		Locked:  b.Locked,
 	}
 }
 

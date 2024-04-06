@@ -74,7 +74,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	privKeyHash := hashOfPrivateKey(t, signer)
-	backlink := addFeeCredit(t, stateTree, signer, 100)
+	_ = addFeeCredit(t, stateTree, signer, 100)
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		crypto.SHA256,
@@ -99,13 +99,15 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		},
 		{
 			name: "err - no unit (no credit has been added)",
-			args: args{order: newCloseFCTx(t,
-				test.RandomBytes(32),
-				testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(97),
-					testutils.WithCloseFCTargetUnitID(privKeyHash), testutils.WithCloseFCTargetUnitBacklink(backlink)),
-				signer,
-				7,
-			),
+			args: args{
+				order: newCloseFCTx(
+					t,
+					test.RandomBytes(32),
+					testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(uint64(97)),
+						testutils.WithCloseFCTargetUnitID(privKeyHash), testutils.WithCloseFCTargetUnitCounter(1)),
+					signer,
+					7,
+				),
 				blockNumber: 5},
 		},
 	}
@@ -131,13 +133,14 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	pubKeyBytes, err := ver.MarshalPublicKey()
 	require.NoError(t, err)
 	privKeyHash := hashOfPrivateKey(t, signer)
-	backlink := addFeeCredit(t, stateTree, signer, 100)
+	_ = addFeeCredit(t, stateTree, signer, 100)
 	log := logger.New(t)
 	stateDB := statedb.NewStateDB(stateTree, log)
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
 	balanceAlpha := weiToAlpha(balance)
+
 	// close fee credit
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
@@ -145,21 +148,30 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator(0x00000001, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
 		log)
+
 	// create close order
-	closeOrder := newCloseFCTx(t, test.RandomBytes(32), testutils.NewCloseFCAttr(
-		testutils.WithCloseFCAmount(balanceAlpha),
-		testutils.WithCloseFCTargetUnitBacklink(backlink),
-		testutils.WithCloseFCTargetUnitID(privKeyHash)),
-		signer, 7)
+	closeOrder := newCloseFCTx(t,
+		test.RandomBytes(32),
+		testutils.NewCloseFCAttr(
+			testutils.WithCloseFCAmount(balanceAlpha),
+			testutils.WithCloseFCTargetUnitCounter(1),
+			testutils.WithCloseFCTargetUnitID(privKeyHash),
+		),
+		signer,
+		7,
+	)
 	closeAttr := new(transactions.CloseFeeCreditAttributes)
 	require.NoError(t, closeOrder.UnmarshalAttributes(closeAttr))
+
 	// first add fee credit
 	metaData, err := closeExecFn(closeOrder, closeAttr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
+
 	// verify balance
 	balance = stateDB.GetBalance(addr)
 	require.EqualValues(t, 0, balance.Uint64())
+
 	// verify backlink
 	alphaBillData := stateDB.GetAlphaBillData(addr)
 	require.Equal(t, closeOrder.Hash(crypto.SHA256), alphaBillData.TxHash)

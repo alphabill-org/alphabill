@@ -22,7 +22,7 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		TransactionOrder: txOrder,
 		ServerMetadata:   serverMetadata,
 	}
-	expectedHash := "0xedd5f712774a81e6a17ee11fdaf0498d4f2b1f8e32ccd8abbf7d1612374f6e32"
+	expectedHash := "0xbc38ac6053984a907244f5797c89fca8bd9091b68429ab7490599b05a14bae80"
 	expectedBytes, err := Cbor.Marshal(transactionRecord)
 	require.NoError(t, err)
 

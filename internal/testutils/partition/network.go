@@ -453,13 +453,14 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// by default, use root node 1 as bootstrap
 	require.NotEmpty(t, a.RootPartition.Nodes)
-	a.BootStrapInfo = append(a.BootStrapInfo, peer.AddrInfo{
-		ID:    a.RootPartition.Nodes[0].id,
-		Addrs: []multiaddr.Multiaddr{a.RootPartition.Nodes[0].addr}})
 	if err := a.RootPartition.start(ctx, a.BootStrapInfo); err != nil {
 		ctxCancel()
 		return fmt.Errorf("failed to start root partition, %w", err)
 	}
+	a.BootStrapInfo = append(a.BootStrapInfo, peer.AddrInfo{
+		ID:    a.RootPartition.Nodes[0].id,
+		Addrs: []multiaddr.Multiaddr{a.RootPartition.Nodes[0].addr}})
+
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
 		if err := part.start(t, ctx, a.BootStrapInfo); err != nil {

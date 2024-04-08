@@ -151,10 +151,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	sdr := &genesis.SystemDescriptionRecord{
+	sdr := &types.SystemDescriptionRecord{
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -185,10 +185,10 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsInitialBill(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	sdr := &genesis.SystemDescriptionRecord{
+	sdr := &types.SystemDescriptionRecord{
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         defaultInitialBillID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -208,10 +208,10 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	sdr := &genesis.SystemDescriptionRecord{
+	sdr := &types.SystemDescriptionRecord{
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.DustCollectorMoneySupplyID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -263,7 +263,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 	})
 }
 
-func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {
+func createSDRFile(dir string, sdr *types.SystemDescriptionRecord) (string, error) {
 	filePath := filepath.Join(dir, "money-sdr.json")
 	if err := util.WriteJsonFile(filePath, sdr); err != nil {
 		return "", err

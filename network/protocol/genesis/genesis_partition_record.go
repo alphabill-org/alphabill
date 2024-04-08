@@ -16,13 +16,13 @@ var (
 )
 
 type GenesisPartitionRecord struct {
-	_                       struct{}                  `cbor:",toarray"`
-	Nodes                   []*PartitionNode          `json:"nodes,omitempty"`
-	Certificate             *types.UnicityCertificate `json:"certificate,omitempty"`
-	SystemDescriptionRecord *SystemDescriptionRecord  `json:"system_description_record,omitempty"`
+	_                       struct{}                       `cbor:",toarray"`
+	Nodes                   []*PartitionNode               `json:"nodes,omitempty"`
+	Certificate             *types.UnicityCertificate      `json:"certificate,omitempty"`
+	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
 }
 
-func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *SystemDescriptionRecord {
+func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.SystemDescriptionRecord {
 	if x == nil {
 		return nil
 	}
@@ -47,8 +47,8 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 	if err := nodesUnique(x.Nodes); err != nil {
 		return fmt.Errorf("partition nodes validation failed, %w", err)
 	}
-	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
-		return fmt.Errorf("unicity certificate validation failed, %w", err)
+	if err := x.Certificate.Verify(verifiers, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
+		return fmt.Errorf("unicity certificate verify error: %w", err)
 	}
 	return nil
 }

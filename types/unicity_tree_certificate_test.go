@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/tree/imt"
 	"github.com/stretchr/testify/require"
@@ -123,4 +124,45 @@ func TestUnicityTreeCertificate_Serialize(t *testing.T) {
 	hasher := gocrypto.SHA256.New()
 	ut.AddToHasher(hasher)
 	require.EqualValues(t, expectedHash[:], hasher.Sum(nil))
+}
+
+func createUnicityCertificate(
+	t *testing.T,
+	rootID string,
+	signer crypto.Signer,
+	ir *InputRecord,
+	systemDescription *SystemDescriptionRecord,
+) *UnicityCertificate {
+	t.Helper()
+	sdrsh := systemDescription.Hash(gocrypto.SHA256)
+	leaf := &UnicityTreeData{
+		SystemIdentifier:            systemDescription.SystemIdentifier,
+		InputRecord:                 ir,
+		SystemDescriptionRecordHash: sdrsh,
+	}
+	tree, err := imt.New(gocrypto.SHA256, []imt.LeafData{leaf})
+	require.NoError(t, err)
+	unicitySeal := &UnicitySeal{
+		RootChainRoundNumber: 1,
+		Timestamp:            NewTimestamp(),
+		PreviousHash:         make([]byte, 32),
+		Hash:                 tree.GetRootHash(),
+	}
+	require.NoError(t, unicitySeal.Sign(rootID, signer))
+	hasher := gocrypto.SHA256.New()
+	leaf.AddToHasher(hasher)
+	cert := &UnicityTreeCertificate{
+		SystemIdentifier:      systemDescription.SystemIdentifier,
+		SiblingHashes:         []*imt.PathItem{{Key: systemDescription.SystemIdentifier.Bytes(), Hash: hasher.Sum(nil)}},
+		SystemDescriptionHash: sdrsh,
+	}
+	return &UnicityCertificate{
+		InputRecord: ir,
+		UnicityTreeCertificate: &UnicityTreeCertificate{
+			SystemIdentifier:      cert.SystemIdentifier,
+			SiblingHashes:         cert.SiblingHashes,
+			SystemDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
+		},
+		UnicitySeal: unicitySeal,
+	}
 }

@@ -43,7 +43,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 	if systemIdentifier != x.SystemIdentifier {
 		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
 	}
-	if err := x.UnicityCertificate.IsValid(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityCertificate.Verify(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err
 	}
 	return x.Verify(algorithm, nodeSignatureVerifier)

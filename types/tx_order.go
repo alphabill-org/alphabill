@@ -28,6 +28,7 @@ type (
 		Timeout           uint64
 		MaxTransactionFee uint64
 		FeeCreditRecordID []byte
+		ReferenceNumber   []byte
 	}
 
 	PredicateBytes = Bytes

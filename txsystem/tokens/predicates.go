@@ -10,7 +10,7 @@ import (
 
 /*
 runChainedPredicates recursively executes predicates returned by callback functions.
-Typically these are predicates of the token type chain.
+Typically, these are predicates of the token type chain.
 
 Parameters:
   - "txo": transaction order against which predicates are run, passed on as argument to the
@@ -19,7 +19,7 @@ Parameters:
   - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the
     TokenCreationPredicateSignatures field of the mint tx;
   - "exec": function which evaluates the predicate;
-  - "iter": function which returns "parent ID" and perdicate for given unit (the "chain iterator");
+  - "iter": function which returns "parent ID" and predicate for given unit (the "chain iterator");
   - "getUnit": function which returns unit with given ID;
 */
 func runChainedPredicates[T state.UnitData](

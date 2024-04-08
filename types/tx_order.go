@@ -4,6 +4,9 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"hash"
+
+	"github.com/alphabill-org/alphabill/util"
 )
 
 type (
@@ -168,4 +171,11 @@ func (p *Payload) BytesWithAttributeSigBytes(attrs SigBytesProvider) ([]byte, er
 		ClientMetadata: p.ClientMetadata,
 	}
 	return payload.Bytes()
+}
+
+func (c *ClientMetadata) AddToHasher(hasher hash.Hash) {
+	hasher.Write(util.Uint64ToBytes(c.Timeout))
+	hasher.Write(util.Uint64ToBytes(c.MaxTransactionFee))
+	hasher.Write(c.FeeCreditRecordID)
+	hasher.Write(c.ReferenceNumber)
 }

@@ -30,13 +30,13 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 	}, nil
 }
 
-func (n *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
+func (m *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeCreateFungibleTokenType: n.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
-		PayloadTypeMintFungibleToken:       n.handleMintFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeTransferFungibleToken:   n.handleTransferFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeSplitFungibleToken:      n.handleSplitFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeBurnFungibleToken:       n.handleBurnFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeJoinFungibleToken:       n.handleJoinFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeCreateFungibleTokenType: m.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
+		PayloadTypeMintFungibleToken:       m.handleMintFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeTransferFungibleToken:   m.handleTransferFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeSplitFungibleToken:      m.handleSplitFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeBurnFungibleToken:       m.handleBurnFungibleTokenTx().ExecuteFunc(),
+		PayloadTypeJoinFungibleToken:       m.handleJoinFungibleTokenTx().ExecuteFunc(),
 	}
 }

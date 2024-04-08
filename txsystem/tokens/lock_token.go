@@ -1,8 +1,6 @@
 package tokens
 
 import (
-	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -20,7 +18,8 @@ func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockT
 		updateFn := state.UpdateUnitData(tx.UnitID(),
 			func(data state.UnitData) (state.UnitData, error) {
 				return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentBlockNr)
-			})
+			},
+		)
 		if err := m.state.Apply(updateFn); err != nil {
 			return nil, fmt.Errorf("failed to update state: %w", err)
 		}
@@ -30,32 +29,32 @@ func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockT
 
 func (m *LockTokensModule) updateLockTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (state.UnitData, error) {
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
-		return updateLockFungibleTokenData(data, tx, attr, roundNumber, m.hashAlgorithm)
+		return updateLockFungibleTokenData(data, tx, attr, roundNumber)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return updateLockNonFungibleTokenData(data, tx, attr, roundNumber, m.hashAlgorithm)
+		return updateLockNonFungibleTokenData(data, tx, attr, roundNumber)
 	} else {
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func updateLockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, hashAlgorithm crypto.Hash) (state.UnitData, error) {
+func updateLockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (state.UnitData, error) {
 	d, ok := data.(*NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(hashAlgorithm)
+	d.Counter += 1
 	d.Locked = attr.LockStatus
 	return d, nil
 }
 
-func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64, hashAlgorithm crypto.Hash) (state.UnitData, error) {
+func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (state.UnitData, error) {
 	d, ok := data.(*FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(hashAlgorithm)
+	d.Counter += 1
 	d.Locked = attr.LockStatus
 	return d, nil
 }
@@ -91,7 +90,7 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
 	}
-	if err := m.validateTokenLock(u, tx, attr, d); err != nil {
+	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
 
@@ -119,7 +118,7 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
 	}
-	if err := m.validateTokenLock(u, tx, attr, d); err != nil {
+	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
 
@@ -146,18 +145,18 @@ func (l *LockTokenAttributes) SigBytes() ([]byte, error) {
 	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
 	signatureAttr := &LockTokenAttributes{
 		LockStatus:                   l.LockStatus,
-		Backlink:                     l.Backlink,
+		Counter:                      l.Counter,
 		InvariantPredicateSignatures: nil,
 	}
 	return types.Cbor.Marshal(signatureAttr)
 }
 
 type tokenData interface {
-	GetBacklink() []byte
+	GetCounter() uint64
 	IsLocked() uint64
 }
 
-func (m *LockTokensModule) validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, d tokenData) error {
+func (m *LockTokensModule) validateTokenLock(attr *LockTokenAttributes, d tokenData) error {
 	// token is not locked
 	if d.IsLocked() != 0 {
 		return errors.New("token is already locked")
@@ -167,9 +166,9 @@ func (m *LockTokensModule) validateTokenLock(u *state.Unit, tx *types.Transactio
 		return errors.New("lock status cannot be zero-value")
 	}
 	// the current transaction follows the previous valid transaction with the token
-	if !bytes.Equal(attr.Backlink, d.GetBacklink()) {
-		return fmt.Errorf("the transaction backlink is not equal to the token backlink: tx.backlink='%x' token.backlink='%x'",
-			attr.Backlink, d.GetBacklink())
+	if attr.Counter != d.GetCounter() {
+		return fmt.Errorf("the transaction counter is not equal to the token counter: tx.counter='%d' token.counter='%d'",
+			attr.Counter, d.GetCounter())
 	}
 	return nil
 }

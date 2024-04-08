@@ -16,10 +16,10 @@ type NonFungibleTokenTypeData struct {
 	Name                     string
 	Icon                     *Icon
 	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
-	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
+	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new subtypes of this type;
 	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
-	DataUpdatePredicate      []byte       // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
+	DataUpdatePredicate      []byte       // the clause that all tokens of this type (and of subtypes of this type) inherit into their data update predicates
 }
 
 type FungibleTokenTypeData struct {
@@ -29,9 +29,9 @@ type FungibleTokenTypeData struct {
 	Icon                     *Icon
 	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
 	DecimalPlaces            uint32       // is the number of decimal places to display for values of tokens of this type;
-	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
+	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new subtypes of this type;
 	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
+	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
 }
 
 type NonFungibleTokenData struct {
@@ -42,16 +42,17 @@ type NonFungibleTokenData struct {
 	Data                []byte // data is the optional data associated with the token.
 	DataUpdatePredicate []byte // the data update predicate;
 	T                   uint64 // the round number of the last transaction with this token;
-	Backlink            []byte // the hash of the last transaction order for this token
+	Counter             uint64 // the transaction counter for this token
 	Locked              uint64 // locked status of the bill, non-zero value means locked
 }
 
 type FungibleTokenData struct {
 	_         struct{}     `cbor:",toarray"`
-	TokenType types.UnitID // the type of the token;
-	Value     uint64       // the value of the token;
-	T         uint64       // the round number of the last transaction with this token;
-	Backlink  []byte       // the hash of the last transaction order for this token
+	TokenType types.UnitID // the type of the token
+	Value     uint64       // the value of the token
+	T         uint64       // the partition round number of the last transaction with this token
+	Counter   uint64       // the transaction counter for this token
+	T1        uint64       // the minimum lifetime of this token
 	Locked    uint64       // locked status of the bill, non-zero value means locked
 }
 
@@ -81,24 +82,27 @@ func newNonFungibleTokenTypeData(attr *CreateNonFungibleTokenTypeAttributes) sta
 	}
 }
 
-func newNonFungibleTokenData(attr *MintNonFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) state.UnitData {
+func newNonFungibleTokenData(typeID types.UnitID, attr *MintNonFungibleTokenAttributes, blockNumber, counter uint64) state.UnitData {
 	return &NonFungibleTokenData{
-		NftType:             attr.NFTTypeID,
+		NftType:             typeID,
 		Name:                attr.Name,
 		URI:                 attr.URI,
 		Data:                attr.Data,
 		DataUpdatePredicate: attr.DataUpdatePredicate,
-		T:                   currentBlockNr,
-		Backlink:            txHash,
+		T:                   blockNumber,
+		Counter:             counter,
+		Locked:              0,
 	}
 }
 
-func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) state.UnitData {
+func newFungibleTokenData(typeID types.UnitID, value, blockNumber, counter, timeout uint64) state.UnitData {
 	return &FungibleTokenData{
-		TokenType: attr.TypeID,
-		Value:     attr.Value,
-		T:         currentBlockNr,
-		Backlink:  txHash,
+		TokenType: typeID,
+		Value:     value,
+		T:         blockNumber,
+		Counter:   counter,
+		T1:        timeout,
+		Locked:    0,
 	}
 }
 
@@ -155,13 +159,13 @@ func (n *NonFungibleTokenData) Copy() state.UnitData {
 		Data:                bytes.Clone(n.Data),
 		DataUpdatePredicate: bytes.Clone(n.DataUpdatePredicate),
 		T:                   n.T,
-		Backlink:            bytes.Clone(n.Backlink),
+		Counter:             n.Counter,
 		Locked:              n.Locked,
 	}
 }
 
-func (n *NonFungibleTokenData) GetBacklink() []byte {
-	return n.Backlink
+func (n *NonFungibleTokenData) GetCounter() uint64 {
+	return n.Counter
 }
 
 func (n *NonFungibleTokenData) IsLocked() uint64 {
@@ -218,13 +222,14 @@ func (f *FungibleTokenData) Copy() state.UnitData {
 		TokenType: bytes.Clone(f.TokenType),
 		Value:     f.Value,
 		T:         f.T,
-		Backlink:  bytes.Clone(f.Backlink),
+		Counter:   f.Counter,
+		T1:        f.T1,
 		Locked:    f.Locked,
 	}
 }
 
-func (f *FungibleTokenData) GetBacklink() []byte {
-	return f.Backlink
+func (f *FungibleTokenData) GetCounter() uint64 {
+	return f.Counter
 }
 
 func (f *FungibleTokenData) IsLocked() uint64 {

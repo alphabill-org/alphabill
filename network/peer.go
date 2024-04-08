@@ -67,7 +67,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readKeyPair(conf, log)
+	privateKey, _, err := readKeyPair(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func newPeerStore() (peerstore.Peerstore, error) {
 	return peerStore, nil
 }
 
-func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
+func readKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
 		return nil, nil, fmt.Errorf("missing peer key")
 	}

@@ -17,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/txbuffer"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/libp2p/go-libp2p-pubsub"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -71,7 +71,6 @@ type validatorNetwork struct {
 	txFwdBy  metric.Int64Counter
 	txFwdTo  metric.Int64Counter
 
-	gs                  *pubsub.PubSub
 	gsTopicBlock        *pubsub.Topic
 	gsSubscriptionBlock *pubsub.Subscription
 }

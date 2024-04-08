@@ -144,7 +144,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 
-	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+	if err := writeStateFile(nodeGenesisStateFile, genesisState); err != nil {
 		return fmt.Errorf("failed to write genesis state file: %w", err)
 	}
 
@@ -275,7 +275,7 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 	return nil
 }
 
-func writeStateFile(path string, s *state.State, systemID types.SystemID) error {
+func writeStateFile(path string, s *state.State) error {
 	stateFile, err := os.Create(filepath.Clean(path))
 	if err != nil {
 		return err

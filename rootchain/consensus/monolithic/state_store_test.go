@@ -38,7 +38,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID3,
 				T2Timeout:        2500,
 			},
@@ -46,7 +46,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID1,
 				T2Timeout:        2500,
 			},

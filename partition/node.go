@@ -1134,8 +1134,8 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 
 func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	committedUC := n.committedUC()
-
-	if err := b.IsValid(); err != nil {
+	algo := n.configuration.hashAlgorithm
+	if err := b.IsValid(algo, n.configuration.genesis.SystemDescriptionRecord.Hash(algo)); err != nil {
 		// sends invalid blocks, do not trust the response and try again
 		return fmt.Errorf("invalid block for round %v: %w", b.GetRoundNumber(), err)
 	}

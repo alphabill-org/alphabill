@@ -63,3 +63,13 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		require.Equal(t, txOrder.Payload.ClientMetadata, payload.ClientMetadata)
 	})
 }
+
+func createTransactionRecord(tx *TransactionOrder, fee uint64) *TransactionRecord {
+	return &TransactionRecord{
+		TransactionOrder: tx,
+		ServerMetadata: &ServerMetadata{
+			ActualFee:        fee,
+			SuccessIndicator: TxStatusSuccessful,
+		},
+	}
+}

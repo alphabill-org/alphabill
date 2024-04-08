@@ -299,7 +299,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 			UnicitySeal: uSeal,
 		}
 		// verify certificate
-		if err = uc.IsValid(x.trustBase, x.params.HashAlgorithm, utCert.SystemIdentifier, utCert.SystemDescriptionHash); err != nil {
+		if err = uc.Verify(x.trustBase, x.params.HashAlgorithm, utCert.SystemIdentifier, utCert.SystemDescriptionHash); err != nil {
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}

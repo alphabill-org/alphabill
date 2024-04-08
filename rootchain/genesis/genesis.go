@@ -239,7 +239,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		// check the certificate
 		// ignore error, we just put it there and if not, then verify will fail anyway
 		srdh := sdrhs[sysId]
-		if err = uc.IsValid(trustBase, c.hashAlgorithm, sysId, srdh); err != nil {
+		if err = uc.Verify(trustBase, c.hashAlgorithm, sysId, srdh); err != nil {
 			// should never happen.
 			return nil, nil, fmt.Errorf("generated unicity certificate validation failed: %w", err)
 		}
@@ -342,7 +342,7 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 	}
 	// create partition record
 	pr := &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &types.SystemDescriptionRecord{
 			SystemIdentifier: nodes[0].BlockCertificationRequest.SystemIdentifier,
 			T2Timeout:        nodes[0].T2Timeout,
 		},

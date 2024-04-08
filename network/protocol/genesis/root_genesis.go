@@ -27,7 +27,7 @@ type RootGenesis struct {
 }
 
 type SystemDescriptionRecordGetter interface {
-	GetSystemDescriptionRecord() *SystemDescriptionRecord
+	GetSystemDescriptionRecord() *types.SystemDescriptionRecord
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {

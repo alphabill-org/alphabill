@@ -88,7 +88,7 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, quorum uint32, verifiers m
 		}
 	}
 	for _, c := range sm.Certificates {
-		if err := c.IsValid(verifiers, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
+		if err := c.Verify(verifiers, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
 			return fmt.Errorf("certificate for %X is invalid: %w", c.UnicityTreeCertificate.SystemIdentifier, err)
 		}
 	}

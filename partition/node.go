@@ -744,7 +744,7 @@ func (n *Node) startRecovery(ctx context.Context) {
 	defer span.End()
 
 	if n.status.Load() == recovering {
-		n.log.DebugContext(ctx, fmt.Sprintf("Recovery already in progress"))
+		n.log.DebugContext(ctx, "Recovery already in progress")
 		return
 	}
 	// starting recovery
@@ -1149,7 +1149,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	if b.GetRoundNumber() <= committedUC.GetRoundNumber() {
 		n.log.DebugContext(ctx, fmt.Sprintf("latest committed block %v, skipping block %v", committedUC.GetRoundNumber(), b.GetRoundNumber()))
 		return nil
-	} else if b.GetRoundNumber() > committedUC.GetRoundNumber() + 1 {
+	} else if b.GetRoundNumber() > committedUC.GetRoundNumber()+1 {
 		// No point in starting recovery during initialization - node won't start. Perhaps it should?
 		if n.status.Load() != initializing {
 			n.startRecovery(ctx)

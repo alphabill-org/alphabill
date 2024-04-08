@@ -234,7 +234,7 @@ func (s *State) Apply(actions ...Action) error {
 	return nil
 }
 
-// Commit commits the changes in the latest savepoint.
+// Commit makes the changes in the latest savepoint permanent.
 func (s *State) Commit(uc *types.UnicityCertificate) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

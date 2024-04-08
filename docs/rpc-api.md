@@ -88,7 +88,7 @@ curl -H 'Content-Type: application/json' \
 ```
 Response
 ```
-{"jsonrpc":"2.0","id":1,"result":{"unitId":"0x000000000000000000000000000000000000000000000000000000000000000100","data":{"value":"1000000000000000000","lastUpdate":"0","backlink":"","locked":"0"},"ownerPredicate":"0x83004101f6"}}
+{"jsonrpc":"2.0","id":1,"result":{"unitId":"0x000000000000000000000000000000000000000000000000000000000000000100","data":{"value":"1000000000000000000","lastUpdate":"0","counter":"0","locked":"0"},"ownerPredicate":"0x83004101f6"}}
 ```
 
 ## state_getUnitsByOwnerID

@@ -11,49 +11,49 @@ import (
 )
 
 type NonFungibleTokenTypeData struct {
-	_                        struct{} `cbor:",toarray"`
-	Symbol                   string
-	Name                     string
-	Icon                     *Icon
-	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
-	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new subtypes of this type;
-	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
-	DataUpdatePredicate      []byte       // the clause that all tokens of this type (and of subtypes of this type) inherit into their data update predicates
+	_                        struct{}     `cbor:",toarray"`
+	Symbol                   string       `json:"symbol"`
+	Name                     string       `json:"name"`
+	Icon                     *Icon        `json:"icon"`
+	ParentTypeId             types.UnitID `json:"parentTypeId"`             // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+	SubTypeCreationPredicate []byte       `json:"subTypeCreationPredicate"` // the predicate clause that controls defining new subtypes of this type;
+	TokenCreationPredicate   []byte       `json:"tokenCreationPredicate"`   // the predicate clause that controls creating new tokens of this type
+	InvariantPredicate       []byte       `json:"invariantPredicate"`       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
+	DataUpdatePredicate      []byte       `json:"dataUpdatePredicate"`      // the clause that all tokens of this type (and of subtypes of this type) inherit into their data update predicates
 }
 
 type FungibleTokenTypeData struct {
-	_                        struct{} `cbor:",toarray"`
-	Symbol                   string
-	Name                     string
-	Icon                     *Icon
-	ParentTypeId             types.UnitID // identifies the parent type that this type derives from; 0 indicates there is no parent type;
-	DecimalPlaces            uint32       // is the number of decimal places to display for values of tokens of this type;
-	SubTypeCreationPredicate []byte       // the predicate clause that controls defining new subtypes of this type;
-	TokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
-	InvariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
+	_                        struct{}     `cbor:",toarray"`
+	Symbol                   string       `json:"symbol"`
+	Name                     string       `json:"name"`
+	Icon                     *Icon        `json:"icon"`
+	ParentTypeId             types.UnitID `json:"parentTypeId"`             // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+	DecimalPlaces            uint32       `json:"decimalPlaces"`            // is the number of decimal places to display for values of tokens of this type;
+	SubTypeCreationPredicate []byte       `json:"subTypeCreationPredicate"` // the predicate clause that controls defining new subtypes of this type;
+	TokenCreationPredicate   []byte       `json:"tokenCreationPredicate"`   // the predicate clause that controls creating new tokens of this type
+	InvariantPredicate       []byte       `json:"invariantPredicate"`       // the invariant predicate clause that all tokens of this type (and of subtypes of this type) inherit into their bearer predicates;
 }
 
 type NonFungibleTokenData struct {
-	_                   struct{} `cbor:",toarray"`
-	NftType             types.UnitID
-	Name                string // the optional long name of the token
-	URI                 string // uri is the optional URI of an external resource associated with the token
-	Data                []byte // data is the optional data associated with the token.
-	DataUpdatePredicate []byte // the data update predicate;
-	T                   uint64 // the round number of the last transaction with this token;
-	Counter             uint64 // the transaction counter for this token
-	Locked              uint64 // locked status of the bill, non-zero value means locked
+	_                   struct{}     `cbor:",toarray"`
+	NftType             types.UnitID `json:"nftType"`
+	Name                string       `json:"name"`                // the optional long name of the token
+	URI                 string       `json:"uri"`                 // uri is the optional URI of an external resource associated with the token
+	Data                []byte       `json:"data"`                // data is the optional data associated with the token.
+	DataUpdatePredicate []byte       `json:"dataUpdatePredicate"` // the data update predicate;
+	T                   uint64       `json:"lastUpdate,string"`   // the round number of the last transaction with this token;
+	Counter             uint64       `json:"counter,string"`      // the transaction counter for this token
+	Locked              uint64       `json:"locked,string"`       // locked status of the bill, non-zero value means locked
 }
 
 type FungibleTokenData struct {
 	_         struct{}     `cbor:",toarray"`
 	TokenType types.UnitID // the type of the token
-	Value     uint64       // the value of the token
-	T         uint64       // the partition round number of the last transaction with this token
-	Counter   uint64       // the transaction counter for this token
-	T1        uint64       // the minimum lifetime of this token
-	Locked    uint64       // locked status of the bill, non-zero value means locked
+	Value     uint64       `json:"value,string"`      // the value of the token
+	T         uint64       `json:"lastUpdate,string"` // the partition round number of the last transaction with this token
+	Counter   uint64       `json:"counter,string"`    // the transaction counter for this token
+	T1        uint64       `json:"t1,string"`         // the minimum lifetime of this token
+	Locked    uint64       `json:"locked,string"`     // locked status of the bill, non-zero value means locked
 }
 
 func newFungibleTokenTypeData(attr *CreateFungibleTokenTypeAttributes) state.UnitData {

@@ -595,7 +595,7 @@ This transaction creates a non-fungible token type.
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
     /InvariantPredicate/                 h'535101',
     /DataUpdatePredicate/                h'535101',
-    Nonce                                0,
+    /Nonce/                              0,
     /SubTypeCreationPredicateSignatures/ [h'53']
 ]
 ```

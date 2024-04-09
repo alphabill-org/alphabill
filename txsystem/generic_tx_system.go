@@ -145,7 +145,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockRelease
 		}
 	}
 
-	ctx := &TxExecutionContext{
+	exeCtx := &TxExecutionContext{
 		CurrentBlockNr:    m.currentBlockNumber,
 		StateLockReleased: stateLockReleased,
 	}
@@ -195,7 +195,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockRelease
 
 	// proceed with the transaction execution
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, rErr = m.executors.Execute(tx, ctx)
+	sm, rErr = m.executors.Execute(tx, exeCtx)
 	if rErr != nil {
 		return nil, rErr
 	}

@@ -48,7 +48,7 @@ type NonFungibleTokenData struct {
 
 type FungibleTokenData struct {
 	_         struct{}     `cbor:",toarray"`
-	TokenType types.UnitID // the type of the token
+	TokenType types.UnitID `json:"tokenType"`         // the type of the token
 	Value     uint64       `json:"value,string"`      // the value of the token
 	T         uint64       `json:"lastUpdate,string"` // the partition round number of the last transaction with this token
 	Counter   uint64       `json:"counter,string"`    // the transaction counter for this token

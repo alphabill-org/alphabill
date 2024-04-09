@@ -1,8 +1,9 @@
 package tokens
 
 import (
-	gocrypto "crypto"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	hasherUtil "github.com/alphabill-org/alphabill/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -11,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 // TestTransferNFT_StateLock locks NFT with a transfer tx to pk1, then unlocks it with an update tx
@@ -19,7 +19,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	w1Signer, w1PubKey := createSigner(t)
 	_ = w1Signer
 	txs, _ := newTokenTxSystem(t)
-	mintTx := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
+	unitID := createNFTTypeAndMintToken(t, txs, nftTypeID2)
 
 	// transfer NFT to pk1 with state lock
 	transferTx := testtransaction.NewTransactionOrder(
@@ -32,7 +32,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 			NFTTypeID:                    nftTypeID2,
 			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(w1PubKey)),
 			Nonce:                        test.RandomBytes(32),
-			Backlink:                     mintTx.Hash(gocrypto.SHA256),
+			Counter:                      0,
 			InvariantPredicateSignatures: [][]byte{nil},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -53,7 +53,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	d := u.Data().(*NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, []byte{0xa}, d.Data)
-	require.Equal(t, transferTx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 
 	// try to update nft without state unlocking
@@ -63,8 +63,8 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Data:     test.RandomBytes(10),
-			Backlink: []byte{1},
+			Data:    test.RandomBytes(10),
+			Counter: 1,
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
@@ -75,7 +75,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// update nft with state unlock, it must be transferred to new bearer w1
 	attr := &UpdateNonFungibleTokenAttributes{
 		Data:                 []byte{42},
-		Backlink:             transferTx.Hash(gocrypto.SHA256),
+		Counter:              2,
 		DataUpdateSignatures: [][]byte{nil, nil},
 	}
 	updateTx = testtransaction.NewTransactionOrder(
@@ -102,6 +102,6 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	d = u.Data().(*NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, attr.Data, d.Data)
-	require.Equal(t, updateTx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, uint64(3), d.Counter)
 	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(w1PubKey)), u.Bearer())
 }

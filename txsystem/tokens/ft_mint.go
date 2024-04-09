@@ -19,7 +19,7 @@ func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecu
 		newTokenID := NewFungibleTokenID(typeID, HashForIDCalculation(tx, m.hashAlgorithm))
 
 		if err := m.state.Apply(
-			state.AddUnit(newTokenID, attr.Bearer, newFungibleTokenData(typeID, attr.Value, exeCtx.currentBlockNr, 0, tx.Timeout())),
+			state.AddUnit(newTokenID, attr.Bearer, newFungibleTokenData(typeID, attr.Value, exeCtx.CurrentBlockNr, 0, tx.Timeout())),
 		); err != nil {
 			return nil, err
 		}

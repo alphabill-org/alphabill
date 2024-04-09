@@ -21,9 +21,9 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 }
 
 func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitAttributes, ctx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+	return func(tx *types.TransactionOrder, attr *SplitAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
-		if !ctx.StateLockReleased {
+		if !exeCtx.StateLockReleased {
 			if err = m.validateSplitTx(tx, attr); err != nil {
 				return nil, fmt.Errorf("invalid split transaction: %w", err)
 			}
@@ -49,7 +49,7 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 					targetUnit.OwnerCondition,
 					&BillData{
 						V:       targetUnit.Amount,
-						T:       ctx.CurrentBlockNr,
+						T:       exeCtx.CurrentBlockNr,
 						Counter: 0,
 					}))
 			}
@@ -63,7 +63,7 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 					}
 					return &BillData{
 						V:       attr.RemainingValue,
-						T:       ctx.CurrentBlockNr,
+						T:       exeCtx.CurrentBlockNr,
 						Counter: bd.Counter + 1,
 					}, nil
 				},

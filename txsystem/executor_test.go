@@ -12,7 +12,7 @@ import (
 func Test_TxExecutors_Execute(t *testing.T) {
 	t.Run("unknown tx type", func(t *testing.T) {
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 			return nil, errors.New("unexpected call")
 		}}))
 
@@ -24,8 +24,8 @@ func Test_TxExecutors_Execute(t *testing.T) {
 	t.Run("tx handler returns error", func(t *testing.T) {
 		expErr := errors.New("tx handler failed")
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
-			require.EqualValues(t, 5, ctx.CurrentBlockNr)
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+			require.EqualValues(t, 5, exeCtx.CurrentBlockNr)
 			return nil, expErr
 		}}))
 
@@ -36,8 +36,8 @@ func Test_TxExecutors_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
-			require.EqualValues(t, 12, ctx.CurrentBlockNr)
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+			require.EqualValues(t, 12, exeCtx.CurrentBlockNr)
 			return &types.ServerMetadata{}, nil
 		}}))
 
@@ -48,7 +48,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 }
 
 func Test_TxExecutors_Add(t *testing.T) {
-	txHandler := func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
+	txHandler := func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 		return nil, nil
 	}
 

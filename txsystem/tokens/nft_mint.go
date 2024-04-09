@@ -12,7 +12,7 @@ import (
 )
 
 func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := n.validateMintNonFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
@@ -22,7 +22,7 @@ func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.Generi
 
 		// update state
 		if err := n.state.Apply(
-			state.AddUnit(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, ctx.CurrentBlockNr))); err != nil {
+			state.AddUnit(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, exeCtx.CurrentBlockNr))); err != nil {
 			return nil, err
 		}
 

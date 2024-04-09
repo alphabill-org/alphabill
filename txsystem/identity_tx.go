@@ -39,8 +39,8 @@ func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
 }
 
 func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttributes] {
-	return func(tx *types.TransactionOrder, attr *IdentityAttributes, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := i.validateIdentityTx(tx, ctx); err != nil {
+	return func(tx *types.TransactionOrder, attr *IdentityAttributes, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+		if err := i.validateIdentityTx(tx, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid identity tx: %w", err)
 		}
 
@@ -48,7 +48,7 @@ func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttribute
 	}
 }
 
-func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxExecutionContext) (err error) {
+func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (err error) {
 	if tx.Payload == nil {
 		return fmt.Errorf("missing payload")
 	}
@@ -57,7 +57,7 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, ctx *TxE
 		return fmt.Errorf("invalid tx type: %s", tx.Payload.Type)
 	}
 
-	if !ctx.StateLockReleased {
+	if !exeCtx.StateLockReleased {
 		unitID := tx.UnitID()
 		var u *state.Unit
 		u, err = i.state.GetUnit(unitID, false)

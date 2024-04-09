@@ -11,7 +11,7 @@ import (
 )
 
 func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		sum, err := m.validateJoinFungibleToken(tx, attr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
@@ -31,7 +31,7 @@ func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecu
 					return &FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     sum,
-						T:         ctx.CurrentBlockNr,
+						T:         exeCtx.CurrentBlockNr,
 						Backlink:  h,
 						Locked:    0,
 					}, nil

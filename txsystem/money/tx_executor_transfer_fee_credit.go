@@ -26,7 +26,7 @@ var (
 )
 
 func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, ctx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -50,7 +50,7 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V -= attr.Amount
-			newBillData.T = ctx.CurrentBlockNr
+			newBillData.T = exeCtx.CurrentBlockNr
 			newBillData.Counter += 1
 			return newBillData, nil
 		})

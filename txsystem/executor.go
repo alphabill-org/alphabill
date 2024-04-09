@@ -11,7 +11,7 @@ type (
 
 	ExecuteFunc func(*types.TransactionOrder, *TxExecutionContext) (*types.ServerMetadata, error)
 
-	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, ctx *TxExecutionContext) (*types.ServerMetadata, error)
+	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
 
 	TxExecutionContext struct {
 		CurrentBlockNr    uint64
@@ -20,22 +20,22 @@ type (
 )
 
 func (g GenericExecuteFunc[T]) ExecuteFunc() ExecuteFunc {
-	return func(tx *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 		attr := new(T)
 		if err := tx.UnmarshalAttributes(attr); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 		}
-		return g(tx, attr, ctx)
+		return g(tx, attr, exeCtx)
 	}
 }
 
-func (e TxExecutors) Execute(txo *types.TransactionOrder, ctx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (e TxExecutors) Execute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	executor, found := e[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
 	}
 
-	sm, err := executor(txo, ctx)
+	sm, err := executor(txo, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx order execution failed: %w", err)
 	}

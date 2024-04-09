@@ -15,9 +15,9 @@ var (
 )
 
 func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferAttributes, ctx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+	return func(tx *types.TransactionOrder, attr *TransferAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
-		if !ctx.StateLockReleased {
+		if !exeCtx.StateLockReleased {
 			if err = m.validateTransferTx(tx, attr); err != nil {
 				return nil, fmt.Errorf("invalid transfer tx: %w", err)
 			}
@@ -33,7 +33,7 @@ func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttribut
 
 		if !isLocked {
 			// update state
-			updateDataFunc := updateBillDataFunc(tx, ctx.CurrentBlockNr)
+			updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
 			setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 			if err := m.state.Apply(
 				setOwnerFunc,

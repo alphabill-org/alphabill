@@ -22,7 +22,7 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		TransactionOrder: txOrder,
 		ServerMetadata:   serverMetadata,
 	}
-	expectedHash := "0xbc38ac6053984a907244f5797c89fca8bd9091b68429ab7490599b05a14bae80"
+	expectedHash := "0x9d4b3225f7105aa5dbe917e7b90ae3860ee3b9656bc9684476f1cdff01f20b51"
 	expectedBytes, err := Cbor.Marshal(transactionRecord)
 	require.NoError(t, err)
 
@@ -62,4 +62,14 @@ func TestTransactionRecordFunctions(t *testing.T) {
 		require.Equal(t, txOrder.Payload.Attributes, payload.Attributes)
 		require.Equal(t, txOrder.Payload.ClientMetadata, payload.ClientMetadata)
 	})
+}
+
+func createTransactionRecord(tx *TransactionOrder, fee uint64) *TransactionRecord {
+	return &TransactionRecord{
+		TransactionOrder: tx,
+		ServerMetadata: &ServerMetadata{
+			ActualFee:        fee,
+			SuccessIndicator: TxStatusSuccessful,
+		},
+	}
 }

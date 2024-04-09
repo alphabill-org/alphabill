@@ -7,7 +7,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,7 @@ const (
 
 type (
 	Options struct {
-		sdr *genesis.SystemDescriptionRecord
+		sdr *types.SystemDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -32,8 +31,8 @@ func DefaultOptions() *Options {
 	}
 }
 
-func DefaultSDR() *genesis.SystemDescriptionRecord {
-	return &genesis.SystemDescriptionRecord{
+func DefaultSDR() *types.SystemDescriptionRecord {
+	return &types.SystemDescriptionRecord{
 		SystemIdentifier: DefaultSystemIdentifier,
 		T2Timeout:        DefaultT2Timeout,
 	}
@@ -84,7 +83,7 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	return proofs
 }
 
-func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
 	b := &types.Block{
 		Header: &types.Header{
 			SystemID:          types.SystemID(1),

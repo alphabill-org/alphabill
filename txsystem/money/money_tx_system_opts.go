@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -21,7 +20,7 @@ type (
 		state                    *state.State
 		hashAlgorithm            crypto.Hash
 		trustBase                map[string]abcrypto.Verifier
-		systemDescriptionRecords []*genesis.SystemDescriptionRecord
+		systemDescriptionRecords []*types.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 		exec                     predicates.PredicateExecutor
 	}
@@ -68,7 +67,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithSystemDescriptionRecords(records []*genesis.SystemDescriptionRecord) Option {
+func WithSystemDescriptionRecords(records []*types.SystemDescriptionRecord) Option {
 	return func(g *Options) {
 		g.systemDescriptionRecords = records
 	}

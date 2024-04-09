@@ -126,6 +126,7 @@ for the execution of the transaction. It consists of the following
     /Timeout/           1344,
     /MaxTransactionFee/ 1,
     /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA50F'
+    /ReferenceNumber/   h'1234567890ABCDEF'
 ]
 ```
 
@@ -143,6 +144,9 @@ Data items in the *ClientMetadata* array:
    transaction. Fee credit records are created with [Transfer to Fee
    Credit](#transfer-to-fee-credit) and [Add Fee
    Credit](#add-fee-credit) transactions.
+
+4. *ReferenceNumber* (byte string, up to 32 bytes) is an optional
+   byte string with user defined meaning.
 
 ### Transaction Types
 

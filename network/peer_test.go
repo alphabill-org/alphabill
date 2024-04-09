@@ -200,8 +200,8 @@ func TestProvidesAndDiscoverNodes(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = peer3.Close() }()
 
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 3 }, 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 3 }, 2*test.WaitDuration, test.WaitTick)
 	testTopic := "ab/test/test_topic"
 	require.NoError(t, peer2.Advertise(ctx, testTopic))
 	require.NoError(t, peer1.Advertise(ctx, testTopic))

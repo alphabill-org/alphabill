@@ -388,7 +388,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), time.Second)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// roor will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)

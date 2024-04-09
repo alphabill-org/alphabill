@@ -11,7 +11,6 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -1016,7 +1015,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 }
 
 // Duplicates txsystem/money/testutils/genesis_state.go
-func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*genesis.SystemDescriptionRecord) *state.State {
+func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.SystemDescriptionRecord) *state.State {
 	s := state.NewEmptyState()
 	zeroHash := make([]byte, crypto.SHA256.Size())
 
@@ -1041,7 +1040,7 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*genesis.System
 	return s
 }
 
-func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*genesis.SystemDescriptionRecord) *state.State {
+func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.SystemDescriptionRecord) *state.State {
 	s := genesisState(t, initialBill, sdrs)
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -1053,11 +1052,11 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*genesis.
 	return s
 }
 
-func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
-	return []*genesis.SystemDescriptionRecord{{
+func createSDRs(fcbID types.UnitID) []*types.SystemDescriptionRecord {
+	return []*types.SystemDescriptionRecord{{
 		SystemIdentifier: moneySystemID,
 		T2Timeout:        2500,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},

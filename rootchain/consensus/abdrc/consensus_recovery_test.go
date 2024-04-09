@@ -796,7 +796,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
 	t.Helper()
 	record := &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &abtypes.SystemDescriptionRecord{
 			SystemIdentifier: systemID,
 			T2Timeout:        2500,
 		},

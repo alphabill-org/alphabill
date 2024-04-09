@@ -114,7 +114,7 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 		return err
 	}
 
-	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+	if err := writeStateFile(nodeGenesisStateFile, genesisState); err != nil {
 		return fmt.Errorf("failed to write genesis state file: %w", err)
 	}
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)

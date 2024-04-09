@@ -111,7 +111,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return err
 	}
 
-	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+	if err := writeStateFile(nodeGenesisStateFile, genesisState); err != nil {
 		return fmt.Errorf("failed to write genesis state file: %w", err)
 	}
 

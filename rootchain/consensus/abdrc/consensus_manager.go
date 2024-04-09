@@ -144,7 +144,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		return nil, err
 	}
 
-	leader, err := leaderSelector(rg, bStore.Block)
+	leader, err := leaderSelector(rg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
@@ -241,7 +241,7 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	return nil
 }
 
-func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls Leader, err error) {
+func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
 	// NB! both leader selector algorithms make the assumption that the rootNodes slice is
 	// sorted and it's content doesn't change!
 	rootNodes, err := rg.NodeIDs()

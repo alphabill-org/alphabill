@@ -747,9 +747,6 @@ func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {
 			PublicKey:  pubKeyBytes,
 			PrivateKey: privateKeyBytes,
 		}
-		if err != nil {
-			return nil, err
-		}
 	}
 	return keyPairs, nil
 }

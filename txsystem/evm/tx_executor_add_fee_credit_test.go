@@ -13,10 +13,12 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 
@@ -127,7 +129,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := new(transactions.AddFeeCreditAttributes)
 			require.NoError(t, tt.args.order.UnmarshalAttributes(attr))
-			metaData, err := addExecFn(tt.args.order, attr, tt.args.blockNumber)
+			metaData, err := addExecFn(tt.args.order, attr, &txsystem.TxExecutionContext{CurrentBlockNr: tt.args.blockNumber})
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metaData)
@@ -217,7 +219,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 		signer, 7)
 	attr := new(transactions.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	metaData, err := addExecFn(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
 	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
@@ -249,7 +251,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 				})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	_, err = addExecFn(addFeeOrder, attr, 5)
+	_, err = addExecFn(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
 	balance = stateDB.GetBalance(addr)
@@ -295,7 +297,7 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 		signer, 7)
 	attr := new(transactions.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	metaData, err := addExecFn(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
 	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)

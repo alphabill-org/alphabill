@@ -12,7 +12,7 @@ import (
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
 func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
-	return func(tx *types.TransactionOrder, attr *LockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *LockAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -35,7 +35,7 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.Locked = attr.LockStatus
-			newBillData.T = currentBlockNumber
+			newBillData.T = exeCtx.CurrentBlockNr
 			newBillData.Counter += 1
 			return newBillData, nil
 		})

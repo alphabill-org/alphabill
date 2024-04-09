@@ -11,7 +11,7 @@ import (
 )
 
 func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateMintFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}
@@ -22,7 +22,7 @@ func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecu
 
 		// update state
 		if err := m.state.Apply(
-			state.AddUnit(unitID, attr.Bearer, newFungibleTokenData(attr, h, currentBlockNr)),
+			state.AddUnit(unitID, attr.Bearer, newFungibleTokenData(attr, h, exeCtx.CurrentBlockNr)),
 		); err != nil {
 			return nil, err
 		}

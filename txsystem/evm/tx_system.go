@@ -158,7 +158,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.executors.Execute(tx, m.currentBlockNumber)
+	sm, err = m.executors.Execute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
 	if err != nil {
 		return nil, err
 	}

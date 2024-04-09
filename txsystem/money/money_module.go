@@ -47,7 +47,7 @@ func NewMoneyModule(options *Options) (*Module, error) {
 		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, options.systemIdentifier, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		feeCalculator:       options.feeCalculator,
-		execPredicate:       predicates.PredicateRunner(options.exec, options.state),
+		execPredicate:       predicates.NewPredicateRunner(options.exec, options.state),
 	}
 	return m, nil
 }

@@ -13,7 +13,7 @@ import (
 )
 
 func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -36,7 +36,7 @@ func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExec
 				&FungibleTokenData{
 					TokenType: d.TokenType,
 					Value:     attr.TargetValue,
-					T:         currentBlockNr,
+					T:         exeCtx.CurrentBlockNr,
 					Backlink:  txHash,
 				}),
 			state.UpdateUnitData(unitID,
@@ -48,7 +48,7 @@ func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExec
 					return &FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     d.Value - attr.TargetValue,
-						T:         currentBlockNr,
+						T:         exeCtx.CurrentBlockNr,
 						Backlink:  txHash,
 					}, nil
 				})); err != nil {

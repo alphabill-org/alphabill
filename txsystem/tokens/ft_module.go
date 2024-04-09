@@ -4,10 +4,10 @@ import (
 	"crypto"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = &FungibleTokensModule{}
@@ -17,7 +17,7 @@ type FungibleTokensModule struct {
 	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
 	trustBase     map[string]abcrypto.Verifier
-	execPredicate func(predicate, args []byte, txo *types.TransactionOrder) error
+	execPredicate predicates.PredicateRunner
 }
 
 func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {

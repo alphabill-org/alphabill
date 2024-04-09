@@ -11,22 +11,42 @@ import (
 )
 
 func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		if err := n.validateUpdateNonFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
+	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+		isLocked := false
+		if !exeCtx.StateLockReleased {
+			if err = n.validateUpdateNonFungibleToken(tx, attr); err != nil {
+				return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
+			}
+			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lock unit state: %w", err)
+			}
 		}
 		fee := n.feeCalculator()
 		unitID := tx.UnitID()
 
 		// update state
-		if err := n.state.Apply(
+		if !isLocked {
+			if err = n.state.Apply(
+				state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
+					d, ok := data.(*NonFungibleTokenData)
+					if !ok {
+						return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
+					}
+					d.Data = attr.Data
+					return d, nil
+				})); err != nil {
+				return nil, err
+			}
+		}
+
+		if err = n.state.Apply(
 			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
 				d, ok := data.(*NonFungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
-				d.Data = attr.Data
-				d.T = currentBlockNr
+				d.T = exeCtx.CurrentBlockNr
 				d.Backlink = tx.Hash(n.hashAlgorithm)
 				return d, nil
 			})); err != nil {
@@ -58,6 +78,10 @@ func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.Trans
 	}
 	if !bytes.Equal(data.Backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
+	}
+
+	if len(attr.DataUpdateSignatures) == 0 {
+		return errors.New("missing data update signatures")
 	}
 
 	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx); err != nil {

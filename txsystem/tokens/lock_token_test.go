@@ -10,6 +10,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ func TestLockFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingTokenUnitID)
 	var roundNo uint64 = 10
-	sm, err := m.handleLockTokenTx()(tx, attr, roundNo)
+	sm, err := m.handleLockTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenUnitID, false)
@@ -124,7 +125,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			attr := &LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleLockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleLockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -142,7 +143,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
-	sm, err := m.handleLockTokenTx()(tx, attr, roundNo)
+	sm, err := m.handleLockTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -231,7 +232,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			attr := &LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleLockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleLockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})

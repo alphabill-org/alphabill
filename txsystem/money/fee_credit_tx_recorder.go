@@ -5,6 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	"github.com/alphabill-org/alphabill/types"
 )
 

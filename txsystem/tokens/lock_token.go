@@ -13,13 +13,13 @@ import (
 )
 
 func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *LockTokenAttributes, roundNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateLockTokenTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid lock token tx: %w", err)
 		}
 		updateFn := state.UpdateUnitData(tx.UnitID(),
 			func(data state.UnitData) (state.UnitData, error) {
-				return m.updateLockTokenData(data, tx, attr, roundNumber)
+				return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentBlockNr)
 			})
 		if err := m.state.Apply(updateFn); err != nil {
 			return nil, fmt.Errorf("failed to update state: %w", err)

@@ -33,7 +33,7 @@ type (
 )
 
 func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		c := &swapValidationContext{
 			tx:            tx,
 			attr:          attr,
@@ -55,7 +55,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
 				bd.V -= attr.TargetValue
-				bd.T = currentBlockNumber
+				bd.T = exeCtx.CurrentBlockNr
 				bd.Counter += 1
 				return bd, nil
 			},
@@ -68,7 +68,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 					return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
 				}
 				bd.V += attr.TargetValue
-				bd.T = currentBlockNumber
+				bd.T = exeCtx.CurrentBlockNr
 				bd.Counter += 1
 				bd.Locked = 0
 				return bd, nil

@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,35 +28,40 @@ var (
 	targetValue           uint64   = 100
 	counter               uint64   = 123
 
-	// 85                                     # array(5)
-	//   1a 01000001                         #   unsigned(16,777,217)
-	//   68                                  #   text(8)
-	//      7472616e73666572                 #     "transfer"
-	//   58 20                               #   bytes(32)
-	//      00000000000000000000000000000000 #     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-	//      00000000000000000000000000000000 #     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-	//   83                                  #   array(3)
-	//      44                               #     bytes(4)
-	//         01020304                      #       "\x01\x02\x03\x04"
-	//      18 64                            #     unsigned(100)
-	//      18 7b                            #     unsigned(123)
-	//   84                                  #   array(4)
-	//      18 2a                            #     unsigned(42)
-	//      18 45                            #     unsigned(69)
-	//      44                               #     bytes(4)
-	//         20202020                      #       "    "
-	//      43                               #     bytes(3)
-	//         524546                        #       "REF"
-	payloadInHEX = "85" +
+	// 86                                       # array(6)
+	//   1A                                     #   uint32
+	//      01000001                            #     "\x01\x00\x00\x01"
+	//   68                                     #   text(8)
+	//      7472616e73666572                    #     "transfer"
+	//   58 20                                  #   bytes(32)
+	//      00000000000000000000000000000000    #     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+	//      00000000000000000000000000000000    #     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+	//   83                                     #   array(3)
+	//      44                                  #     bytes(4)
+	//         01020304                         #       "\x01\x02\x03\x04"
+	//      18 64                               #     unsigned(100)
+	//      58 20                               #     bytes(32)
+	//         00000000000000000000000000000000 #       "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+	//         00000000000000000000000000000000 #       "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+	//   83                                     #   array(3)
+	//      18 2a                               #     unsigned(42)
+	//      18 45                               #     unsigned(69)
+	//      44                                  #     bytes(4)
+    //         20202020                         #       "    "
+    //      43                                  #     bytes(3)
+    //         524546                           #       "REF"
+	payloadInHEX = "86" +
 		"1A01000001" + // SystemID
 		"687472616E73666572" + // Type
 		"58200000000000000000000000000000000000000000000000000000000000000000" + // UnitID
 		"8344010203041864187b" + // Attributes
+        "f6" + // State lock
 		"84182a1845442020202043524546" // Client metadata
 )
 
 func TestMarshalPayload(t *testing.T) {
 	payloadBytes, err := createTxOrder(t).PayloadBytes()
+	fmt.Printf("payloadBytes: %x\n", payloadBytes)
 	require.NoError(t, err)
 	require.Equal(t, hexDecode(t, payloadInHEX), payloadBytes)
 }
@@ -77,14 +83,15 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	}, OwnerProof: make([]byte, 32)}
 	payloadBytes, err := order.PayloadBytes()
 	require.NoError(t, err)
-	// 85    # array(5)
+	// 86    # array(6)
 	//   00 #   zero, unsigned int
 	//   60 #   text(0)
 	//      #     ""
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
-	require.Equal(t, []byte{0x85, 0x00, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
+	//   f6 #   null, simple(22)
+	require.Equal(t, []byte{0x86, 0x00, 0x60, 0xf6, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
 	require.NoError(t, Cbor.Unmarshal(payloadBytes, payload))

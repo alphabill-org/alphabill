@@ -12,10 +12,12 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -48,7 +50,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		privKeyHash,
 		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 			&types.TransactionRecord{
-				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(amount), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(uint64(amount)), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 					testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
@@ -56,7 +58,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 	backlink := addFeeOrder.Hash(crypto.SHA256)
 	attr := new(transactions.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	metaData, err := addExecFn(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NotNil(t, metaData)
 	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
 	require.NoError(t, err)
@@ -113,7 +115,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := new(transactions.CloseFeeCreditAttributes)
 			require.NoError(t, tt.args.order.UnmarshalAttributes(attr))
-			metaData, err := closeExecFn(tt.args.order, attr, tt.args.blockNumber)
+			metaData, err := closeExecFn(tt.args.order, attr, &txsystem.TxExecutionContext{CurrentBlockNr: tt.args.blockNumber})
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metaData)
@@ -162,7 +164,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	require.NoError(t, closeOrder.UnmarshalAttributes(closeAttr))
 
 	// first add fee credit
-	metaData, err := closeExecFn(closeOrder, closeAttr, 5)
+	metaData, err := closeExecFn(closeOrder, closeAttr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
 

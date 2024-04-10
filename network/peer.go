@@ -92,7 +92,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		libp2p.Peerstore(peerStore),
 		// Let this host use the DHT to find other hosts
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeAutoServer, log)
+			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer, log)
 			return kademliaDHT, err
 		}),
 
@@ -154,7 +154,7 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 	if count == len(p.conf.BootstrapPeers) {
 		return fmt.Errorf("failed to bootstrap: %w", allErr)
 	}
-	return nil
+	return p.dht.Bootstrap(ctx)
 }
 
 // ID returns the identifier associated with this Peer.

@@ -5,6 +5,8 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -635,6 +637,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		// and wait for cm to exit
 		select {
 		case <-time.After(10 * time.Second):
+			_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			t.Fatal("consensus manager did not exit in time")
 		case <-doneCh:
 		}

@@ -81,7 +81,7 @@ func Test_conference_tickets(t *testing.T) {
 			money.TransferAttributes{
 				NewBearer:   templates.NewP2pkh256BytesFromKey(pubKeyOrg),
 				TargetValue: value,
-				Backlink:    []byte{3, 3},
+				Counter:     1,
 				//Nonce:       nonce, // AB-1509
 			}))
 		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
@@ -175,9 +175,8 @@ func Test_conference_tickets(t *testing.T) {
 		}
 		require.NoError(t, txNFTMint.Payload.SetAttributes(
 			tokens.MintNonFungibleTokenAttributes{
-				Bearer:    templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
-				NFTTypeID: nftTypeID,
-				Data:      []byte("early-bird"),
+				Bearer: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
+				Data:   []byte("early-bird"),
 			}))
 		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
@@ -189,7 +188,7 @@ func Test_conference_tickets(t *testing.T) {
 		wvm, err := New(context.Background(), enc, env, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTMint.Payload.UnitID...)))
+		args := predicateArgs(t, 100, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
 		start := time.Now()
 		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
 		t.Logf("took %s", time.Since(start))

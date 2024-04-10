@@ -24,7 +24,7 @@ func udeNonFungibleTokenData(data state.UnitData) ([]byte, error) {
 	buf.WriteString(value.URI)
 	buf.WriteBytes(value.Data)
 	buf.WriteUInt64(value.T)
-	buf.WriteBytes(value.Backlink)
+	buf.WriteUInt64(value.Counter)
 	buf.WriteUInt64(value.Locked)
 	return buf, nil
 }

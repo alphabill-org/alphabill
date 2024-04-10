@@ -26,8 +26,8 @@ func txaTransferAttributes(txo *types.TransactionOrder) ([]byte, error) {
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0, (8+4)+len(attr.Backlink))
+	buf := make(encoder.WasmEnc, 0, 8+4+8)
 	buf.WriteUInt64(attr.TargetValue)
-	buf.WriteBytes(attr.Backlink)
+	buf.WriteUInt64(attr.Counter)
 	return buf, nil
 }

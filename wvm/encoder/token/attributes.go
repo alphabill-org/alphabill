@@ -46,8 +46,8 @@ func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, err
 	buf := make(encoder.WasmEnc, 0)
 	buf.WriteString(attr.Name)
 	buf.WriteString(attr.URI)
-	buf.WriteBytes(attr.NFTTypeID)
 	buf.WriteBytes(attr.Data)
+	buf.WriteUInt64(attr.Nonce)
 	return buf, nil
 }
 
@@ -59,7 +59,7 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte,
 	buf := make(encoder.WasmEnc, 0)
 	buf.WriteBytes(attr.NFTTypeID)
 	buf.WriteBytes(attr.Nonce)
-	buf.WriteBytes(attr.Backlink)
+	buf.WriteUInt64(attr.Counter)
 	return buf, nil
 }
 
@@ -68,9 +68,9 @@ func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, e
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0, 8+len(attr.Data)+len(attr.Backlink))
+	buf := make(encoder.WasmEnc, 0, 8+len(attr.Data)+8)
 	buf.WriteBytes(attr.Data)
-	buf.WriteBytes(attr.Backlink)
+	buf.WriteUInt64(attr.Counter)
 	return buf, nil
 }
 

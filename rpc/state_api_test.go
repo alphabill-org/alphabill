@@ -158,7 +158,7 @@ func TestGetBlock(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1
-		blockNumber := uint64(1)
+		blockNumber := types.Uint64(1)
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -170,7 +170,7 @@ func TestGetBlock(t *testing.T) {
 	})
 	t.Run("block not found", func(t *testing.T) {
 		node.maxBlockNumber = 1
-		blockNumber := uint64(2)
+		blockNumber := types.Uint64(2)
 
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
@@ -310,7 +310,7 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: 1,
-		Backlink:    nil,
+		Counter:     0,
 	}
 
 	attBytes, err := types.Cbor.Marshal(bt)

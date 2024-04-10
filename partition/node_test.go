@@ -30,16 +30,7 @@ func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) 
 func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := RunSingleNodePartition(t, s)
-	ucr := &types.UnicityCertificate{
-		InputRecord: &types.InputRecord{
-			RoundNumber: 2,
-		},
-		UnicitySeal: &types.UnicitySeal{
-			RootChainRoundNumber: 1,
-			Hash:                 zeroHash,
-		},
-	}
-	p.partition.startNewRound(context.Background(), ucr)
+	p.partition.startNewRound(context.Background())
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
@@ -48,17 +39,17 @@ func TestNode_NodeStartTest(t *testing.T) {
 	// node starts in init state
 	require.Equal(t, initializing, tp.partition.status.Load())
 	// node sends a handshake to root
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
+	test.TryTilCountIs(t, RequestReceived(tp, network.ProtocolHandshake), 4, test.WaitShortTick)
 	// simulate no response, but monitor timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
 	// node sends a handshake to root
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
+	test.TryTilCountIs(t, RequestReceived(tp, network.ProtocolHandshake), 4, test.WaitShortTick)
 	// while no response is received a retry is triggered on each timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
 	// node sends a handshake
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
+	test.TryTilCountIs(t, RequestReceived(tp, network.ProtocolHandshake), 4, test.WaitShortTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(tp.partition.luc.Load())
@@ -105,7 +96,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 
 func TestNode_CreateBlocks(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 	transfer := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
@@ -163,7 +154,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	t.SkipNow()
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	genesis := tp.GetLatestBlock(t)
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
@@ -305,8 +296,7 @@ func copyIR(record *types.InputRecord) *types.InputRecord {
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, txs)
-	genesisUC := tp.partition.luc.Load()
-	tp.partition.startNewRound(context.Background(), genesisUC)
+	tp.partition.startNewRound(context.Background())
 	uc1 := tp.GetCommittedUC(t)
 	txs.ExecuteCountDelta++ // so that the block is not considered empty
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
@@ -334,7 +324,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, txs)
 	genesisUC := tp.partition.luc.Load()
-	tp.partition.startNewRound(context.Background(), genesisUC)
+	tp.partition.startNewRound(context.Background())
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
@@ -342,7 +332,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	latestUC := tp.partition.luc.Load()
 	require.NotEqual(t, genesisUC, latestUC)
 	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	tp.partition.startNewRound(context.Background())
 	// create a new transaction
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
@@ -610,7 +600,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
 	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
-	require.NoError(t, tp.partition.startNewRound(context.Background(), tp.partition.luc.Load()))
+	require.NoError(t, tp.partition.startNewRound(context.Background()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
 	hash := txo.Hash(tp.partition.configuration.hashAlgorithm)
 	require.NoError(t, tp.SubmitTx(txo))

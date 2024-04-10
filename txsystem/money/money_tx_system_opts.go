@@ -1,12 +1,10 @@
 package money
 
 import (
-	"context"
 	"crypto"
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -22,14 +20,12 @@ type (
 		state                    *state.State
 		hashAlgorithm            crypto.Hash
 		trustBase                map[string]abcrypto.Verifier
-		systemDescriptionRecords []*genesis.SystemDescriptionRecord
+		systemDescriptionRecords []*types.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
-		exec                     PredicateExecutor
+		exec                     predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
 func defaultOptions() (*Options, error) {
@@ -71,7 +67,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithSystemDescriptionRecords(records []*genesis.SystemDescriptionRecord) Option {
+func WithSystemDescriptionRecords(records []*types.SystemDescriptionRecord) Option {
 	return func(g *Options) {
 		g.systemDescriptionRecords = records
 	}
@@ -87,7 +83,7 @@ func WithFeeCalculator(calc fc.FeeCalculator) Option {
 WithPredicateExecutor allows to replace the default predicate executor function.
 Should be used by tests only.
 */
-func WithPredicateExecutor(exec PredicateExecutor) Option {
+func WithPredicateExecutor(exec predicates.PredicateExecutor) Option {
 	return func(g *Options) {
 		if exec != nil {
 			g.exec = exec

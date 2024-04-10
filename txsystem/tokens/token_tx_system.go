@@ -19,7 +19,6 @@ const (
 	maxDecimalPlaces         = 8
 
 	ErrStrInvalidUnitID         = "invalid unit ID"
-	ErrStrInvalidTypeID         = "invalid type ID"
 	ErrStrInvalidParentTypeID   = "invalid parent type ID"
 	ErrStrInvalidSystemID       = "system identifier is not assigned"
 	ErrStrStateIsNil            = "state is nil"

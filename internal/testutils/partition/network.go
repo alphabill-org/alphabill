@@ -1,13 +1,16 @@
 package testpartition
 
 import (
+	"cmp"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"slices"
 	"sort"
 	"testing"
@@ -15,7 +18,6 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -35,7 +37,6 @@ import (
 	"github.com/alphabill-org/alphabill/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,6 @@ type AlphabillNetwork struct {
 	NodePartitions map[types.SystemID]*NodePartition
 	RootPartition  *RootPartition
 	BootNodes      []*network.Peer
-	BootStrapInfo  []peer.AddrInfo
 	ctxCancel      context.CancelFunc
 }
 
@@ -83,11 +83,10 @@ type partitionNode struct {
 
 type rootNode struct {
 	*rootchain.Node
-	EncKeyPair *network.PeerKeyPair
 	RootSigner abcrypto.Signer
 	genesis    *genesis.RootGenesis
-	id         peer.ID
-	addr       multiaddr.Multiaddr
+	peerConf   *network.PeerConfiguration
+	addr       []multiaddr.Multiaddr
 
 	cancel context.CancelFunc
 	done   chan error
@@ -118,10 +117,6 @@ func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
 
 // newRootPartition creates new root partition, requires node partitions with genesis files
 func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*RootPartition, error) {
-	encKeyPairs, err := generateKeyPairs(nofRootNodes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate encryption keypairs, %w", err)
-	}
 	rootSigners, err := createSigners(nofRootNodes)
 	if err != nil {
 		return nil, fmt.Errorf("create signer failed, %w", err)
@@ -129,31 +124,24 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	trustBase := make(map[string]abcrypto.Verifier)
 	rootNodes := make([]*rootNode, nofRootNodes)
 	rootGenesisFiles := make([]*genesis.RootGenesis, nofRootNodes)
-	for i := 0; i < int(nofRootNodes); i++ {
-		encPubKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(encKeyPairs[i].PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		pubKeyBytes, err := encPubKey.Raw()
-		if err != nil {
-			return nil, err
-		}
-		id, err := peer.IDFromPublicKey(encPubKey)
-		if err != nil {
-			return nil, fmt.Errorf("root node id error, %w", err)
-		}
+	// generates keys and sorts them in lexical order - meaning root node 0 is the first leader
+	rootPeerCfg, err := createPeerConfs(nofRootNodes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate encryption keypairs, %w", err)
+	}
+	for i, peerCfg := range rootPeerCfg {
 		nodeGenesisFiles := getGenesisFiles(nodePartitions)
 		pr, err := rootgenesis.NewPartitionRecordFromNodes(nodeGenesisFiles)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create genesis partition record")
 		}
 		rg, _, err := rootgenesis.NewRootGenesis(
-			id.String(),
+			peerCfg.ID.String(),
 			rootSigners[i],
-			pubKeyBytes,
+			peerCfg.KeyPair.PublicKey,
 			pr,
 			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
-			rootgenesis.WithBlockRate(genesis.MinBlockRateMs),
+			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
 			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))
 		if err != nil {
 			return nil, err
@@ -162,22 +150,12 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 		if err != nil {
 			return nil, fmt.Errorf("failed to get root node verifier, %w", err)
 		}
-		trustBase[id.String()] = ver
+		trustBase[peerCfg.ID.String()] = ver
 		rootGenesisFiles[i] = rg
-		port, err := net.GetFreePort()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get free port, %w", err)
-		}
-		address, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port))
-		if err != nil {
-			return nil, fmt.Errorf("root node address error: %w", err)
-		}
 		rootNodes[i] = &rootNode{
 			genesis:    rg,
 			RootSigner: rootSigners[i],
-			EncKeyPair: encKeyPairs[i],
-			addr:       address,
-			id:         id,
+			peerConf:   peerCfg,
 		}
 	}
 	rootGenesis, partitionGenesisFiles, err := rootgenesis.MergeRootGenesisFiles(rootGenesisFiles)
@@ -199,36 +177,21 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	}, nil
 }
 
-func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo) error {
-	rootNodes := len(r.Nodes)
-	var rootPeers = make([]*network.Peer, rootNodes)
-	for i, rNode := range r.Nodes {
-		bootStrapInfo := bootNodes
-		isBootNode := slices.ContainsFunc(bootNodes, func(addrInfo peer.AddrInfo) bool {
-			return addrInfo.ID == rNode.id
-		})
-		// if the node itself is set as bootstrap node, then clear bootstrap info (no sense in bootstrapping self)
-		if isBootNode {
-			bootStrapInfo = nil
+func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, rootNodes ...*rootNode) error {
+	// start root nodes
+	for _, rn := range rootNodes {
+		log := r.obs.DefaultLogger().With(logger.NodeID(rn.peerConf.ID))
+		obs := observability.WithLogger(r.obs.DefaultObserver(), log)
+		if len(bootNodes) > 0 {
+			rn.peerConf.BootstrapPeers = bootNodes
 		}
-		peerConf, err := network.NewPeerConfiguration(rNode.addr.String(), rNode.EncKeyPair, bootStrapInfo, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create peer configuration: %w", err)
-		}
-		rootPeers[i], err = network.NewPeer(ctx, peerConf, r.obs.DefaultLogger(), nil)
+		rootPeer, err := network.NewPeer(ctx, rn.peerConf, log, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}
-	}
-	// start root nodes
-	for i, rn := range r.Nodes {
-		rootPeer := rootPeers[i]
-		log := r.obs.DefaultLogger().With(logger.NodeID(rootPeer.ID()))
-		obs := observability.WithLogger(r.obs.DefaultObserver(), log)
-		if len(bootNodes) == 0 {
-			// if no bootstrap nodes (no bootstrapping), then just insert known addresses directly to peer store
-			for _, p := range rootPeers {
-				rootPeer.Network().Peerstore().AddAddr(p.ID(), p.MultiAddresses()[0], peerstore.PermanentAddrTTL)
+		if len(bootNodes) > 0 {
+			if err = rootPeer.BootstrapConnect(ctx, log); err != nil {
+				return fmt.Errorf("root node bootstrap failed, %w", err)
 			}
 		}
 		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, obs)
@@ -253,8 +216,7 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo) er
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
 		rn.Node = rootchainNode
-		rn.addr = rootPeers[i].MultiAddresses()[0]
-		rn.id = rootPeer.ID()
+		rn.addr = rootPeer.MultiAddresses()
 		// start root node
 		nctx, ncfn := context.WithCancel(ctx)
 		rn.cancel = ncfn
@@ -355,7 +317,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	}
 	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
-		if ok := eventually(
+		if ok := test.Eventually(
 			func() bool { return len(nd.GetPeer().Network().Peers()) >= len(n.Nodes) },
 			2*time.Second, 100*time.Millisecond); !ok {
 			return fmt.Errorf("network not initialized")
@@ -438,14 +400,6 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	a.BootNodes = bootNodes
 }
 
-func (a *AlphabillNetwork) getBootstrapNodeInfo() []peer.AddrInfo {
-	bootNodes := make([]peer.AddrInfo, len(a.BootNodes))
-	for i, n := range a.BootNodes {
-		bootNodes[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}
-	}
-	return bootNodes
-}
-
 // Start AB network, no bootstrap all id's and addresses are injected to peer store at start
 func (a *AlphabillNetwork) Start(t *testing.T) error {
 	a.RootPartition.obs = testobserve.NewFactory(t)
@@ -453,16 +407,32 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// by default, use root node 1 as bootstrap
 	require.NotEmpty(t, a.RootPartition.Nodes)
-	a.BootStrapInfo = append(a.BootStrapInfo, peer.AddrInfo{
-		ID:    a.RootPartition.Nodes[0].id,
-		Addrs: []multiaddr.Multiaddr{a.RootPartition.Nodes[0].addr}})
-	if err := a.RootPartition.start(ctx, a.BootStrapInfo); err != nil {
+	// sort by node id to make sure that leader is not first node (if not only 1 node)
+	// first leader is selected by round number from lexically sorted ID's
+	// NB! this is not an optimal solution, but it is a unit test issue, in a real deploy
+	// it is ok that some rounds at start are lost until enough nodes are up.
+	slices.SortFunc(a.RootPartition.Nodes, func(a, b *rootNode) int {
+		return cmp.Compare(a.peerConf.ID, b.peerConf.ID)
+	})
+	// first start root node 0 and use it as bootstrap node
+	bootNode, rest := a.RootPartition.Nodes[0], a.RootPartition.Nodes[1:]
+	if err := a.RootPartition.start(ctx, nil, bootNode); err != nil {
 		ctxCancel()
-		return fmt.Errorf("failed to start root partition, %w", err)
+		return fmt.Errorf("failed to start root partition boot node, %w", err)
+	}
+	bootStrapInfo := []peer.AddrInfo{{
+		ID:    a.RootPartition.Nodes[0].peerConf.ID,
+		Addrs: a.RootPartition.Nodes[0].addr,
+	}}
+	if len(rest) > 0 {
+		if err := a.RootPartition.start(ctx, bootStrapInfo, rest...); err != nil {
+			ctxCancel()
+			return fmt.Errorf("failed to start root partition, %w", err)
+		}
 	}
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(t, ctx, a.BootStrapInfo); err != nil {
+		if err := part.start(t, ctx, bootStrapInfo); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
@@ -479,16 +449,24 @@ func (a *AlphabillNetwork) StartWithStandAloneBootstrapNodes(t *testing.T) error
 	// create boot nodes
 	a.createBootNodes(t, ctx, a.RootPartition.obs, 2)
 	// Setup boostrap info for the whole network to use the dedicated nodes
-	for _, n := range a.BootNodes {
-		a.BootStrapInfo = append(a.BootStrapInfo, peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()})
+	bootStrapInfo := make([]peer.AddrInfo, len(a.BootNodes))
+	for i, n := range a.BootNodes {
+		bootStrapInfo[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}
 	}
-	if err := a.RootPartition.start(ctx, a.getBootstrapNodeInfo()); err != nil {
+	// sort by node id to make sure that leader is not first node (if not only 1 node)
+	// first leader is selected by round number from lexically sorted ID's
+	// NB! this is not an optimal solution, but it is a unit test issue, in a real deploy
+	// it is ok that some rounds at start are lost until enough nodes are up.
+	slices.SortFunc(a.RootPartition.Nodes, func(a, b *rootNode) int {
+		return cmp.Compare(a.peerConf.ID, b.peerConf.ID)
+	})
+	if err := a.RootPartition.start(ctx, bootStrapInfo, a.RootPartition.Nodes...); err != nil {
 		ctxCancel()
-		return fmt.Errorf("failed to start root partition, %w", err)
+		return fmt.Errorf("failed to start root partition with dedicated boot node, %w", err)
 	}
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(t, ctx, a.BootStrapInfo); err != nil {
+		if err := part.start(t, ctx, bootStrapInfo); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
@@ -497,26 +475,32 @@ func (a *AlphabillNetwork) StartWithStandAloneBootstrapNodes(t *testing.T) error
 	return nil
 }
 
-func (a *AlphabillNetwork) Close() (err error) {
+func (a *AlphabillNetwork) Close() (retErr error) {
 	a.ctxCancel()
 	// wait and check validator exit
 	for _, part := range a.NodePartitions {
 		// stop all nodes
 		for _, n := range part.Nodes {
+			if err := n.Node.GetPeer().Close(); err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
+			}
 			nodeErr := <-n.done
 			if !errors.Is(nodeErr, context.Canceled) {
-				err = errors.Join(err, nodeErr)
+				retErr = errors.Join(retErr, nodeErr)
 			}
 		}
 	}
 	// check root exit
 	for _, rnode := range a.RootPartition.Nodes {
+		if err := rnode.Node.GetPeer().Close(); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
+		}
 		rootErr := <-rnode.done
 		if !errors.Is(rootErr, context.Canceled) {
-			err = errors.Join(err, rootErr)
+			retErr = errors.Join(retErr, rootErr)
 		}
 	}
-	return err
+	return retErr
 }
 
 /*
@@ -534,7 +518,8 @@ func (a *AlphabillNetwork) WaitClose(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(3000 * time.Millisecond):
+	case <-time.After(10 * time.Second):
+		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		t.Error("AB network didn't stop within timeout")
 	}
 }
@@ -619,7 +604,7 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 		txProof  *types.TxProof
 	)
 	txHash := txOrder.Hash(gocrypto.SHA256)
-	if ok := eventually(func() bool {
+	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
 			if errors.Is(err, partition.ErrIndexNotFound) {
@@ -642,7 +627,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 		unitProof *types.UnitDataAndProof
 	)
 	txOrderHash := txOrder.Hash(gocrypto.SHA256)
-	if ok := eventually(func() bool {
+	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
 			if err != nil {
@@ -747,34 +732,6 @@ func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {
 			PublicKey:  pubKeyBytes,
 			PrivateKey: privateKeyBytes,
 		}
-		if err != nil {
-			return nil, err
-		}
 	}
 	return keyPairs, nil
-}
-
-func eventually(condition func() bool, waitFor time.Duration, tick time.Duration) bool {
-	ch := make(chan bool, 1)
-
-	timer := time.NewTimer(waitFor)
-	defer timer.Stop()
-
-	ticker := time.NewTicker(tick)
-	defer ticker.Stop()
-
-	for tick := ticker.C; ; {
-		select {
-		case <-timer.C:
-			return false
-		case <-tick:
-			tick = nil
-			go func() { ch <- condition() }()
-		case v := <-ch:
-			if v {
-				return true
-			}
-			tick = ticker.C
-		}
-	}
 }

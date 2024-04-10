@@ -8,13 +8,12 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &genesis.SystemDescriptionRecord{
+var systemDescription = &types.SystemDescriptionRecord{
 	SystemIdentifier: 1,
 	T2Timeout:        2500,
 }
@@ -22,7 +21,7 @@ var systemDescription = &genesis.SystemDescriptionRecord{
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *types.SystemDescriptionRecord
 		rootTrustBase     map[string]crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -38,7 +37,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				rootTrustBase:     map[string]crypto.Verifier{"test": v},
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: types.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -93,7 +92,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *types.SystemDescriptionRecord
 		trustBase         map[string]crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -109,7 +108,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         map[string]crypto.Verifier{"test": v},
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: types.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",

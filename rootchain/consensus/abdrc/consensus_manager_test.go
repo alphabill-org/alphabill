@@ -5,6 +5,8 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -388,7 +390,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), time.Second)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// roor will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -635,6 +637,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		// and wait for cm to exit
 		select {
 		case <-time.After(10 * time.Second):
+			_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			t.Fatal("consensus manager did not exit in time")
 		case <-doneCh:
 		}

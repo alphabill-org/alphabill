@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
@@ -27,13 +28,18 @@ type PartitionNode struct {
 
 type MoneyPartitionParams struct {
 	_                        struct{} `cbor:",toarray"`
-	SystemDescriptionRecords []*SystemDescriptionRecord
+	SystemDescriptionRecords []*types.SystemDescriptionRecord
 }
 
 type EvmPartitionParams struct {
 	_             struct{} `cbor:",toarray"`
 	BlockGasLimit uint64
 	GasUnitPrice  uint64
+}
+
+type OrchestrationPartitionParams struct {
+	_              struct{} `cbor:",toarray"`
+	OwnerPredicate types.PredicateBytes
 }
 
 func (x *PartitionNode) IsValid() error {

@@ -5,28 +5,22 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/hash"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 )
 
-var (
-	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
-)
-
 func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
 		fee := m.feeCalculator()
 		unitID := tx.UnitID()
-		txHash := tx.Hash(m.hashAlgorithm)
 
 		// 1. SetOwner(ι, DC)
-		setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
+		setOwnerFn := state.SetOwner(unitID, templates.AlwaysFalseBytes())
 
 		// 2. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
 		updateUnitFn := state.UpdateUnitData(unitID,
@@ -36,8 +30,8 @@ func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecu
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
 				ftData.Value = 0
-				ftData.T = currentBlockNo
-				ftData.Backlink = txHash
+				ftData.T = exeCtx.CurrentBlockNr
+				ftData.Counter += 1
 				return ftData, nil
 			},
 		)
@@ -63,8 +57,8 @@ func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOr
 	if attr.Value != d.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
-	if !bytes.Equal(d.Backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
+	if d.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
@@ -92,8 +86,8 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		TypeID:                       b.TypeID,
 		Value:                        b.Value,
 		TargetTokenID:                b.TargetTokenID,
-		TargetTokenBacklink:          b.TargetTokenBacklink,
-		Backlink:                     b.Backlink,
+		TargetTokenCounter:           b.TargetTokenCounter,
+		Counter:                      b.Counter,
 		InvariantPredicateSignatures: nil,
 	}
 	return types.Cbor.Marshal(signatureAttr)
@@ -123,20 +117,20 @@ func (b *BurnFungibleTokenAttributes) SetTargetTokenID(targetTokenID []byte) {
 	b.TargetTokenID = targetTokenID
 }
 
-func (b *BurnFungibleTokenAttributes) GetTargetTokenBacklink() []byte {
-	return b.TargetTokenBacklink
+func (b *BurnFungibleTokenAttributes) GetTargetTokenCounter() uint64 {
+	return b.TargetTokenCounter
 }
 
-func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(targetTokenBacklink []byte) {
-	b.TargetTokenBacklink = targetTokenBacklink
+func (b *BurnFungibleTokenAttributes) SetTargetTokenCounter(targetTokenCounter uint64) {
+	b.TargetTokenCounter = targetTokenCounter
 }
 
-func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {
-	return b.Backlink
+func (b *BurnFungibleTokenAttributes) GetCounter() uint64 {
+	return b.Counter
 }
 
-func (b *BurnFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	b.Backlink = backlink
+func (b *BurnFungibleTokenAttributes) SetCounter(counter uint64) {
+	b.Counter = counter
 }
 
 func (b *BurnFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {

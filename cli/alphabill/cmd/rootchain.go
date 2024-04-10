@@ -147,6 +147,12 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("loading keys from %s: %w", config.KeyFile, err)
 	}
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+	log := config.Base.observe.Logger().With(logger.NodeID(nodeID))
+	obs := observability.WithLogger(config.Base.observe, log)
 	// check if genesis file is valid and exit early if is not
 	if err = rootGenesis.Verify(); err != nil {
 		return fmt.Errorf("root genesis verification failed: %w", err)
@@ -156,8 +162,6 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
-	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
-	obs := observability.WithLogger(config.Base.observe, log)
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -206,6 +210,9 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	}
 	if err != nil {
 		return fmt.Errorf("failed initiate consensus manager: %w", err)
+	}
+	if err := host.BootstrapConnect(ctx, log); err != nil {
+		return err
 	}
 	node, err := rootchain.New(
 		host,

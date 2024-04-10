@@ -24,7 +24,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	type fields struct {
 		Nodes                   []*PartitionNode
 		Certificate             *types.UnicityCertificate
-		SystemDescriptionRecord *SystemDescriptionRecord
+		SystemDescriptionRecord *types.SystemDescriptionRecord
 	}
 	type args struct {
 		verifier      map[string]abcrypto.Verifier
@@ -55,7 +55,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes:                   []*PartitionNode{nil},
 				SystemDescriptionRecord: nil,
 			},
-			wantErrStr: ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "contains nodes with same node identifier",
@@ -65,7 +65,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node id: 1",
 		},
@@ -77,7 +77,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node signing public key",
 		},
@@ -89,7 +89,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey2, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node encryption public key",
 		},
@@ -100,9 +100,9 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
-			wantErrStr: "unicity certificate validation failed, unicity certificate is nil",
+			wantErrStr: "unicity certificate verify error: unicity certificate validation failed: unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {

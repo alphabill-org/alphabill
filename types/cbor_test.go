@@ -230,3 +230,57 @@ func TestCborHandler_Decoding(t *testing.T) {
 		})
 	}
 }
+
+func Test_RawCBOR(t *testing.T) {
+	t.Run("MarshalCBOR empty input returns CBOR nil marker", func(t *testing.T) {
+		// input is nil slice
+		var r RawCBOR = nil
+		b, err := r.MarshalCBOR()
+		require.NoError(t, err)
+		require.Equal(t, cborNil, b)
+
+		// input is zero length slice
+		r = make(RawCBOR, 0)
+		b, err = r.MarshalCBOR()
+		require.NoError(t, err)
+		require.Equal(t, cborNil, b)
+	})
+
+	t.Run("UnmarshalCBOR on nil pointer", func(t *testing.T) {
+		var r *RawCBOR = nil
+		err := r.UnmarshalCBOR([]byte{1, 2, 3, 4})
+		require.EqualError(t, err, `UnmarshalCBOR on nil pointer`)
+		require.Empty(t, r)
+	})
+
+	t.Run("UnmarshalCBOR CBOR nil marker results in empty slice", func(t *testing.T) {
+		// destination slice is empty
+		var r RawCBOR
+		require.NoError(t, r.UnmarshalCBOR(cborNil))
+		require.Empty(t, r)
+
+		// the destination must be reset when it is not empty initially
+		r = RawCBOR{6, 6, 6}
+		require.NoError(t, r.UnmarshalCBOR(cborNil))
+		require.Empty(t, r)
+	})
+
+	t.Run("UnmarshalCBOR", func(t *testing.T) {
+		// content of non-empty destination is replaced with new data
+		data := []byte{9, 8, 7}
+		r := RawCBOR{6, 6, 6, 6}
+		require.NoError(t, r.UnmarshalCBOR(data))
+		require.EqualValues(t, data, r)
+		require.Equal(t, 4, cap(r))
+	})
+
+	t.Run("MarshalCBOR -> UnmarshalCBOR roundtrip", func(t *testing.T) {
+		data := RawCBOR{5, 5, 5}
+		buf, err := data.MarshalCBOR()
+		require.NoError(t, err)
+
+		var d RawCBOR
+		require.NoError(t, d.UnmarshalCBOR(buf))
+		require.Equal(t, data, d)
+	})
+}

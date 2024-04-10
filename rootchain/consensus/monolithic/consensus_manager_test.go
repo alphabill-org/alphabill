@@ -68,9 +68,9 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	db, err := memorydb.New()
@@ -153,7 +153,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
@@ -220,7 +220,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
@@ -248,5 +248,5 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }

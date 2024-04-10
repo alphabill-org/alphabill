@@ -100,7 +100,7 @@ func (b *Block) InputRecord() (*InputRecord, error) {
 	return b.UnicityCertificate.InputRecord, nil
 }
 
-func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
+func (b *Block) IsValid(algorithm crypto.Hash, systemDescriptionHash []byte) error {
 	if b == nil {
 		return errBlockIsNil
 	}
@@ -113,8 +113,16 @@ func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 	if b.UnicityCertificate == nil {
 		return fmt.Errorf("unicity certificate is nil")
 	}
-	if err := v(b.UnicityCertificate); err != nil {
+	if err := b.UnicityCertificate.IsValid(algorithm, b.Header.SystemID, systemDescriptionHash); err != nil {
 		return fmt.Errorf("unicity certificate validation failed: %w", err)
+	}
+	// match block hash to input record
+	hash, err := b.Hash(algorithm)
+	if err != nil {
+		return fmt.Errorf("block hash calculation failed: %w", err)
+	}
+	if !bytes.Equal(hash, b.UnicityCertificate.InputRecord.BlockHash) {
+		return fmt.Errorf("block hash does not match to the block hash in the unicity certificate input record")
 	}
 	return nil
 }

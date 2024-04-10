@@ -247,6 +247,37 @@ func TestSetOwner(t *testing.T) {
 	}
 }
 
+func Test_SetStateLock(t *testing.T) {
+	t.Run("id is nil", func(t *testing.T) {
+		err := SetStateLock(nil, []byte{})(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Equal(t, "id is nil", err.Error())
+	})
+
+	t.Run("unit not found", func(t *testing.T) {
+		err := SetStateLock([]byte{1}, []byte{})(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to find unit")
+	})
+
+	t.Run("unit already has a state lock", func(t *testing.T) {
+		s := newStateWithUnits(t)
+		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		require.NoError(t, err)
+		err = SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Equal(t, "unit already has a state lock", err.Error())
+	})
+
+	t.Run("successful state lock set", func(t *testing.T) {
+		s := newStateWithUnits(t).latestSavepoint()
+		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s, crypto.SHA256)
+		require.NoError(t, err)
+		u, _ := s.Get([]byte{1, 1, 1, 1})
+		require.Equal(t, []byte{1}, u.stateLockTx)
+	})
+}
+
 func newStateWithUnits(t *testing.T) *State {
 	s := NewEmptyState()
 	require.NoError(t,

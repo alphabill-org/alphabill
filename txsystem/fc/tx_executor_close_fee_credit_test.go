@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {
 	existingFCR := &unit.FeeCreditRecord{Locked: 1}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
-	sm, err := execFn(tx, attr, 10)
+	sm, err := execFn(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.ErrorContains(t, err, "fee credit record is locked")
 	require.Nil(t, sm)
 }
@@ -56,7 +57,7 @@ func TestCloseFC_UpdatesBacklink(t *testing.T) {
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
 	// execute closeFC transaction
-	sm, err := execFn(tx, attr, 10)
+	sm, err := execFn(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 

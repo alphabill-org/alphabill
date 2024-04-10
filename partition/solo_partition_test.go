@@ -300,7 +300,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()))
+	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
 type TestLeaderSelector struct {
@@ -355,11 +355,15 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
+	peerID, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
-		[]peer.ID{fakeValidatorID},
+		// Need to also add peerID to make it a validator node.
+		[]peer.ID{fakeValidatorID, peerID},
 	)
 	require.NoError(t, err)
 

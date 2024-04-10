@@ -1,4 +1,4 @@
-package genesis
+package types
 
 import (
 	gocrypto "crypto"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
 
@@ -17,15 +16,15 @@ var (
 
 type SystemDescriptionRecord struct {
 	_                struct{}       `cbor:",toarray"`
-	SystemIdentifier types.SystemID `json:"system_identifier,omitempty"`
+	SystemIdentifier SystemID       `json:"system_identifier,omitempty"`
 	T2Timeout        uint32         `json:"t2timeout,omitempty"`
 	FeeCreditBill    *FeeCreditBill `json:"fee_credit_bill,omitempty"`
 }
 
 type FeeCreditBill struct {
-	_              struct{}             `cbor:",toarray"`
-	UnitID         types.UnitID         `json:"unit_id,omitempty"`
-	OwnerPredicate types.PredicateBytes `json:"owner_predicate,omitempty"`
+	_              struct{}       `cbor:",toarray"`
+	UnitID         UnitID         `json:"unit_id,omitempty"`
+	OwnerPredicate PredicateBytes `json:"owner_predicate,omitempty"`
 }
 
 func (x *SystemDescriptionRecord) IsValid() error {
@@ -53,6 +52,6 @@ func (x *SystemDescriptionRecord) Hash(hashAlgorithm gocrypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (x *SystemDescriptionRecord) GetSystemIdentifier() types.SystemID {
+func (x *SystemDescriptionRecord) GetSystemIdentifier() SystemID {
 	return x.SystemIdentifier
 }

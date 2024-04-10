@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -31,14 +33,15 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	ctx := context.Background()
 	unitID := make([]byte, 32)
 	blockRound1 := simulateInput(1, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound1))
-	blockRound2 := simulateInput(2, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound2))
+	require.NoError(t, indexer.create(ctx, blockRound1.Block, blockRound1.State))
+	// make sure when called with bigger round than history nothing bad will happen
+	require.NoError(t, indexer.historyCleanup(ctx, 3))
 
-	// add the same block again
-	require.ErrorContains(t, indexer.create(ctx, blockRound2), "block 2 already indexed")
+	blockRound2 := simulateInput(2, unitID)
+	require.NoError(t, indexer.create(ctx, blockRound2.Block, blockRound2.State))
+
 	blockRound3 := simulateInput(3, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound3))
+	require.NoError(t, indexer.create(ctx, blockRound3.Block, blockRound3.State))
 
 	// run clean-up
 	require.NoError(t, indexer.historyCleanup(ctx, 3))
@@ -62,7 +65,7 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	}
 }
 
-func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
+func TestNewProofIndexer_IndexBlock_EmptyInput(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
 	logger := testlogger.New(t)
@@ -71,15 +74,14 @@ func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 	// start indexing loop
 	ctx := context.Background()
 	blockRound1 := simulateEmptyInput(1)
-	require.NoError(t, indexer.create(ctx, blockRound1))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
 	blockRound2 := simulateEmptyInput(2)
-	require.NoError(t, indexer.create(ctx, blockRound2))
-	// add the same block again
-	require.ErrorContains(t, indexer.create(ctx, blockRound2), "block 2 already indexed")
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
 	blockRound3 := simulateEmptyInput(3)
-	require.NoError(t, indexer.create(ctx, blockRound3))
-	// run clean-up
-	require.NoError(t, indexer.historyCleanup(ctx, 3))
+	// index block 1 again will just return as it is already indexed
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	// since history is set to 2 rounds/blocks, then 1 will be now removed
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, blockRound3.State))
 	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
 	// index db contains only latest round number
 	dbIt := proofDB.First()
@@ -88,6 +90,67 @@ func TestNewProofIndexer_NothingIsWrittenIfBlockIsEmpty(t *testing.T) {
 	dbIt.Next()
 	require.False(t, dbIt.Valid())
 	require.NoError(t, dbIt.Close())
+}
+
+func TestNewProofIndexer_IndexBlock(t *testing.T) {
+	proofDB, err := memorydb.New()
+	require.NoError(t, err)
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	require.Equal(t, proofDB, indexer.GetDB())
+	// start indexing loop
+	ctx := context.Background()
+	unit1ID := test.RandomBytes(32)
+	blockRound1 := simulateInput(1, unit1ID)
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	unit2ID := test.RandomBytes(32)
+	blockRound2 := simulateInput(2, unit2ID)
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
+	unit3ID := test.RandomBytes(32)
+	blockRound3 := simulateInput(3, unit3ID)
+	// since history is set to 2 rounds/blocks, then 1 will be now removed
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, blockRound3.State))
+	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
+	// index db contains only latest round number
+	dbIt := proofDB.Find(util.Uint64ToBytes(1))
+	require.True(t, dbIt.Valid())
+	require.NotEqual(t, util.Uint64ToBytes(1), dbIt.Key())
+	require.NoError(t, dbIt.Close())
+	// check for tx proofs, tx proofs are not cleaned
+	txHash := blockRound1.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	idx, err := ReadTransactionIndex(proofDB, txHash)
+	require.NoError(t, err)
+	require.EqualValues(t, idx.TxOrderIndex, 0)
+	require.EqualValues(t, idx.RoundNumber, 1)
+	txHash = blockRound2.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	idx, err = ReadTransactionIndex(proofDB, txHash)
+	require.NoError(t, err)
+	require.EqualValues(t, idx.TxOrderIndex, 0)
+	require.EqualValues(t, idx.RoundNumber, 2)
+	txHash = blockRound3.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	idx, err = ReadTransactionIndex(proofDB, txHash)
+	require.NoError(t, err)
+	require.EqualValues(t, idx.TxOrderIndex, 0)
+	require.EqualValues(t, idx.RoundNumber, 3)
+	// try to read a non-existing index
+	idx, err = ReadTransactionIndex(proofDB, make([]byte, 32))
+	require.ErrorIs(t, err, ErrIndexNotFound)
+	require.Nil(t, idx)
+}
+
+func TestNewProofIndexer_SimulateWriteError(t *testing.T) {
+	proofDB, err := memorydb.New()
+	require.NoError(t, err)
+	logger := testlogger.New(t)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	require.Equal(t, proofDB, indexer.GetDB())
+	// start indexing loop
+	ctx := context.Background()
+	blockRound1 := simulateEmptyInput(1)
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	proofDB.MockWriteError(fmt.Errorf("db write error"))
+	blockRound2 := simulateEmptyInput(2)
+	require.Error(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
 }
 
 func TestNewProofIndexer_RunLoop(t *testing.T) {
@@ -203,7 +266,7 @@ func TestProofIndexer_BoltDBTx(t *testing.T) {
 	bas := simulateInput(1, []byte{1})
 	bas.State = mockStateStoreOK{err: errors.New("some error")}
 
-	err = indexer.create(ctx, bas)
+	err = indexer.create(ctx, bas.Block, bas.State)
 	require.ErrorContains(t, err, "some error")
 
 	// verify index db does not contain the stored round number (tx is rolled back)
@@ -242,7 +305,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 		Header: &types.Header{SystemID: 1},
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: &types.TransactionOrder{},
+				TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{SystemID: types.SystemID(1), UnitID: unitID}},
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},

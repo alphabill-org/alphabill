@@ -11,16 +11,15 @@ import (
 )
 
 func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		sum, err := m.validateJoinFungibleToken(tx, attr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
 		}
 		fee := m.feeCalculator()
+		unitID := tx.UnitID()
 
 		// update state
-		unitID := tx.UnitID()
-		h := tx.Hash(m.hashAlgorithm)
 		if err := m.state.Apply(
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
@@ -31,11 +30,13 @@ func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecu
 					return &FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     sum,
-						T:         currentBlockNr,
-						Backlink:  h,
+						T:         exeCtx.CurrentBlockNr,
+						Counter:   d.Counter + 1,
 						Locked:    0,
 					}, nil
-				})); err != nil {
+				},
+			),
+		); err != nil {
 			return nil, err
 		}
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
@@ -75,15 +76,15 @@ func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOr
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID()) {
 			return 0, fmt.Errorf("burn tx target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
 		}
-		if !bytes.Equal(btxAttr.TargetTokenBacklink, attr.Backlink) {
-			return 0, fmt.Errorf("burn tx target token backlink does not match with join transaction backlink: burnTx %X, joinTx %X", btxAttr.TargetTokenBacklink, attr.Backlink)
+		if btxAttr.TargetTokenCounter != attr.Counter {
+			return 0, fmt.Errorf("burn tx target token counter does not match with join transaction counter: burnTx %d, joinTx %d", btxAttr.TargetTokenCounter, attr.Counter)
 		}
 		if err = types.VerifyTxProof(proofs[i], btx, m.trustBase, m.hashAlgorithm); err != nil {
 			return 0, fmt.Errorf("proof is not valid: %w", err)
 		}
 	}
-	if !bytes.Equal(d.Backlink, attr.Backlink) {
-		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
+	if d.Counter != attr.Counter {
+		return 0, fmt.Errorf("invalid counter: expected %X, got %X", d.Counter, attr.Counter)
 	}
 
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
@@ -110,7 +111,7 @@ func (j *JoinFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	signatureAttr := &JoinFungibleTokenAttributes{
 		BurnTransactions:             j.BurnTransactions,
 		Proofs:                       j.Proofs,
-		Backlink:                     j.Backlink,
+		Counter:                      j.Counter,
 		InvariantPredicateSignatures: nil,
 	}
 	return types.Cbor.Marshal(signatureAttr)
@@ -132,12 +133,12 @@ func (j *JoinFungibleTokenAttributes) SetProofs(proofs []*types.TxProof) {
 	j.Proofs = proofs
 }
 
-func (j *JoinFungibleTokenAttributes) GetBacklink() []byte {
-	return j.Backlink
+func (j *JoinFungibleTokenAttributes) GetCounter() uint64 {
+	return j.Counter
 }
 
-func (j *JoinFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	j.Backlink = backlink
+func (j *JoinFungibleTokenAttributes) SetCounter(counter uint64) {
+	j.Counter = counter
 }
 
 func (j *JoinFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {

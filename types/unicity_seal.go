@@ -20,12 +20,11 @@ var (
 	ErrUnicitySealIsNil          = errors.New("unicity seal is nil")
 	ErrSignerIsNil               = errors.New("signer is nil")
 	ErrUnicitySealHashIsNil      = errors.New("hash is nil")
-	ErrInvalidBlockNumber        = errors.New("invalid block number")
+	ErrInvalidRootRound          = errors.New("invalid root round number")
 	ErrUnicitySealSignatureIsNil = errors.New("no signatures")
 	ErrRootValidatorInfoMissing  = errors.New("root node info is missing")
 	ErrUnknownSigner             = errors.New("unknown signer")
 	errInvalidTimestamp          = errors.New("invalid timestamp")
-	errUnicitySealNoSignature    = errors.New("unicity seal is missing signature")
 )
 
 type SignatureMap map[string][]byte
@@ -46,17 +45,16 @@ type signature struct {
 	Signature []byte   `json:"signature,omitempty"`
 }
 
-func (s *SignatureMap) MarshalCBOR() ([]byte, error) {
+func (s SignatureMap) MarshalCBOR() ([]byte, error) {
 	// shallow copy
-	signatures := *s
-	authors := make([]string, 0, len(signatures))
-	for k := range *s {
+	authors := make([]string, 0, len(s))
+	for k := range s {
 		authors = append(authors, k)
 	}
 	sort.Strings(authors)
-	sCBOR := make(signaturesCBOR, len(signatures))
+	sCBOR := make(signaturesCBOR, len(s))
 	for i, author := range authors {
-		sCBOR[i] = &signature{NodeID: author, Signature: signatures[author]}
+		sCBOR[i] = &signature{NodeID: author, Signature: s[author]}
 	}
 	return Cbor.Marshal(sCBOR)
 }
@@ -74,19 +72,17 @@ func (s *SignatureMap) UnmarshalCBOR(b []byte) error {
 	return nil
 }
 
-func (s *SignatureMap) AddToHasher(hasher hash.Hash) {
+func (s SignatureMap) AddToHasher(hasher hash.Hash) {
 	if s == nil {
 		return
 	}
-	// shallow copy
-	smap := *s
-	authors := make([]string, 0, len(smap))
-	for k := range *s {
+	authors := make([]string, 0, len(s))
+	for k := range s {
 		authors = append(authors, k)
 	}
 	sort.Strings(authors)
 	for _, author := range authors {
-		sig := smap[author]
+		sig := s[author]
 		hasher.Write([]byte(author))
 		hasher.Write(sig)
 	}
@@ -98,18 +94,15 @@ func NewTimestamp() uint64 {
 	return uint64(time.Now().Unix())
 }
 
-func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
+func (x *UnicitySeal) IsValid() error {
 	if x == nil {
 		return ErrUnicitySealIsNil
-	}
-	if len(verifiers) == 0 {
-		return ErrRootValidatorInfoMissing
 	}
 	if x.Hash == nil {
 		return ErrUnicitySealHashIsNil
 	}
 	if x.RootChainRoundNumber < 1 {
-		return ErrInvalidBlockNumber
+		return ErrInvalidRootRound
 	}
 	if x.Timestamp < GenesisTime {
 		return errInvalidTimestamp
@@ -117,7 +110,7 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if len(x.Signatures) == 0 {
 		return ErrUnicitySealSignatureIsNil
 	}
-	return x.Verify(verifiers)
+	return nil
 }
 
 // Bytes - serialize everything except signatures (used for sign and verify)
@@ -140,7 +133,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	}
 	// initiate signatures
 	if x.Signatures == nil {
-		x.Signatures = make(map[string][]byte)
+		x.Signatures = make(SignatureMap)
 	}
 	x.Signatures[id] = sig
 	return nil
@@ -150,8 +143,8 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 	if verifiers == nil {
 		return ErrRootValidatorInfoMissing
 	}
-	if len(x.Signatures) == 0 {
-		return errUnicitySealNoSignature
+	if err := x.IsValid(); err != nil {
+		return fmt.Errorf("unicity seal validation error: %w", err)
 	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {

@@ -3,9 +3,25 @@ package types
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 )
 
-type Bytes []byte
+type (
+	Uint64 uint64
+	Bytes  []byte
+)
+
+func (u Uint64) MarshalText() ([]byte, error) {
+	return []byte(strconv.FormatUint(uint64(u), 10)), nil
+}
+
+func (u *Uint64) UnmarshalText(src []byte) error {
+	res, err := strconv.ParseUint(string(src), 10, 64)
+	if err == nil {
+		*u = Uint64(res)
+	}
+	return err
+}
 
 func (b Bytes) MarshalText() ([]byte, error) {
 	return toHex(b), nil

@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+	"errors"
 	"io"
 
 	"github.com/fxamacker/cbor/v2"
@@ -14,12 +16,16 @@ type (
 	}
 )
 
-var Cbor = cborHandler{}
+var (
+	Cbor = cborHandler{}
+
+	cborNil = []byte{0xf6}
+)
 
 /*
 Set Core Deterministic Encoding as standard. See <https://www.rfc-editor.org/rfc/rfc8949.html#name-deterministically-encoded-c>.
 */
-func (c cborHandler) cborEncoder() (cbor.EncMode, error) {
+func (c *cborHandler) cborEncoder() (cbor.EncMode, error) {
 	if c.encMode != nil {
 		return c.encMode, nil
 	}
@@ -65,4 +71,26 @@ func (c cborHandler) GetDecoder(r io.Reader) *cbor.Decoder {
 
 func (c cborHandler) Decode(r io.Reader, v any) error {
 	return c.GetDecoder(r).Decode(v)
+}
+
+// MarshalCBOR returns r or CBOR nil if r is empty.
+func (r RawCBOR) MarshalCBOR() ([]byte, error) {
+	if len(r) == 0 {
+		return cborNil, nil
+	}
+	return r, nil
+}
+
+// UnmarshalCBOR copies data into r unless it's CBOR "nil marker" - in that
+// case r is set to empty slice.
+func (r *RawCBOR) UnmarshalCBOR(data []byte) error {
+	if r == nil {
+		return errors.New("UnmarshalCBOR on nil pointer")
+	}
+	if bytes.Equal(data, cborNil) {
+		*r = (*r)[0:0]
+	} else {
+		*r = append((*r)[0:0], data...)
+	}
+	return nil
 }

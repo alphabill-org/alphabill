@@ -23,7 +23,6 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 			}
 		}
 		fee := n.feeCalculator()
-
 		unitID := tx.UnitID()
 
 		if !isLocked {
@@ -41,9 +40,10 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
 				d.T = exeCtx.CurrentBlockNr
-				d.Backlink = tx.Hash(n.hashAlgorithm)
+				d.Counter += 1
 				return d, nil
-			})); err != nil {
+			}),
+		); err != nil {
 			return nil, err
 		}
 
@@ -67,8 +67,8 @@ func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.Tra
 	if data.Locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(data.Backlink, attr.Backlink) {
-		return errors.New("validate nft transfer: invalid backlink")
+	if data.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", data.Counter, attr.Counter)
 	}
 	tokenTypeID := data.NftType
 	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
@@ -99,7 +99,7 @@ func (t *TransferNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	signatureAttr := &TransferNonFungibleTokenAttributes{
 		NewBearer:                    t.NewBearer,
 		Nonce:                        t.Nonce,
-		Backlink:                     t.Backlink,
+		Counter:                      t.Counter,
 		NFTTypeID:                    t.NFTTypeID,
 		InvariantPredicateSignatures: nil,
 	}
@@ -122,12 +122,12 @@ func (t *TransferNonFungibleTokenAttributes) SetNonce(nonce []byte) {
 	t.Nonce = nonce
 }
 
-func (t *TransferNonFungibleTokenAttributes) GetBacklink() []byte {
-	return t.Backlink
+func (t *TransferNonFungibleTokenAttributes) GetCounter() uint64 {
+	return t.Counter
 }
 
-func (t *TransferNonFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	t.Backlink = backlink
+func (t *TransferNonFungibleTokenAttributes) SetCounter(counter uint64) {
+	t.Counter = counter
 }
 
 func (t *TransferNonFungibleTokenAttributes) GetNFTTypeID() types.UnitID {

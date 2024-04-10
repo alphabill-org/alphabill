@@ -19,12 +19,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
-var defaultClientMetadata = &types.ClientMetadata{
-	Timeout:           20,
-	MaxTransactionFee: 10,
-	FeeCreditRecordID: feeCreditID,
-}
+var (
+	feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
+
+	defaultClientMetadata = &types.ClientMetadata{
+		Timeout:           20,
+		MaxTransactionFee: 10,
+		FeeCreditRecordID: feeCreditID,
+	}
+)
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
@@ -135,12 +138,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// mint token
 	mintTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitID(fungibleTokenID1),
+		testtransaction.WithUnitID(fungibleTokenTypeID),
 		testtransaction.WithPayloadType(PayloadTypeMintFungibleToken),
 		testtransaction.WithAttributes(
 			&MintFungibleTokenAttributes{
 				Bearer:                           templates.AlwaysTrueBytes(),
-				TypeID:                           fungibleTokenTypeID,
 				Value:                            totalValue,
 				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
@@ -151,12 +153,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
 	require.NoError(t, err, "token mint tx failed")
-	txHash := mintTxRecord.TransactionOrder.Hash(gocrypto.SHA256)
+	mintedTokenID := mintTxRecord.ServerMetadata.TargetUnits[0]
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
-		unitID:     fungibleTokenID1,
+		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   txHash,
+		counter:    0,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue,
 	})
@@ -165,7 +167,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// split token
 	splitTx1 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitID(fungibleTokenID1),
+		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
@@ -175,7 +177,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TargetValue:                  splitValue1,
 				RemainingValue:               totalValue - splitValue1,
 				Nonce:                        test.RandomBytes(32),
-				Backlink:                     txHash,
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -185,13 +187,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
 	split1TxRecord, split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx1)
 	require.NoError(t, err, "token split tx failed")
-	split1GenTxHash := split1TxRecord.TransactionOrder.Hash(gocrypto.SHA256)
 
 	require.NoError(t, err)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
-		unitID:     fungibleTokenID1,
+		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   split1GenTxHash,
+		counter:    1,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1,
 	})
@@ -201,14 +202,14 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   split1GenTxHash,
+		counter:    0,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: splitValue1,
 	})
 
 	splitTx2 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitID(fungibleTokenID1),
+		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
@@ -218,7 +219,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TargetValue:                  splitValue2,
 				RemainingValue:               totalValue - (splitValue1 + splitValue2),
 				Nonce:                        nil,
-				Backlink:                     split1TxRecord.TransactionOrder.Hash(hashAlgorithm),
+				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -230,11 +231,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err, "token split 2 tx failed")
 	require.NoError(t, types.VerifyTxProof(split2TxProof, split2TxRecord, trustBase, hashAlgorithm))
 
-	splitGenTx2Hash := split2TxRecord.TransactionOrder.Hash(gocrypto.SHA256)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
-		unitID:     fungibleTokenID1,
+		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   splitGenTx2Hash,
+		counter:    2,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
@@ -243,7 +243,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   splitGenTx2Hash,
+		counter:    0,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: splitValue2,
 	})
@@ -251,7 +251,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// Transfer token
 	transferTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitID(fungibleTokenID1),
+		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeTransferFungibleToken),
 		testtransaction.WithAttributes(
@@ -260,7 +260,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        totalValue - splitValue1 - splitValue2,
 				Nonce:                        nil,
-				Backlink:                     splitGenTx2Hash,
+				Counter:                      2,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -272,12 +272,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err, "token transfer tx failed")
 	require.NoError(t, types.VerifyTxProof(transferTxProof, transferTxRecord, trustBase, hashAlgorithm))
 
-	transferGenTxHash := transferTxRecord.TransactionOrder.Hash(gocrypto.SHA256)
-
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
-		unitID:     fungibleTokenID1,
+		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   transferGenTxHash,
+		counter:    3,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
@@ -292,9 +290,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue1,
-				TargetTokenID:                fungibleTokenID1,
-				TargetTokenBacklink:          transferGenTxHash,
-				Backlink:                     split1GenTxHash,
+				TargetTokenID:                mintedTokenID,
+				TargetTokenCounter:           3,
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -315,9 +313,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue2,
-				TargetTokenID:                fungibleTokenID1,
-				TargetTokenBacklink:          transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
-				Backlink:                     splitGenTx2Hash,
+				TargetTokenID:                mintedTokenID,
+				TargetTokenCounter:           3,
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -351,14 +349,14 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// join token
 	joinTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitID(fungibleTokenID1),
+		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeJoinFungibleToken),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
 				BurnTransactions:             burnTxs,
 				Proofs:                       burnTxProofs,
-				Backlink:                     transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
+				Counter:                      3,
 				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
@@ -369,9 +367,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	joinTxRecord, joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, joinTx)
 	require.NoError(t, err, "token join tx failed")
 	require.NoError(t, types.VerifyTxProof(joinTxProof, joinTxRecord, trustBase, hashAlgorithm))
-	joinTXRHash := joinTxRecord.TransactionOrder.Hash(gocrypto.SHA256)
 
-	u, err := states[0].GetUnit(fungibleTokenID1, true)
+	u, err := states[0].GetUnit(mintedTokenID, true)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.IsType(t, &FungibleTokenData{}, u.Data())
@@ -379,9 +376,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NotNil(t, totalValue, d.Value)
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
-		unitID:     fungibleTokenID1,
+		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   joinTXRHash,
+		counter:    4,
 		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue,
 	})
@@ -392,8 +389,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 }
 
 type fungibleTokenUnitData struct {
-	unitID, typeUnitID, backlink, bearer []byte
-	tokenValue                           uint64
+	unitID     []byte
+	typeUnitID []byte
+	counter    uint64
+	bearer     []byte
+	tokenValue uint64
 }
 
 type fungibleTokenTypeUnitData struct {
@@ -432,7 +432,7 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 	require.IsType(t, &FungibleTokenData{}, u.Data())
 	d := u.Data().(*FungibleTokenData)
 	require.Equal(t, e.tokenValue, d.Value)
-	require.Equal(t, e.backlink, d.Backlink)
+	require.Equal(t, e.counter, d.Counter)
 	require.Equal(t, types.UnitID(e.typeUnitID), d.TokenType)
 }
 

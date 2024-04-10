@@ -12,7 +12,7 @@ type BillData struct {
 	_       struct{} `cbor:",toarray"`
 	V       uint64   `json:"value,string"`      // The monetary value of this bill
 	T       uint64   `json:"lastUpdate,string"` // The round number of the last transaction with the bill
-	Counter uint64   `json:"counter"`           // The transaction counter of this bill
+	Counter uint64   `json:"counter,string"`    // The transaction counter of this bill
 	Locked  uint64   `json:"locked,string"`     // locked status of the bill, non-zero value means locked
 }
 

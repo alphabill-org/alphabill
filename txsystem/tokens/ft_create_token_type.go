@@ -17,8 +17,8 @@ func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.Generi
 			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}
 		fee := m.feeCalculator()
-
 		unitID := tx.UnitID()
+
 		// update state
 		if err := m.state.Apply(
 			state.AddUnit(unitID, templates.AlwaysTrueBytes(), newFungibleTokenTypeData(attr)),

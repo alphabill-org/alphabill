@@ -1,9 +1,10 @@
 package tokens
 
 import (
-	gocrypto "crypto"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -13,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -28,7 +28,7 @@ func TestLockFT_Ok(t *testing.T) {
 	require.NoError(t, err)
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
-		Backlink:                     make([]byte, 32),
+		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingTokenUnitID)
@@ -42,13 +42,13 @@ func TestLockFT_Ok(t *testing.T) {
 	require.IsType(t, &FungibleTokenData{}, u.Data())
 	d := u.Data().(*FungibleTokenData)
 
-	// verify lock status, backlink and round number is updated
+	// verify lock status, counter and round number is updated
 	// verify value and type id is not updated
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 	require.Equal(t, existingTokenTypeUnitID, d.TokenType)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
 	require.Equal(t, roundNo, d.T)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
 }
 
@@ -87,7 +87,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			name: "token is already locked",
 			tx: createTx(t, existingLockedTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
@@ -96,25 +96,25 @@ func TestLockFT_NotOk(t *testing.T) {
 			name: "lock status zero",
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
 		{
-			name: "invalid backlink",
+			name: "invalid counter",
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
-			wantErrStr: "the transaction backlink is not equal to the token backlink",
+			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     make([]byte, 32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{{8, 4, 0}},
 			}, PayloadTypeLockToken),
 			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
@@ -138,7 +138,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	require.NoError(t, err)
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
-		Backlink:                     make([]byte, 32),
+		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingNFTUnitID)
@@ -152,10 +152,10 @@ func TestLockNFT_Ok(t *testing.T) {
 	require.IsType(t, &NonFungibleTokenData{}, u.Data())
 	d := u.Data().(*NonFungibleTokenData)
 
-	// verify lock status, backlink and round number is updated
+	// verify lock status, counter and round number is updated
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 	require.Equal(t, roundNo, d.T)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.Backlink)
+	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
 }
 
@@ -194,7 +194,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			name: "token is already locked",
 			tx: createTx(t, existingLockedNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
@@ -203,25 +203,25 @@ func TestLockNFT_NotOk(t *testing.T) {
 			name: "lock status zero",
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
 		{
-			name: "invalid backlink",
+			name: "invalid counter",
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 			}, PayloadTypeLockToken),
-			wantErrStr: "the transaction backlink is not equal to the token backlink",
+			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
-				Backlink:                     make([]byte, 32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{{1, 2, 3}},
 			}, PayloadTypeLockToken),
 			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
@@ -266,7 +266,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		Backlink:  make([]byte, 32),
+		Counter:   0,
 	}))
 	require.NoError(t, err)
 
@@ -274,7 +274,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		TokenType: existingTokenTypeUnitID,
 		Value:     existingTokenValue,
 		T:         0,
-		Backlink:  make([]byte, 32),
+		Counter:   0,
 		Locked:    1,
 	}))
 	require.NoError(t, err)
@@ -293,7 +293,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
 		NftType:             existingNFTTypeUnitID,
 		Name:                "ALPHA",
-		Backlink:            make([]byte, 32),
+		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &NonFungibleTokenData{
 		NftType:             existingNFTTypeUnitID,
 		Name:                "ALPHA",
-		Backlink:            make([]byte, 32),
+		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		Locked:              1,
 	}))

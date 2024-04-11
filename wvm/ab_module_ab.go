@@ -15,7 +15,7 @@ import (
 /*
 AB functions to verify objects etc
 */
-func addAlphabillModule(ctx context.Context, rt wazero.Runtime, observe Observability) error {
+func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("ab").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digest_sha256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").

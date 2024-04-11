@@ -68,13 +68,16 @@ func Test_conference_tickets(t *testing.T) {
 
 	// create tx record and tx proof pair for money transfer and serialize them into
 	// CBOR array usable as predicate argument for mint and update token tx
-	predicateArgs := func(t *testing.T, value uint64, nonce []byte) []byte {
-		// attendee transfers to the organiser
+	predicateArgs := func(t *testing.T, value uint64, refNo []byte) []byte {
+		// attendee transfers to the organizer
 		txPayment := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID: money.DefaultSystemIdentifier,
 				Type:     money.PayloadTypeTransfer,
 				UnitID:   money.NewBillID(nil, []byte{8, 1, 1, 1}),
+				ClientMetadata: &types.ClientMetadata{
+					ReferenceNumber: refNo,
+				},
 			},
 		}
 		require.NoError(t, txPayment.Payload.SetAttributes(
@@ -82,7 +85,6 @@ func Test_conference_tickets(t *testing.T) {
 				NewBearer:   templates.NewP2pkh256BytesFromKey(pubKeyOrg),
 				TargetValue: value,
 				Counter:     1,
-				//Nonce:       nonce, // AB-1509
 			}))
 		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 
@@ -95,20 +97,17 @@ func Test_conference_tickets(t *testing.T) {
 		args := []types.RawCBOR{b}
 		b, err = cbor.Marshal(proof)
 		require.NoError(t, err)
-		args = append(args, b)
 
-		b, err = cbor.Marshal(args)
+		b, err = cbor.Marshal(append(args, b))
 		require.NoError(t, err)
 		return b
 	}
 
-	/*
-		params hardcoded to the predicates:
-		const D1: u64 = 1709683200;
-		const D2: u64 = D1+ 100000;
-		const P1: u64 = 1000;
-		const P2: u64 = 1500;
-	*/
+	// params hardcoded to the predicates:
+	const D1 uint64 = 1709683200
+	const D2 uint64 = D1 + 100000
+	const P1 uint64 = 1000
+	const P2 uint64 = 1500
 
 	nftTypeID := tokens.NewNonFungibleTokenTypeID(nil, []byte{7, 7, 7, 7, 7, 7, 7})
 	tokenID, err := tokens.NewRandomNonFungibleTokenID(nil)
@@ -125,7 +124,7 @@ func Test_conference_tickets(t *testing.T) {
 				}
 				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
 			},
-			curRound: func() uint64 { return 1709683000 },
+			curRound: func() uint64 { return D1 },
 		}
 
 		// "current transaction" for the predicate must be "transfer NFT"
@@ -154,8 +153,8 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res)
 
-		// hakich way to change current round so now should eval to "false"
-		env.curRound = func() uint64 { return 1709684000 }
+		// hakich way to change current round past D1 so now should eval to "false"
+		env.curRound = func() uint64 { return D1 + 1 }
 		start = time.Now()
 		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
 		t.Logf("took %s", time.Since(start))
@@ -182,19 +181,24 @@ func Test_conference_tickets(t *testing.T) {
 
 		env := &mockTxContext{
 			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
-			curRound:  func() uint64 { return 1709683000 },
+			curRound:  func() uint64 { return D1 },
 		}
 
 		wvm, err := New(context.Background(), enc, env, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, 100, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
+		args := predicateArgs(t, P1, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
 		start := time.Now()
 		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
-		require.EqualValues(t, 0x0208, res)
+		require.EqualValues(t, 0x0, res)
+
+		// set the date to future (after D1) so early-bird tickets can't be minted anymore
+		env.curRound = func() uint64 { return D1 + 1 }
+		res, err = wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
+		require.NoError(t, err)
+		require.EqualValues(t, 0x01, res)
 	})
 
 	t.Run("update_data", func(t *testing.T) {
@@ -226,19 +230,19 @@ func Test_conference_tickets(t *testing.T) {
 					}), nil
 			},
 			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
-			curRound:  func() uint64 { return 1709683000 },
+			curRound:  func() uint64 { return D2 },
 		}
 
 		wvm, err := New(context.Background(), enc, env, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, 100, hash.Sum256(append(append([]byte{1}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
+		// upgrade early-bird to regular so it can be transferred after D2
+		args := predicateArgs(t, P2-P1, hash.Sum256(append(append([]byte{2}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
 		start := time.Now()
 		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		// verifyTxProof: nonce doesn't match - we currently do not have nonce in the transfer money attributes!
-		require.EqualValues(t, 0x0208, res)
+		require.EqualValues(t, 0x0, res)
 	})
 }
 
@@ -268,6 +272,7 @@ func TestReadHeapBase(t *testing.T) {
 	_, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, nil, nil)
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
+	require.NoError(t, err)
 	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
 	require.EqualValues(t, 8400, wvm.ctx.MemMngr.(*allocator.BumpAllocator).HeapBase())
 }

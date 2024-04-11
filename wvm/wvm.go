@@ -75,9 +75,9 @@ type (
 
 	// translates AB types to WASM consumable representation
 	Encoder interface {
-		Encode(obj any, getHandle func(obj any) uint64) ([]byte, error)
-		TxAttributes(txo *types.TransactionOrder) ([]byte, error)
-		UnitData(unit *state.Unit) ([]byte, error)
+		Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error)
+		TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error)
+		UnitData(unit *state.Unit, ver uint32) ([]byte, error)
 	}
 
 	Observability interface {

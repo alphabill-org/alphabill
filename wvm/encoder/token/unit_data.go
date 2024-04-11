@@ -15,7 +15,7 @@ func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) erro
 	)
 }
 
-func udeNonFungibleTokenData(data state.UnitData) ([]byte, error) {
+func udeNonFungibleTokenData(data state.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenData)
 	var buf encoder.WasmEnc
 	buf.WriteTypeVer(type_id_NFT_data, 1)
@@ -29,7 +29,7 @@ func udeNonFungibleTokenData(data state.UnitData) ([]byte, error) {
 	return buf, nil
 }
 
-func udeNonFungibleTokenTypeData(data state.UnitData) ([]byte, error) {
+func udeNonFungibleTokenTypeData(data state.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenTypeData)
 	var buf encoder.WasmEnc
 	buf.WriteTypeVer(type_id_NFT_type, 1)

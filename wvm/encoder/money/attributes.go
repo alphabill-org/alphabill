@@ -21,12 +21,12 @@ func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAt
 	)
 }
 
-func txaTransferAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaTransferAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &money.TransferAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0, 8+4+8)
+	buf := make(encoder.WasmEnc, 0, 8+8)
 	buf.WriteUInt64(attr.TargetValue)
 	buf.WriteUInt64(attr.Counter)
 	return buf, nil

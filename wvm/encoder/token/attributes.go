@@ -25,7 +25,7 @@ func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAt
 	)
 }
 
-func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.CreateNonFungibleTokenTypeAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
@@ -38,7 +38,7 @@ func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder) ([]byt
 	return buf, nil
 }
 
-func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.MintNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
@@ -51,7 +51,7 @@ func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, err
 	return buf, nil
 }
 
-func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.TransferNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
@@ -63,7 +63,7 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte,
 	return buf, nil
 }
 
-func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.UpdateNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
@@ -74,7 +74,7 @@ func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder) ([]byte, e
 	return buf, nil
 }
 
-func txaCreateFungibleTokenTypeAttributes(txo *types.TransactionOrder) ([]byte, error) {
+func txaCreateFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	//attr := &tokens.CreateFungibleTokenTypeAttributes{}
 	return nil, fmt.Errorf("not implemented")
 }

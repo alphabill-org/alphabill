@@ -9,9 +9,9 @@ import (
 )
 
 // returns tx order attributes encoded to WASM representation
-type TxAttributesEncoder func(txo *types.TransactionOrder) ([]byte, error)
+type TxAttributesEncoder func(txo *types.TransactionOrder, ver uint32) ([]byte, error)
 
-type UnitDataEncoder func(data state.UnitData) ([]byte, error)
+type UnitDataEncoder func(data state.UnitData, ver uint32) ([]byte, error)
 
 // tx attribute encoder ID
 type AttrEncID struct {
@@ -21,6 +21,7 @@ type AttrEncID struct {
 	// when using the SDK version to determine the response encoding then it is probably
 	// more flexible/easier is to send version as a param to the encoder func - then when nothing
 	// changes between SDK versions don't have to repeat same encoder for different SDK versions?
+	// however when each struct in SDK has it's own ver and sends it with request this key makes sense?
 	//Ver   int
 }
 
@@ -36,51 +37,62 @@ type TXSystemEncoder struct {
 /*
 Encode serializes well known types (not tx system specific) to WASM representation.
 
+ver - version of the encoding/object the predicate expects;
 getHandle - add type id param and encode it into handle? ie CBOR, BO, []byte,...?
 */
-func (enc TXSystemEncoder) Encode(obj any, getHandle func(obj any) uint64) ([]byte, error) {
+func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error) {
 	switch t := obj.(type) {
 	case *types.TransactionOrder:
-		return enc.txOrder(t)
+		return enc.txOrder(t, ver)
 	case *types.TransactionRecord:
-		return enc.txRecord(t, getHandle)
+		return enc.txRecord(t, ver, getHandle)
 	case []byte:
 		return t, nil
 	}
 	return nil, fmt.Errorf("no encoder for %T", obj)
 }
 
-func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, getHandle func(obj any) uint64) ([]byte, error) {
+func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, ver uint32, getHandle func(obj any) uint64) ([]byte, error) {
 	var buf WasmEnc
 	buf.WriteTypeVer(type_id_tx_record, 1)
 	buf.WriteUInt64(getHandle(txo.TransactionOrder))
 	return buf, nil
 }
 
-func (TXSystemEncoder) txOrder(txo *types.TransactionOrder) ([]byte, error) {
-	buf := make(WasmEnc, 0, (6*4)+len(txo.Payload.Type)+len(txo.Payload.UnitID)+len(txo.OwnerProof)+len(txo.FeeProof))
-	buf.WriteTypeVer(type_id_tx_order, 1)
-	buf.WriteUInt32(uint32(txo.SystemID()))
-	buf.WriteString(txo.Payload.Type)
-	buf.WriteBytes(txo.Payload.UnitID)
+func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
+	var buf WasmEnc
+	switch {
+	case ver <= sdk_version:
+		buf.WriteUInt32(uint32(txo.SystemID()))
+		buf.WriteString(txo.Payload.Type)
+		buf.WriteBytes(txo.Payload.UnitID)
+		if txo.Payload.ClientMetadata != nil {
+			buf.WriteBytes(txo.Payload.ClientMetadata.ReferenceNumber)
+		} else {
+			buf.WriteBytes(nil)
+		}
+	default:
+		// if we'd use "tagged encoding" could send latest version instead of error?
+		return nil, fmt.Errorf("requested tx order version %d is not supported", ver)
+	}
 	return buf, nil
 }
 
-func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder) ([]byte, error) {
-	fn, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID(), Attr: txo.PayloadType()}]
+func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
+	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID(), Attr: txo.PayloadType()}]
 	if !ok {
 		return nil, fmt.Errorf("serializing to bytes is not implemented for tx system %d %q attributes", txo.Payload.SystemID, txo.PayloadType())
 	}
-	return fn(txo)
+	return encoder(txo, ver)
 }
 
-func (enc TXSystemEncoder) UnitData(unit *state.Unit) ([]byte, error) {
+func (enc TXSystemEncoder) UnitData(unit *state.Unit, ver uint32) ([]byte, error) {
 	data := unit.Data()
-	fn, ok := enc.udEnc[reflect.TypeOf(data)]
+	encoder, ok := enc.udEnc[reflect.TypeOf(data)]
 	if !ok {
 		return nil, fmt.Errorf("serializing to bytes is not implemented for unit data type %T", data)
 	}
-	return fn(data)
+	return encoder(data, ver)
 }
 
 func (enc *TXSystemEncoder) RegisterUnitDataEncoder(ud any, encoder UnitDataEncoder) error {
@@ -124,6 +136,11 @@ func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id AttrEnc
 }
 
 const (
+	// The latest SDK version this encoder (TXSystemEncoder) is aware of.
+	// Note taht attribute and unit data encoders registered with it might
+	// support different SDK versions (could be both lower or higher!).
+	sdk_version = 1
+
 	type_id_tx_order  = 1
 	type_id_tx_record = 8
 	type_id_tx_proof  = 9

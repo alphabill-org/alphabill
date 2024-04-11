@@ -10,8 +10,9 @@ import (
 // AB "common types", ie not tx system specific stuff
 type ABTypesFactory struct{}
 
-// must be "tx system id + type id"?
+// must be "tx system id + type id" to support tx system specific objects?
 // or we only support generic types here?
+// either the "data" (CBOR!) must have version id or version must come in as param?
 func (ABTypesFactory) create_obj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {

@@ -19,7 +19,7 @@ predicate arguments, round number etc.
 
 encoder and factory as arguments so wouldn't need to go through context?
 */
-func addContextModule(ctx context.Context, rt wazero.Runtime, observe Observability) error {
+func addContextModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("context").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expCurrentRound), nil, []api.ValueType{api.ValueTypeI64}).Export("current_round").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(args_cbor_array), nil, []api.ValueType{api.ValueTypeI64}).Export("args_cbor_array").
@@ -32,7 +32,7 @@ func addContextModule(ctx context.Context, rt wazero.Runtime, observe Observabil
 }
 
 func create_obj(vec *VmContext, mod api.Module, stack []uint64) error {
-	// obj type, address of the data
+	// obj type, address of the data. version must be part of the raw (CBOR) data or we need param!?
 	data := read(mod, stack[1])
 	//vec.log.Debug(fmt.Sprintf("create_obj(%#v) => %#v", stack, data))
 	typeID := api.DecodeU32(stack[0])
@@ -74,7 +74,7 @@ func expUnitData(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("reading unit data: %w", err)
 	}
-	data, err := vec.encoder.UnitData(unit)
+	data, err := vec.encoder.UnitData(unit, vec.curPrg.sdkVer)
 	if err != nil {
 		return fmt.Errorf("encoding unit data: %w", err)
 	}
@@ -91,7 +91,7 @@ func expSerialize(vec *VmContext, mod api.Module, stack []uint64) error {
 	if !ok {
 		return fmt.Errorf("no variable with handle %d", stack[0])
 	}
-	data, err := vec.encoder.Encode(v, vec.curPrg.AddVar)
+	data, err := vec.encoder.Encode(v, vec.curPrg.sdkVer, vec.curPrg.AddVar)
 	if err != nil {
 		return fmt.Errorf("encoding object: %w", err)
 	}
@@ -111,7 +111,7 @@ func expTxAttributes(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("reading tx order variable: %w", err)
 	}
-	buf, err := vec.encoder.TxAttributes(txo)
+	buf, err := vec.encoder.TxAttributes(txo, vec.curPrg.sdkVer)
 	if err != nil {
 		return fmt.Errorf("encoding tx attributes: %w", err)
 	}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -52,10 +51,9 @@ type (
 
 	// Peer represents a single node in p2p network. It is a wrapper around the libp2p host.Host.
 	Peer struct {
-		host       host.Host
-		conf       *PeerConfiguration
-		validators []peer.ID
-		dht        *dht.IpfsDHT
+		host        host.Host
+		conf        *PeerConfiguration
+		dht         *dht.IpfsDHT
 	}
 )
 
@@ -109,8 +107,12 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
 	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
-	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
-	return p, nil
+
+	return &Peer{
+		host: h,
+		conf: conf,
+		dht: kademliaDHT,
+	}, nil
 }
 
 // This code is borrowed from the go-ipfs bootstrap process
@@ -169,24 +171,6 @@ func (p *Peer) String() string {
 		return fmt.Sprintf("NodeID:%s", id)
 	}
 	return fmt.Sprintf("NodeID:%s*%s", id[:2], id[len(id)-6:])
-}
-
-func (p *Peer) Validators() []peer.ID {
-	return p.validators
-}
-
-func (p *Peer) IsValidator() bool {
-	return slices.Contains(p.validators, p.ID())
-}
-
-func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {
-	var validatorIdentifiers []peer.ID
-	for _, v := range p.validators {
-		if v != exclude {
-			validatorIdentifiers = append(validatorIdentifiers, v)
-		}
-	}
-	return validatorIdentifiers
 }
 
 // MultiAddresses the address associated with this Peer.

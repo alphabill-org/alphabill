@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -106,6 +107,7 @@ type (
 		t1event                     chan struct{}
 		peer                        *network.Peer
 		rootNodes                   peer.IDSlice
+		validatorNodes              peer.IDSlice
 		network                     ValidatorNetwork
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
@@ -175,6 +177,7 @@ func NewNode(
 		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
+		validatorNodes:              peerConf.Validators,
 		network:                     network,
 		lastLedgerReqTime:           time.Time{},
 		log:                         observe.Logger(),
@@ -253,7 +256,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 }
 
 func (n *Node) Run(ctx context.Context) error {
-	if n.GetPeer().IsValidator() {
+	if n.IsValidatorNode() {
 		// Validator nodes query for the latest UC from root. They retain the status
 		// 'initializing' until the first UC is received. Then they'll know the leader
 		// and can either start a new round or go into recovery.
@@ -287,10 +290,6 @@ func (n *Node) Run(ctx context.Context) error {
 	})
 
 	return g.Wait()
-}
-
-func (n *Node) GetPeer() *network.Peer {
-	return n.peer
 }
 
 func (n *Node) initState(ctx context.Context) (err error) {
@@ -337,7 +336,7 @@ func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfigurat
 	opts := network.DefaultValidatorNetworkOptions
 	opts.TxBufferHashAlgorithm = n.configuration.hashAlgorithm
 
-	n.network, err = network.NewLibP2PValidatorNetwork(ctx, n.SystemIdentifier(), n.peer, opts, observe)
+	n.network, err = network.NewLibP2PValidatorNetwork(ctx, n, opts, observe)
 	if err != nil {
 		return err
 	}
@@ -632,7 +631,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() < lucRoundNumber {
 		return fmt.Errorf("outdated block proposal for round %v, LUC round %v", uc.GetRoundNumber(), lucRoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.peer.Validators())
+	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.validatorNodes)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
@@ -706,6 +705,9 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 	}
 
 	n.luc.Store(uc)
+	// New luc means a new leader
+	n.leaderSelector.UpdateLeader(uc, n.validatorNodes)
+
 	n.log.Debug("updated LUC", logger.Round(uc.GetRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 	return nil
@@ -722,21 +724,16 @@ func (n *Node) startNewRound(ctx context.Context) error {
 		n.log.DebugContext(ctx, "DB proposal delete failed", logger.Error(err))
 	}
 
-	// Although LUC and committedUC certify the same round and the same state hash at this point,
-	// we need to use LUC to calculate the new leader as it might be a repeat UC.
-	luc := n.luc.Load()
-	newRoundNr := luc.GetRoundNumber() + 1
-
-	n.leaderSelector.UpdateLeader(luc, n.peer.Validators())
+	newRoundNumber := n.committedUC().GetRoundNumber() + 1
 	if n.leaderSelector.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
-		if err := n.transactionSystem.BeginBlock(newRoundNr); err != nil {
-			return fmt.Errorf("starting new block for round %d: %w", newRoundNr, err)
+		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
+			return fmt.Errorf("starting new block for round %d: %w", newRoundNumber, err)
 		}
 		n.leaderCnt.Add(ctx, 1)
 	}
 	n.startHandleOrForwardTransactions(ctx)
-	n.sendEvent(event.NewRoundStarted, newRoundNr)
+	n.sendEvent(event.NewRoundStarted, newRoundNumber)
 	return nil
 }
 
@@ -752,7 +749,7 @@ func (n *Node) startRecovery(ctx context.Context) {
 	n.status.Store(recovering)
 	n.revertState()
 	n.resetProposal()
-	if n.GetPeer().IsValidator() {
+	if n.IsValidatorNode() {
 		n.stopForwardingOrHandlingTransactions()
 	}
 
@@ -935,7 +932,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	defer span.End()
 
 	n.stopForwardingOrHandlingTransactions()
-	defer func() { n.leaderSelector.UpdateLeader(nil, n.peer.Validators()) }()
+	defer func() { n.leaderSelector.UpdateLeader(nil, n.validatorNodes) }()
 
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -965,7 +962,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 
 	// check if we have not heard from root validator for T2 timeout + 1 sec
 	// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
-	if n.GetPeer().IsValidator() && time.Since(lastUCReceived) > n.configuration.GetT2Timeout()+time.Second {
+	if n.IsValidatorNode() && time.Since(lastUCReceived) > n.configuration.GetT2Timeout()+time.Second {
 		// query latest UC from root
 		n.sendHandshake(ctx)
 	}
@@ -975,7 +972,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 		n.sendLedgerReplicationRequest(ctx)
 	}
 	// handle block timeout - no new blocks received
-	if !n.GetPeer().IsValidator() && time.Since(lastBlockReceived) > blockSubscriptionTimeout {
+	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > blockSubscriptionTimeout {
 		n.log.WarnContext(ctx, "Block subscription timeout, starting recovery")
 		n.startRecovery(ctx)
 	}
@@ -1114,7 +1111,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	n.sendEvent(event.RecoveryFinished, committedUC.GetRoundNumber())
 	n.status.Store(normal)
 
-	if n.GetPeer().IsValidator() {
+	if n.IsValidatorNode() {
 		if err := n.startNewRound(ctx); err != nil {
 			return err
 		}
@@ -1210,7 +1207,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
 	// TODO: should send to non-validators also
-	peers := n.peer.Validators()
+	peers := n.validatorNodes
 	if len(peers) == 0 {
 		n.log.WarnContext(ctx, "Error sending ledger replication request, no peers")
 		return
@@ -1253,7 +1250,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
 	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
-	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
+	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeId)...)
 }
 
 func (n *Node) persistBlockProposal(pr *types.Block) error {
@@ -1402,8 +1399,30 @@ func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 	return n.luc.Load().GetRoundNumber(), nil
 }
 
-func (n *Node) SystemIdentifier() types.SystemID {
+func (n *Node) SystemID() types.SystemID {
 	return n.configuration.GetSystemIdentifier()
+}
+
+func (n *Node) Peer() *network.Peer {
+	return n.peer
+}
+
+func (n *Node) ValidatorNodes() peer.IDSlice {
+	return n.validatorNodes
+}
+
+func (n *Node) IsValidatorNode() bool {
+	return slices.Contains(n.validatorNodes, n.Peer().ID())
+}
+
+func (n *Node) FilterValidatorNodes(exclude peer.ID) []peer.ID {
+	var result []peer.ID
+	for _, v := range n.validatorNodes {
+		if v != exclude {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 func (n *Node) TransactionSystemState() txsystem.StateReader {

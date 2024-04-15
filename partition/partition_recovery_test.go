@@ -433,7 +433,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
+	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
 }
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
@@ -470,7 +470,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
-	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
+	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
@@ -538,7 +538,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 6)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.EqualValues(t, 0x01010101, tp.partition.SystemIdentifier())
+	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
 }
 
 func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {

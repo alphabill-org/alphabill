@@ -42,7 +42,7 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 		}
 	}()
 
-	network, err := NewLibP2PValidatorNetwork(context.Background(), &MockNode{1, &Peer{host: h}, nil}, opts, observability.Default(t))
+	network, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, &Peer{host: h}, nil}, opts, observability.Default(t))
 	require.NoError(t, err)
 	require.NotNil(t, network)
 }
@@ -51,7 +51,7 @@ func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	obs := observability.Default(t)
 	peer := createPeer(t)
 	defer func() { require.NoError(t, peer.Close()) }()
-	net, err := NewLibP2PValidatorNetwork(context.Background(), &MockNode{1, peer, peer.conf.Validators}, DefaultValidatorNetworkOptions, obs)
+	net, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer, peer.conf.Validators}, DefaultValidatorNetworkOptions, obs)
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
@@ -90,16 +90,16 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	peer3 := createBootstrappedPeer(t, bootstrapPeers, []peer.ID{peer1.ID(), peer2.ID()})
 	defer func() { require.NoError(t, peer3.Close()) }()
 
-	network1, err := NewLibP2PValidatorNetwork(context.Background(), &MockNode{1, peer1, peer1.conf.Validators}, opts, obs)
+	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, peer1.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network1)
 
-	network2, err := NewLibP2PValidatorNetwork(context.Background(), &MockNode{1, peer2, peer2.conf.Validators}, opts, obs)
+	network2, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer2, peer2.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network2)
 	require.NoError(t, peer2.BootstrapConnect(context.Background(), obs.Logger()))
 
-	network3, err := NewLibP2PValidatorNetwork(context.Background(), &MockNode{1, peer3, peer3.conf.Validators}, opts, obs)
+	network3, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer3, peer3.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network3)
 	require.NoError(t, peer3.BootstrapConnect(context.Background(), obs.Logger()))
@@ -178,20 +178,20 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	require.LessOrEqual(t, peer2StreamCount, 1)
 }
 
-type MockNode struct{
+type mockNode struct{
 	systemID       types.SystemID
 	peer           *Peer
 	validatorNodes peer.IDSlice
 }
 
-func (mn *MockNode) SystemID() types.SystemID {
+func (mn *mockNode) SystemID() types.SystemID {
 	return mn.systemID
 }
 
-func (mn *MockNode) Peer() *Peer {
+func (mn *mockNode) Peer() *Peer {
 	return mn.peer
 }
 
-func (mn *MockNode) IsValidatorNode() bool {
+func (mn *mockNode) IsValidatorNode() bool {
 	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }

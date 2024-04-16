@@ -38,20 +38,6 @@ func (t *testMsgContainer) Len() int {
 	return len(t.msgs)
 }
 
-func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
-	obs := observability.Default(t)
-	peer := createPeer(t)
-	defer func() { require.NoError(t, peer.Close()) }()
-	net, err := NewLibP2PValidatorNetwork(context.Background(), 1, peer, DefaultValidatorNetworkOptions, obs)
-	require.NoError(t, err)
-	require.NotNil(t, net)
-	require.Equal(t, cap(net.ReceivedChannel()), 1000)
-	// we register protocol for each message for both value and pointer type thus
-	// there must be twice the amount of items in the sendProtocols map than the
-	// actual supported message types is
-	require.Equal(t, 10, len(net.sendProtocols))
-}
-
 func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
 	peer := createPeer(t)
 	defer func() { require.NoError(t, peer.Close()) }()

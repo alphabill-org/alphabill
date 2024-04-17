@@ -17,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 func TestRunEvmNode_StartStop(t *testing.T) {

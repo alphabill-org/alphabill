@@ -10,12 +10,13 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
@@ -126,7 +127,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close free credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
-		if sm.ActualFee > 0 && !transactions.IsFeeCreditTx(tx) {
+		if sm.ActualFee > 0 && !fc.IsFeeCreditTx(tx) {
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				m.state.RollbackToSavepoint(savepointID)

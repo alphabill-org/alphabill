@@ -5,29 +5,23 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const MaxPredicateBinSize = 65536
 
 type (
-	Predicate struct {
-		_      struct{} `cbor:",toarray"`
-		Tag    uint64
-		Code   []byte
-		Params []byte
-	}
-
 	PredicateEngine interface {
 		// unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
 		// to the engine which is supposed to evaluate it.
 		ID() uint64
 		// executes given predicate
-		Execute(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+		Execute(ctx context.Context, predicate *templates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 	}
 
-	PredicateEngines map[uint64]func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	PredicateEngines map[uint64]func(ctx context.Context, predicate *templates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 
 	// environment where predicate runs (AKA transaction execution context)
 	// This is meant to provide the predicate engine with access to the
@@ -39,16 +33,8 @@ type (
 	}
 )
 
-func (p Predicate) AsBytes() (types.PredicateBytes, error) {
-	buf, err := types.Cbor.Marshal(p)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-func ExtractPredicate(predicateBytes []byte) (*Predicate, error) {
-	predicate := &Predicate{}
+func ExtractPredicate(predicateBytes []byte) (*templates.Predicate, error) {
+	predicate := &templates.Predicate{}
 	if err := types.Cbor.Unmarshal(predicateBytes, predicate); err != nil {
 		return nil, err
 	}

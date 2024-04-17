@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] {
@@ -29,7 +29,7 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 
 		// update validator assigment record epoch number
 		updateUnitFunc := state.UpdateUnitData(tx.UnitID(),
-			func(data state.UnitData) (state.UnitData, error) {
+			func(data types.UnitData) (types.UnitData, error) {
 				vd, ok := data.(*VarData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain var data", tx.UnitID())

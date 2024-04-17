@@ -5,8 +5,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -14,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -84,7 +86,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err, "evm deploy tx failed")
 	require.EqualValues(t, deployContractTx, txRecord.TransactionOrder)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
-	var details ProcessingDetails
+	var details evm.ProcessingDetails
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
@@ -145,7 +147,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	var details ProcessingDetails
+	var details evm.ProcessingDetails
 	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
@@ -223,7 +225,7 @@ func newGenesisState(t *testing.T, initialAccountAddress []byte, initialAccountB
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {
-	evmAttr := &TxAttributes{
+	evmAttr := &evm.TxAttributes{
 		From:  from,
 		To:    to,
 		Value: big.NewInt(1000),
@@ -234,7 +236,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
+			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -245,7 +247,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 }
 
 func createCallContractTx(from []byte, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
-	evmAttr := &TxAttributes{
+	evmAttr := &evm.TxAttributes{
 		From:  from,
 		To:    addr.Bytes(),
 		Data:  methodID,
@@ -257,7 +259,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
+			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -268,7 +270,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 }
 
 func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
-	evmAttr := &TxAttributes{
+	evmAttr := &evm.TxAttributes{
 		From:  from,
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
@@ -279,7 +281,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           PayloadTypeEVMCall,
+			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},

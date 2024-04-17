@@ -9,26 +9,27 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 var (
-	systemIdentifier = DefaultSystemIdentifier
+	systemIdentifier = money.DefaultSystemID
 
 	pubKey1  = "0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 	privKey1 = "0xa5e8bff9733ebc751a45ca4b8cc6ce8e76c8316a5eb556f738092df6232e78de"
@@ -77,14 +78,14 @@ func TestPartition_Ok(t *testing.T) {
 		),
 		testtransaction.WithUnitID(ib.ID),
 		testtransaction.WithOwnerProof(nil),
-		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
+		testtransaction.WithPayloadType(fcsdk.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
 	require.NoError(t, err, "transfer fee credit tx failed")
 	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, ib.ID, transferFC)
 	require.NoError(t, err)
-	var billState BillData
+	var billState money.BillData
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&billState))
 	require.Equal(t, moneyInvariant-fcrAmount, billState.V)
 
@@ -102,7 +103,7 @@ func TestPartition_Ok(t *testing.T) {
 		),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithOwnerProof(nil),
-		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
+		testtransaction.WithPayloadType(fcsdk.PayloadTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
 
@@ -114,7 +115,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
 
 	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
-	var feeBillState unit.FeeCreditRecord
+	var feeBillState fcsdk.FeeCreditRecord
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance := fcrAmount - transferFCRecord.ServerMetadata.ActualFee - addTxRecord.ServerMetadata.ActualFee
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
@@ -133,9 +134,9 @@ func TestPartition_Ok(t *testing.T) {
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
-	targetUnit := &TargetUnit{Amount: amountPK2, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
+	targetUnit := &money.TargetUnit{Amount: amountPK2, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
 	remainingValue := total - fcrAmount - amountPK2
-	tx := createSplitTx(t, ib.ID, 2, []*TargetUnit{targetUnit}, remainingValue)
+	tx := createSplitTx(t, ib.ID, 2, []*money.TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, tx)
 	require.NoError(t, err, "money split tx failed")
@@ -147,13 +148,13 @@ func TestPartition_Ok(t *testing.T) {
 	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)
 
 	// wrong partition tx
-	tx = createSplitTx(t, ib.ID, 3, []*TargetUnit{targetUnit}, remainingValue)
+	tx = createSplitTx(t, ib.ID, 3, []*money.TargetUnit{targetUnit}, remainingValue)
 	tx.Payload.SystemID = 0x01010101
 	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid transaction system identifier")
 	// and fee unit is not changed
 	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
-	require.Equal(t, remainingFeeBalance, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, remainingFeeBalance, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
 
 	for _, n := range moneyPrt.Nodes {
 		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)
@@ -167,7 +168,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	var (
 		txsState    *state.State
 		initialBill = &InitialBill{
-			ID:    NewBillID(nil, []byte{1}),
+			ID:    money.NewBillID(nil, []byte{1}),
 			Value: moneyInvariant,
 			Owner: templates.AlwaysTrueBytes(),
 		}
@@ -204,7 +205,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		),
 		testtransaction.WithUnitID(initialBill.ID),
 		testtransaction.WithOwnerProof(nil),
-		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
+		testtransaction.WithPayloadType(fcsdk.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
@@ -212,7 +213,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// check that frcAmount is credited from initial bill
 	bill, err := txsState.GetUnit(initialBill.ID, true)
 	require.NoError(t, err)
-	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*BillData).V)
+	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*money.BillData).V)
 	// send addFC
 	addFC := testutils.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
 		testutils.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
@@ -222,7 +223,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithOwnerProof(nil),
-		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
+		testtransaction.WithPayloadType(fcsdk.PayloadTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
 	// before reading state make sure that node 2 has executed the transfer
@@ -231,7 +232,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
 	feeCredit, err := txsState.GetUnit(fcrID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
@@ -242,7 +243,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.EqualValues(t, transferInitialBillTx, txRecord.TransactionOrder)
 	feeCredit, err = txsState.GetUnit(fcrID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-3, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
 
 	// split initial bill using N-way split where N=nofDustToSwap
 	amount := uint64(1)
@@ -250,9 +251,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 	total -= fcrAmount
 
-	var targetUnits []*TargetUnit
+	var targetUnits []*money.TargetUnit
 	for i := 0; i < nofDustToSwap; i++ {
-		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))})
+		targetUnits = append(targetUnits, &money.TargetUnit{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))})
 		total -= amount
 		amount++
 	}
@@ -267,7 +268,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, nofDustToSwap)
 	for i := 0; i < nofDustToSwap; i++ {
-		dcBillIds[i] = NewBillID(nil, unitIDFromTransaction(splitTx, util.Uint32ToBytes(uint32(i))))
+		dcBillIds[i] = money.NewBillID(nil, unitIDFromTransaction(splitTx, util.Uint32ToBytes(uint32(i))))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {
@@ -283,7 +284,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 
 	// create swap order
-	swapAttr := &SwapDCAttributes{
+	swapAttr := &money.SwapDCAttributes{
 		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)),
 		DcTransfers:      dcRecords,
 		DcTransferProofs: dcRecordsProofs,
@@ -296,7 +297,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:   systemIdentifier,
-			Type:       PayloadTypeSwapDC,
+			Type:       money.PayloadTypeSwapDC,
 			UnitID:     initialBill.ID,
 			Attributes: swapBytes,
 			ClientMetadata: &types.ClientMetadata{
@@ -318,7 +319,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 }
 
-func createSplitTx(t *testing.T, fromID []byte, counter uint64, targetUnits []*TargetUnit, remaining uint64) *types.TransactionOrder {
+func createSplitTx(t *testing.T, fromID []byte, counter uint64, targetUnits []*money.TargetUnit, remaining uint64) *types.TransactionOrder {
 	tx, _ := createSplit(t, fromID, targetUnits, remaining, counter)
 	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
 	return tx
@@ -360,5 +361,5 @@ func decodeHex(hex string) []byte {
 }
 
 func newBillID(unitPart byte) types.UnitID {
-	return NewBillID(nil, []byte{unitPart})
+	return money.NewBillID(nil, []byte{unitPart})
 }

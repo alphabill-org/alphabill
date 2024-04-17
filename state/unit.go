@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"hash"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type (
@@ -15,17 +14,10 @@ type (
 		logs                []*Log               // state changes of the unit during the current round
 		logsHash            []byte               // root value of the hash tree built on the logs
 		bearer              types.PredicateBytes // current bearer condition
-		data                UnitData             // current data of the unit
+		data                types.UnitData       // current data of the unit
 		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
 		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
-	}
-
-	// UnitData is a generic data type for the unit state.
-	UnitData interface {
-		Write(hasher hash.Hash) error
-		SummaryValueInput() uint64
-		Copy() UnitData
 	}
 
 	// Log contains a state changes of the unit during the transaction execution.
@@ -33,11 +25,11 @@ type (
 		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
 		NewBearer          types.PredicateBytes
-		NewUnitData        UnitData
+		NewUnitData        types.UnitData
 	}
 )
 
-func NewUnit(bearer types.PredicateBytes, data UnitData) *Unit {
+func NewUnit(bearer types.PredicateBytes, data types.UnitData) *Unit {
 	return &Unit{
 		bearer: bearer,
 		data:   data,
@@ -65,7 +57,7 @@ func (u *Unit) Bearer() types.PredicateBytes {
 	return bytes.Clone(u.bearer)
 }
 
-func (u *Unit) Data() UnitData {
+func (u *Unit) Data() types.UnitData {
 	return copyData(u.data)
 }
 
@@ -77,7 +69,7 @@ func (u *Unit) LastLogIndex() int {
 	return len(u.logs) - 1
 }
 
-func MarshalUnitData(u UnitData) ([]byte, error) {
+func MarshalUnitData(u types.UnitData) ([]byte, error) {
 	return types.Cbor.Marshal(u)
 }
 
@@ -125,7 +117,7 @@ func (u *Unit) latestUnitBearer() []byte {
 	return u.logs[l-1].NewBearer
 }
 
-func (u *Unit) latestUnitData() UnitData {
+func (u *Unit) latestUnitData() types.UnitData {
 	l := len(u.logs)
 	if l == 0 {
 		return u.data

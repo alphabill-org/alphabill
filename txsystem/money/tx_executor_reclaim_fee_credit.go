@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
@@ -19,8 +21,8 @@ var (
 	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
-func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[fc.ReclaimFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -29,7 +31,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
-		bdd, ok := unit.Data().(*BillData)
+		bdd, ok := unit.Data().(*money.BillData)
 		if !ok {
 			return nil, errors.New("reclaimFC: invalid unit type")
 		}
@@ -41,7 +43,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 		// calculate actual tx fee cost
 		fee := m.feeCalculator()
 
-		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
+		closeFCAttr := &fc.CloseFeeCreditAttributes{}
 		closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
 		if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
 			return nil, fmt.Errorf("reclaimFC: failed to unmarshal close fee credit attributes: %w", err)
@@ -49,8 +51,8 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 
 		// add reclaimed value to source unit
 		v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
-		updateFunc := func(data state.UnitData) (state.UnitData, error) {
-			newBillData, ok := data.(*BillData)
+		updateFunc := func(data types.UnitData) (types.UnitData, error) {
+			newBillData, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
@@ -78,7 +80,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 	}
 }
 
-func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, bd *money.BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxNil
 	}
@@ -93,7 +95,7 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFee
 	}
 
 	closeFeeCreditTx := attr.CloseFeeCreditTransfer
-	closeFCAttr := &transactions.CloseFeeCreditAttributes{}
+	closeFCAttr := &fc.CloseFeeCreditAttributes{}
 	if err := closeFeeCreditTx.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
 		return fmt.Errorf("invalid close fee credit attributes: %w", err)
 	}

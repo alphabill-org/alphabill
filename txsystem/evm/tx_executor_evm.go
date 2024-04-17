@@ -6,25 +6,19 @@ import (
 	"log/slog"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	evmsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-)
 
-type ProcessingDetails struct {
-	_            struct{} `cbor:",toarray"`
-	ErrorDetails string
-	ReturnData   []byte
-	ContractAddr common.Address
-	Logs         []*statedb.LogEntry
-}
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+)
 
 func errorToStr(err error) string {
 	if err != nil {
@@ -32,12 +26,9 @@ func errorToStr(err error) string {
 	}
 	return ""
 }
-func (d *ProcessingDetails) Bytes() ([]byte, error) {
-	return types.Cbor.Marshal(d)
-}
 
-func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {
-	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
+func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[evmsdk.TxAttributes] {
+	return func(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(opts.state, log)
 		if !stateDB.Exist(from) {
@@ -57,7 +48,7 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	return cost.Mul(cost, gasPrice)
 }
 
-func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
@@ -92,7 +83,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		// Deriving the signer is expensive, only do if it's actually needed
 		contractAddress = ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce)
 	}
-	evmProcessingDetails := &ProcessingDetails{
+	evmProcessingDetails := &evmsdk.ProcessingDetails{
 		ReturnData:   execResult.ReturnData,
 		ContractAddr: contractAddress,
 		ErrorDetails: errorToStr(errorDetail),
@@ -141,7 +132,7 @@ func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 	}
 }
 
-func NewTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
+func NewTxContext(attr *evmsdk.TxAttributes, gasPrice *big.Int) vm.TxContext {
 	return vm.TxContext{
 		Origin:   common.BytesToAddress(attr.From),
 		GasPrice: gasPrice,
@@ -158,7 +149,7 @@ func NewVMConfig() vm.Config {
 }
 
 // validate - validate EVM call attributes
-func validate(attr *TxAttributes) error {
+func validate(attr *evmsdk.TxAttributes) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}

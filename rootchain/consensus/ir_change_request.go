@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type CertReqReason uint8

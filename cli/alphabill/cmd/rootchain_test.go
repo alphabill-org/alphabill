@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -159,14 +159,14 @@ func Test_StartMonolithicNode(t *testing.T) {
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
 		n, err := network.NewLibP2PValidatorNetwork(
-			context.Background(), money.DefaultSystemIdentifier, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+			context.Background(), money.DefaultSystemID, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -286,13 +286,13 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
 		n, err := network.NewLibP2PValidatorNetwork(
-			context.Background(), money.DefaultSystemIdentifier, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+			context.Background(), money.DefaultSystemID, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil

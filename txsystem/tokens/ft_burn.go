@@ -5,19 +5,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
 	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
 )
 
-func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.BurnFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, currentBlockNo uint64) (*types.ServerMetadata, error) {
 		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
@@ -30,8 +32,8 @@ func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecu
 
 		// 2. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
 		updateUnitFn := state.UpdateUnitData(unitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				ftData, ok := data.(*FungibleTokenData)
+			func(data types.UnitData) (types.UnitData, error) {
+				ftData, ok := data.(*tokens.FungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
@@ -49,7 +51,7 @@ func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecu
 	}
 }
 
-func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -70,12 +72,12 @@ func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOr
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
-	err = runChainedPredicates[*FungibleTokenTypeData](
+	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
-		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeId, d.InvariantPredicate
 		},
 		m.state.GetUnit,
@@ -84,65 +86,4 @@ func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOr
 		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
 	return nil
-}
-
-func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
-	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &BurnFungibleTokenAttributes{
-		TypeID:                       b.TypeID,
-		Value:                        b.Value,
-		TargetTokenID:                b.TargetTokenID,
-		TargetTokenBacklink:          b.TargetTokenBacklink,
-		Backlink:                     b.Backlink,
-		InvariantPredicateSignatures: nil,
-	}
-	return types.Cbor.Marshal(signatureAttr)
-}
-
-func (b *BurnFungibleTokenAttributes) GetTypeID() types.UnitID {
-	return b.TypeID
-}
-
-func (b *BurnFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
-	b.TypeID = typeID
-}
-
-func (b *BurnFungibleTokenAttributes) GetValue() uint64 {
-	return b.Value
-}
-
-func (b *BurnFungibleTokenAttributes) SetValue(value uint64) {
-	b.Value = value
-}
-
-func (b *BurnFungibleTokenAttributes) GetTargetTokenID() []byte {
-	return b.TargetTokenID
-}
-
-func (b *BurnFungibleTokenAttributes) SetTargetTokenID(targetTokenID []byte) {
-	b.TargetTokenID = targetTokenID
-}
-
-func (b *BurnFungibleTokenAttributes) GetTargetTokenBacklink() []byte {
-	return b.TargetTokenBacklink
-}
-
-func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(targetTokenBacklink []byte) {
-	b.TargetTokenBacklink = targetTokenBacklink
-}
-
-func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {
-	return b.Backlink
-}
-
-func (b *BurnFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	b.Backlink = backlink
-}
-
-func (b *BurnFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
-	return b.InvariantPredicateSignatures
-}
-
-func (b *BurnFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
-	b.InvariantPredicateSignatures = signatures
 }

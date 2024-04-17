@@ -3,10 +3,11 @@ package tokens
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*LockTokensModule)(nil)
@@ -29,7 +30,7 @@ func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
 
 func (n *LockTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeLockToken:   n.handleLockTokenTx().ExecuteFunc(),
-		PayloadTypeUnlockToken: n.handleUnlockTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeLockToken:   n.handleLockTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeUnlockToken: n.handleUnlockTokenTx().ExecuteFunc(),
 	}
 }

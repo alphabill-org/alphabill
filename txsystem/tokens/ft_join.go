@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.JoinFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *tokens.JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		sum, err := m.validateJoinFungibleToken(tx, attr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
@@ -23,12 +24,12 @@ func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecu
 		h := tx.Hash(m.hashAlgorithm)
 		if err := m.state.Apply(
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*FungibleTokenData)
+				func(data types.UnitData) (types.UnitData, error) {
+					d, ok := data.(*tokens.FungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					return &FungibleTokenData{
+					return &tokens.FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     sum,
 						T:         currentBlockNr,
@@ -42,7 +43,7 @@ func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecu
 	}
 }
 
-func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes) (uint64, error) {
+func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOrder, attr *tokens.JoinFungibleTokenAttributes) (uint64, error) {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return 0, err
@@ -55,7 +56,7 @@ func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOr
 	sum := d.Value
 	for i, btx := range transactions {
 		prevSum := sum
-		btxAttr := &BurnFungibleTokenAttributes{}
+		btxAttr := &tokens.BurnFungibleTokenAttributes{}
 		if err := btx.TransactionOrder.UnmarshalAttributes(btxAttr); err != nil {
 			return 0, fmt.Errorf("failed to unmarshal burn fungible token attributes")
 		}
@@ -89,12 +90,12 @@ func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOr
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
 		return 0, fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
-	err = runChainedPredicates[*FungibleTokenTypeData](
+	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
-		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeId, d.InvariantPredicate
 		},
 		m.state.GetUnit,
@@ -103,47 +104,4 @@ func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOr
 		return 0, fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
 	return sum, nil
-}
-
-func (j *JoinFungibleTokenAttributes) SigBytes() ([]byte, error) {
-	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &JoinFungibleTokenAttributes{
-		BurnTransactions:             j.BurnTransactions,
-		Proofs:                       j.Proofs,
-		Backlink:                     j.Backlink,
-		InvariantPredicateSignatures: nil,
-	}
-	return types.Cbor.Marshal(signatureAttr)
-}
-
-func (j *JoinFungibleTokenAttributes) GetBurnTransactions() []*types.TransactionRecord {
-	return j.BurnTransactions
-}
-
-func (j *JoinFungibleTokenAttributes) SetBurnTransactions(burnTransactions []*types.TransactionRecord) {
-	j.BurnTransactions = burnTransactions
-}
-
-func (j *JoinFungibleTokenAttributes) GetProofs() []*types.TxProof {
-	return j.Proofs
-}
-
-func (j *JoinFungibleTokenAttributes) SetProofs(proofs []*types.TxProof) {
-	j.Proofs = proofs
-}
-
-func (j *JoinFungibleTokenAttributes) GetBacklink() []byte {
-	return j.Backlink
-}
-
-func (j *JoinFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	j.Backlink = backlink
-}
-
-func (j *JoinFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
-	return j.InvariantPredicateSignatures
-}
-
-func (j *JoinFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
-	j.InvariantPredicateSignatures = signatures
 }

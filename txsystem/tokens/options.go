@@ -6,16 +6,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
 )
-
-const DefaultSystemIdentifier types.SystemID = 0x00000002
 
 type (
 	Options struct {
@@ -40,8 +40,8 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemIdentifier:        DefaultSystemIdentifier,
-		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
+		systemIdentifier:        tokens.DefaultSystemID,
+		moneyTXSystemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:           gocrypto.SHA256,
 		feeCalculator:           fc.FixedFee(1),
 		trustBase:               map[string]crypto.Verifier{},
@@ -138,30 +138,30 @@ func (*tokenExecEnv) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 
 func attrType(payloadType string) (types.SigBytesProvider, error) {
 	switch payloadType {
-	case PayloadTypeCreateNFTType:
-		return &CreateNonFungibleTokenTypeAttributes{}, nil
-	case PayloadTypeMintNFT:
-		return &MintNonFungibleTokenAttributes{}, nil
-	case PayloadTypeTransferNFT:
-		return &TransferNonFungibleTokenAttributes{}, nil
-	case PayloadTypeUpdateNFT:
-		return &UpdateNonFungibleTokenAttributes{}, nil
-	case PayloadTypeCreateFungibleTokenType:
-		return &CreateFungibleTokenTypeAttributes{}, nil
-	case PayloadTypeMintFungibleToken:
-		return &MintFungibleTokenAttributes{}, nil
-	case PayloadTypeTransferFungibleToken:
-		return &TransferFungibleTokenAttributes{}, nil
-	case PayloadTypeSplitFungibleToken:
-		return &SplitFungibleTokenAttributes{}, nil
-	case PayloadTypeBurnFungibleToken:
-		return &BurnFungibleTokenAttributes{}, nil
-	case PayloadTypeJoinFungibleToken:
-		return &JoinFungibleTokenAttributes{}, nil
-	case PayloadTypeLockToken:
-		return &LockTokenAttributes{}, nil
-	case PayloadTypeUnlockToken:
-		return &UnlockTokenAttributes{}, nil
+	case tokens.PayloadTypeCreateNFTType:
+		return &tokens.CreateNonFungibleTokenTypeAttributes{}, nil
+	case tokens.PayloadTypeMintNFT:
+		return &tokens.MintNonFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeTransferNFT:
+		return &tokens.TransferNonFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeUpdateNFT:
+		return &tokens.UpdateNonFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeCreateFungibleTokenType:
+		return &tokens.CreateFungibleTokenTypeAttributes{}, nil
+	case tokens.PayloadTypeMintFungibleToken:
+		return &tokens.MintFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeTransferFungibleToken:
+		return &tokens.TransferFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeSplitFungibleToken:
+		return &tokens.SplitFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeBurnFungibleToken:
+		return &tokens.BurnFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeJoinFungibleToken:
+		return &tokens.JoinFungibleTokenAttributes{}, nil
+	case tokens.PayloadTypeLockToken:
+		return &tokens.LockTokenAttributes{}, nil
+	case tokens.PayloadTypeUnlockToken:
+		return &tokens.UnlockTokenAttributes{}, nil
 	}
 	return nil, fmt.Errorf("unknown payload type %q", payloadType)
 }

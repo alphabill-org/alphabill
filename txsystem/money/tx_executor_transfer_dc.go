@@ -3,13 +3,15 @@ package money
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[money.TransferDCAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		if err := m.validateTransferDCTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
@@ -20,8 +22,8 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 
 		// 2. UpdateData(ι0, f′), where f′ : D.v → D.v + N[ι].D.v – increase DC money supply by N[ι].D.v
 		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
@@ -32,8 +34,8 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 
 		// 3. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
 		updateUnitFn := state.UpdateUnitData(unitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 				}
@@ -61,7 +63,7 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 	}
 }
 
-func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes) error {
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -72,6 +74,6 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *Transfer
 	return validateTransferDC(unit.Data(), attr)
 }
 
-func validateTransferDC(data state.UnitData, tx *TransferDCAttributes) error {
+func validateTransferDC(data types.UnitData, tx *money.TransferDCAttributes) error {
 	return validateAnyTransfer(data, tx.Counter, tx.Value)
 }

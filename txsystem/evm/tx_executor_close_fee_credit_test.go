@@ -5,25 +5,27 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
+	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCreditAttributes, signer abcrypto.Signer, timeout uint64) *types.TransactionOrder {
+func newCloseFCTx(t *testing.T, unitID []byte, attr *fcsdk.CloseFeeCreditAttributes, signer abcrypto.Signer, timeout uint64) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
-		Payload: newTxPayload(t, transactions.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr),
+		Payload: newTxPayload(t, fcsdk.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr),
 	}
 	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 	return tx
@@ -43,18 +45,18 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		tree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil))
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 			&types.TransactionRecord{
-				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(amount), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+				TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(amount), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID)),
 					testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
 	backlink := addFeeOrder.Hash(crypto.SHA256)
-	attr := new(transactions.AddFeeCreditAttributes)
+	attr := new(fcsdk.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 	metaData, err := addExecFn(addFeeOrder, attr, 5)
 	require.NotNil(t, metaData)
@@ -77,7 +79,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		stateTree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil),
 		logger.New(t))
 
 	tests := []struct {
@@ -111,7 +113,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			attr := new(transactions.CloseFeeCreditAttributes)
+			attr := new(fcsdk.CloseFeeCreditAttributes)
 			require.NoError(t, tt.args.order.UnmarshalAttributes(attr))
 			metaData, err := closeExecFn(tt.args.order, attr, tt.args.blockNumber)
 			if tt.wantErrStr != "" {
@@ -144,7 +146,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		stateTree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil),
 		log)
 
 	// create close order
@@ -158,7 +160,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		signer,
 		7,
 	)
-	closeAttr := new(transactions.CloseFeeCreditAttributes)
+	closeAttr := new(fcsdk.CloseFeeCreditAttributes)
 	require.NoError(t, closeOrder.UnmarshalAttributes(closeAttr))
 
 	// first add fee credit

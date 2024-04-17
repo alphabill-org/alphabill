@@ -3,7 +3,7 @@ package testsig
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/stretchr/testify/require"
 )
 

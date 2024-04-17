@@ -4,11 +4,11 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {
 	attr := testfc.NewCloseFCAttr()
 	tx := testfc.NewCloseFC(t, attr)
 
-	existingFCR := &unit.FeeCreditRecord{Locked: 1}
+	existingFCR := &fc.FeeCreditRecord{Locked: 1}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
 	sm, err := execFn(tx, attr, 10)
@@ -52,7 +52,7 @@ func TestCloseFC_UpdatesBacklink(t *testing.T) {
 	// create existing fee credit record for closeFC
 	attr := testfc.NewCloseFCAttr()
 	tx := testfc.NewCloseFC(t, attr)
-	existingFCR := &unit.FeeCreditRecord{Balance: 50}
+	existingFCR := &fc.FeeCreditRecord{Balance: 50}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
 	// execute closeFC transaction
@@ -63,7 +63,7 @@ func TestCloseFC_UpdatesBacklink(t *testing.T) {
 	// verify closeFC updated the FCR.Backlink
 	fcrUnit, err := s.GetUnit(tx.UnitID(), false)
 	require.NoError(t, err)
-	fcr, ok := fcrUnit.Data().(*unit.FeeCreditRecord)
+	fcr, ok := fcrUnit.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 	require.Equal(t, tx.Hash(crypto.SHA256), fcr.Backlink)
 }

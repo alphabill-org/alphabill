@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 // VarData Validator Assignment Record Data
@@ -27,7 +26,7 @@ func (b *VarData) SummaryValueInput() uint64 {
 	return 0 // no summary value checks in orchestration partition
 }
 
-func (b *VarData) Copy() state.UnitData {
+func (b *VarData) Copy() types.UnitData {
 	return &VarData{
 		EpochNumber: b.EpochNumber,
 	}

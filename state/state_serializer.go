@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/tree/mt"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/tree/mt"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/fxamacker/cbor/v2"
 )
 

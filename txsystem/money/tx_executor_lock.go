@@ -4,15 +4,17 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
-func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
-	return func(tx *types.TransactionOrder, attr *LockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[money.LockAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.LockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -21,7 +23,7 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
-		billData, ok := unit.Data().(*BillData)
+		billData, ok := unit.Data().(*money.BillData)
 		if !ok {
 			return nil, errors.New("lock tx: invalid unit type")
 		}
@@ -29,8 +31,8 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 			return nil, fmt.Errorf("lock tx: validation failed: %w", err)
 		}
 		// lock the unit
-		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-			newBillData, ok := data.(*BillData)
+		action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			newBillData, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
@@ -46,7 +48,7 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 	}
 }
 
-func validateLockTx(attr *LockAttributes, bd *BillData) error {
+func validateLockTx(attr *money.LockAttributes, bd *money.BillData) error {
 	if attr == nil {
 		return ErrTxAttrNil
 	}

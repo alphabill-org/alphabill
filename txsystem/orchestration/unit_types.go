@@ -3,8 +3,7 @@ package orchestration
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 const (
@@ -23,7 +22,7 @@ func NewVarID(shardPart []byte, unitPart []byte) types.UnitID {
 }
 
 // NewVarData return new Validator Assignment Record Unit Data
-func NewVarData(unitID types.UnitID) (state.UnitData, error) {
+func NewVarData(unitID types.UnitID) (types.UnitData, error) {
 	if unitID.HasType(VarUnitType) {
 		return &VarData{}, nil
 	}

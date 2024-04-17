@@ -3,10 +3,11 @@ package tokens
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = &NonFungibleTokensModule{}
@@ -29,9 +30,9 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 
 func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
-		PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
+		tokens.PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),
 	}
 }

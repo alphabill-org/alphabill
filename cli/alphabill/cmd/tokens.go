@@ -9,6 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	tokenssdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
@@ -59,7 +61,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, utDir, utGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, tokens.NewUnitData)
+	state, err := loadStateFile(stateFilePath, tokenssdk.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}

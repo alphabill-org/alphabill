@@ -11,13 +11,15 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	moneysdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 const (
@@ -30,14 +32,14 @@ const (
 )
 
 var (
-	defaultInitialBillID    = money.NewBillID(nil, []byte{1})
+	defaultInitialBillID    = moneysdk.NewBillID(nil, []byte{1})
 	defaultInitialBillOwner = templates.AlwaysTrueBytes()
 
 	defaultMoneySDR = &types.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        defaultT2Timeout,
 		FeeCreditBill: &types.FeeCreditBill{
-			UnitID:         money.NewBillID(nil, []byte{2}),
+			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}
@@ -76,7 +78,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	addSystemIDFlag(cmd, &systemID, money.DefaultSystemIdentifier)
+	addSystemIDFlag(cmd, &systemID, moneysdk.DefaultSystemID)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/money/node-genesis-state.cbor)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
@@ -215,7 +217,7 @@ func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 }
 
 func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
-	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &money.BillData{
+	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &moneysdk.BillData{
 		V:       config.InitialBillValue,
 		T:       0,
 		Counter: 0,
@@ -227,7 +229,7 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 }
 
 func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConfig) error {
-	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &money.BillData{
+	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &moneysdk.BillData{
 		V:       config.DCMoneySupplyValue,
 		T:       0,
 		Counter: 0,
@@ -253,14 +255,14 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		if fcb == nil {
 			return fmt.Errorf("fee credit bill is nil in system description record")
 		}
-		if !fcb.UnitID.HasType(money.BillUnitType) {
+		if !fcb.UnitID.HasType(moneysdk.BillUnitType) {
 			return fmt.Errorf("fee credit bill ID has wrong unit type")
 		}
 		if bytes.Equal(fcb.UnitID, money.DustCollectorMoneySupplyID) || bytes.Equal(fcb.UnitID, config.InitialBillID) {
 			return fmt.Errorf("fee credit bill ID may not be equal to DC money supply ID or initial bill ID")
 		}
 
-		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &money.BillData{
+		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &moneysdk.BillData{
 			V:       0,
 			T:       0,
 			Counter: 0,

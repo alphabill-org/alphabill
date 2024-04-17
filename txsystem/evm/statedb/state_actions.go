@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -29,7 +29,7 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 
 // UpdateEthAccountAddCredit - increments the balance and updates free credit link
 func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, transactionRecordHash []byte) state.Action {
-	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
+	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)
@@ -47,7 +47,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, 
 
 // UpdateEthAccountCloseCredit - decrements the balance and updates free credit link
 func UpdateEthAccountCloseCredit(id types.UnitID, value *big.Int, txHash []byte) state.Action {
-	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
+	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)
@@ -65,7 +65,7 @@ func UpdateEthAccountCloseCredit(id types.UnitID, value *big.Int, txHash []byte)
 
 // SetBalance - set balance to value
 func SetBalance(id types.UnitID, value *big.Int) state.Action {
-	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
+	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)

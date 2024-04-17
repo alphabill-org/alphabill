@@ -3,15 +3,15 @@ package fc
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.LockFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.LockFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[fc.LockFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 
 		bd, _ := f.state.GetUnit(unitID, false)
@@ -25,8 +25,8 @@ func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transaction
 		fee := f.feeCalculator()
 		txHash := tx.Hash(f.hashAlgorithm)
 		updateFunc := state.UpdateUnitData(unitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				fcr, ok := data.(*fcunit.FeeCreditRecord)
+			func(data types.UnitData) (types.UnitData, error) {
+				fcr, ok := data.(*fc.FeeCreditRecord)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fee credit record", unitID)
 				}

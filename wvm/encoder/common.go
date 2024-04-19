@@ -48,6 +48,8 @@ func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) u
 		return enc.txRecord(t, ver, getHandle)
 	case []byte:
 		return t, nil
+	case types.RawCBOR:
+		return t, nil
 	}
 	return nil, fmt.Errorf("no encoder for %T", obj)
 }
@@ -137,7 +139,7 @@ func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id AttrEnc
 
 const (
 	// The latest SDK version this encoder (TXSystemEncoder) is aware of.
-	// Note taht attribute and unit data encoders registered with it might
+	// Note that attribute and unit data encoders registered with it might
 	// support different SDK versions (could be both lower or higher!).
 	sdk_version = 1
 

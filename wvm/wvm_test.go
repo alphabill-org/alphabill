@@ -42,7 +42,7 @@ var ticketsWasm []byte
 
 func Test_conference_tickets(t *testing.T) {
 
-	// conference organiser
+	// conference organizer
 	signerOrg, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	verifierOrg, err := signerOrg.Verifier()
@@ -68,6 +68,13 @@ func Test_conference_tickets(t *testing.T) {
 
 	// create tx record and tx proof pair for money transfer and serialize them into
 	// CBOR array usable as predicate argument for mint and update token tx
+	// Type used by wallet to serialize tx proofs into file is struct
+	// type Proof struct {
+	// 	_        struct{}                 `cbor:",toarray"`
+	// 	TxRecord *types.TransactionRecord `json:"txRecord"`
+	// 	TxProof  *types.TxProof           `json:"txProof"`
+	// }
+	// but we construct it manually out of raw CBOR arrays
 	predicateArgs := func(t *testing.T, value uint64, refNo []byte) []byte {
 		// attendee transfers to the organizer
 		txPayment := &types.TransactionOrder{
@@ -99,6 +106,10 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, err)
 
 		b, err = cbor.Marshal(append(args, b))
+		require.NoError(t, err)
+
+		// and wrap it into another array
+		b, err = cbor.Marshal([]types.RawCBOR{b})
 		require.NoError(t, err)
 		return b
 	}
@@ -153,7 +164,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res)
 
-		// hakich way to change current round past D1 so now should eval to "false"
+		// hackish way to change current round past D1 so now should eval to "false"
 		env.curRound = func() uint64 { return D1 + 1 }
 		start = time.Now()
 		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)

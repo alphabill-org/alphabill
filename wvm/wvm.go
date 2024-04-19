@@ -109,6 +109,26 @@ func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
 	return e, nil
 }
 
+/*
+getBytesVariable returns "[]byte compatible" variable as []byte (the getVar
+generic implementation can only return exact type, not underlying type)
+*/
+func (vmc *VmContext) getBytesVariable(handle uint64) ([]byte, error) {
+	v, ok := vmc.curPrg.vars[handle]
+	if !ok {
+		return nil, fmt.Errorf("variable with handle %d not found", handle)
+	}
+
+	switch d := v.(type) {
+	case []byte:
+		return d, nil
+	case types.RawCBOR:
+		return d, nil
+	default:
+		return nil, fmt.Errorf("can't handle var of type %T", v)
+	}
+}
+
 func (vmc *VmContext) EndEval() {
 	vmc.curPrg.mod = nil
 	vmc.curPrg.sdkVer = 0

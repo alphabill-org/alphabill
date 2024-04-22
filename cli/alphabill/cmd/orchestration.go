@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	sdkorchestration "github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -65,7 +66,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, orchestrationPartitionDir, orchestrationGenesisFileName)
 	}
-	state, err := loadStateFile(stateFilePath, orchestration.NewVarData)
+	state, err := loadStateFile(stateFilePath, sdkorchestration.NewVarData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}

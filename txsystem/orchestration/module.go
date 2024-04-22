@@ -4,10 +4,12 @@ import (
 	"crypto"
 	"errors"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 var _ txsystem.Module = (*Module)(nil)
@@ -44,6 +46,6 @@ func NewModule(options *Options) (*Module, error) {
 
 func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeAddVAR: m.handleAddVarTx().ExecuteFunc(),
+		orchestration.PayloadTypeAddVAR: m.handleAddVarTx().ExecuteFunc(),
 	}
 }

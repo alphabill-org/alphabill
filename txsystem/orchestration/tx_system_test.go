@@ -6,8 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -24,7 +25,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, err)
 	txSystem, err := NewTxSystem(
 		observability.Default(t),
-		WithSystemIdentifier(DefaultSystemIdentifier),
+		WithSystemIdentifier(orchestration.DefaultSystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(s),
 		WithOwnerPredicate(templates.NewP2pkh256BytesFromKey(pubKey)),
@@ -32,9 +33,9 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
 
-	unitID := NewVarID(nil, test.RandomBytes(32))
+	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	roundNumber := uint64(10)
-	txo := createAddVarTx(t, signer, AddVarAttributes{},
+	txo := createAddVarTx(t, signer, orchestration.AddVarAttributes{},
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: roundNumber + 1}),
 	)

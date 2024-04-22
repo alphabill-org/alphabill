@@ -62,8 +62,8 @@ github.com/ainvaltin/httpsrv v0.1.2/go.mod h1:UySPO+yJ0k5VBgQemTloTM0HUEMDwiF/h+
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah4HI848JfFxHt+iPb26b4zyfspmqY0/8=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
-github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240421205746-062b116d15f6 h1:D3tQ7gXbqeeLBhlW49BWrQdFNS0J0/9teG9LX1c9k74=
-github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240421205746-062b116d15f6/go.mod h1:Fi88ZmQfQ2Ed6wUbUaEkaA0DfU4IGY74NVXYdYctNJ0=
+github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240422130418-da97381fac73 h1:C9jn1IeBLpVEaAAfPNr7DznMWo5LRroKZ7qcIHtLxHI=
+github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240422130418-da97381fac73/go.mod h1:Fi88ZmQfQ2Ed6wUbUaEkaA0DfU4IGY74NVXYdYctNJ0=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=

@@ -10,6 +10,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-sdk/types"
@@ -285,12 +286,16 @@ func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 	return mn.maxRoundNumber, nil
 }
 
-func (mn *MockNode) SystemIdentifier() types.SystemID {
+func (mn *MockNode) SystemID() types.SystemID {
 	return 0x00010000
 }
 
-func (mn *MockNode) GetPeer() *network.Peer {
+func (mn *MockNode) Peer() *network.Peer {
 	return nil
+}
+
+func (mn *MockNode) ValidatorNodes() peer.IDSlice {
+	return []peer.ID{}
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {

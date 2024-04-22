@@ -75,7 +75,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			},
 			{
 				Namespace: "admin",
-				Service:   rpc.NewAdminAPI(node, name, node.GetPeer(), log),
+				Service:   rpc.NewAdminAPI(node, name, node.Peer(), log),
 			},
 		}
 

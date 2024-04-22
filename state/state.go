@@ -202,9 +202,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	unit := u.Clone()
 	logsCount := len(unit.logs)
 	l := &Log{
-		TxRecordHash: transactionRecordHash,
-		NewBearer:    bytes.Clone(unit.bearer),
-		NewUnitData:  copyData(unit.data),
+		TxRecordHash:   transactionRecordHash,
+		NewBearer:      bytes.Clone(unit.bearer),
+		NewUnitData:    copyData(unit.data),
+		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
 	if logsCount == 0 {
 		// newly created unit

@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -14,14 +13,14 @@ import (
 )
 
 func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[tokens.UnlockTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, roundNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateUnlockTokenTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid unlock token tx: %w", err)
 		}
-		// update lock status, round number and backlink
+		// update lock status, round number and counter
 		updateFn := state.UpdateUnitData(tx.UnitID(),
 			func(data types.UnitData) (types.UnitData, error) {
-				return m.updateUnlockTokenData(data, tx, roundNumber)
+				return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNr)
 			})
 		if err := m.state.Apply(updateFn); err != nil {
 			return nil, fmt.Errorf("failed to update state: %w", err)
@@ -32,7 +31,7 @@ func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[tok
 
 func (m *LockTokensModule) updateUnlockTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
 	if tx.UnitID().HasType(tokens.FungibleTokenUnitType) {
-		return updateUnlockFungibleTokenData(data, tx, roundNumber, m.hashAlgorithm)
+		return updateUnlockFungibleTokenData(data, tx, roundNumber)
 	} else if tx.UnitID().HasType(tokens.NonFungibleTokenUnitType) {
 		return updateUnlockNonFungibleTokenData(data, tx, roundNumber, m.hashAlgorithm)
 	} else {
@@ -46,18 +45,18 @@ func updateUnlockNonFungibleTokenData(data types.UnitData, tx *types.Transaction
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(hashAlgorithm)
+	d.Counter += 1
 	d.Locked = 0
 	return d, nil
 }
 
-func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64, hashAlgorithm crypto.Hash) (types.UnitData, error) {
+func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
 	d, ok := data.(*tokens.FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
 	}
 	d.T = roundNumber
-	d.Backlink = tx.Hash(hashAlgorithm)
+	d.Counter += 1
 	d.Locked = 0
 	return d, nil
 }
@@ -93,7 +92,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
 	}
-	if err := validateUnlockToken(u, tx, attr, d); err != nil {
+	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
 
@@ -121,7 +120,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
 	}
-	if err := validateUnlockToken(u, tx, attr, d); err != nil {
+	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
 
@@ -141,18 +140,18 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	if err != nil {
 		return fmt.Errorf("token type InvariantPredicate: %w", err)
 	}
-	return validateUnlockToken(u, tx, attr, d)
+	return validateUnlockToken(attr, d)
 }
 
-func validateUnlockToken(u *state.Unit, tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, d tokenData) error {
+func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d tokenData) error {
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")
 	}
 	// the current transaction follows the previous valid transaction with the token
-	if !bytes.Equal(attr.Backlink, d.GetBacklink()) {
-		return fmt.Errorf("the transaction backlink is not equal to the token backlink: tx.backlink='%x' token.backlink='%x'",
-			attr.Backlink, d.GetBacklink())
+	if attr.Counter != d.GetCounter() {
+		return fmt.Errorf("the transaction counter is not equal to the token counter: tx.counter='%d' token.counter='%d'",
+			attr.Counter, d.GetCounter())
 	}
 	return nil
 }

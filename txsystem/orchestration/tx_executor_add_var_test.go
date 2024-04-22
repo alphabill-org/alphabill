@@ -3,6 +3,7 @@ package orchestration
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-sdk/types"
@@ -34,7 +35,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	unitID := NewVarID(nil, test.RandomBytes(32))
 	attr := AddVarAttributes{}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	serverMetadata, err := execFn(txo, 11)
+	serverMetadata, err := execFn(txo, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
 
@@ -80,7 +81,7 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	// exec addVar tx
 	attr := AddVarAttributes{Var: ValidatorAssignmentRecord{EpochNumber: 1}}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	sm, err := execFn(txo, 11)
+	sm, err := execFn(txo, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -116,7 +117,7 @@ func TestAddVar_NOK(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeAddVAR),
 		testtransaction.WithAttributes(AddVarAttributes{}),
 	)
-	serverMetadata, err := execFn(txo, 11)
+	serverMetadata, err := execFn(txo, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
 	require.ErrorContains(t, err, "invalid 'addVar' tx")
 	require.Nil(t, serverMetadata)
 }

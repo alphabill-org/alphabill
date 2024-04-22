@@ -1,7 +1,6 @@
 package orchestration
 
 import (
-	"context"
 	"crypto"
 	"fmt"
 
@@ -21,12 +20,10 @@ type (
 		hashAlgorithm    crypto.Hash
 		ownerPredicate   types.PredicateBytes
 		trustBase        map[string]abcrypto.Verifier
-		exec             PredicateExecutor
+		exec             predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
 func defaultOptions() (*Options, error) {

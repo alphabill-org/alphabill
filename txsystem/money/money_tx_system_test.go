@@ -706,7 +706,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NotNil(t, sm)
 
 	// verify user fee credit is 18 (transfer 20 minus fee 2 * fee)
-	remainingValue := txAmount - (2 * txFee) // 18
+	remainingValue := txAmount - (2 * uint64(txFee)) // 18
 	fcrUnit, err := rmaTree.GetUnit(fcrUnitID, false)
 	require.NoError(t, err)
 	fcrUnitData, ok := fcrUnit.Data().(*fcsdk.FeeCreditRecord)
@@ -775,7 +775,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	ib, err = rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data().SummaryValueInput())
+	require.EqualValues(t, initialBill.Value-4*uint64(txFee), ib.Data().SummaryValueInput())
 
 	// and initial bill got unlocked
 	bd, ok = ib.Data().(*money.BillData)

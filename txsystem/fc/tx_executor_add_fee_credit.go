@@ -12,14 +12,14 @@ import (
 )
 
 func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[fc.AddFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 
 		bd, _ := f.state.GetUnit(unitID, false)
 		if err := f.txValidator.ValidateAddFeeCredit(&AddFCValidationContext{
 			Tx:                 tx,
 			Unit:               bd,
-			CurrentRoundNumber: currentBlockNumber,
+			CurrentRoundNumber: exeCtx.CurrentBlockNr,
 		}); err != nil {
 			return nil, fmt.Errorf("addFC tx validation failed: %w", err)
 		}

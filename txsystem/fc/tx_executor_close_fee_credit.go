@@ -12,7 +12,7 @@ import (
 )
 
 func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[fc.CloseFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		bd, _ := f.state.GetUnit(tx.UnitID(), false)
 		if err := f.txValidator.ValidateCloseFC(&CloseFCValidationContext{Tx: tx, Unit: bd}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)

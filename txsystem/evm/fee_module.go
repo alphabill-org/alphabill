@@ -45,7 +45,7 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 		hashAlgorithm:    options.hashAlgorithm,
 		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase, nil),
 		feeCalculator:    FixedFee(1),
-		execPredicate:    predicates.PredicateRunner(options.execPredicate, options.state),
+		execPredicate:    predicates.NewPredicateRunner(options.execPredicate, options.state),
 		log:              log,
 	}, nil
 }

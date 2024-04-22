@@ -25,12 +25,10 @@ type (
 		trustBase               map[string]crypto.Verifier
 		state                   *state.State
 		feeCalculator           fc.FeeCalculator
-		exec                    PredicateExecutor
+		exec                    predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
-
-	PredicateExecutor func(ctx context.Context, p types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
 func defaultOptions() (*Options, error) {
@@ -89,11 +87,11 @@ func WithTrustBase(trustBase map[string]crypto.Verifier) Option {
 PredicateRunner returns token tx system specific predicate runner wrapper
 */
 func PredicateRunner(
-	executor PredicateExecutor,
+	executor predicates.PredicateExecutor,
 	state *state.State,
-) func(predicate, args []byte, txo *types.TransactionOrder) error {
+) predicates.PredicateRunner {
 	env := &tokenExecEnv{state: state}
-	return func(predicate, args []byte, txo *types.TransactionOrder) error {
+	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
 		res, err := executor(context.Background(), predicate, args, txo, env)
 		if err != nil {
 			return err

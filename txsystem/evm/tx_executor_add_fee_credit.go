@@ -26,7 +26,7 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fcsdk.Tra
 }
 
 func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[fcsdk.AddFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fcsdk.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *fcsdk.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
@@ -55,7 +55,7 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if err = validator.ValidateAddFeeCredit(&fc.AddFCValidationContext{
 			Tx:                 tx,
 			Unit:               feeCreditRecordUnit,
-			CurrentRoundNumber: currentBlockNumber,
+			CurrentRoundNumber: exeCtx.CurrentBlockNr,
 		}); err != nil {
 			return nil, fmt.Errorf("addFC tx validation failed: %w", err)
 		}

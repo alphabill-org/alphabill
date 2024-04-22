@@ -5,7 +5,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -18,7 +18,7 @@ type FungibleTokensModule struct {
 	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
 	trustBase     map[string]abcrypto.Verifier
-	execPredicate func(predicate, args []byte, txo *types.TransactionOrder) error
+	execPredicate predicates.PredicateRunner
 }
 
 func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
@@ -31,13 +31,13 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 	}, nil
 }
 
-func (n *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
+func (m *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		tokens.PayloadTypeCreateFungibleTokenType: n.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
-		tokens.PayloadTypeMintFungibleToken:       n.handleMintFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeTransferFungibleToken:   n.handleTransferFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeSplitFungibleToken:      n.handleSplitFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeBurnFungibleToken:       n.handleBurnFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeJoinFungibleToken:       n.handleJoinFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeCreateFungibleTokenType: m.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
+		tokens.PayloadTypeMintFungibleToken:       m.handleMintFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeTransferFungibleToken:   m.handleTransferFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeSplitFungibleToken:      m.handleSplitFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeBurnFungibleToken:       m.handleBurnFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeJoinFungibleToken:       m.handleJoinFungibleTokenTx().ExecuteFunc(),
 	}
 }

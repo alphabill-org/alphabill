@@ -14,13 +14,13 @@ import (
 )
 
 func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.GenericExecuteFunc[tokens.CreateFungibleTokenTypeAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateCreateFungibleTokenType(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}
 		fee := m.feeCalculator()
-
 		unitID := tx.UnitID()
+
 		// update state
 		if err := m.state.Apply(
 			state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),

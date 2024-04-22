@@ -1,18 +1,18 @@
 package tokens
 
 import (
-	gocrypto "crypto"
 	"fmt"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,12 +23,12 @@ func TestUnlockFT_Ok(t *testing.T) {
 
 	// create unlock tx
 	unlockAttr := &tokens.UnlockTokenAttributes{
-		Backlink:                     make([]byte, 32),
+		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedTokenUnitID)
 	roundNo := uint64(11)
-	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
@@ -37,9 +37,9 @@ func TestUnlockFT_Ok(t *testing.T) {
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 	unitData := u.Data().(*tokens.FungibleTokenData)
 
-	// verify token is unlocked, backlink and round number is updated
+	// verify token is unlocked, counter and round number is updated
 	require.Equal(t, roundNo, unitData.T)
-	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), unitData.Backlink)
+	require.Equal(t, uint64(1), unitData.Counter)
 	require.EqualValues(t, 0, unitData.Locked)
 }
 
@@ -77,23 +77,23 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		{
 			name: "token is already unlocked",
 			tx: createTx(t, existingTokenUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
 			wantErrStr: "token is already unlocked",
 		},
 		{
-			name: "invalid backlink",
+			name: "invalid counter",
 			tx: createTx(t, existingLockedTokenUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
-			wantErrStr: "the transaction backlink is not equal to the token backlink",
+			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingLockedTokenUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     make([]byte, 32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, tokens.PayloadTypeUnlockToken),
 			wantErrStr: `invalid unlock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
@@ -105,7 +105,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})
@@ -119,12 +119,12 @@ func TestUnlockNFT_Ok(t *testing.T) {
 
 	// create unlock tx
 	unlockAttr := &tokens.UnlockTokenAttributes{
-		Backlink:                     make([]byte, 32),
+		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
-	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, roundNo)
+	sm, err := m.handleUnlockTokenTx()(unlockTx, unlockAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
@@ -133,9 +133,9 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 	nftUnitData := u.Data().(*tokens.NonFungibleTokenData)
 
-	// verify token is unlocked, backlink and round number is updated
+	// verify token is unlocked, counter and round number is updated
 	require.Equal(t, roundNo, nftUnitData.T)
-	require.Equal(t, unlockTx.Hash(gocrypto.SHA256), nftUnitData.Backlink)
+	require.Equal(t, uint64(1), nftUnitData.Counter)
 	require.EqualValues(t, 0, nftUnitData.Locked)
 }
 
@@ -157,14 +157,14 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
 		NftType:             existingNFTTypeUnitID,
 		Name:                "ALPHA",
-		Backlink:            make([]byte, 32),
+		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
 		NftType:             existingNFTTypeUnitID,
 		Name:                "ALPHA",
-		Backlink:            make([]byte, 32),
+		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		Locked:              1,
 	}))
@@ -197,23 +197,23 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		{
 			name: "token is already unlocked",
 			tx: createTx(t, existingNFTUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     make([]byte, 32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
 			wantErrStr: "token is already unlocked",
 		},
 		{
-			name: "invalid backlink",
+			name: "invalid counter",
 			tx: createTx(t, existingLockedNFTUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     test.RandomBytes(32),
+				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
-			wantErrStr: "the transaction backlink is not equal to the token backlink",
+			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingLockedNFTUnitID, &tokens.UnlockTokenAttributes{
-				Backlink:                     make([]byte, 32),
+				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, tokens.PayloadTypeUnlockToken),
 			wantErrStr: `invalid unlock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
@@ -227,7 +227,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, 10)
+			sm, err := m.handleUnlockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, sm)
 		})

@@ -22,7 +22,7 @@ var (
 )
 
 func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[fc.ReclaimFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -57,7 +57,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[fc.Recla
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V += v
-			newBillData.T = currentBlockNumber
+			newBillData.T = exeCtx.CurrentBlockNr
 			newBillData.Counter += 1
 			newBillData.Locked = 0
 			return newBillData, nil

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -158,8 +160,9 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
-			context.Background(), money.DefaultSystemID, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
@@ -285,8 +288,9 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
-			context.Background(), money.DefaultSystemID, moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
@@ -318,4 +322,22 @@ func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addres
 		return "", nil, err
 	}
 	return rootID, rootAddress, nil
+}
+
+type mockNode struct{
+	systemID       types.SystemID
+	peer           *network.Peer
+	validatorNodes peer.IDSlice
+}
+
+func (mn *mockNode) SystemID() types.SystemID {
+	return mn.systemID
+}
+
+func (mn *mockNode) Peer() *network.Peer {
+	return mn.peer
+}
+
+func (mn *mockNode) IsValidatorNode() bool {
+	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }

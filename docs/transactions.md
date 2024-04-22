@@ -595,6 +595,7 @@ This transaction creates a non-fungible token type.
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
     /InvariantPredicate/                 h'535101',
     /DataUpdatePredicate/                h'535101',
+    /Nonce/                              0,
     /SubTypeCreationPredicateSignatures/ [h'53']
 ]
 ```
@@ -637,6 +638,7 @@ This transaction creates a new non-fungible token.
     /URI/                              "",
     /Data/                             h'',
     /DataUpdatePredicate/              h'',
+    /Nonce/                            0,
     /TokenCreationPredicateSignatures/ [h'']
 ]
 ```
@@ -652,7 +654,8 @@ This transaction creates a new non-fungible token.
    token.
 6. *DataUpdatePredicate* (byte string) is the data update predicate of
    the new token.
-7. *TokenCreationPredicateSignatures* (array of byte string) is an
+7. *Nonce* (unsigned integer) optional nonce. 
+8. *TokenCreationPredicateSignatures* (array of byte string) is an
    array of inputs to satisfy the token creation predicates of all
    parent types.
 
@@ -667,7 +670,7 @@ token must not be in [locked](#lock-token) status.
 /transNTokenAttributes/ [
     /TargetOwner/                  h'',
     /Nonce/                        h'',
-    /Backlink/                     h'',
+    /Counter/                      0,
     /TypeID/                       h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -676,8 +679,8 @@ token must not be in [locked](#lock-token) status.
 1. *TargetOwner* (byte string) is the new owner predicate of the
    token.
 2. *Nonce* (byte string) is an optional nonce.
-3. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token.
+3. *Counter* (unsigned integer) is the current counter value 
+   of this token.
 4. *TypeID* (byte string) is the type of the token.
 5. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
@@ -693,15 +696,15 @@ must not be in [locked](#lock-token) status.
 ```
 /updateNTokenAttributes/ [
     /Data/                 h'',
-    /Backlink/             h'',
+    /Counter/              0,
     /DataUpdateSignatures/ [h'']
 ]
 ```
 
 1. *Data* (byte string) is the new data to replace the data currently
    associated with the token.
-2. *Backlink* (byte string) is the backlink to the previous transaction
-   with the token.
+2. *Counter* (unsigned integer) is the current counter value
+   of this token.
 3. *DataUpdateSignatures* (array of byte strings) is an array of inputs
    to satisfy the token data update predicates down the inheritance
    chain.
@@ -760,6 +763,7 @@ This transaction creates a new fungible token.
     /TargetOwner/                      h'',
     /TypeID/                           h'',
     /TargetValue/                      1000,
+    /Nonce/                            0,
     /TokenCreationPredicateSignatures/ [h'']
 ]
 ```
@@ -769,7 +773,8 @@ This transaction creates a new fungible token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
 3. *TargetValue* (unsigned integer) is the value of the new token.
-4. *TokenCreationPredicateSignatures* (array of byte string) is an
+4. *Nonce* (unsigned integer) optional nonce.
+5. *TokenCreationPredicateSignatures* (array of byte string) is an
    array of inputs to satisfy the token creation predicates of all
    parent types.
 
@@ -786,7 +791,7 @@ of the transferred token is unchanged. The token must not be in
     /TargetOwner/                  h'',
     /TargetValue/                  5,
     /Nonce/                        h'',
-    /Backlink/                     h'',
+    /Counter/                      0,
     /TypeID/                       h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -799,8 +804,8 @@ of the transferred token is unchanged. The token must not be in
    transaction order is to enable the recipient of the transaction to
    learn the received amount without having to look up the token.
 3. *Nonce* (byte string) is an optional nonce.
-4. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token.
+4. *Counter* (unsigned integer) is the current counter value
+   of this token.
 5. *TypeID* (byte string) is the type of the token.
 6. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
@@ -823,7 +828,7 @@ to the value of the token before the split. The token must not be in
     /TargetOwner/                  h'00',
     /TargetValue/                  600,
     /Nonce/                        h'',
-    /Backlink/                     h'',
+    /Counter/                      0,
     /TypeID/                       h'',
     /RemainingValue/               400,
     /InvariantPredicateSignatures/ [h'53']
@@ -834,8 +839,8 @@ to the value of the token before the split. The token must not be in
    token.
 2. *TargetValue* (unsigned integer) is the value of the new token.
 3. *Nonce* (byte string) is an optional nonce.
-4. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token being split.
+4. *Counter* (unsigned integer) is the current counter value
+   of this token.
 5. *TypeID* (byte string) is the type of the token.
 6. *RemainingValue* (unsigned integer) is the remaining value of the
    token being split.
@@ -857,8 +862,8 @@ Token](#join-fungible-tokens) transaction. The token must not be in
     /TypeID/                       h'',
     /Value/                        999,
     /TargetTokenID/                h'',
-    /TargetTokenBacklink/          h'',
-    /Backlink/                     h'',
+    /TargetTokenCounter/           0,
+    /Counter/                      0,
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
@@ -867,11 +872,11 @@ Token](#join-fungible-tokens) transaction. The token must not be in
 2. *Value* (unsigned integer) is the value of the token.
 3. *TargetTokenID* (byte string) is the token id of the target token 
    that this burn is to be [joined into](#join-fungible-tokens).
-4. *TargetTokenBacklink* (byte string) is the backlink to the previous
-   transaction with the fungible token that this burn is to be [joined
+4. *TargetTokenCounter* (unsigned integer) is the current counter value
+   of the fungible token that this burn is to be [joined
    into](#join-fungible-tokens).
-5. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token.
+5. *Counter* (unsigned integer) is the current counter value
+   of this token.
 6. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
@@ -889,7 +894,7 @@ it was in [locked](#lock-token) status.
 /joinFTokenAttributes/ [
     /BurnTransactions/             [/omitted/],
     /BurnTransactionProofs/        [/omitted/],
-    /Backlink/                     h'',
+    /Counter/                      0,
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
@@ -903,8 +908,8 @@ it was in [locked](#lock-token) status.
    Token](#burn-fungible-token) transaction proofs. The order of this
    array must match the order of *BurnTransactions* array, so that a 
    transaction and its corresponding proof have the same index.
-3. *Backlink* (byte string) is the backlink to the previous
-   transaction with the target token.
+3. *Counter* (unsigned integer) is the current counter value
+   of this token.
 4. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
@@ -930,15 +935,15 @@ status must be non-zero value and the targeted token must be unlocked.
 ```
 /lockTokenAttributes/ [
     /LockStatus/                   1,
-    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /Counter/                      0,
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
 1. *LockStatus* (unsigned integer) is the status of the lock,
    must be non-zero value.
-2. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token.
+2. *Counter* (unsigned integer) is the current counter value
+   of this token.
 3. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
@@ -953,13 +958,13 @@ tokens. The targeted token must be in locked status.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /unlockTokenAttributes/ [
-    /Backlink/                     h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839',
+    /Counter/                      0,
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
-1. *Backlink* (byte string) is the backlink to the previous
-   transaction with the token.
+1. *Counter* (unsigned integer) is the current counter value
+   of this token.
 2. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.

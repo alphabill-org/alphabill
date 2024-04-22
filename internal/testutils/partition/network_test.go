@@ -19,7 +19,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	counterPartition, err := NewPartition(t, 3,
 		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
 			txs := &testtxsystem.CounterTxSystem{}
-			txs.Commit(genesisState.CommittedUC())
+			require.NoError(t, txs.Commit(genesisState.CommittedUC()))
 			return txs
 		},
 		systemIdentifier, genesisState)
@@ -37,12 +37,12 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.Eventually(t, PartitionInitReady(t, cPart), test.WaitDuration, test.WaitTick)
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
-	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
+	test.TryTilCountIs(t, BlockchainContainsTx(cPart, tx), 40, test.WaitTick)
 
 	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.BroadcastTx(tx))
 
-	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
+	test.TryTilCountIs(t, BlockchainContainsTx(cPart, tx), 40, test.WaitTick)
 }
 
 func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
@@ -51,7 +51,7 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	counterPartition, err := NewPartition(t, 3,
 		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
 			txs := &testtxsystem.CounterTxSystem{}
-			txs.Commit(genesisState.CommittedUC())
+			require.NoError(t, txs.Commit(genesisState.CommittedUC()))
 			return txs
 		},
 		systemIdentifier, genesisState)
@@ -66,13 +66,13 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
-	require.Eventually(t, PartitionInitReady(t, cPart), test.WaitDuration, test.WaitTick)
+	test.TryTilCountIs(t, PartitionInitReady(t, cPart), 40, test.WaitTick)
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
-	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
+	test.TryTilCountIs(t, BlockchainContainsTx(cPart, tx), 40, test.WaitTick)
 
 	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.BroadcastTx(tx))
 
-	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
+	test.TryTilCountIs(t, BlockchainContainsTx(cPart, tx), 40, test.WaitTick)
 }

@@ -11,7 +11,7 @@ import (
 )
 
 func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[fc.LockFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 
 		bd, _ := f.state.GetUnit(unitID, false)

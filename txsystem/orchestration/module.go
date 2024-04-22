@@ -37,7 +37,7 @@ func NewModule(options *Options) (*Module, error) {
 		systemID:       options.systemIdentifier,
 		ownerPredicate: options.ownerPredicate,
 		hashAlgorithm:  options.hashAlgorithm,
-		execPredicate:  predicates.PredicateRunner(options.exec, options.state),
+		execPredicate:  predicates.NewPredicateRunner(options.exec, options.state),
 	}
 	return m, nil
 }

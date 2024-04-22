@@ -170,7 +170,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 func Test_PredicateRunner(t *testing.T) {
 	t.Run("executor returns error", func(t *testing.T) {
 		expErr := errors.New("evaluation failed")
-		exec := PredicateRunner(
+		exec := NewPredicateRunner(
 			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, expErr
 			},
@@ -183,7 +183,7 @@ func Test_PredicateRunner(t *testing.T) {
 	})
 
 	t.Run("evals to false", func(t *testing.T) {
-		exec := PredicateRunner(
+		exec := NewPredicateRunner(
 			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, nil
 			},
@@ -196,7 +196,7 @@ func Test_PredicateRunner(t *testing.T) {
 	})
 
 	t.Run("evals to true", func(t *testing.T) {
-		exec := PredicateRunner(
+		exec := NewPredicateRunner(
 			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				require.EqualValues(t, []byte("predicate"), predicate)
 				require.EqualValues(t, []byte("arguments"), args)

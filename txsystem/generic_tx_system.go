@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
@@ -28,7 +30,7 @@ type Module interface {
 type GenericTxSystem struct {
 	systemIdentifier      types.SystemID
 	hashAlgorithm         crypto.Hash
-	state                 *state.State
+	state                 UnitState //*state.State
 	currentBlockNumber    uint64
 	executors             TxExecutors
 	checkFeeCreditBalance func(tx *types.TransactionOrder) error
@@ -36,6 +38,7 @@ type GenericTxSystem struct {
 	endBlockFunctions     []func(blockNumber uint64) error
 	roundCommitted        bool
 	log                   *slog.Logger
+	pr                    predicates.PredicateRunner
 }
 
 type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
@@ -43,6 +46,24 @@ type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 	Logger() *slog.Logger
+}
+
+type UnitState interface {
+	Apply(actions ...state.Action) error
+	IsCommitted() bool
+	CalculateRoot() (uint64, []byte, error)
+	Prune() error
+	GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+	AddUnitLog(id types.UnitID, transactionRecordHash []byte) error
+	Clone() *state.State
+	Commit(uc *types.UnicityCertificate) error
+	CommittedUC() *types.UnicityCertificate
+	Serialize(writer io.Writer, committed bool) error
+	Traverse(traverser avl.Traverser[types.UnitID, *state.Unit])
+	Revert()
+	RollbackToSavepoint(int)
+	ReleaseToSavepoint(int)
+	Savepoint() int
 }
 
 func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
@@ -62,8 +83,10 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		executors:             make(TxExecutors),
 		checkFeeCreditBalance: feeChecker,
 		log:                   observe.Logger(),
+		pr:                    options.predicateRunner,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+	modules = append(modules, NewIdentityModule(txs.state))
 
 	for _, module := range modules {
 		if err := txs.executors.Add(module.TxExecutors()); err != nil {
@@ -112,8 +135,20 @@ func (m *GenericTxSystem) pruneState(blockNr uint64) error {
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, rErr error) {
-	if err := m.validateGenericTransaction(tx); err != nil {
-		return nil, fmt.Errorf("invalid transaction: %w", err)
+	return m.doExecute(tx, false)
+}
+
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockReleased bool) (sm *types.ServerMetadata, rErr error) {
+
+	if !stateLockReleased { // this tx has already been validated before locking the state which is now released (otherwise tx might not pass timeout check)
+		if err := m.validateGenericTransaction(tx); err != nil {
+			return nil, fmt.Errorf("invalid transaction: %w", err)
+		}
+	}
+
+	exeCtx := &TxExecutionContext{
+		CurrentBlockNr:    m.currentBlockNumber,
+		StateLockReleased: stateLockReleased,
 	}
 
 	savepointID := m.state.Savepoint()
@@ -127,7 +162,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close free credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
-		if sm.ActualFee > 0 && !fc.IsFeeCreditTx(tx) {
+		if !stateLockReleased && sm.ActualFee > 0 && !fc.IsFeeCreditTx(tx) {
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				m.state.RollbackToSavepoint(savepointID)
@@ -153,8 +188,15 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 
+	// check state lock and release it if possible
+	rErr = m.validateUnitStateLock(tx)
+	if rErr != nil {
+		return nil, rErr
+	}
+
+	// proceed with the transaction execution
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, rErr = m.executors.Execute(tx, m.currentBlockNumber)
+	sm, rErr = m.executors.Execute(tx, exeCtx)
 	if rErr != nil {
 		return nil, rErr
 	}

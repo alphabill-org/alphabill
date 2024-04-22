@@ -34,7 +34,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		systemIdentifier: systemIdentifier,
 		options:          opts,
 		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:    predicates.PredicateRunner(opts.execPredicate, opts.state),
+		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate, opts.state),
 		log:              log,
 	}, nil
 }

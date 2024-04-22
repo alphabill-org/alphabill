@@ -11,7 +11,7 @@ import (
 )
 
 func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[money.TransferDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *money.TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateTransferDCTx(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
@@ -40,7 +40,7 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[money.Transfer
 					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 				}
 				bd.V = 0
-				bd.T = currentBlockNumber
+				bd.T = exeCtx.CurrentBlockNr
 				bd.Counter += 1
 				return bd, nil
 			})

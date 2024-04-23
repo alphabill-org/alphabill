@@ -67,6 +67,12 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
+	// create trust base
+	cmd = New(logF)
+	args = "root-genesis gen-trust-base --home " + homeDir +
+		" --root-genesis=" + filepath.Join(rootDir, rootGenesisFileName)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.Execute(context.Background()))
 	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
 }
 
@@ -133,6 +139,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			// start root node
 			cmd := New(observe.Factory())
 			dbLocation := filepath.Join(rootDir)
@@ -142,7 +149,6 @@ func Test_StartMonolithicNode(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 			err := cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
@@ -256,6 +262,14 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
+	// create trust base file
+	cmd = New(obsF)
+	args = "root-genesis gen-trust-base --home " + homeDir +
+		" --root-genesis=" + filepath.Join(homeDir, rootGenesisFileName)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.Execute(context.Background())
+	require.NoError(t, err)
+	// TODO sign trust base?
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}

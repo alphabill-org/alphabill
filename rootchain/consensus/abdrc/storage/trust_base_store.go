@@ -1,0 +1,83 @@
+package storage
+
+import (
+	"errors"
+	"fmt"
+
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+)
+
+var trustBasePrefix = []byte("trust_base_") // append version and epoch number bytes
+
+type (
+	TrustBaseStore struct {
+		storage keyvaluedb.KeyValueDB
+	}
+)
+
+func NewTrustBaseStore(db keyvaluedb.KeyValueDB) (*TrustBaseStore, error) {
+	if db == nil {
+		return nil, errors.New("storage is nil")
+	}
+	return &TrustBaseStore{storage: db}, nil
+}
+
+func (x *TrustBaseStore) GetDB() keyvaluedb.KeyValueDB {
+	return x.storage
+}
+
+// LoadTrustBase returns trust base for the given epoch number, with the cached verifiers.
+func (x *TrustBaseStore) LoadTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
+	version := x.GetVersionNumber(epochNumber)
+	trustBaseKey := getTrustBaseStoreKey(version, epochNumber)
+	if version == 0 {
+		var tb *types.RootTrustBaseV0
+		ok, err := x.storage.Read(trustBaseKey, &tb)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load trust base for version %d and epoch %d: %w", version, epochNumber, err)
+		}
+		if !ok {
+			return nil, nil
+		}
+		// post process the trust base struct to fill private fields
+		var nodes = make(map[string]*types.NodeInfo)
+		for _, rn := range tb.RootNodes {
+			verifier, err := abcrypto.NewVerifierSecp256k1(rn.PublicKey)
+			if err != nil {
+				return nil, err
+			}
+			nodeInfo := types.NewNodeInfo(rn.NodeID, rn.Stake, verifier)
+			nodes[nodeInfo.NodeID] = nodeInfo
+		}
+		tb.RootNodes = nodes
+		return tb, nil
+	} else {
+		return nil, fmt.Errorf("trust base version %d not implemented", version)
+	}
+}
+
+// StoreTrustBase saves to given trust base to disk indexed by the epoch number, in cbor encoding.
+func (x *TrustBaseStore) StoreTrustBase(epochNumber uint64, tb types.RootTrustBase) error {
+	version := x.GetVersionNumber(epochNumber)
+	trustBaseKey := getTrustBaseStoreKey(version, epochNumber)
+	if err := x.storage.Write(trustBaseKey, tb); err != nil {
+		return fmt.Errorf("failed to store trust base: %w", err)
+	}
+	return nil
+}
+
+// GetVersionNumber returns trust base version number based on epoch number
+func (x *TrustBaseStore) GetVersionNumber(epochNumber uint64) uint64 {
+	return 0
+}
+
+func getTrustBaseStoreKey(version, epoch uint64) []byte {
+	var trustBaseKey []byte
+	trustBaseKey = append(trustBaseKey, trustBasePrefix...)
+	trustBaseKey = append(trustBaseKey, util.Uint64ToBytes(version)...)
+	trustBaseKey = append(trustBaseKey, util.Uint64ToBytes(epoch)...)
+	return trustBaseKey
+}

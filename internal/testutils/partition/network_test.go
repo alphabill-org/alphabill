@@ -3,7 +3,6 @@ package testpartition
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -17,7 +16,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	const systemIdentifier types.SystemID = 0x01020401
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,
-		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
+		func(_ types.RootTrustBase) txsystem.TransactionSystem {
 			txs := &testtxsystem.CounterTxSystem{}
 			require.NoError(t, txs.Commit(genesisState.CommittedUC()))
 			return txs
@@ -49,7 +48,7 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	const systemIdentifier types.SystemID = 0x01020401
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,
-		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
+		func(_ types.RootTrustBase) txsystem.TransactionSystem {
 			txs := &testtxsystem.CounterTxSystem{}
 			require.NoError(t, txs.Commit(genesisState.CommittedUC()))
 			return txs

@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
@@ -56,7 +55,7 @@ func TestLockFT_Ok(t *testing.T) {
 func TestLockFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
-	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	opts.trustBase = testtb.NewTrustBase(t, verifier)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
 
@@ -163,7 +162,7 @@ func TestLockNFT_Ok(t *testing.T) {
 func TestLockNFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
-	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	opts.trustBase = testtb.NewTrustBase(t, verifier)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
 

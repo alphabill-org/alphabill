@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/testutils"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/stretchr/testify/require"
@@ -170,11 +171,10 @@ func TestTimeoutMsg_Sign(t *testing.T) {
 
 func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	const votedRound = 10
-	const quorum = 3
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
+	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 1)
 	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
@@ -191,14 +191,14 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	// unknown signer
 	tmoMsg := NewTimeoutMsg(types.NewTimeout(votedRound, 0, highQc, nil), "12")
 	require.NoError(t, tmoMsg.Sign(s1))
-	require.ErrorContains(t, tmoMsg.Verify(quorum, rootTrust), `signer "12" is not part of trustbase`)
+	require.ErrorContains(t, tmoMsg.Verify(rootTrust), `author '12' is not part of the trust base`)
 	// all ok
 	tmoMsg = NewTimeoutMsg(types.NewTimeout(votedRound, 0, highQc, nil), "1")
 	require.NoError(t, tmoMsg.Sign(s1))
-	require.NoError(t, tmoMsg.Verify(quorum, rootTrust))
+	require.NoError(t, tmoMsg.Verify(rootTrust))
 	// adjust after signing
 	tmoMsg.Timeout.Round = 11
-	require.ErrorContains(t, tmoMsg.Verify(quorum, rootTrust), "signature verification failed")
+	require.ErrorContains(t, tmoMsg.Verify(rootTrust), "signature verification failed")
 }
 
 func TestTimeoutMsg_GetRound(t *testing.T) {

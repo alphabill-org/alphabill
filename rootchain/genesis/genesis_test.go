@@ -94,7 +94,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 		totalValidators       uint32
 		blockRateMs           uint32
 		consensusTimeoutMs    uint32
-		quorumThreshold       uint32
 		hashAlgorithm         gocrypto.Hash
 	}
 	tests := []struct {
@@ -111,7 +110,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinBlockRateMs + genesis.MinConsensusTimeout,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 		},
@@ -124,7 +122,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: genesis.ErrNodeIdentifierIsEmpty.Error(),
@@ -137,7 +134,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs,
 				consensusTimeoutMs: genesis.MinConsensusTimeout,
-				quorumThreshold:    1,
 				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: ErrEncryptionPubKeyIsNil.Error(),
@@ -150,7 +146,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: ErrSignerIsNil.Error(),
@@ -164,38 +159,9 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       0,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: genesis.ErrInvalidNumberOfRootValidators.Error(),
-		},
-		{
-			name: "quorum too big",
-			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				quorumThreshold:       2,
-				hashAlgorithm:         gocrypto.SHA256,
-			},
-			wantErr: "invalid quorum threshold 2 is higher than total number of root nodes 1",
-		},
-		{
-			name: "quorum too low",
-			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       3,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				quorumThreshold:       2,
-				hashAlgorithm:         gocrypto.SHA256,
-			},
-			wantErr: "invalid quorum threshold, for 3 nodes minimum quorum is 3",
 		},
 		{
 			name: "invalid consensus timeout",
@@ -206,7 +172,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinConsensusTimeout - 1,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: fmt.Sprintf("invalid consensus timeout, must be at least %v", genesis.MinConsensusTimeout),
@@ -220,7 +185,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs - 1,
 				consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
-				quorumThreshold:       1,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: fmt.Sprintf("invalid block rate, must be at least %v", genesis.MinBlockRateMs),
@@ -235,7 +199,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				totalValidators:       tt.fields.totalValidators,
 				blockRateMs:           tt.fields.blockRateMs,
 				consensusTimeoutMs:    tt.fields.consensusTimeoutMs,
-				quorumThreshold:       tt.fields.quorumThreshold,
 				hashAlgorithm:         tt.fields.hashAlgorithm,
 			}
 			err = c.isValid()
@@ -340,7 +303,6 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
-	rootTrust := map[string]abcrypto.Verifier{"test": rootChainVerifier}
 	require.NoError(t, err)
 	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -351,8 +313,10 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	require.NotNil(t, rg)
 	require.Equal(t, 1, len(rg.Partitions[0].Nodes))
 	require.Equal(t, 3, len(pgs))
-	for _, pg := range pgs {
-		require.NoError(t, pg.IsValid(rootTrust, gocrypto.SHA256))
+	tb, err := rg.GenerateTrustBase()
+	require.NoError(t, err)
+	for _, partitionGenesis := range pgs {
+		require.NoError(t, partitionGenesis.IsValid(tb, gocrypto.SHA256))
 	}
 }
 
@@ -456,10 +420,10 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	require.NoError(t, rg2.IsValid())
 	geneses := []*genesis.RootGenesis{rg1, rg2}
 	// merge genesis files
-	rg, pg, err := MergeRootGenesisFiles(geneses)
+	rootGenesis, partitionGenesis, err := MergeRootGenesisFiles(geneses)
 	require.NoError(t, err)
-	require.NotNil(t, rg)
-	require.NotNil(t, pg)
-	require.NoError(t, rg.IsValid())
-	require.NoError(t, rg.Verify())
+	require.NotNil(t, rootGenesis)
+	require.NotNil(t, partitionGenesis)
+	require.NoError(t, rootGenesis.IsValid())
+	require.NoError(t, rootGenesis.Verify())
 }

@@ -11,17 +11,17 @@ import (
 )
 
 type DummyQuorum struct {
-	quorum uint32
-	faulty uint32
+	quorum uint64
+	faulty uint64
 }
 
-func NewDummyQuorum(q, f uint32) *DummyQuorum {
+func NewDummyQuorum(q, f uint64) *DummyQuorum {
 	return &DummyQuorum{quorum: q, faulty: f}
 }
-func (d *DummyQuorum) GetQuorumThreshold() uint32 {
+func (d *DummyQuorum) GetQuorumThreshold() uint64 {
 	return d.quorum
 }
-func (d *DummyQuorum) GetMaxFaultyNodes() uint32 { return d.faulty }
+func (d *DummyQuorum) GetMaxFaultyNodes() uint64 { return d.faulty }
 
 func NewDummyVoteInfo(round uint64, rootHash []byte) *drctypes.RoundInfo {
 	return &drctypes.RoundInfo{
@@ -236,7 +236,7 @@ func TestVoteRegister_Tc(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.EqualValues(t, 3, voteCnt)
-	require.Equal(t, uint32(len(tc.Signatures)), quorumInfo.GetQuorumThreshold())
+	require.Equal(t, uint64(len(tc.Signatures)), quorumInfo.GetQuorumThreshold())
 	require.Equal(t, tc.Timeout.Round, uint64(4))
 	require.Equal(t, tc.Timeout.Epoch, uint64(0))
 	// TC must include the most recent QC seen by any node (in this case from qcRound3 - round 3)

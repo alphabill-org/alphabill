@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -15,7 +15,7 @@ import (
 
 func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
 	feeCreditModule, err := NewFeeCreditModule(
 		WithSystemIdentifier(moneySystemID),
@@ -39,7 +39,7 @@ func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {
 
 func TestCloseFC_UpdatesBacklink(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
 	feeCreditModule, err := NewFeeCreditModule(
 		WithSystemIdentifier(moneySystemID),

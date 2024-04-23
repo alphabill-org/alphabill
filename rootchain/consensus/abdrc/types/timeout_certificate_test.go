@@ -131,22 +131,25 @@ func TestTimeoutCert_IsValid(t *testing.T) {
 
 func TestTimeoutCert_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	trustBase := sb.Verifiers()
+	trustBase := sb.trustBase
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		// trigger error from IsValid to make sure it is called
 		tc := sb.TimeoutCert(t)
 		tc.Timeout = nil
-		err := tc.Verify(3, trustBase)
+		err := tc.Verify(trustBase)
 		require.EqualError(t, err, `invalid certificate: timeout data is unassigned`)
 	})
 
 	t.Run("timeout.Verify is called", func(t *testing.T) {
 		// trigger Timeout verification error to make sure it is called
 		tc := sb.TimeoutCert(t)
-		tc.Timeout.HighQc.Signatures["foobar"] = []byte{1, 2, 3, 4}
-		err := tc.Verify(3, trustBase)
-		require.EqualError(t, err, `invalid timeout data: invalid high QC: signer "foobar" is not part of trustbase`)
+		for k := range tc.Timeout.HighQc.Signatures {
+			delete(tc.Timeout.HighQc.Signatures, k)
+			break
+		}
+		err := tc.Verify(trustBase)
+		require.EqualError(t, err, `invalid timeout data: invalid high QC: failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
 	})
 
 	t.Run("no quorum", func(t *testing.T) {
@@ -155,8 +158,8 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			delete(tc.Signatures, k)
 			break
 		}
-		err := tc.Verify(uint32(len(tc.Signatures)+1), trustBase)
-		require.EqualError(t, err, `quorum requires 3 signatures but certificate has 2`)
+		err := tc.Verify(trustBase)
+		require.EqualError(t, err, `quorum requires 3 votes but certificate has 2`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
@@ -166,15 +169,15 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			v.HqcRound++ // works because v is a pointer pointing to the same item stored to map
 			break
 		}
-		err := tc.Verify(3, trustBase)
-		require.ErrorContains(t, err, `timeout certificate signature verification failed: verification failed`)
+		err := tc.Verify(trustBase)
+		require.ErrorContains(t, err, `timeout certificate signature verification failed: verify bytes failed: verification failed`)
 	})
 
 	t.Run("unknown signer", func(t *testing.T) {
 		tc := sb.TimeoutCert(t)
 		tc.Signatures["foobar"] = &TimeoutVote{}
-		err := tc.Verify(3, trustBase)
-		require.EqualError(t, err, `signer "foobar" is not part of trustbase`)
+		err := tc.Verify(trustBase)
+		require.EqualError(t, err, `timeout certificate signature verification failed: author 'foobar' is not part of the trust base`)
 	})
 
 	t.Run("high QC round doesn't match max round", func(t *testing.T) {
@@ -188,7 +191,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			}
 			break
 		}
-		err := tc.Verify(3, trustBase)
+		err := tc.Verify(trustBase)
 		require.EqualError(t, err, `high QC round 10 does not match max signed QC round 11`)
 	})
 }
@@ -280,20 +283,13 @@ func Test_Timeout_IsValid(t *testing.T) {
 
 func Test_Timeout_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	rootTrust := sb.Verifiers()
-	require.NoError(t, sb.Timeout(t, nil).Verify(3, rootTrust), `sb.Timeout must return valid Timeout struct`)
+	rootTrust := sb.trustBase
+	require.NoError(t, sb.Timeout(t, nil).Verify(rootTrust), `sb.Timeout must return valid Timeout struct`)
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		timeout := sb.Timeout(t, nil)
 		timeout.HighQc = nil
-		require.EqualError(t, timeout.Verify(2, rootTrust), `invalid timeout data: high QC is unassigned`)
-	})
-
-	t.Run("invalid highQC", func(t *testing.T) {
-		// check that highQC.Verify is called
-		timeout := sb.Timeout(t, nil)
-		// call with higher quorum than the signature count
-		require.EqualError(t, timeout.Verify(uint32(len(rootTrust)+1), rootTrust), `invalid high QC: quorum requires 4 signatures but certificate has 3`)
+		require.EqualError(t, timeout.Verify(rootTrust), `invalid timeout data: high QC is unassigned`)
 	})
 
 	t.Run("invalid lastTC", func(t *testing.T) {
@@ -301,7 +297,7 @@ func Test_Timeout_Verify(t *testing.T) {
 		tc := sb.TimeoutCert(t)
 		timeout := sb.Timeout(t, tc)
 		tc.Timeout.Epoch += 1 // epoch is part of signature so changing it should make it invalid
-		require.ErrorContains(t, timeout.Verify(3, rootTrust), `invalid last TC: timeout certificate signature verification failed: verification failed`)
+		require.ErrorContains(t, timeout.Verify(rootTrust), `invalid last TC: timeout certificate signature verification failed: verify bytes failed: verification failed`)
 	})
 }
 

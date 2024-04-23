@@ -12,17 +12,16 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-
+	testtx "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,9 +66,9 @@ func Test_addFeeCreditTx(t *testing.T) {
 		order       *types.TransactionOrder
 		blockNumber uint64
 	}
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]abcrypto.Verifier{"test": ver}
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	tb := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pubHash := sha256.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
@@ -101,7 +100,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 				testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 					&types.TransactionRecord{
 						TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(100), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID)),
-							testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
+							testtx.WithSystemID(0x00000001), testtx.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 						ServerMetadata: nil,
 					})),
 				signer,
@@ -117,7 +116,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 				testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 					&types.TransactionRecord{
 						TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(100), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID)),
-							testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
+							testtx.WithSystemID(0x00000001), testtx.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 					})),
 				signer,
@@ -148,7 +147,7 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	addFcAttr := testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
 		&types.TransactionRecord{
-			TransactionOrder: testutils.NewTransferFC(t, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
+			TransactionOrder: testutils.NewTransferFC(t, nil, testtx.WithSystemID(0xFFFFFFFF)),
 			ServerMetadata:   nil,
 		}))
 	closeFCAmount := uint64(20)
@@ -196,9 +195,9 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	const transferFcFee = 1
 	stateTree := state.NewEmptyState()
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]abcrypto.Verifier{"test": ver}
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	tb := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pubHash := hash.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
@@ -214,7 +213,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			testutils.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(100), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID)),
-						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
+						testtx.WithSystemID(0x00000001), testtx.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)
@@ -247,7 +246,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			testutils.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(10), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID), testutils.WithTargetUnitBacklink(abData.TxHash)),
-						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
+						testtx.WithSystemID(0x00000001), testtx.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)
@@ -269,9 +268,9 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	const transferFcFee = 1
 	stateTree := state.NewEmptyState()
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]abcrypto.Verifier{"test": ver}
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	tb := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	address, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
@@ -292,7 +291,7 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 			testutils.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(100), testutils.WithTargetRecordID(privKeyHash), testutils.WithTargetSystemID(evm.DefaultSystemID)),
-						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
+						testtx.WithSystemID(0x00000001), testtx.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)

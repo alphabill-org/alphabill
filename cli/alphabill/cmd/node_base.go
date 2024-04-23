@@ -10,10 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
-
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -26,11 +23,15 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	BoltBlockStoreFileName = "blocks.db"
 	cmdFlagState           = "state"
+	cmdFlagTrustBaseFile   = "trust-base-file"
 )
 
 type baseNodeConfiguration struct {
@@ -41,6 +42,7 @@ type startNodeConfiguration struct {
 	Address                    string
 	Genesis                    string
 	StateFile                  string
+	TrustBaseFile              string
 	KeyFile                    string
 	DbFile                     string
 	TxIndexerDBFile            string
@@ -148,8 +150,16 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, keys *Keys,
-	blockStore keyvaluedb.KeyValueDB, proofStore keyvaluedb.KeyValueDB, ownerIndexer *partition.OwnerIndexer, obs Observability) (*partition.Node, error) {
+func createNode(ctx context.Context,
+	txs txsystem.TransactionSystem,
+	cfg *startNodeConfiguration,
+	keys *Keys,
+	blockStore keyvaluedb.KeyValueDB,
+	proofStore keyvaluedb.KeyValueDB,
+	ownerIndexer *partition.OwnerIndexer,
+	trustBase types.RootTrustBase,
+	obs Observability,
+) (*partition.Node, error) {
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
 		return nil, err
@@ -182,6 +192,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		keys.SigningPrivateKey,
 		txs,
 		pg,
+		trustBase,
 		nil,
 		obs,
 		options...,
@@ -230,6 +241,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.StateFile, cmdFlagState, "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/node-genesis-state.cbor)", partitionSuffix))
+	nodeCmd.Flags().StringVarP(&config.TrustBaseFile, cmdFlagTrustBaseFile, "t", "", "path to the root trust base file : $AB_HOME/root-trust-base.json)")
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")

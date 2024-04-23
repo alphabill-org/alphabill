@@ -5,10 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -17,7 +15,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
@@ -949,7 +949,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 func TestJoinFungibleToken_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
-	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	opts.trustBase = testtb.NewTrustBase(t, verifier)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
 
@@ -988,7 +988,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 func TestJoinFungibleToken_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
-	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	opts.trustBase = testtb.NewTrustBase(t, verifier)
 
 	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenUnitID, &tokens.BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,

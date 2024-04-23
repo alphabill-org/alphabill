@@ -56,6 +56,7 @@ type partitionStartupDependencies struct {
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
+	trustBase   types.RootTrustBase
 	network     ValidatorNetwork
 	nodeOptions []NodeOption
 }
@@ -95,6 +96,8 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
 
 	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
 
@@ -112,6 +115,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
+		trustBase:   trustBase,
 		network:     net,
 		nodeOptions: nodeOptions,
 	}
@@ -165,6 +169,7 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
+		sn.nodeDeps.trustBase,
 		sn.nodeDeps.network,
 		sn.obs,
 		append([]NodeOption{

@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -78,12 +77,19 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 		// transaction is expired
 		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
 	}
+
+	if tx.Payload != nil && tx.Payload.ClientMetadata != nil {
+		if n := len(tx.Payload.ClientMetadata.ReferenceNumber); n > 32 {
+			return fmt.Errorf("maximum allowed length of the ReferenceNumber is 32 bytes, got %d bytes", n)
+		}
+	}
+
 	return nil
 }
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
+	systemDescription *types.SystemDescriptionRecord,
 	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
@@ -103,12 +109,12 @@ func NewDefaultUnicityCertificateValidator(
 }
 
 func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
-	return uc.IsValid(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
+	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
+	systemDescription *types.SystemDescriptionRecord,
 	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {

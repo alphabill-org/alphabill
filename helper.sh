@@ -90,7 +90,7 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json testab/orchestration*/orchestration/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue

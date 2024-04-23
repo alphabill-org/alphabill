@@ -4,14 +4,18 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"hash"
+
+	"github.com/alphabill-org/alphabill/util"
 )
 
 type (
 	TransactionOrder struct {
-		_          struct{} `cbor:",toarray"`
-		Payload    *Payload
-		OwnerProof []byte
-		FeeProof   []byte
+		_           struct{} `cbor:",toarray"`
+		Payload     *Payload
+		OwnerProof  []byte
+		FeeProof    []byte
+		StateUnlock []byte // two CBOR data items: [0|1]+[<state lock/rollback predicate input>]
 	}
 
 	Payload struct {
@@ -20,7 +24,14 @@ type (
 		Type           string
 		UnitID         UnitID
 		Attributes     RawCBOR
+		StateLock      *StateLock
 		ClientMetadata *ClientMetadata
+	}
+
+	StateLock struct {
+		_                  struct{} `cbor:",toarray"`
+		ExecutionPredicate []byte   // this predicate has to be either nil or evaluate to true in order to execute the transaction
+		RollbackPredicate  []byte   // if this predicate evaluates to true, the lock is released and the "on hold" transaction is discarded
 	}
 
 	ClientMetadata struct {
@@ -28,6 +39,7 @@ type (
 		Timeout           uint64
 		MaxTransactionFee uint64
 		FeeCreditRecordID []byte
+		ReferenceNumber   []byte
 	}
 
 	PredicateBytes = Bytes
@@ -94,12 +106,12 @@ func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
 
 func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	bytes, err := Cbor.Marshal(t)
+	b, err := Cbor.Marshal(t)
 	if err != nil {
 		//TODO
 		panic(err)
 	}
-	hasher.Write(bytes)
+	hasher.Write(b)
 	return hasher.Sum(nil)
 }
 
@@ -159,4 +171,11 @@ func (p *Payload) BytesWithAttributeSigBytes(attrs SigBytesProvider) ([]byte, er
 		ClientMetadata: p.ClientMetadata,
 	}
 	return payload.Bytes()
+}
+
+func (c *ClientMetadata) AddToHasher(hasher hash.Hash) {
+	hasher.Write(util.Uint64ToBytes(c.Timeout))
+	hasher.Write(util.Uint64ToBytes(c.MaxTransactionFee))
+	hasher.Write(c.FeeCreditRecordID)
+	hasher.Write(c.ReferenceNumber)
 }

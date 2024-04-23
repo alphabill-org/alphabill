@@ -5,34 +5,32 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
 )
 
 func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := n.validateMintNonFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
 		fee := n.feeCalculator()
-		unitID := tx.UnitID()
-		h := tx.Hash(n.hashAlgorithm)
+		typeID := tx.UnitID()
+		newTokenID := NewNonFungibleTokenID(typeID, HashForIDCalculation(tx, n.hashAlgorithm))
 
-		// update state
 		if err := n.state.Apply(
-			state.AddUnit(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, currentBlockNr))); err != nil {
+			state.AddUnit(newTokenID, attr.Bearer, newNonFungibleTokenData(typeID, attr, exeCtx.CurrentBlockNr, 0)),
+		); err != nil {
 			return nil, err
 		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes) error {
 	unitID := tx.UnitID()
-	if !unitID.HasType(NonFungibleTokenUnitType) {
+	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
 	if len(attr.Name) > maxNameLength {
@@ -50,20 +48,14 @@ func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.Transac
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	u, err := n.state.GetUnit(unitID, false)
-	if u != nil {
-		return fmt.Errorf("unit %v exists", unitID)
-	}
-	if !errors.Is(err, avl.ErrNotFound) {
+	_, err := n.state.GetUnit(unitID, false)
+	if err != nil {
 		return err
-	}
-	if !attr.NFTTypeID.HasType(NonFungibleTokenTypeUnitType) {
-		return fmt.Errorf(ErrStrInvalidTypeID)
 	}
 
 	err = runChainedPredicates[*NonFungibleTokenTypeData](
 		tx,
-		attr.NFTTypeID,
+		unitID,
 		attr.TokenCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
@@ -83,14 +75,6 @@ func (m *MintNonFungibleTokenAttributes) GetBearer() []byte {
 
 func (m *MintNonFungibleTokenAttributes) SetBearer(bearer []byte) {
 	m.Bearer = bearer
-}
-
-func (m *MintNonFungibleTokenAttributes) GetNFTTypeID() types.UnitID {
-	return m.NFTTypeID
-}
-
-func (m *MintNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID types.UnitID) {
-	m.NFTTypeID = nftTypeID
 }
 
 func (m *MintNonFungibleTokenAttributes) GetName() string {
@@ -137,11 +121,11 @@ func (m *MintNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	// TODO: AB-1016 exclude TokenCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
 	signatureAttr := &MintNonFungibleTokenAttributes{
 		Bearer:                           m.Bearer,
-		NFTTypeID:                        m.NFTTypeID,
 		Name:                             m.Name,
 		URI:                              m.URI,
 		Data:                             m.Data,
 		DataUpdatePredicate:              m.DataUpdatePredicate,
+		Nonce:                            m.Nonce,
 		TokenCreationPredicateSignatures: nil,
 	}
 	return types.Cbor.Marshal(signatureAttr)

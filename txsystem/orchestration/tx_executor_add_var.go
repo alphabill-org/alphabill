@@ -11,7 +11,7 @@ import (
 )
 
 func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] {
-	return func(tx *types.TransactionOrder, attr *AddVarAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *AddVarAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unit, err := m.state.GetUnit(tx.UnitID(), false)
 		if err != nil && !errors.Is(err, avl.ErrNotFound) {
 			return nil, err

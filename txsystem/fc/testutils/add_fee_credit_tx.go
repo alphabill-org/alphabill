@@ -6,6 +6,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
@@ -14,8 +15,10 @@ import (
 var (
 	unitID                              = types.NewUnitID(33, nil, []byte{1}, []byte{0xff}) // TODO: should be a parameter from a partition
 	systemID             types.SystemID = 1
-	targetUnitBacklink                  = []byte{3}
+	targetUnitCounter                   = uint64(3)
 	backlink                            = []byte{4}
+	targetCounter                       = uint64(4)
+	counter                             = uint64(4)
 	amount                              = uint64(50)
 	maxFee                              = uint64(2)
 	earliestAdditionTime                = uint64(0)
@@ -27,7 +30,7 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCre
 		attr = NewAddFCAttr(t, signer)
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)

@@ -67,7 +67,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2000,
 			},
@@ -257,7 +257,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
@@ -302,7 +302,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
@@ -345,7 +345,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID1,
 				T2Timeout:        2500,
 			},

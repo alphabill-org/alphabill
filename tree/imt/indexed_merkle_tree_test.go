@@ -71,6 +71,7 @@ func TestNewIMTWithSingleNode(t *testing.T) {
 	hasher.Write(dataHash)
 	require.Equal(t, hasher.Sum(nil), imt.GetRootHash())
 	path, err := imt.GetMerklePath(data[0].Key())
+	require.NoError(t, err)
 	h := IndexTreeOutput(path, data[0].Key(), crypto.SHA256)
 	require.Equal(t, h, imt.GetRootHash())
 }

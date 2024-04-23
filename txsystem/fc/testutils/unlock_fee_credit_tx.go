@@ -17,7 +17,7 @@ func NewUnlockFC(t *testing.T, attr *transactions.UnlockFeeCreditAttributes, opt
 		attr = NewUnlockFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeUnlockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{

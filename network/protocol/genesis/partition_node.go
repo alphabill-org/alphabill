@@ -28,7 +28,7 @@ type PartitionNode struct {
 
 type MoneyPartitionParams struct {
 	_                        struct{} `cbor:",toarray"`
-	SystemDescriptionRecords []*SystemDescriptionRecord
+	SystemDescriptionRecords []*types.SystemDescriptionRecord
 }
 
 type EvmPartitionParams struct {

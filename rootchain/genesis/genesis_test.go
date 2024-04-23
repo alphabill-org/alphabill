@@ -36,7 +36,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &types.SystemDescriptionRecord{
 			SystemIdentifier: systemIdentifier,
 			T2Timeout:        2500,
 		},

@@ -16,7 +16,7 @@ func NewLockFC(t *testing.T, attr *transactions.LockFeeCreditAttributes, opts ..
 		attr = NewLockFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeLockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{

@@ -1,7 +1,6 @@
 package money
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -23,11 +22,11 @@ var (
 	ErrFeeProofExists              = errors.New("fee tx cannot contain fee authorization proof")
 	ErrInvalidFCValue              = errors.New("the amount to transfer cannot exceed the value of the bill")
 	ErrInvalidFeeValue             = errors.New("the transaction max fee cannot exceed the transferred amount")
-	ErrInvalidBacklink             = errors.New("the transaction backlink is not equal to unit backlink")
+	ErrInvalidCounter              = errors.New("the transaction counter is not equal to the unit counter")
 )
 
 func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -51,8 +50,8 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V -= attr.Amount
-			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			newBillData.T = exeCtx.CurrentBlockNr
+			newBillData.Counter += 1
 			return newBillData, nil
 		})
 		if err := m.state.Apply(action); err != nil {
@@ -90,14 +89,14 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if attr.Amount > bd.V {
+	if uint64(attr.Amount) > bd.V {
 		return ErrInvalidFCValue
 	}
 	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {
 		return ErrInvalidFeeValue
 	}
-	if !bytes.Equal(attr.Backlink, bd.Backlink) {
-		return ErrInvalidBacklink
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	if tx.GetClientFeeCreditRecordID() != nil {
 		return ErrRecordIDExists

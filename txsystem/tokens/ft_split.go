@@ -9,11 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -22,22 +21,23 @@ func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExec
 		if err != nil {
 			return nil, err
 		}
-		d := u.Data().(*FungibleTokenData)
+		ftData := u.Data().(*FungibleTokenData)
+
 		// add new token unit
 		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
-
 		fee := m.feeCalculator()
-		txHash := tx.Hash(m.hashAlgorithm)
 
 		// update state
 		if err := m.state.Apply(
 			state.AddUnit(newTokenID,
 				attr.NewBearer,
 				&FungibleTokenData{
-					TokenType: d.TokenType,
+					TokenType: ftData.TokenType,
 					Value:     attr.TargetValue,
-					T:         currentBlockNr,
-					Backlink:  txHash,
+					T:         exeCtx.CurrentBlockNr,
+					Counter:   0,
+					T1:        0,
+					Locked:    0,
 				}),
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
@@ -48,10 +48,13 @@ func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExec
 					return &FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     d.Value - attr.TargetValue,
-						T:         currentBlockNr,
-						Backlink:  txHash,
+						T:         exeCtx.CurrentBlockNr,
+						Counter:   d.Counter + 1,
+						T1:        d.T1,
+						Locked:    d.Locked,
 					}, nil
-				})); err != nil {
+				}),
+		); err != nil {
 			return nil, err
 		}
 
@@ -63,7 +66,7 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	hasher := hashFunc.New()
 	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
-	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
+	tx.Payload.ClientMetadata.AddToHasher(hasher)
 	return hasher.Sum(nil)
 }
 
@@ -89,8 +92,8 @@ func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionO
 		return errors.New("remaining value must equal to the original value minus target value")
 	}
 
-	if !bytes.Equal(d.Backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
+	if d.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
@@ -139,12 +142,12 @@ func (s *SplitFungibleTokenAttributes) SetNonce(nonce []byte) {
 	s.Nonce = nonce
 }
 
-func (s *SplitFungibleTokenAttributes) GetBacklink() []byte {
-	return s.Backlink
+func (s *SplitFungibleTokenAttributes) GetCounter() uint64 {
+	return s.Counter
 }
 
-func (s *SplitFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	s.Backlink = backlink
+func (s *SplitFungibleTokenAttributes) SetCounter(counter uint64) {
+	s.Counter = counter
 }
 
 func (s *SplitFungibleTokenAttributes) GetTypeID() types.UnitID {
@@ -177,7 +180,7 @@ func (s *SplitFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		NewBearer:                    s.NewBearer,
 		TargetValue:                  s.TargetValue,
 		Nonce:                        s.Nonce,
-		Backlink:                     s.Backlink,
+		Counter:                      s.Counter,
 		TypeID:                       s.TypeID,
 		RemainingValue:               s.RemainingValue,
 		InvariantPredicateSignatures: nil,

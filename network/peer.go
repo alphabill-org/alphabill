@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -52,10 +51,9 @@ type (
 
 	// Peer represents a single node in p2p network. It is a wrapper around the libp2p host.Host.
 	Peer struct {
-		host       host.Host
-		conf       *PeerConfiguration
-		validators []peer.ID
-		dht        *dht.IpfsDHT
+		host        host.Host
+		conf        *PeerConfiguration
+		dht         *dht.IpfsDHT
 	}
 )
 
@@ -67,7 +65,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readKeyPair(conf, log)
+	privateKey, _, err := readKeyPair(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +90,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		libp2p.Peerstore(peerStore),
 		// Let this host use the DHT to find other hosts
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeAutoServer, log)
+			kademliaDHT, err = newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer, log)
 			return kademliaDHT, err
 		}),
 
@@ -109,8 +107,12 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
 	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
-	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
-	return p, nil
+
+	return &Peer{
+		host: h,
+		conf: conf,
+		dht: kademliaDHT,
+	}, nil
 }
 
 // This code is borrowed from the go-ipfs bootstrap process
@@ -154,7 +156,7 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 	if count == len(p.conf.BootstrapPeers) {
 		return fmt.Errorf("failed to bootstrap: %w", allErr)
 	}
-	return nil
+	return p.dht.Bootstrap(ctx)
 }
 
 // ID returns the identifier associated with this Peer.
@@ -169,24 +171,6 @@ func (p *Peer) String() string {
 		return fmt.Sprintf("NodeID:%s", id)
 	}
 	return fmt.Sprintf("NodeID:%s*%s", id[:2], id[len(id)-6:])
-}
-
-func (p *Peer) Validators() []peer.ID {
-	return p.validators
-}
-
-func (p *Peer) IsValidator() bool {
-	return slices.Contains(p.validators, p.ID())
-}
-
-func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {
-	var validatorIdentifiers []peer.ID
-	for _, v := range p.validators {
-		if v != exclude {
-			validatorIdentifiers = append(validatorIdentifiers, v)
-		}
-	}
-	return validatorIdentifiers
 }
 
 // MultiAddresses the address associated with this Peer.
@@ -308,7 +292,7 @@ func newPeerStore() (peerstore.Peerstore, error) {
 	return peerStore, nil
 }
 
-func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
+func readKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
 		return nil, nil, fmt.Errorf("missing peer key")
 	}

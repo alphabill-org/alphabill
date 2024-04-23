@@ -17,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/txbuffer"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/libp2p/go-libp2p-pubsub"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -45,48 +45,55 @@ var DefaultValidatorNetworkOptions = ValidatorNetworkOptions{
 	HandshakeTimeout:                 300 * time.Millisecond,
 }
 
-type ValidatorNetworkOptions struct {
-	// How many messages will be buffered (ReceivedChannel) in case of slow consumer.
-	// Once buffer is full messages will be dropped (ie not processed)
-	// until consumer catches up.
-	ReceivedChannelCapacity uint
-	TxBufferSize            uint
-	TxBufferHashAlgorithm   crypto.Hash
+type (
+	ValidatorNetworkOptions struct {
+		// How many messages will be buffered (ReceivedChannel) in case of slow consumer.
+		// Once buffer is full messages will be dropped (ie not processed)
+		// until consumer catches up.
+		ReceivedChannelCapacity uint
+		TxBufferSize            uint
+		TxBufferHashAlgorithm   crypto.Hash
 
-	// timeout configurations for Send operations.
-	// timeout values are per receiver, ie when calling Send with multiple receivers
-	// each receiver will have it's own timeout. The context used with Send call can
-	// be used to set timeout for whole Send call.
+		// timeout configurations for Send operations.
+		// timeout values are per receiver, ie when calling Send with multiple receivers
+		// each receiver will have it's own timeout. The context used with Send call can
+		// be used to set timeout for whole Send call.
 
-	BlockCertificationTimeout        time.Duration
-	BlockProposalTimeout             time.Duration
-	LedgerReplicationRequestTimeout  time.Duration
-	LedgerReplicationResponseTimeout time.Duration
-	HandshakeTimeout                 time.Duration
-}
+		BlockCertificationTimeout        time.Duration
+		BlockProposalTimeout             time.Duration
+		LedgerReplicationRequestTimeout  time.Duration
+		LedgerReplicationResponseTimeout time.Duration
+		HandshakeTimeout                 time.Duration
+	}
 
-type validatorNetwork struct {
-	*LibP2PNetwork
-	txBuffer *txbuffer.TxBuffer
-	txFwdBy  metric.Int64Counter
-	txFwdTo  metric.Int64Counter
+	TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
 
-	gs                   *pubsub.PubSub
-	gsTopicBlock         *pubsub.Topic
-	gsSubscriptionBlock  *pubsub.Subscription
-}
+	TxReceiver func() peer.ID
 
-type TxProcessor func(ctx context.Context, tx *types.TransactionOrder) error
+	node interface {
+		SystemID() types.SystemID
+		Peer() *Peer
+		IsValidatorNode() bool
+	}
 
-type TxReceiver func() peer.ID
+	validatorNetwork struct {
+		*LibP2PNetwork
+		node                node
+		txBuffer            *txbuffer.TxBuffer
+		txFwdBy             metric.Int64Counter
+		txFwdTo             metric.Int64Counter
+		gsTopicBlock        *pubsub.Topic
+		gsSubscriptionBlock *pubsub.Subscription
+	}
+)
 
 /*
 NewLibP2PValidatorNetwork creates a new LibP2PNetwork based validator network.
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, self *Peer, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
-	base, err := newLibP2PNetwork(self, opts.ReceivedChannelCapacity, obs)
+func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
+	base, err := newLibP2PNetwork(node.Peer(), opts.ReceivedChannelCapacity, obs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,39 +106,40 @@ func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, sel
 	n := &validatorNetwork{
 		LibP2PNetwork: base,
 		txBuffer:      txBuffer,
+		node:          node,
 	}
 
-	if err := n.initGossipSub(ctx, systemID); err != nil {
+	if err := n.initGossipSub(ctx, node.SystemID()); err != nil {
 		return nil, fmt.Errorf("initializing gossip protocol: %w", err)
 	}
 
 	sendProtocolDescriptions := []sendProtocolDescription{
 		{
 			protocolID: ProtocolLedgerReplicationReq,
-			timeout: opts.LedgerReplicationRequestTimeout,
-			msgType: replication.LedgerReplicationRequest{}},
+			timeout:    opts.LedgerReplicationRequestTimeout,
+			msgType:    replication.LedgerReplicationRequest{}},
 		{
 			protocolID: ProtocolLedgerReplicationResp,
-			timeout: opts.LedgerReplicationResponseTimeout,
-			msgType: replication.LedgerReplicationResponse{},
+			timeout:    opts.LedgerReplicationResponseTimeout,
+			msgType:    replication.LedgerReplicationResponse{},
 		},
 	}
-	if self.IsValidator() {
+	if node.IsValidatorNode() {
 		sendProtocolDescriptions = append(sendProtocolDescriptions,
 			sendProtocolDescription{
 				protocolID: ProtocolBlockProposal,
-				timeout: opts.BlockProposalTimeout,
-				msgType: blockproposal.BlockProposal{},
+				timeout:    opts.BlockProposalTimeout,
+				msgType:    blockproposal.BlockProposal{},
 			},
 			sendProtocolDescription{
 				protocolID: ProtocolBlockCertification,
-				timeout: opts.BlockCertificationTimeout,
-				msgType: certification.BlockCertificationRequest{},
+				timeout:    opts.BlockCertificationTimeout,
+				msgType:    certification.BlockCertificationRequest{},
 			},
 			sendProtocolDescription{
 				protocolID: ProtocolHandshake,
-				timeout: opts.HandshakeTimeout,
-				msgType: handshake.Handshake{},
+				timeout:    opts.HandshakeTimeout,
+				msgType:    handshake.Handshake{},
 			},
 		)
 	}
@@ -142,14 +150,14 @@ func NewLibP2PValidatorNetwork(ctx context.Context, systemID types.SystemID, sel
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolLedgerReplicationReq,
-			typeFn: func() any { return &replication.LedgerReplicationRequest{} },
+			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
 		},
 		{
 			protocolID: ProtocolLedgerReplicationResp,
 			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
 	}
-	if self.IsValidator() {
+	if node.IsValidatorNode() {
 		receiveProtocolDescriptions = append(receiveProtocolDescriptions,
 			receiveProtocolDescription{
 				protocolID: ProtocolBlockProposal,
@@ -199,7 +207,7 @@ func (n *validatorNetwork) initGossipSub(ctx context.Context, systemID types.Sys
 	}
 
 	// Only non-validators subscribe to receive new blocks
-	if !n.self.IsValidator() {
+	if !n.node.IsValidatorNode() {
 		n.log.InfoContext(ctx, fmt.Sprintf("Subscribing to gossipsub topic %s", topic))
 		n.gsSubscriptionBlock, err = n.gsTopicBlock.Subscribe()
 		if err != nil {
@@ -262,7 +270,7 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 
 func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc TxReceiver) {
 	receiver := receiverFunc()
-	if n.self.IsValidator() {
+	if n.node.IsValidatorNode() {
 		var span trace.Span
 		ctx, span = n.tracer.Start(ctx, "validatorNetwork.ForwardTransactions",
 			trace.WithAttributes(attribute.Stringer("receiver", receiver)))
@@ -307,7 +315,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 			if err != nil {
 				n.log.WarnContext(ctx, "opening p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
 				addToMetric("err")
-				return
+				continue
 			}
 			openStreams = append(openStreams, stream)
 		}
@@ -378,7 +386,9 @@ func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 			continue
 		}
 
-		n.receivedMsg(msg.ReceivedFrom, msg.GetTopic(), block)
+		if err = n.receivedMsg(msg.ReceivedFrom, msg.GetTopic(), block); err != nil {
+			n.log.WarnContext(ctx, "failed to receive block", logger.Error(err))
+		}
 	}
 }
 

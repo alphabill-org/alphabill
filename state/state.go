@@ -202,9 +202,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	unit := u.Clone()
 	logsCount := len(unit.logs)
 	l := &Log{
-		TxRecordHash: transactionRecordHash,
-		NewBearer:    bytes.Clone(unit.bearer),
-		NewUnitData:  copyData(unit.data),
+		TxRecordHash:   transactionRecordHash,
+		NewBearer:      bytes.Clone(unit.bearer),
+		NewUnitData:    copyData(unit.data),
+		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
 	if logsCount == 0 {
 		// newly created unit
@@ -234,7 +235,7 @@ func (s *State) Apply(actions ...Action) error {
 	return nil
 }
 
-// Commit commits the changes in the latest savepoint.
+// Commit makes the changes in the latest savepoint permanent.
 func (s *State) Commit(uc *types.UnicityCertificate) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

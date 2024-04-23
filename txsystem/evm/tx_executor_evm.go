@@ -37,7 +37,7 @@ func (d *ProcessingDetails) Bytes() ([]byte, error) {
 }
 
 func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {
-	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
+	return func(tx *types.TransactionOrder, attr *TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(opts.state, log)
 		if !stateDB.Exist(from) {
@@ -48,7 +48,7 @@ func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.
 				err = stateDB.Finalize()
 			}
 		}()
-		return Execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false, log)
+		return Execute(exeCtx.CurrentBlockNr, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false, log)
 	}
 }
 

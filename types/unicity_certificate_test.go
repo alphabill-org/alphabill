@@ -3,7 +3,6 @@ package types
 import (
 	gocrypto "crypto"
 	"crypto/sha256"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/crypto"
@@ -14,143 +13,208 @@ import (
 
 func TestUnicityCertificate_IsValid(t *testing.T) {
 	sdrh := zeroHash
-	hasher := gocrypto.SHA256.New()
-	leaf := UnicityTreeData{
-		SystemIdentifier:            identifier,
-		InputRecord:                 ir,
-		SystemDescriptionRecordHash: sdrh,
-	}
-	leaf.AddToHasher(hasher)
-	dataHash := hasher.Sum(nil)
-	var uct = &UnicityTreeCertificate{
-		SystemIdentifier:      identifier,
-		SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
-		SystemDescriptionHash: zeroHash,
-	}
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	seal := &UnicitySeal{
-		RootChainRoundNumber: 1,
-		Timestamp:            NewTimestamp(),
-		PreviousHash:         zeroHash,
-		Hash:                 zeroHash,
-	}
-	err := seal.Sign("test", signer)
-	require.NoError(t, err)
-	type fields struct {
-		InputRecord            *InputRecord
-		UnicityTreeCertificate *UnicityTreeCertificate
-		UnicitySeal            *UnicitySeal
-	}
-	type args struct {
-		verifiers             map[string]crypto.Verifier
-		algorithm             gocrypto.Hash
-		systemIdentifier      SystemID
-		systemDescriptionHash []byte
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		err    error
-		errStr string
-	}{
-		{
-			name: "invalid input record",
-			fields: fields{
-				InputRecord:            nil,
-				UnicityTreeCertificate: nil,
-				UnicitySeal:            seal,
+	t.Run("UC is nil", func(t *testing.T) {
+		var uc *UnicityCertificate
+		require.EqualValues(t, 0, uc.GetRoundNumber())
+		require.EqualValues(t, 0, uc.GetRootRoundNumber())
+		require.Nil(t, uc.GetStateHash())
+		require.ErrorIs(t, uc.Verify(nil, gocrypto.SHA256, 0, nil), ErrUnicityCertificateIsNil)
+	})
+	t.Run("invalid input record", func(t *testing.T) {
+		uc := &UnicityCertificate{}
+		require.EqualValues(t, 0, uc.GetRoundNumber())
+		require.EqualValues(t, 0, uc.GetRootRoundNumber())
+		require.Nil(t, uc.GetStateHash())
+		require.ErrorIs(t, uc.IsValid(gocrypto.SHA256, identifier, sdrh), ErrInputRecordIsNil)
+	})
+	t.Run("invalid uct is nil", func(t *testing.T) {
+		uc := &UnicityCertificate{
+			InputRecord: &InputRecord{
+				PreviousHash:    []byte{0, 0, 1},
+				Hash:            []byte{0, 0, 2},
+				BlockHash:       []byte{0, 0, 3},
+				SummaryValue:    []byte{0, 0, 4},
+				RoundNumber:     1,
+				SumOfEarnedFees: 20,
 			},
-			args: args{
-				verifiers:             map[string]crypto.Verifier{"test": verifier},
-				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      identifier,
-				systemDescriptionHash: sdrh,
+		}
+		require.ErrorIs(t, uc.IsValid(gocrypto.SHA256, identifier, sdrh), ErrUnicityTreeCertificateIsNil)
+	})
+	t.Run("invalid unicity seal is nil", func(t *testing.T) {
+		hasher := gocrypto.SHA256.New()
+		inputRecord := &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     1,
+			SumOfEarnedFees: 20,
+		}
+		leaf := UnicityTreeData{
+			SystemIdentifier:            identifier,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: sdrh,
+		}
+		leaf.AddToHasher(hasher)
+		dataHash := hasher.Sum(nil)
+		require.NotNil(t, dataHash)
+		uc := &UnicityCertificate{
+			InputRecord: inputRecord,
+			UnicityTreeCertificate: &UnicityTreeCertificate{
+				SystemIdentifier:      identifier,
+				SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
+				SystemDescriptionHash: zeroHash,
 			},
-			err: ErrInputRecordIsNil,
-		},
-		{
-			name: "invalid uct",
-			fields: fields{
-				InputRecord:            ir,
-				UnicityTreeCertificate: nil,
-				UnicitySeal:            seal,
+		}
+		require.ErrorIs(t, uc.IsValid(gocrypto.SHA256, identifier, sdrh), ErrUnicitySealIsNil)
+	})
+	t.Run("invalid root hash", func(t *testing.T) {
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		seal := &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            NewTimestamp(),
+			PreviousHash:         zeroHash,
+			Hash:                 zeroHash,
+		}
+		require.NoError(t, seal.Sign("test", signer))
+		uc := &UnicityCertificate{
+			InputRecord: &InputRecord{
+				PreviousHash:    []byte{0, 0, 1},
+				Hash:            []byte{0, 0, 2},
+				BlockHash:       []byte{0, 0, 3},
+				SummaryValue:    []byte{0, 0, 4},
+				RoundNumber:     1,
+				SumOfEarnedFees: 20,
 			},
-			args: args{
-				verifiers:             map[string]crypto.Verifier{"test": verifier},
-				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      identifier,
-				systemDescriptionHash: sdrh,
+			UnicityTreeCertificate: &UnicityTreeCertificate{
+				SystemIdentifier:      identifier,
+				SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: []byte{1, 2, 3}}},
+				SystemDescriptionHash: zeroHash,
 			},
-			err: ErrUnicityTreeCertificateIsNil,
-		},
-		{
-			name: "invalid unicity seal",
-			fields: fields{
-				InputRecord:            ir,
-				UnicityTreeCertificate: uct,
-				UnicitySeal:            nil,
+			UnicitySeal: seal,
+		}
+		require.EqualError(t, uc.IsValid(gocrypto.SHA256, identifier, sdrh),
+			"unicity tree certificate validation failed: error invalid data hash: expected 010203 got 8F96FC4EF1DE388E2926B357B746FCD4BBA2862E23A7E5F6E0FFAA23FBA2B412")
+	})
+	t.Run("valid", func(t *testing.T) {
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		inputRecord := &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     1,
+			SumOfEarnedFees: 20,
+		}
+		hasher := gocrypto.SHA256.New()
+		leaf := UnicityTreeData{
+			SystemIdentifier:            identifier,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: sdrh,
+		}
+		leaf.AddToHasher(hasher)
+		dataHash := hasher.Sum(nil)
+		seal := &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            NewTimestamp(),
+			PreviousHash:         zeroHash,
+			Hash:                 hexDecode(t, "48DDB8477B58564F8647737B92841EF6461103F4848AB79C2A8894F9DA7E374D"),
+		}
+		require.NoError(t, seal.Sign("test", signer))
+		uc := &UnicityCertificate{
+			InputRecord: inputRecord,
+			UnicityTreeCertificate: &UnicityTreeCertificate{
+				SystemIdentifier:      identifier,
+				SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
+				SystemDescriptionHash: zeroHash,
 			},
-			args: args{
-				verifiers:             map[string]crypto.Verifier{"test": verifier},
-				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      identifier,
-				systemDescriptionHash: sdrh,
-			},
-			err: ErrUnicitySealIsNil,
-		},
-		{
-			name: "invalid root hash",
-			fields: fields{
-				InputRecord:            ir,
-				UnicityTreeCertificate: uct,
-				UnicitySeal:            seal,
-			},
-			args: args{
-				verifiers:             map[string]crypto.Verifier{"test": verifier},
-				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      identifier,
-				systemDescriptionHash: sdrh,
-			},
-			errStr: "does not match with the root hash of the unicity tree",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			uc := &UnicityCertificate{
-				InputRecord:            tt.fields.InputRecord,
-				UnicityTreeCertificate: tt.fields.UnicityTreeCertificate,
-				UnicitySeal:            tt.fields.UnicitySeal,
-			}
-
-			err := uc.IsValid(tt.args.verifiers, tt.args.algorithm, tt.args.systemIdentifier, tt.args.systemDescriptionHash)
-			if tt.err != nil {
-				require.ErrorIs(t, err, tt.err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.errStr))
-			}
-		})
-	}
+			UnicitySeal: seal,
+		}
+		require.NoError(t, uc.IsValid(gocrypto.SHA256, identifier, sdrh))
+	})
 }
 
-func TestUnicityCertificate_UCIsNil(t *testing.T) {
-	var uc *UnicityCertificate
-	require.EqualValues(t, 0, uc.GetRoundNumber())
-	require.EqualValues(t, 0, uc.GetRootRoundNumber())
-	require.Nil(t, uc.GetStateHash())
-	require.ErrorIs(t, uc.IsValid(nil, gocrypto.SHA256, 0, nil), ErrUnicityCertificateIsNil)
-}
-
-func TestUnicityCertificate_IRNil(t *testing.T) {
-	uc := &UnicityCertificate{
-		UnicityTreeCertificate: &UnicityTreeCertificate{},
-		UnicitySeal:            &UnicitySeal{},
-	}
-	require.EqualValues(t, 0, uc.GetRoundNumber())
-	require.EqualValues(t, 0, uc.GetRootRoundNumber())
-	require.Nil(t, uc.GetStateHash())
-	require.EqualError(t, uc.IsValid(nil, gocrypto.SHA256, 0, nil), "unicity seal validation failed, root node info is missing")
+func TestUnicityCertificate_Verify(t *testing.T) {
+	sdrh := zeroHash
+	t.Run("UC is nil", func(t *testing.T) {
+		uc := UnicityCertificate{}
+		require.EqualError(t, uc.Verify(nil, gocrypto.SHA256, 0, nil),
+			"unicity certificate validation failed: input record error: input record is nil")
+	})
+	t.Run("tb is nil", func(t *testing.T) {
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		inputRecord := &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     1,
+			SumOfEarnedFees: 20,
+		}
+		hasher := gocrypto.SHA256.New()
+		leaf := UnicityTreeData{
+			SystemIdentifier:            identifier,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: sdrh,
+		}
+		leaf.AddToHasher(hasher)
+		dataHash := hasher.Sum(nil)
+		seal := &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            NewTimestamp(),
+			PreviousHash:         zeroHash,
+			Hash:                 hexDecode(t, "48DDB8477B58564F8647737B92841EF6461103F4848AB79C2A8894F9DA7E374D"),
+		}
+		require.NoError(t, seal.Sign("test", signer))
+		uc := &UnicityCertificate{
+			InputRecord: inputRecord,
+			UnicityTreeCertificate: &UnicityTreeCertificate{
+				SystemIdentifier:      identifier,
+				SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
+				SystemDescriptionHash: zeroHash,
+			},
+			UnicitySeal: seal,
+		}
+		require.EqualError(t, uc.Verify(nil, gocrypto.SHA256, identifier, sdrh),
+			"unicity seal signature validation failed: root node info is missing")
+	})
+	t.Run("verify ok", func(t *testing.T) {
+		signer, verifier := testsig.CreateSignerAndVerifier(t)
+		inputRecord := &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     1,
+			SumOfEarnedFees: 20,
+		}
+		hasher := gocrypto.SHA256.New()
+		leaf := UnicityTreeData{
+			SystemIdentifier:            identifier,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: sdrh,
+		}
+		leaf.AddToHasher(hasher)
+		dataHash := hasher.Sum(nil)
+		seal := &UnicitySeal{
+			RootChainRoundNumber: 1,
+			Timestamp:            1712524909,
+			PreviousHash:         zeroHash,
+			Hash:                 hexDecode(t, "48DDB8477B58564F8647737B92841EF6461103F4848AB79C2A8894F9DA7E374D"),
+		}
+		require.NoError(t, seal.Sign("test", signer))
+		uc := &UnicityCertificate{
+			InputRecord: inputRecord,
+			UnicityTreeCertificate: &UnicityTreeCertificate{
+				SystemIdentifier:      identifier,
+				SiblingHashes:         []*imt.PathItem{{Key: identifier.Bytes(), Hash: dataHash}},
+				SystemDescriptionHash: zeroHash,
+			},
+			UnicitySeal: seal,
+		}
+		tb := map[string]crypto.Verifier{"test": verifier}
+		require.NoError(t, uc.Verify(tb, gocrypto.SHA256, identifier, sdrh))
+	})
 }
 
 func TestUnicityCertificate_isRepeat(t *testing.T) {

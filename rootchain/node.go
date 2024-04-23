@@ -114,6 +114,10 @@ func (v *Node) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
+func (v *Node) GetPeer() *network.Peer {
+	return v.peer
+}
+
 // loop handles messages from different goroutines.
 func (v *Node) loop(ctx context.Context) error {
 	for {

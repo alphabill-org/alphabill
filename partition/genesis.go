@@ -162,8 +162,7 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 		InputRecord:      gIR,
 		RootRoundNumber:  pg.RootRoundNumber,
 	}
-	err = blockCertificationRequest.Sign(c.signer)
-	if err != nil {
+	if err := blockCertificationRequest.Sign(c.signer); err != nil {
 		return nil, err
 	}
 
@@ -173,9 +172,6 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 	}
 
 	if err := blockCertificationRequest.IsValid(verifier); err != nil {
-		return nil, err
-	}
-	if err != nil {
 		return nil, err
 	}
 

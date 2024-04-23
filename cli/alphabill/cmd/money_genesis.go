@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -15,8 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/types"
 	"github.com/alphabill-org/alphabill/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -32,10 +33,10 @@ var (
 	defaultInitialBillID    = money.NewBillID(nil, []byte{1})
 	defaultInitialBillOwner = templates.AlwaysTrueBytes()
 
-	defaultMoneySDR = &genesis.SystemDescriptionRecord{
+	defaultMoneySDR = &types.SystemDescriptionRecord{
 		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        defaultT2Timeout,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
@@ -143,7 +144,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 
-	if err := writeStateFile(nodeGenesisStateFile, genesisState, config.SystemIdentifier); err != nil {
+	if err := writeStateFile(nodeGenesisStateFile, genesisState); err != nil {
 		return fmt.Errorf("failed to write genesis state file: %w", err)
 	}
 
@@ -179,13 +180,13 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	return res, nil
 }
 
-func (c *moneyGenesisConfig) getSDRs() ([]*genesis.SystemDescriptionRecord, error) {
-	var sdrs []*genesis.SystemDescriptionRecord
+func (c *moneyGenesisConfig) getSDRs() ([]*types.SystemDescriptionRecord, error) {
+	var sdrs []*types.SystemDescriptionRecord
 	if len(c.SDRFiles) == 0 {
 		sdrs = append(sdrs, defaultMoneySDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
+			sdr, err := util.ReadJsonFile(sdrFile, &types.SystemDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}
@@ -215,9 +216,9 @@ func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 
 func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &money.BillData{
-		V:        config.InitialBillValue,
-		T:        0,
-		Backlink: nil,
+		V:       config.InitialBillValue,
+		T:       0,
+		Counter: 0,
 	}))
 	if err == nil {
 		err = s.AddUnitLog(config.InitialBillID, zeroHash)
@@ -227,9 +228,9 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 
 func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConfig) error {
 	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &money.BillData{
-		V:        config.DCMoneySupplyValue,
-		T:        0,
-		Backlink: nil,
+		V:       config.DCMoneySupplyValue,
+		T:       0,
+		Counter: 0,
 	}))
 	if err == nil {
 		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
@@ -260,9 +261,9 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		}
 
 		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &money.BillData{
-			V:        0,
-			T:        0,
-			Backlink: nil,
+			V:       0,
+			T:       0,
+			Counter: 0,
 		}))
 		if err != nil {
 			return err
@@ -274,7 +275,7 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 	return nil
 }
 
-func writeStateFile(path string, s *state.State, systemID types.SystemID) error {
+func writeStateFile(path string, s *state.State) error {
 	stateFile, err := os.Create(filepath.Clean(path))
 	if err != nil {
 		return err

@@ -12,14 +12,13 @@ import (
 )
 
 func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateTransferFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}
 		fee := m.feeCalculator()
 		unitID := tx.UnitID()
 
-		// update state
 		if err := m.state.Apply(
 			state.SetOwner(unitID, attr.NewBearer),
 			state.UpdateUnitData(unitID,
@@ -28,10 +27,11 @@ func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericE
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					d.T = currentBlockNr
-					d.Backlink = tx.Hash(m.hashAlgorithm)
+					d.T = exeCtx.CurrentBlockNr
+					d.Counter += 1
 					return d, nil
-				})); err != nil {
+				}),
+		); err != nil {
 			return nil, err
 		}
 
@@ -53,8 +53,8 @@ func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.Transacti
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
 	}
 
-	if !bytes.Equal(d.Backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
+	if d.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
@@ -123,12 +123,12 @@ func (t *TransferFungibleTokenAttributes) SetNonce(nonce []byte) {
 	t.Nonce = nonce
 }
 
-func (t *TransferFungibleTokenAttributes) GetBacklink() []byte {
-	return t.Backlink
+func (t *TransferFungibleTokenAttributes) GetCounter() uint64 {
+	return t.Counter
 }
 
-func (t *TransferFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	t.Backlink = backlink
+func (t *TransferFungibleTokenAttributes) SetCounter(counter uint64) {
+	t.Counter = counter
 }
 
 func (t *TransferFungibleTokenAttributes) GetTypeID() types.UnitID {
@@ -153,7 +153,7 @@ func (t *TransferFungibleTokenAttributes) SigBytes() ([]byte, error) {
 		NewBearer:                    t.NewBearer,
 		Value:                        t.Value,
 		Nonce:                        t.Nonce,
-		Backlink:                     t.Backlink,
+		Counter:                      t.Counter,
 		TypeID:                       t.TypeID,
 		InvariantPredicateSignatures: nil,
 	}

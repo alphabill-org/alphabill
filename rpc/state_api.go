@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
@@ -18,13 +19,14 @@ type (
 	}
 
 	partitionNode interface {
+		SystemID() types.SystemID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
-		SystemIdentifier() types.SystemID
 		TransactionSystemState() txsystem.StateReader
+		ValidatorNodes() peer.IDSlice
 	}
 
 	Unit[T any] struct {

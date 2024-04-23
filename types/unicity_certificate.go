@@ -18,23 +18,33 @@ type UnicityCertificate struct {
 	UnicitySeal            *UnicitySeal            `json:"unicity_seal,omitempty"`
 }
 
-func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier SystemID, systemDescriptionHash []byte) error {
+func (x *UnicityCertificate) IsValid(algorithm gocrypto.Hash, systemIdentifier SystemID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrUnicityCertificateIsNil
 	}
-	if err := x.UnicitySeal.IsValid(verifiers); err != nil {
-		return fmt.Errorf("unicity seal validation failed, %w", err)
-	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return fmt.Errorf("intput record validation failed, %w", err)
+		return fmt.Errorf("input record error: %w", err)
 	}
 	if err := x.UnicityTreeCertificate.IsValid(x.InputRecord, systemIdentifier, systemDescriptionHash, algorithm); err != nil {
-		return fmt.Errorf("unicity tree certificate validation failed, %w", err)
+		return fmt.Errorf("unicity tree certificate validation failed: %w", err)
+	}
+	if err := x.UnicitySeal.IsValid(); err != nil {
+		return fmt.Errorf("unicity seal error: %w", err)
 	}
 	treeRoot := x.UnicityTreeCertificate.EvalAuthPath(algorithm)
 	rootHash := x.UnicitySeal.Hash
 	if !bytes.Equal(treeRoot, rootHash) {
 		return fmt.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
+	}
+	return nil
+}
+
+func (x *UnicityCertificate) Verify(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier SystemID, systemDescriptionHash []byte) error {
+	if err := x.IsValid(algorithm, systemIdentifier, systemDescriptionHash); err != nil {
+		return fmt.Errorf("unicity certificate validation failed: %w", err)
+	}
+	if err := x.UnicitySeal.Verify(verifiers); err != nil {
+		return fmt.Errorf("unicity seal signature validation failed: %w", err)
 	}
 	return nil
 }
@@ -155,7 +165,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 }
 
 func (x *UnicityCertificate) IsSuccessor(prevUC *UnicityCertificate) bool {
-	return x.GetRoundNumber() == prevUC.GetRoundNumber() + 1
+	return x.GetRoundNumber() == prevUC.GetRoundNumber()+1
 }
 
 func (x *UnicityCertificate) IsDuplicate(prevUC *UnicityCertificate) bool {

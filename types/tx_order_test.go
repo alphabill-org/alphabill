@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ type Attributes struct {
 	_           struct{} `cbor:",toarray"`
 	NewBearer   []byte
 	TargetValue uint64
-	Backlink    []byte
+	Counter     uint64
 }
 
 var (
@@ -25,9 +26,9 @@ var (
 	feeCreditRecordID              = []byte{32, 32, 32, 32}
 	newBearer                      = []byte{1, 2, 3, 4}
 	targetValue           uint64   = 100
-	backlink                       = make([]byte, 32)
+	counter               uint64   = 123
 
-	// 85                                       # array(5)
+	// 86                                       # array(6)
 	//   1A                                     #   uint32
 	//      01000001                            #     "\x01\x00\x00\x01"
 	//   68                                     #   text(8)
@@ -46,17 +47,21 @@ var (
 	//      18 2a                               #     unsigned(42)
 	//      18 45                               #     unsigned(69)
 	//      44                                  #     bytes(4)
-	//         20202020                         #       "    "
-	payloadInHEX = "85" +
+    //         20202020                         #       "    "
+    //      43                                  #     bytes(3)
+    //         524546                           #       "REF"
+	payloadInHEX = "86" +
 		"1A01000001" + // SystemID
 		"687472616E73666572" + // Type
 		"58200000000000000000000000000000000000000000000000000000000000000000" + // UnitID
-		"834401020304186458200000000000000000000000000000000000000000000000000000000000000000" + // Attributes
-		"83182A18454420202020" // Client metadata
+		"8344010203041864187b" + // Attributes
+        "f6" + // State lock
+		"84182a1845442020202043524546" // Client metadata
 )
 
 func TestMarshalPayload(t *testing.T) {
 	payloadBytes, err := createTxOrder(t).PayloadBytes()
+	fmt.Printf("payloadBytes: %x\n", payloadBytes)
 	require.NoError(t, err)
 	require.Equal(t, hexDecode(t, payloadInHEX), payloadBytes)
 }
@@ -78,14 +83,15 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	}, OwnerProof: make([]byte, 32)}
 	payloadBytes, err := order.PayloadBytes()
 	require.NoError(t, err)
-	// 85    # array(5)
+	// 86    # array(6)
 	//   00 #   zero, unsigned int
 	//   60 #   text(0)
 	//      #     ""
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
-	require.Equal(t, []byte{0x85, 0x00, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
+	//   f6 #   null, simple(22)
+	require.Equal(t, []byte{0x86, 0x00, 0x60, 0xf6, 0xf6, 0xf6, 0xf6}, payloadBytes)
 
 	payload := &Payload{}
 	require.NoError(t, Cbor.Unmarshal(payloadBytes, payload))
@@ -104,7 +110,7 @@ func TestUnmarshalPayload(t *testing.T) {
 	require.NoError(t, payload.UnmarshalAttributes(attributes))
 	require.Equal(t, newBearer, attributes.NewBearer)
 	require.Equal(t, targetValue, attributes.TargetValue)
-	require.Equal(t, backlink, attributes.Backlink)
+	require.Equal(t, counter, attributes.Counter)
 
 	clientMetadata := payload.ClientMetadata
 	require.NotNil(t, clientMetadata)
@@ -119,7 +125,7 @@ func TestUnmarshalAttributes(t *testing.T) {
 	require.NoError(t, txOrder.UnmarshalAttributes(attributes))
 	require.Equal(t, newBearer, attributes.NewBearer)
 	require.Equal(t, targetValue, attributes.TargetValue)
-	require.Equal(t, backlink, attributes.Backlink)
+	require.Equal(t, counter, attributes.Counter)
 	require.Equal(t, UnitID(unitID), txOrder.UnitID())
 	require.Equal(t, systemID, txOrder.SystemID())
 	require.Equal(t, timeout, txOrder.Timeout())
@@ -147,7 +153,7 @@ func Test_TransactionOrder_SetOwnerProof(t *testing.T) {
 }
 
 func Test_Payload_SetAttributes(t *testing.T) {
-	attributes := &Attributes{NewBearer: []byte{9, 3, 5, 2, 6}, TargetValue: 59, Backlink: []byte{4, 2, 7, 5}}
+	attributes := &Attributes{NewBearer: []byte{9, 3, 5, 2, 6}, TargetValue: 59, Counter: 123}
 	pl := Payload{}
 	require.NoError(t, pl.SetAttributes(attributes))
 
@@ -157,7 +163,7 @@ func Test_Payload_SetAttributes(t *testing.T) {
 }
 
 func createTxOrder(t *testing.T) *TransactionOrder {
-	attributes := &Attributes{NewBearer: newBearer, TargetValue: targetValue, Backlink: backlink}
+	attributes := &Attributes{NewBearer: newBearer, TargetValue: targetValue, Counter: counter}
 
 	attr, err := Cbor.Marshal(attributes)
 	require.NoError(t, err)
@@ -171,6 +177,7 @@ func createTxOrder(t *testing.T) *TransactionOrder {
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 			FeeCreditRecordID: feeCreditRecordID,
+			ReferenceNumber:   []byte("REF"),
 		},
 	}}
 	return order

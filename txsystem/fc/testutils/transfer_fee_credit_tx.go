@@ -21,7 +21,7 @@ func NewTransferFC(t *testing.T, attr *transactions.TransferFeeCreditAttributes,
 		attr = NewTransferFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -42,7 +42,7 @@ func NewDefaultTransferFCAttr() *transactions.TransferFeeCreditAttributes {
 		TargetRecordID:         unitID,
 		EarliestAdditionTime:   earliestAdditionTime,
 		LatestAdditionTime:     latestAdditionTime,
-		Backlink:               backlink,
+		Counter:                counter,
 	}
 }
 
@@ -61,9 +61,9 @@ func WithAmount(amount uint64) TransferFeeCreditOption {
 	}
 }
 
-func WithBacklink(backlink []byte) TransferFeeCreditOption {
+func WithCounter(counter uint64) TransferFeeCreditOption {
 	return func(tx *transactions.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.Backlink = backlink
+		tx.Counter = counter
 		return nil
 	}
 }

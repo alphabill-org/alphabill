@@ -12,8 +12,8 @@ image: $CI_REGISTRY/alphabill/gitlab-ci-image:main
 
     # Configure SSH agent
     - eval "$(ssh-agent -s)"
-    - chmod 600 ${ALPHABILL_WALLET_PRIVATE_KEY}
-    - ssh-add ${ALPHABILL_WALLET_PRIVATE_KEY}
+    - chmod 600 ${ALPHABILL_PRIVATE_KEY}
+    - ssh-add ${ALPHABILL_PRIVATE_KEY}
 
     # Add SSH keys
     - ssh-keyscan ${CI_SERVER_SHELL_SSH_HOST} > ci/known_hosts

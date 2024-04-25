@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	sdkpredicates "github.com/alphabill-org/alphabill-go-sdk/predicates"
 	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 
@@ -34,7 +35,7 @@ func TestTemplateRunner(t *testing.T) {
 
 	t.Run("invalid predicate tag", func(t *testing.T) {
 		res, err := runner.Execute(context.Background(),
-			&templates.Predicate{
+			&sdkpredicates.Predicate{
 				Tag: 0x01,
 				Code: []byte{templates.AlwaysFalseID},
 			}, nil, nil, nil)
@@ -44,7 +45,7 @@ func TestTemplateRunner(t *testing.T) {
 
 	t.Run("predicate code length not 1", func(t *testing.T) {
 		res, err := runner.Execute(context.Background(),
-			&templates.Predicate{
+			&sdkpredicates.Predicate{
 				Tag: templates.TemplateStartByte,
 				Code: []byte{templates.AlwaysFalseID, templates.AlwaysTrueID},
 			}, nil, nil, nil)
@@ -53,7 +54,7 @@ func TestTemplateRunner(t *testing.T) {
 	})
 
 	t.Run("unknown predicate template", func(t *testing.T) {
-		res, err := runner.Execute(context.Background(), &templates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{0xAF}}, nil, nil, nil)
+		res, err := runner.Execute(context.Background(), &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{0xAF}}, nil, nil, nil)
 		require.EqualError(t, err, "unknown predicate template with id 175")
 		require.False(t, res)
 	})
@@ -64,14 +65,14 @@ func TestTemplateRunner(t *testing.T) {
 	*/
 
 	t.Run("always false", func(t *testing.T) {
-		af := &templates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysFalseID}}
+		af := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysFalseID}}
 		res, err := runner.Execute(context.Background(), af, nil, nil, nil)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
 
 	t.Run("always true", func(t *testing.T) {
-		at := &templates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysTrueID}}
+		at := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysTrueID}}
 		res, err := runner.Execute(context.Background(), at, nil, nil, nil)
 		require.NoError(t, err)
 		require.True(t, res)
@@ -83,7 +84,7 @@ func TestTemplateRunner(t *testing.T) {
 		execEnv := &mockTxContext{
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
 		}
-		pred := &templates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.P2pkh256ID}}
+		pred := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.P2pkh256ID}}
 		res, err := runner.Execute(context.Background(), pred, nil, &types.TransactionOrder{}, execEnv)
 		require.ErrorIs(t, err, expErr)
 		require.False(t, res)

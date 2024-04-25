@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 )
@@ -18,10 +18,10 @@ type (
 		// to the engine which is supposed to evaluate it.
 		ID() uint64
 		// executes given predicate
-		Execute(ctx context.Context, predicate *templates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 	}
 
-	PredicateEngines map[uint64]func(ctx context.Context, predicate *templates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 
 	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 
@@ -37,8 +37,8 @@ type (
 	}
 )
 
-func ExtractPredicate(predicateBytes []byte) (*templates.Predicate, error) {
-	predicate := &templates.Predicate{}
+func ExtractPredicate(predicateBytes []byte) (*predicates.Predicate, error) {
+	predicate := &predicates.Predicate{}
 	if err := types.Cbor.Unmarshal(predicateBytes, predicate); err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	sdkpredicates "github.com/alphabill-org/alphabill-go-sdk/predicates"
 	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/predicates"
@@ -25,7 +26,7 @@ func (TemplateRunner) ID() uint64 {
 	return templates.TemplateStartByte
 }
 
-func (TemplateRunner) Execute(ctx context.Context, p *templates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 	if p.Tag != templates.TemplateStartByte {
 		return false, fmt.Errorf("expected predicate template tag %d but got %d", templates.TemplateStartByte, p.Tag)
 	}

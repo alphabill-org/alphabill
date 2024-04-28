@@ -3,15 +3,16 @@ package fc
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[fc.AddFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 
 		bd, _ := f.state.GetUnit(unitID, false)
@@ -37,7 +38,7 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 		var updateFunc state.Action
 		if bd == nil {
 			// add credit
-			fcr := &unit.FeeCreditRecord{
+			fcr := &fc.FeeCreditRecord{
 				Balance:  v,
 				Backlink: txHash,
 				Timeout:  transferFc.LatestAdditionTime + 1,
@@ -56,8 +57,8 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 	}
 }
 
-func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transactions.TransferFeeCreditAttributes, error) {
-	transferPayload := &transactions.TransferFeeCreditAttributes{}
+func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fc.TransferFeeCreditAttributes, error) {
+	transferPayload := &fc.TransferFeeCreditAttributes{}
 	if err := transfer.TransactionOrder.UnmarshalAttributes(transferPayload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal transfer payload: %w", err)
 	}

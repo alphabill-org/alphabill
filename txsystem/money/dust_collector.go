@@ -3,20 +3,22 @@ package money
 import (
 	"fmt"
 
-	abHasher "github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const defaultDustBillDeletionTimeout uint64 = 65536
 
 var (
 	// The ID of the dust collector money supply
-	DustCollectorMoneySupplyID = NewBillID(nil, nil)
+	DustCollectorMoneySupplyID = money.NewBillID(nil, nil)
 
 	// Dust collector predicate
-	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(abHasher.Sum256([]byte("dust collector")))
+	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
 )
 
 type DustCollector struct {
@@ -54,7 +56,7 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 		if err != nil {
 			return err
 		}
-		bd, ok := u.Data().(*BillData)
+		bd, ok := u.Data().(*money.BillData)
 		if !ok {
 			// it is safe to ignore the data because it is not a bill
 			continue
@@ -67,8 +69,8 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 	}
 	if valueToTransfer > 0 {
 		err := d.state.Apply(state.UpdateUnitData(DustCollectorMoneySupplyID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}

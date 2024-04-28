@@ -8,12 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	moneysdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -152,10 +154,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	sdr := &types.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
 		FeeCreditBill: &types.FeeCreditBill{
-			UnitID:         money.NewBillID(nil, []byte{2}),
+			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}
@@ -186,7 +188,7 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsInitialBill(t *testing.T) {
 	require.NoError(t, err)
 
 	sdr := &types.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         defaultInitialBillID,
@@ -209,7 +211,7 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
 	require.NoError(t, err)
 
 	sdr := &types.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.DustCollectorMoneySupplyID,

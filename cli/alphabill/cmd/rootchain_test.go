@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -160,7 +160,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultSystemIdentifier, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -169,7 +169,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -288,7 +288,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultSystemIdentifier, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -296,7 +296,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil

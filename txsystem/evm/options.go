@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const DefaultBlockGasLimit = 15000000
 const DefaultGasPrice = 210000000
-
-const DefaultEvmTxSystemIdentifier types.SystemID = 0x00000003
 
 type (
 	Options struct {

@@ -4,14 +4,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] {
-	return func(tx *types.TransactionOrder, attr *AddVarAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[orchestration.AddVarAttributes] {
+	return func(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unit, err := m.state.GetUnit(tx.UnitID(), false)
 		if err != nil && !errors.Is(err, avl.ErrNotFound) {
 			return nil, err
@@ -23,14 +25,14 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 
 		// add validator assignment record if it does not already exist
 		if unit == nil {
-			addUnitFunc := state.AddUnit(tx.UnitID(), m.ownerPredicate, &VarData{EpochNumber: 0})
+			addUnitFunc := state.AddUnit(tx.UnitID(), m.ownerPredicate, &orchestration.VarData{EpochNumber: 0})
 			actions = append(actions, addUnitFunc)
 		}
 
 		// update validator assigment record epoch number
 		updateUnitFunc := state.UpdateUnitData(tx.UnitID(),
-			func(data state.UnitData) (state.UnitData, error) {
-				vd, ok := data.(*VarData)
+			func(data types.UnitData) (types.UnitData, error) {
+				vd, ok := data.(*orchestration.VarData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain var data", tx.UnitID())
 				}
@@ -55,12 +57,12 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 	}
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *AddVarAttributes, unit *state.Unit) error {
-	if !tx.UnitID().HasType(VarUnitType) {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, unit *state.Unit) error {
+	if !tx.UnitID().HasType(orchestration.VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}
 	if unit != nil {
-		varData, ok := unit.Data().(*VarData)
+		varData, ok := unit.Data().(*orchestration.VarData)
 		if !ok {
 			return errors.New("invalid unit data type")
 		}

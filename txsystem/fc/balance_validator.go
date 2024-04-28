@@ -4,9 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 /*
@@ -14,7 +13,7 @@ CheckFeeCreditBalance implements the fee credit verification steps listed in the
 Yellowpaper "Valid Transaction Orders" chapter.
 */
 func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
-	if !transactions.IsFeeCreditTx(tx) {
+	if !fc.IsFeeCreditTx(tx) {
 		clientMetadata := tx.Payload.ClientMetadata
 
 		// 5. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
@@ -27,7 +26,7 @@ func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
 		if unit == nil {
 			return errors.New("fee credit record unit is nil")
 		}
-		fcr, ok := unit.Data().(*fcunit.FeeCreditRecord)
+		fcr, ok := unit.Data().(*fc.FeeCreditRecord)
 		if !ok {
 			return errors.New("invalid fee credit record type")
 		}

@@ -3,15 +3,16 @@ package evm
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 func isFeeCreditTx(tx *types.TransactionOrder) bool {
 	typeUrl := tx.PayloadType()
-	return typeUrl == transactions.PayloadTypeAddFeeCredit ||
-		typeUrl == transactions.PayloadTypeCloseFeeCredit
+	return typeUrl == fc.PayloadTypeAddFeeCredit ||
+		typeUrl == fc.PayloadTypeCloseFeeCredit
 }
 
 func checkFeeAccountBalance(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error) genericTransactionValidator {
@@ -22,10 +23,10 @@ func checkFeeAccountBalance(state *state.State, execPredicate func(predicate typ
 				return fmt.Errorf("failed to extract address from public key bytes, %w", err)
 			}
 			u, _ := state.GetUnit(addr.Bytes(), false)
-			if u == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeCloseFeeCredit {
+			if u == nil && ctx.Tx.PayloadType() == fc.PayloadTypeCloseFeeCredit {
 				return fmt.Errorf("no fee credit info found for unit %X", ctx.Tx.UnitID())
 			}
-			if u == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeAddFeeCredit {
+			if u == nil && ctx.Tx.PayloadType() == fc.PayloadTypeAddFeeCredit {
 				// account creation
 				return nil
 			}

@@ -6,21 +6,23 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
 	dustCollectorTransfer struct {
 		id         types.UnitID
 		tx         *types.TransactionRecord
-		attributes *TransferDCAttributes
+		attributes *money.TransferDCAttributes
 	}
 	swapValidationContext struct {
 		tx            *types.TransactionOrder
-		attr          *SwapDCAttributes
+		attr          *money.SwapDCAttributes
 		state         stateProvider
 		systemID      types.SystemID
 		hashAlgorithm crypto.Hash
@@ -32,8 +34,8 @@ type (
 	}
 )
 
-func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[money.SwapDCAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		c := &swapValidationContext{
 			tx:            tx,
 			attr:          attr,
@@ -49,8 +51,8 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 
 		// reduce dc-money supply by target value and update timeout and backlink
 		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
@@ -62,8 +64,8 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 		)
 		// increase target unit value by swap amount
 		updateTargetUnitFn := state.UpdateUnitData(tx.UnitID(),
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
 				}
@@ -96,7 +98,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if dcMoneySupply == nil {
 		return fmt.Errorf("DC-money supply unit not found: id=%X", DustCollectorMoneySupplyID)
 	}
-	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*BillData)
+	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*money.BillData)
 	if !ok {
 		return errors.New("DC-money supply invalid data type")
 	}
@@ -115,7 +117,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if err := c.execPredicate(unitData.Bearer(), c.tx.OwnerProof, c.tx); err != nil {
 		return err
 	}
-	billData, ok := unitData.Data().(*BillData)
+	billData, ok := unitData.Data().(*money.BillData)
 	if !ok {
 		return fmt.Errorf("target unit invalid data type")
 	}
@@ -194,8 +196,8 @@ func (c *swapValidationContext) getDCTransfers() ([]*dustCollectorTransfer, erro
 		if t == nil {
 			return nil, fmt.Errorf("dc tx is nil: %d", i)
 		}
-		a := &TransferDCAttributes{}
-		if t.TransactionOrder.PayloadType() != PayloadTypeTransDC {
+		a := &money.TransferDCAttributes{}
+		if t.TransactionOrder.PayloadType() != money.PayloadTypeTransDC {
 			return nil, fmt.Errorf("invalid transfer DC payload type: %s", t.TransactionOrder.PayloadType())
 		}
 		if err := t.TransactionOrder.UnmarshalAttributes(a); err != nil {

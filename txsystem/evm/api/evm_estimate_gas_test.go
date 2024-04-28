@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	evmsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -29,7 +30,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 		blockGasLimit:    100000000000,
 		log:              observe.Logger(),
 	}
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  test.RandomBytes(20),
 		To:    nil,
 		Data:  common.Hex2Bytes(counterContractCode),
@@ -64,7 +65,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["get"].ID,
@@ -81,7 +82,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.EqualValues(t, 23377, resp.GasUsed)
 
-	call = &CallEVMRequest{
+	call = &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["increment"].ID,
@@ -114,7 +115,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["get"].ID,
@@ -150,7 +151,7 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["get"].ID,
@@ -188,7 +189,7 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 	// try to reset to 2, will result in revert
 	fnCall, err := cABI.Pack("reset", big.NewInt(2))
 	require.NoError(t, err)
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  fnCall,
@@ -223,7 +224,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 	require.NoError(t, err)
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["infiniteInc"].ID,
@@ -256,7 +257,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              observe.Logger(),
 	}
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  []byte{0, 0, 0, 0, 1, 2, 3},
@@ -298,5 +299,5 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 		Err string
 	}{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
-	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type api.CallEVMRequest", resp.Err)
+	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type evm.CallEVMRequest", resp.Err)
 }

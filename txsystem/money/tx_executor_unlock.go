@@ -4,17 +4,19 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
 	ErrBillUnlocked = errors.New("bill is already unlocked")
 )
 
-func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] {
-	return func(tx *types.TransactionOrder, attr *UnlockAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[money.UnlockAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.UnlockAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -23,7 +25,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
-		billData, ok := unit.Data().(*BillData)
+		billData, ok := unit.Data().(*money.BillData)
 		if !ok {
 			return nil, errors.New("unlock tx: invalid unit type")
 		}
@@ -31,8 +33,8 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 			return nil, fmt.Errorf("unlock tx: validation failed: %w", err)
 		}
 		// unlock the unit
-		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-			newBillData, ok := data.(*BillData)
+		action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			newBillData, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unlock tx: unit %v does not contain bill data", unitID)
 			}
@@ -48,7 +50,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 	}
 }
 
-func validateUnlockTx(attr *UnlockAttributes, bd *BillData) error {
+func validateUnlockTx(attr *money.UnlockAttributes, bd *money.BillData) error {
 	if attr == nil {
 		return ErrTxAttrNil
 	}

@@ -4,12 +4,13 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ func TestAddFC_AddNewFeeCredit(t *testing.T) {
 
 	u, err := feeCreditModule.state.GetUnit(tx.UnitID(), false)
 	require.NoError(t, err)
-	fcr, ok := u.Data().(*unit.FeeCreditRecord)
+	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 	require.EqualValues(t, 49, fcr.Balance)                      // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
 	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash
@@ -58,7 +59,7 @@ func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
-	existingFCR := &unit.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
 	sm, err := execFn(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
@@ -67,7 +68,7 @@ func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 
 	u, err := feeCreditModule.state.GetUnit(tx.UnitID(), false)
 	require.NoError(t, err)
-	fcr, ok := u.Data().(*unit.FeeCreditRecord)
+	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 	require.EqualValues(t, 59, fcr.Balance)                      // existing (10) + transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
 	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash

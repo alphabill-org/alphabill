@@ -3,7 +3,7 @@ package handshake
 import (
 	"errors"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 var (

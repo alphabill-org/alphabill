@@ -12,7 +12,7 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240425062054-4980c786865b
+	github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240429200854-0adea9ac2348
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.12.2
 	github.com/fxamacker/cbor/v2 v2.6.0

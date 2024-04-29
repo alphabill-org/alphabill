@@ -34,6 +34,25 @@ type TXSystemEncoder struct {
 	udEnc   map[reflect.Type]UnitDataEncoder
 }
 
+func New(f ...any) (TXSystemEncoder, error) {
+	txse := TXSystemEncoder{}
+	for x, v := range f {
+		switch rf := v.(type) {
+		case func(func(id AttrEncID, enc TxAttributesEncoder) error) error:
+			if err := rf(txse.RegisterAttrEncoder); err != nil {
+				return txse, fmt.Errorf("registering attribute encoder [%d]: %w", x, err)
+			}
+		case func(func(ud any, encoder UnitDataEncoder) error) error:
+			if err := rf(txse.RegisterUnitDataEncoder); err != nil {
+				return txse, fmt.Errorf("registering unit-data encoder [%d]: %w", x, err)
+			}
+		default:
+			return txse, fmt.Errorf("unsupported registration function type [%d]: %T", x, v)
+		}
+	}
+	return txse, nil
+}
+
 /*
 Encode serializes well known types (not tx system specific) to WASM representation.
 

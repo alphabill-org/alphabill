@@ -24,7 +24,7 @@ type (
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
 		feeCalculator       fc.FeeCalculator
-		execPredicate       func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate       predicates.PredicateRunner
 	}
 )
 
@@ -47,7 +47,7 @@ func NewMoneyModule(options *Options) (*Module, error) {
 		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, options.systemIdentifier, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		feeCalculator:       options.feeCalculator,
-		execPredicate:       predicates.NewPredicateRunner(options.exec, options.state),
+		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}
 	return m, nil
 }

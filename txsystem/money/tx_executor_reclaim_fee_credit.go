@@ -26,7 +26,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[transact
 		if unit == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}
-		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return nil, err
 		}
 		bdd, ok := unit.Data().(*BillData)

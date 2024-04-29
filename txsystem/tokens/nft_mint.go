@@ -12,7 +12,7 @@ import (
 
 func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := n.validateMintNonFungibleToken(tx, attr); err != nil {
+		if err := n.validateMintNonFungibleToken(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
 		fee := n.feeCalculator()
@@ -28,7 +28,7 @@ func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.Generi
 	}
 }
 
-func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes) error {
+func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -54,6 +54,7 @@ func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.Transac
 	}
 
 	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		unitID,
 		attr.TokenCreationPredicateSignatures,

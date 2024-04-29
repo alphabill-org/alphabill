@@ -12,7 +12,7 @@ import (
 
 func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[LockTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateLockTokenTx(tx, attr); err != nil {
+		if err := m.validateLockTokenTx(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid lock token tx: %w", err)
 		}
 		updateFn := state.UpdateUnitData(tx.UnitID(),
@@ -59,7 +59,7 @@ func updateLockFungibleTokenData(data state.UnitData, tx *types.TransactionOrder
 	return d, nil
 }
 
-func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes) error {
+func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	if tx == nil {
 		return errors.New("tx is nil")
 	}
@@ -77,15 +77,15 @@ func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr 
 	}
 
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
-		return m.validateFungibleLockToken(tx, attr, u)
+		return m.validateFungibleLockToken(tx, attr, u, exeCtx)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return m.validateNonFungibleLockToken(tx, attr, u)
+		return m.validateNonFungibleLockToken(tx, attr, u, exeCtx)
 	} else {
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
 	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
@@ -94,10 +94,11 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,
@@ -113,7 +114,7 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	return nil
 }
 
-func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
 	d, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
@@ -122,10 +123,11 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.NftType,
 		attr.InvariantPredicateSignatures,

@@ -20,7 +20,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 		if unit == nil {
 			return nil, fmt.Errorf("unlock tx: unit not found %X", tx.UnitID())
 		}
-		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return nil, err
 		}
 		billData, ok := unit.Data().(*BillData)

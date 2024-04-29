@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/wvm/allocator"
 )
 
 func Test_cbor_parse_array(t *testing.T) {

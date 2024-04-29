@@ -18,7 +18,7 @@ func (m *Module) handleLockTx() txsystem.GenericExecuteFunc[LockAttributes] {
 		if unit == nil {
 			return nil, fmt.Errorf("lock tx: unit not found %X", tx.UnitID())
 		}
-		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return nil, err
 		}
 		billData, ok := unit.Data().(*BillData)

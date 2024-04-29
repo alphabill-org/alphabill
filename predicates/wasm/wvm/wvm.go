@@ -14,9 +14,9 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/wvm/allocator"
 )
 
 // WASM of "env" module which exports memory so data can be shared between host
@@ -132,6 +132,7 @@ func (vmc *VmContext) getBytesVariable(handle uint64) ([]byte, error) {
 func (vmc *VmContext) EndEval() {
 	vmc.curPrg.mod = nil
 	vmc.curPrg.sdkVer = 0
+	vmc.curPrg.env = nil
 	clear(vmc.curPrg.vars)
 }
 
@@ -158,7 +159,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 }
 
 // New - creates new wazero based wasm vm
-func New(ctx context.Context, enc Encoder, env EvalEnvironment, observe Observability, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, enc Encoder, observe Observability, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -186,7 +187,6 @@ func New(ctx context.Context, enc Encoder, env EvalEnvironment, observe Observab
 		runtime: rt,
 		ctx: &VmContext{
 			curPrg: &EvalContext{
-				env:  env,
 				vars: map[uint64]any{},
 			},
 			encoder: enc,
@@ -202,7 +202,7 @@ Exec loads the WASM module in "predicate" and calls the "fName" function in it.
   - "fName" function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder) (uint64, error) {
+func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -228,6 +228,7 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	vm.ctx.MemMngr = allocator.NewBumpAllocator(hb, m.Memory().Definition())
 	vm.ctx.curPrg.mod = m
 	vm.ctx.curPrg.varIdx = handle_max_reserved
+	vm.ctx.curPrg.env = env
 	defer vm.ctx.EndEval()
 	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
 	vm.ctx.curPrg.vars[handle_current_args] = args
@@ -306,20 +307,3 @@ func PredicateEvalResult(code uint64) (EvalResult, uint64) {
 		return EvalResultError, code
 	}
 }
-
-type mockTxContext struct {
-	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
-	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
-	curRound     func() uint64
-	trustBase    func() (map[string]abcrypto.Verifier, error)
-}
-
-func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	return env.getUnit(id, committed)
-}
-func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return env.payloadBytes(txo)
-}
-
-func (env *mockTxContext) CurrentRound() uint64                             { return env.curRound() }
-func (env *mockTxContext) TrustBase() (map[string]abcrypto.Verifier, error) { return env.trustBase() }

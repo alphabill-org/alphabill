@@ -13,7 +13,7 @@ import (
 
 func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateCreateFungibleTokenType(tx, attr); err != nil {
+		if err := m.validateCreateFungibleTokenType(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}
 		fee := m.feeCalculator()
@@ -30,7 +30,7 @@ func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.Generi
 	}
 }
 
-func (m *FungibleTokensModule) validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes) error {
+func (m *FungibleTokensModule) validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -77,6 +77,7 @@ func (m *FungibleTokensModule) validateCreateFungibleTokenType(tx *types.Transac
 	}
 
 	err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		attr.ParentTypeID,
 		attr.SubTypeCreationPredicateSignatures,

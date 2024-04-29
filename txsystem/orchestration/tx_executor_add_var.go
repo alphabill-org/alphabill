@@ -16,7 +16,7 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 		if err != nil && !errors.Is(err, avl.ErrNotFound) {
 			return nil, err
 		}
-		if err := m.validateAddVarTx(tx, attr, unit); err != nil {
+		if err := m.validateAddVarTx(tx, attr, unit, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid 'addVar' tx: %w", err)
 		}
 		var actions []state.Action
@@ -27,7 +27,7 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 			actions = append(actions, addUnitFunc)
 		}
 
-		// update validator assigment record epoch number
+		// update validator assignment record epoch number
 		updateUnitFunc := state.UpdateUnitData(tx.UnitID(),
 			func(data state.UnitData) (state.UnitData, error) {
 				vd, ok := data.(*VarData)
@@ -55,7 +55,7 @@ func (m *Module) handleAddVarTx() txsystem.GenericExecuteFunc[AddVarAttributes] 
 	}
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *AddVarAttributes, unit *state.Unit) error {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *AddVarAttributes, unit *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
 	if !tx.UnitID().HasType(VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}
@@ -72,7 +72,7 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *AddVarAttrib
 		if attr.Var.EpochNumber != 0 {
 			return fmt.Errorf("invalid epoch number, must be 0 for new units, got %d", attr.Var.EpochNumber)
 		}
-		if err := m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx); err != nil {
+		if err := m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx, exeCtx); err != nil {
 			return fmt.Errorf("invalid owner proof: %w", err)
 		}
 		return nil

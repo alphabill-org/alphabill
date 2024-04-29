@@ -21,7 +21,8 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	}
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
-		NilFeeCreditValidator,
+		NOPFeeCreditValidator,
+		options.trustBase,
 		[]txsystem.Module{module},
 		observe,
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
@@ -29,6 +30,6 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	)
 }
 
-func NilFeeCreditValidator(_ *types.TransactionOrder) error {
+func NOPFeeCreditValidator(_ *txsystem.TxExecutionContext, _ *types.TransactionOrder) error {
 	return nil
 }

@@ -6,27 +6,28 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/types"
 )
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("system ID param is mandatory", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(0, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(0, nil, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `system ID must be assigned`)
 	})
 
 	t.Run("success", func(t *testing.T) {
 		obs := observability.Default(t)
-		feeCheck := func(tx *types.TransactionOrder) error { return errors.New("FCC") }
+		feeCheck := func(env *TxExecutionContext, tx *types.TransactionOrder) error { return errors.New("FCC") }
 		txSys, err := NewGenericTxSystem(
 			1,
 			feeCheck,
+			nil,
 			nil,
 			obs,
 		)
@@ -34,7 +35,7 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		require.EqualValues(t, 1, txSys.systemIdentifier)
 		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.checkFeeCreditBalance)
-		require.EqualError(t, txSys.checkFeeCreditBalance(nil), "FCC")
+		require.EqualError(t, txSys.checkFeeCreditBalance(nil, nil), "FCC")
 	})
 }
 
@@ -43,7 +44,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	createTxSystem := func(t *testing.T, modules []Module) *GenericTxSystem {
 		txs, err := NewGenericTxSystem(
 			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
+			func(env *TxExecutionContext, tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
+			nil,
 			modules,
 			observability.Default(t),
 		)
@@ -124,7 +126,8 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	createTxSystem := func(t *testing.T) *GenericTxSystem {
 		txs, err := NewGenericTxSystem(
 			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
+			func(env *TxExecutionContext, tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
+			nil,
 			nil, // test doesn't depend on modules
 			obs,
 		)
@@ -151,14 +154,14 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		// tx system and tx order combination (other tests depend on that)
 		txSys := createTxSystem(t)
 		txo := createTxOrder(txSys)
-		require.NoError(t, txSys.validateGenericTransaction(txo))
+		require.NoError(t, txSys.validateGenericTransaction(nil, txo))
 	})
 
 	t.Run("system ID is checked", func(t *testing.T) {
 		txSys := createTxSystem(t)
 		txo := createTxOrder(txSys)
 		txo.Payload.SystemID = txSys.systemIdentifier + 1
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
+		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrInvalidSystemIdentifier)
 	})
 
 	t.Run("timeout is checked", func(t *testing.T) {
@@ -166,19 +169,19 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		txo := createTxOrder(txSys)
 
 		txSys.currentBlockNumber = txo.Timeout()
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
 		txSys.currentBlockNumber = txo.Timeout() + 1
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
 		txSys.currentBlockNumber = math.MaxUint64
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
 	})
 
 	t.Run("fee credit balance is checked", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		txSys := createTxSystem(t)
-		txSys.checkFeeCreditBalance = func(tx *types.TransactionOrder) error { return expErr }
+		txSys.checkFeeCreditBalance = func(env *TxExecutionContext, tx *types.TransactionOrder) error { return expErr }
 		txo := createTxOrder(txSys)
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), expErr)
+		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), expErr)
 	})
 }
 

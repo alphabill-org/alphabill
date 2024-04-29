@@ -12,7 +12,7 @@ import (
 
 func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		sum, err := m.validateJoinFungibleToken(tx, attr)
+		sum, err := m.validateJoinFungibleToken(tx, attr, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
 		}
@@ -43,7 +43,7 @@ func (m *FungibleTokensModule) handleJoinFungibleTokenTx() txsystem.GenericExecu
 	}
 }
 
-func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes) (uint64, error) {
+func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (uint64, error) {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return 0, err
@@ -87,10 +87,11 @@ func (m *FungibleTokensModule) validateJoinFungibleToken(tx *types.TransactionOr
 		return 0, fmt.Errorf("invalid counter: expected %X, got %X", d.Counter, attr.Counter)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return 0, fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,

@@ -13,7 +13,7 @@ import (
 
 func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateTransferFungibleToken(tx, attr); err != nil {
+		if err := m.validateTransferFungibleToken(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}
 		fee := m.feeCalculator()
@@ -39,7 +39,7 @@ func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericE
 	}
 }
 
-func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -61,10 +61,11 @@ func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.Transacti
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,

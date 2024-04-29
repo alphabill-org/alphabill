@@ -3,6 +3,8 @@ package txsystem
 import (
 	"fmt"
 
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -13,9 +15,12 @@ type (
 
 	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
 
+	// we should be able to replace this struct with just passing TxSystem
+	// interface around (StateLockReleased must be handled separately)?
 	TxExecutionContext struct {
-		CurrentBlockNr    uint64
-		StateLockReleased bool // if true, the tx being executed was "on hold" and must use this flag to avoid locking the state again
+		txs               *GenericTxSystem
+		CurrentBlockNr    uint64 // could be red from txs!
+		StateLockReleased bool   // if true, the tx being executed was "on hold" and must use this flag to avoid locking the state again
 	}
 )
 
@@ -56,4 +61,19 @@ func (e TxExecutors) Add(src TxExecutors) error {
 		e[name] = handler
 	}
 	return nil
+}
+
+func (ec TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return ec.txs.state.GetUnit(id, committed)
+}
+
+func (ec TxExecutionContext) CurrentRound() uint64 { return ec.txs.currentBlockNumber }
+
+func (ec TxExecutionContext) TrustBase() (map[string]abcrypto.Verifier, error) {
+	return ec.txs.trustBase, nil
+}
+
+// until AB-1012 gets resolved we need this hack to get correct payload bytes.
+func (ec TxExecutionContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+	return txo.PayloadBytes()
 }

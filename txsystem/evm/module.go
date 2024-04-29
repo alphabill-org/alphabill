@@ -19,7 +19,7 @@ type (
 		systemIdentifier types.SystemID
 		options          *Options
 		blockGasCounter  *core.GasPool
-		execPredicate    func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate    predicates.PredicateRunner
 		log              *slog.Logger
 	}
 )
@@ -32,7 +32,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		systemIdentifier: systemIdentifier,
 		options:          opts,
 		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate, opts.state),
+		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate),
 		log:              log,
 	}, nil
 }
@@ -54,7 +54,7 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		}
 
 		if ctx.Unit != nil {
-			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx); err != nil {
+			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
 				return fmt.Errorf("evaluating bearer predicate: %w", err)
 			}
 		}

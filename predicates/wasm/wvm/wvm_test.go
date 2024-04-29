@@ -15,14 +15,14 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/wvm/allocator"
-	"github.com/alphabill-org/alphabill/wvm/encoder"
-	moneyenc "github.com/alphabill-org/alphabill/wvm/encoder/money"
-	tokenenc "github.com/alphabill-org/alphabill/wvm/encoder/token"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -153,13 +153,13 @@ func Test_conference_tickets(t *testing.T) {
 			}))
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), enc, env, obs)
+		wvm, err := New(context.Background(), enc, obs)
 		require.NoError(t, err)
 		args := []byte{} // predicate expects no arguments
 
 		// should eval to "true"
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res)
@@ -167,7 +167,7 @@ func Test_conference_tickets(t *testing.T) {
 		// hackish way to change current round past D1 so now should eval to "false"
 		env.curRound = func() uint64 { return D1 + 1 }
 		start = time.Now()
-		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer)
+		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
@@ -195,19 +195,19 @@ func Test_conference_tickets(t *testing.T) {
 			curRound:  func() uint64 { return D1 },
 		}
 
-		wvm, err := New(context.Background(), enc, env, observability.Default(t))
+		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
 		args := predicateArgs(t, P1, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
+		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return D1 + 1 }
-		res, err = wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint)
+		res, err = wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint, env)
 		require.NoError(t, err)
 		require.EqualValues(t, 0x01, res)
 	})
@@ -244,13 +244,13 @@ func Test_conference_tickets(t *testing.T) {
 			curRound:  func() uint64 { return D2 },
 		}
 
-		wvm, err := New(context.Background(), enc, env, observability.Default(t))
+		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
 		// upgrade early-bird to regular so it can be transferred after D2
 		args := predicateArgs(t, P2-P1, hash.Sum256(append(append([]byte{2}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate)
+		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0x0, res)
@@ -263,10 +263,9 @@ func TestNew(t *testing.T) {
 
 	memDB, err := memorydb.New()
 	require.NoError(t, err)
-	env := &mockTxContext{}
 
 	require.NoError(t, err)
-	wvm, err := New(ctx, encoder.TXSystemEncoder{}, env, obs, WithStorage(memDB))
+	wvm, err := New(ctx, encoder.TXSystemEncoder{}, obs, WithStorage(memDB))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 
@@ -278,9 +277,9 @@ func TestReadHeapBase(t *testing.T) {
 		curRound: func() uint64 { return 1709683000 },
 	}
 	enc := encoder.TXSystemEncoder{}
-	wvm, err := New(context.Background(), enc, env, observability.Default(t))
+	wvm, err := New(context.Background(), enc, observability.Default(t))
 	require.NoError(t, err)
-	_, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, nil, nil)
+	_, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, nil, nil, env)
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
@@ -323,3 +322,20 @@ func Benchmark_wazero_call_wasm_fn(b *testing.B) {
 		}
 	}
 }
+
+type mockTxContext struct {
+	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
+	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
+	curRound     func() uint64
+	trustBase    func() (map[string]abcrypto.Verifier, error)
+}
+
+func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return env.getUnit(id, committed)
+}
+func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+	return env.payloadBytes(txo)
+}
+
+func (env *mockTxContext) CurrentRound() uint64                             { return env.curRound() }
+func (env *mockTxContext) TrustBase() (map[string]abcrypto.Verifier, error) { return env.trustBase() }

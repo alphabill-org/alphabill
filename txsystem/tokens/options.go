@@ -84,15 +84,25 @@ func WithTrustBase(trustBase map[string]crypto.Verifier) Option {
 }
 
 /*
-PredicateRunner returns token tx system specific predicate runner wrapper
+WithPredicateExecutor allows to replace the default predicate executor which
+supports only "builtin predicate templates".
 */
-func PredicateRunner(
-	executor predicates.PredicateExecutor,
-	state *state.State,
-) predicates.PredicateRunner {
-	env := &tokenExecEnv{state: state}
-	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
-		res, err := executor(context.Background(), predicate, args, txo, env)
+func WithPredicateExecutor(exec predicates.PredicateExecutor) Option {
+	return func(g *Options) {
+		if exec != nil {
+			g.exec = exec
+		}
+	}
+}
+
+/*
+PredicateRunner returns token tx system specific predicate runner wrapper.
+The only difference is hos the PayloadBytes method of the evaluation context
+is implemented (hack is needed until AB-1012 gets resolved).
+*/
+func PredicateRunner(executor predicates.PredicateExecutor) predicates.PredicateRunner {
+	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
+		res, err := executor(context.Background(), predicate, args, txo, tokenExecEnv{env})
 		if err != nil {
 			return err
 		}
@@ -108,18 +118,14 @@ tokenExecEnv is token tx system specific token execution environment implementat
 main difference is the way how tx payload bytes are extracted.
 */
 type tokenExecEnv struct {
-	state *state.State
-}
-
-func (ee *tokenExecEnv) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	return ee.state.GetUnit(id, committed)
+	predicates.TxContext
 }
 
 /*
 PayloadBytes returns txo payload bytes (bytes signed by bearer).
 This hack is needed until AB-1012 gets resolved.
 */
-func (*tokenExecEnv) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+func (tokenExecEnv) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	attr, err := attrType(txo.PayloadType())
 	if err != nil {
 		return nil, err

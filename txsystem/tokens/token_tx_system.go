@@ -71,6 +71,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
 		feeCreditModule.CheckFeeCreditBalance,
+		options.trustBase,
 		[]txsystem.Module{nft, fungible, lockTokens, feeCreditModule},
 		observe,
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

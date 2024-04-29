@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -192,4 +193,19 @@ func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
 
 func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
+}
+
+func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return nil, fmt.Errorf("TxValidationContext.GetUnit not implemented")
+}
+
+func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
+
+func (vc *TxValidationContext) TrustBase() (map[string]abcrypto.Verifier, error) {
+	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
+}
+
+// until AB-1012 gets resolved we need this hack to get correct payload bytes.
+func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+	return txo.PayloadBytes()
 }

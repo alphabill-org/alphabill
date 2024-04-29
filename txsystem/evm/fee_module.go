@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-
 	"github.com/alphabill-org/alphabill/types"
 )
 
@@ -24,7 +23,7 @@ type (
 		hashAlgorithm    crypto.Hash
 		txValidator      *fc.DefaultFeeCreditTxValidator
 		feeCalculator    FeeCalculator
-		execPredicate    func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate    predicates.PredicateRunner
 		log              *slog.Logger
 	}
 
@@ -45,7 +44,7 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 		hashAlgorithm:    options.hashAlgorithm,
 		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase, nil),
 		feeCalculator:    FixedFee(1),
-		execPredicate:    predicates.NewPredicateRunner(options.execPredicate, options.state),
+		execPredicate:    predicates.NewPredicateRunner(options.execPredicate),
 		log:              log,
 	}, nil
 }

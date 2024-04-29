@@ -3,9 +3,9 @@ package tokenenc
 import (
 	"errors"
 
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/wvm/encoder"
 )
 
 func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) error) error {

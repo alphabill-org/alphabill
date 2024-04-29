@@ -13,7 +13,7 @@ import (
 
 func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
+		if err := m.validateBurnFungibleToken(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
 		fee := m.feeCalculator()
@@ -43,7 +43,7 @@ func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecu
 	}
 }
 
-func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -61,10 +61,11 @@ func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOr
 		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,

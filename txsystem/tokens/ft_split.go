@@ -13,7 +13,7 @@ import (
 
 func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
+		if err := m.validateSplitFungibleToken(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
 		unitID := tx.UnitID()
@@ -70,7 +70,7 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -99,10 +99,11 @@ func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionO
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,

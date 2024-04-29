@@ -23,7 +23,7 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 		state:         options.state,
 		feeCalculator: options.feeCalculator,
 		hashAlgorithm: options.hashAlgorithm,
-		execPredicate: PredicateRunner(options.exec, options.state),
+		execPredicate: PredicateRunner(options.exec),
 	}, nil
 }
 

@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,7 +12,7 @@ import (
 
 func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[UnlockTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateUnlockTokenTx(tx, attr); err != nil {
+		if err := m.validateUnlockTokenTx(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid unlock token tx: %w", err)
 		}
 		// update lock status, round number and counter
@@ -32,13 +31,13 @@ func (m *LockTokensModule) updateUnlockTokenData(data state.UnitData, tx *types.
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
 		return updateUnlockFungibleTokenData(data, tx, roundNumber)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return updateUnlockNonFungibleTokenData(data, tx, roundNumber, m.hashAlgorithm)
+		return updateUnlockNonFungibleTokenData(data, tx, roundNumber)
 	} else {
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func updateUnlockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, roundNumber uint64, hashAlgorithm crypto.Hash) (state.UnitData, error) {
+func updateUnlockNonFungibleTokenData(data state.UnitData, tx *types.TransactionOrder, roundNumber uint64) (state.UnitData, error) {
 	d, ok := data.(*NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID())
@@ -60,7 +59,7 @@ func updateUnlockFungibleTokenData(data state.UnitData, tx *types.TransactionOrd
 	return d, nil
 }
 
-func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *UnlockTokenAttributes) error {
+func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	if tx == nil {
 		return errors.New("tx is nil")
 	}
@@ -78,15 +77,15 @@ func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, att
 	}
 
 	if tx.UnitID().HasType(FungibleTokenUnitType) {
-		return m.validateUnlockFungibleToken(tx, attr, u)
+		return m.validateUnlockFungibleToken(tx, attr, u, exeCtx)
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
-		return m.validateUnlockNonFungibleToken(tx, attr, u)
+		return m.validateUnlockNonFungibleToken(tx, attr, u, exeCtx)
 	} else {
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
 	d, ok := u.Data().(*NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
@@ -95,10 +94,11 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.NftType,
 		attr.InvariantPredicateSignatures,
@@ -114,7 +114,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	return nil
 }
 
-func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *UnlockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
 	d, ok := u.Data().(*FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
@@ -123,10 +123,11 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,

@@ -13,7 +13,7 @@ import (
 
 func (n *NonFungibleTokensModule) handleCreateNonFungibleTokenTypeTx() txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := n.validate(tx, attr); err != nil {
+		if err := n.validate(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid create non-fungible token type tx: %w", err)
 		}
 		fee := n.feeCalculator()
@@ -29,7 +29,7 @@ func (n *NonFungibleTokensModule) handleCreateNonFungibleTokenTypeTx() txsystem.
 	}
 }
 
-func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes) error {
+func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
@@ -60,6 +60,7 @@ func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *Cre
 	}
 
 	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		attr.ParentTypeID,
 		attr.SubTypeCreationPredicateSignatures,

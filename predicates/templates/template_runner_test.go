@@ -3,12 +3,15 @@ package templates
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateRunner(t *testing.T) {
@@ -88,4 +91,10 @@ func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 }
 func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	return env.payloadBytes(txo)
+}
+
+func (env *mockTxContext) CurrentRound() uint64 { return 0 }
+
+func (env *mockTxContext) TrustBase() (map[string]abcrypto.Verifier, error) {
+	return nil, fmt.Errorf("mockTxContext.TrustBase is not implemented")
 }

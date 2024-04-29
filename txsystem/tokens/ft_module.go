@@ -26,7 +26,7 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 		feeCalculator: options.feeCalculator,
 		hashAlgorithm: options.hashAlgorithm,
 		trustBase:     options.trustBase,
-		execPredicate: PredicateRunner(options.exec, options.state),
+		execPredicate: PredicateRunner(options.exec),
 	}, nil
 }
 

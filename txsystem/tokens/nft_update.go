@@ -13,10 +13,10 @@ func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.Gene
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
-			if err = n.validateUpdateNonFungibleToken(tx, attr); err != nil {
+			if err = n.validateUpdateNonFungibleToken(tx, attr, exeCtx); err != nil {
 				return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
 			}
-			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state)
+			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state, exeCtx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to lock unit state: %w", err)
 			}
@@ -56,7 +56,7 @@ func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.Gene
 	}
 }
 
-func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes) error {
+func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
@@ -83,10 +83,11 @@ func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.Trans
 		return errors.New("missing data update signatures")
 	}
 
-	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		data.NftType,
 		attr.DataUpdateSignatures[1:],

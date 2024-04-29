@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/types"
@@ -25,7 +26,7 @@ type (
 		systemID      types.SystemID
 		hashAlgorithm crypto.Hash
 		trustBase     map[string]abcrypto.Verifier
-		execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate predicates.PredicateRunner
 	}
 	stateProvider interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
@@ -43,7 +44,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 			trustBase:     m.trustBase,
 			execPredicate: m.execPredicate,
 		}
-		if err := c.validateSwapTx(); err != nil {
+		if err := c.validateSwapTx(exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid swap transaction: %w", err)
 		}
 
@@ -84,7 +85,7 @@ func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[SwapDCAttributes] 
 	}
 }
 
-func (c *swapValidationContext) validateSwapTx() error {
+func (c *swapValidationContext) validateSwapTx(exeCtx *txsystem.TxExecutionContext) error {
 	if err := c.isValid(); err != nil {
 		return fmt.Errorf("swap validation context invalid: %w", err)
 	}
@@ -112,7 +113,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 	if unitData == nil {
 		return fmt.Errorf("target unit is nil id=%X", c.tx.UnitID())
 	}
-	if err := c.execPredicate(unitData.Bearer(), c.tx.OwnerProof, c.tx); err != nil {
+	if err := c.execPredicate(unitData.Bearer(), c.tx.OwnerProof, c.tx, exeCtx); err != nil {
 		return err
 	}
 	billData, ok := unitData.Data().(*BillData)

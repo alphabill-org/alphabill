@@ -72,7 +72,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := fcModule.CheckFeeCreditBalance(test.tx)
+			err := fcModule.CheckFeeCreditBalance(nil, test.tx)
 			if test.expectedError != "" {
 				assert.ErrorContains(t, err, test.expectedError, "unexpected error")
 			} else {

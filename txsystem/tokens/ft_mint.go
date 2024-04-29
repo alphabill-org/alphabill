@@ -11,7 +11,7 @@ import (
 
 func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateMintFungibleToken(tx, attr); err != nil {
+		if err := m.validateMintFungibleToken(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}
 		fee := m.feeCalculator()
@@ -27,7 +27,7 @@ func (m *FungibleTokensModule) handleMintFungibleTokenTx() txsystem.GenericExecu
 	}
 }
 
-func (m *FungibleTokensModule) validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -40,6 +40,7 @@ func (m *FungibleTokensModule) validateMintFungibleToken(tx *types.TransactionOr
 		return errors.New("token must have value greater than zero")
 	}
 	if err = runChainedPredicates[*FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		tx.UnitID(),
 		attr.TokenCreationPredicateSignatures,

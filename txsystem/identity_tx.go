@@ -28,7 +28,7 @@ func NewIdentityModule(state UnitState) *IdentityModule {
 	if err != nil {
 		panic(fmt.Errorf("creating predicate executor: %w", err))
 	}
-	pr := predicates.NewPredicateRunner(engines.Execute, state)
+	pr := predicates.NewPredicateRunner(engines.Execute)
 	return &IdentityModule{state: state, pr: pr}
 }
 
@@ -65,11 +65,11 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, exeCtx *
 			return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
 		}
 
-		if err = i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
+		if err = i.verifyUnitOwnerProof(tx, u.Bearer(), exeCtx); err != nil {
 			return fmt.Errorf("identity tx: %w", err)
 		}
 
-		_, err = LockUnitState(tx, i.pr, i.state)
+		_, err = LockUnitState(tx, i.pr, i.state, exeCtx)
 		if err != nil {
 			return fmt.Errorf("identity tx, failed to lock state: %w", err)
 		}
@@ -77,8 +77,8 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, exeCtx *
 	return nil
 }
 
-func (i *IdentityModule) verifyUnitOwnerProof(tx *types.TransactionOrder, bearer types.PredicateBytes) error {
-	if err := i.pr(bearer, tx.OwnerProof, tx); err != nil {
+func (i *IdentityModule) verifyUnitOwnerProof(tx *types.TransactionOrder, bearer types.PredicateBytes, exeCtx *TxExecutionContext) error {
+	if err := i.pr(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x]",
 			err, tx.OwnerProof, bearer)
 	}

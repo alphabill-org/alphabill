@@ -35,6 +35,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
 		feeCreditModule.CheckFeeCreditBalance,
+		options.trustBase,
 		[]txsystem.Module{money, feeCreditModule},
 		observe,
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),

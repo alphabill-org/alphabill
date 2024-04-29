@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 
+	abcrypto "github.com/alphabill-org/alphabill/crypto"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"go.opentelemetry.io/otel/metric"
@@ -32,7 +33,8 @@ type GenericTxSystem struct {
 	state                 UnitState //*state.State
 	currentBlockNumber    uint64
 	executors             TxExecutors
-	checkFeeCreditBalance func(tx *types.TransactionOrder) error
+	trustBase             map[string]abcrypto.Verifier
+	checkFeeCreditBalance FeeCreditBalanceValidator
 	beginBlockFunctions   []func(blockNumber uint64) error
 	endBlockFunctions     []func(blockNumber uint64) error
 	roundCommitted        bool
@@ -40,7 +42,7 @@ type GenericTxSystem struct {
 	pr                    predicates.PredicateRunner
 }
 
-type FeeCreditBalanceValidator func(tx *types.TransactionOrder) error
+type FeeCreditBalanceValidator func(env *TxExecutionContext, tx *types.TransactionOrder) error
 
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
@@ -65,7 +67,7 @@ type UnitState interface {
 	Savepoint() int
 }
 
-func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, trustBase map[string]abcrypto.Verifier, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if systemID == 0 {
 		return nil, errors.New("system ID must be assigned")
 	}
@@ -77,6 +79,7 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		systemIdentifier:      systemID,
 		hashAlgorithm:         options.hashAlgorithm,
 		state:                 options.state,
+		trustBase:             trustBase,
 		beginBlockFunctions:   options.beginBlockFunctions,
 		endBlockFunctions:     options.endBlockFunctions,
 		executors:             make(TxExecutors),
@@ -138,16 +141,16 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 }
 
 func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockReleased bool) (sm *types.ServerMetadata, rErr error) {
-
-	if !stateLockReleased { // this tx has already been validated before locking the state which is now released (otherwise tx might not pass timeout check)
-		if err := m.validateGenericTransaction(tx); err != nil {
-			return nil, fmt.Errorf("invalid transaction: %w", err)
-		}
-	}
-
 	exeCtx := &TxExecutionContext{
+		txs:               m,
 		CurrentBlockNr:    m.currentBlockNumber,
 		StateLockReleased: stateLockReleased,
+	}
+
+	if !stateLockReleased { // this tx has already been validated before locking the state which is now released (otherwise tx might not pass timeout check)
+		if err := m.validateGenericTransaction(exeCtx, tx); err != nil {
+			return nil, fmt.Errorf("invalid transaction: %w", err)
+		}
 	}
 
 	savepointID := m.state.Savepoint()
@@ -188,9 +191,8 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, stateLockRelease
 	}()
 
 	// check state lock and release it if possible
-	rErr = m.validateUnitStateLock(tx)
-	if rErr != nil {
-		return nil, rErr
+	if err := m.validateUnitStateLock(tx, exeCtx); err != nil {
+		return nil, err
 	}
 
 	// proceed with the transaction execution
@@ -209,7 +211,7 @@ See Yellowpaper chapter 4.6 "Valid Transaction Orders".
 The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
 implemented by the tx handler.
 */
-func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
+func (m *GenericTxSystem) validateGenericTransaction(env *TxExecutionContext, tx *types.TransactionOrder) error {
 	// 1. P.α = S.α – transaction is sent to this system
 	if m.systemIdentifier != tx.SystemID() {
 		return ErrInvalidSystemIdentifier
@@ -230,7 +232,7 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 
 	// the checkFeeCreditBalance must verify the conditions 5 to 9 listed in the
 	// Yellowpaper "Valid Transaction Orders" chapter.
-	if err := m.checkFeeCreditBalance(tx); err != nil {
+	if err := m.checkFeeCreditBalance(env, tx); err != nil {
 		return fmt.Errorf("fee credit balance check: %w", err)
 	}
 

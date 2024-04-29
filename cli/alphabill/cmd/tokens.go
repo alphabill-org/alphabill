@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -13,8 +14,15 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates/wasm"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/rpc"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	tokenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 type (
@@ -99,12 +107,30 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("unable to initialize proof DB: %w", err)
 	}
 
+	enc, err := encoder.New(
+		// register all unit- and attribute types from token tx system
+		tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders,
+		// from the money tx system we only need/want to support transfer transactions (ie to check
+		// has money transfer taken place, other money tx types shouldn't be needed by token predicates)
+		moneyenc.RegisterTxAttributeEncodersF(func(id encoder.AttrEncID) bool {
+			return slices.Contains([]string{money.PayloadTypeTransfer, money.PayloadTypeSplit}, id.Attr)
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templates.New(), wasm.New(enc, obs))
+	if err != nil {
+		return fmt.Errorf("creating predicate executor: %w", err)
+	}
+
 	txs, err := tokens.NewTxSystem(
 		obs,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),
+		tokens.WithPredicateExecutor(predEng.Execute),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

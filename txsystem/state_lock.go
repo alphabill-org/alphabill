@@ -24,14 +24,14 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx *TxExecutionContext) error {
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -49,7 +49,7 @@ func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
 	return &StateUnlockProof{Kind: kind, Proof: proof}, nil
 }
 
-func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) error {
+func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder, exeCtx *TxExecutionContext) error {
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -77,7 +77,7 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 			return fmt.Errorf("state lock tx has no state lock")
 		}
 
-		if err := proof.check(m.pr, tx, stateLock); err != nil {
+		if err := proof.check(m.pr, tx, stateLock, exeCtx); err != nil {
 			return err
 		}
 
@@ -102,7 +102,7 @@ func (m *GenericTxSystem) validateUnitStateLock(tx *types.TransactionOrder) erro
 }
 
 // LockUnitState locks the state of a unit if the state lock predicate evaluates to false
-func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s UnitState) (bool, error) {
+func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s UnitState, exeCtx *TxExecutionContext) (bool, error) {
 	unitID := tx.UnitID()
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {
@@ -114,7 +114,7 @@ func LockUnitState(tx *types.TransactionOrder, pr predicates.PredicateRunner, s 
 	// check if state has to be locked
 	if tx.Payload.StateLock != nil && len(tx.Payload.StateLock.ExecutionPredicate) != 0 {
 		// check if it evaluates to true without any input
-		err := pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
+		err := pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx, exeCtx)
 		if err != nil {
 			// ignore 'err' as we are only interested if the predicate evaluates to true or not
 			txBytes, err := cbor.Marshal(tx)

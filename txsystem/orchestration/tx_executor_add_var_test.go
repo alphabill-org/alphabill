@@ -193,7 +193,7 @@ func TestAddVar_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateFn(tt.tx, tt.attr, tt.unit)
+			err := validateFn(tt.tx, tt.attr, tt.unit, &txsystem.TxExecutionContext{})
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 			} else {

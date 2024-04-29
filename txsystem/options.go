@@ -57,6 +57,6 @@ func (o *Options) initPredicateRunner() *Options {
 	if err != nil {
 		panic(fmt.Errorf("creating predicate executor: %w", err))
 	}
-	o.predicateRunner = predicates.NewPredicateRunner(engines.Execute, o.state)
+	o.predicateRunner = predicates.NewPredicateRunner(engines.Execute)
 	return o
 }

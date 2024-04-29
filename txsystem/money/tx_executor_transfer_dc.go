@@ -10,7 +10,7 @@ import (
 
 func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateTransferDCTx(tx, attr); err != nil {
+		if err := m.validateTransferDCTx(tx, attr, exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
 		unitID := tx.UnitID()
@@ -61,12 +61,12 @@ func (m *Module) handleTransferDCTx() txsystem.GenericExecuteFunc[TransferDCAttr
 	}
 }
 
-func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes) error {
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return err
 	}
 	return validateTransferDC(unit.Data(), attr)

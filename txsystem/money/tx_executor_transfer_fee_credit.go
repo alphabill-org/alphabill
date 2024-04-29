@@ -32,7 +32,7 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 		if unit == nil {
 			return nil, fmt.Errorf("transferFC: unit not found %X", tx.UnitID())
 		}
-		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return nil, fmt.Errorf("verify owner proof: %w", err)
 		}
 		billData, ok := unit.Data().(*BillData)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/types"
@@ -13,7 +14,7 @@ import (
 CheckFeeCreditBalance implements the fee credit verification steps listed in the
 Yellowpaper "Valid Transaction Orders" chapter.
 */
-func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
+func (f *FeeCredit) CheckFeeCreditBalance(exeCtx *txsystem.TxExecutionContext, tx *types.TransactionOrder) error {
 	if !transactions.IsFeeCreditTx(tx) {
 		clientMetadata := tx.Payload.ClientMetadata
 
@@ -36,7 +37,7 @@ func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
 		//    it must satisfy the owner_bytes condition of the fee credit record
 		// 7. if the transaction does not have a separate fee authorization proof,
 		//    the owner_bytes proof of the whole transaction must also satisfy the owner_bytes condition of the fee credit record
-		if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx); err != nil {
+		if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx, exeCtx); err != nil {
 			return fmt.Errorf("evaluating fee proof: %w", err)
 		}
 

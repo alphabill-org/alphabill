@@ -24,11 +24,11 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
-			if err = m.validateSplitTx(tx, attr); err != nil {
+			if err = m.validateSplitTx(tx, attr, exeCtx); err != nil {
 				return nil, fmt.Errorf("invalid split transaction: %w", err)
 			}
 
-			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state)
+			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state, exeCtx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to lock unit state: %w", err)
 			}
@@ -38,7 +38,6 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 		targetUnitIDs := []types.UnitID{unitID}
 
 		if !isLocked {
-
 			// add new units
 			var actions []state.Action
 			for i, targetUnit := range attr.TargetUnits {
@@ -78,12 +77,12 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 	}
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
 	return validateSplit(unit.Data(), attr)

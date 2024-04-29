@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/wvm/encoder"
 )
 
 func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAttributesEncoder) error) error {
@@ -30,7 +30,7 @@ func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver ui
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	// alloc: 3*uint32 for lengths + data lenghts
+	// alloc: 3*uint32 for lengths + data lengths
 	buf := make(encoder.WasmEnc, 0, (3*4)+len(attr.Symbol)+len(attr.Name)+len(attr.ParentTypeID))
 	buf.WriteString(attr.Symbol)
 	buf.WriteString(attr.Name)

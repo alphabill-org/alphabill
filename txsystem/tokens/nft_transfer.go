@@ -14,10 +14,10 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
-			if err = n.validateTransferNonFungibleToken(tx, attr); err != nil {
+			if err = n.validateTransferNonFungibleToken(tx, attr, exeCtx); err != nil {
 				return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
 			}
-			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state)
+			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state, exeCtx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to lock unit state: %w", err)
 			}
@@ -51,7 +51,7 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 	}
 }
 
-func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes) error {
+func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -75,10 +75,11 @@ func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.Tra
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.NFTTypeID)
 	}
 
-	if err = n.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = n.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		data.NftType,
 		attr.InvariantPredicateSignatures,

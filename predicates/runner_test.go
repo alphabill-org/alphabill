@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,7 +95,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(mockPredicateEngine{id: 1})
 		require.NoError(t, err)
 
-		pred := Predicate{Tag: 3}
+		pred := predicates.Predicate{Tag: 3}
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
@@ -108,14 +109,14 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					return false, expErr
 				},
 			},
 		)
 		require.NoError(t, err)
 
-		pred := Predicate{Tag: 1}
+		pred := predicates.Predicate{Tag: 1}
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
@@ -128,14 +129,14 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					return false, nil
 				},
 			},
 		)
 		require.NoError(t, err)
 
-		pred := Predicate{Tag: 1}
+		pred := predicates.Predicate{Tag: 1}
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
@@ -145,14 +146,14 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 	})
 
 	t.Run("executor returns true", func(t *testing.T) {
-		pred := &Predicate{Tag: 1, Code: []byte{8, 8, 8}, Params: []byte{5, 5, 5}}
+		pred := &predicates.Predicate{Tag: 1, Code: []byte{8, 8, 8}, Params: []byte{5, 5, 5}}
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					require.Equal(t, pred, predicate)
 					return true, nil
 				},
@@ -208,7 +209,7 @@ func Test_PredicateRunner(t *testing.T) {
 }
 
 func Test_Predicate_AsBytes(t *testing.T) {
-	pred := &Predicate{Tag: 42, Code: []byte{8, 8, 8}, Params: []byte{5, 5, 5}}
+	pred := &predicates.Predicate{Tag: 42, Code: []byte{8, 8, 8}, Params: []byte{5, 5, 5}}
 	bin, err := pred.AsBytes()
 	require.NoError(t, err)
 
@@ -219,11 +220,11 @@ func Test_Predicate_AsBytes(t *testing.T) {
 
 type mockPredicateEngine struct {
 	id   uint64
-	exec func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	exec func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 }
 
 func (pe mockPredicateEngine) ID() uint64 { return pe.id }
 
-func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 	return pe.exec(ctx, predicate, args, txo, env)
 }

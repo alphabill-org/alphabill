@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
@@ -25,8 +27,8 @@ var (
 	ErrInvalidCounter              = errors.New("the transaction counter is not equal to the unit counter")
 )
 
-func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[fc.TransferFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -35,7 +37,7 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return nil, fmt.Errorf("verify owner proof: %w", err)
 		}
-		billData, ok := unit.Data().(*BillData)
+		billData, ok := unit.Data().(*money.BillData)
 		if !ok {
 			return nil, errors.New("transferFC: invalid unit type")
 		}
@@ -44,8 +46,8 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 		}
 
 		// remove value from source unit, zero value bills get removed later
-		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-			newBillData, ok := data.(*BillData)
+		action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			newBillData, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
@@ -70,7 +72,7 @@ func (m *Module) handleTransferFeeCreditTx() txsystem.GenericExecuteFunc[transac
 	}
 }
 
-func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, bd *BillData) error {
+func validateTransferFC(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, bd *money.BillData) error {
 	if tx == nil {
 		return ErrTxNil
 	}

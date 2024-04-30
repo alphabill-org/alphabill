@@ -3,6 +3,8 @@ package money
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
@@ -16,7 +18,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		option(options)
 	}
 
-	money, err := NewMoneyModule(options)
+	moneyModule, err := NewMoneyModule(options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
@@ -27,7 +29,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithSystemIdentifier(options.systemIdentifier),
 		fc.WithMoneySystemIdentifier(options.systemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
-		fc.WithFeeCreditRecordUnitType(FeeCreditRecordUnitType),
+		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
@@ -36,10 +38,10 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		options.systemIdentifier,
 		feeCreditModule.CheckFeeCreditBalance,
 		options.trustBase,
-		[]txsystem.Module{money, feeCreditModule},
+		[]txsystem.Module{moneyModule, feeCreditModule},
 		observe,
-		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
-		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),
+		txsystem.WithEndBlockFunctions(moneyModule.EndBlockFuncs()...),
+		txsystem.WithBeginBlockFunctions(moneyModule.BeginBlockFuncs()...),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
 	)

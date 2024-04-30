@@ -16,17 +16,18 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -114,7 +115,7 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       tokens.DefaultSystemIdentifier,
+				SystemID:       tokens.DefaultSystemID,
 				Type:           tokens.PayloadTypeCreateNFTType,
 				UnitID:         id[:],
 				Attributes:     attrBytes,

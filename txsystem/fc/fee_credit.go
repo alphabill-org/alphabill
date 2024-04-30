@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*FeeCredit)(nil)
@@ -76,10 +77,10 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 
 func (f *FeeCredit) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		transactions.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f).ExecuteFunc(),
-		transactions.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f).ExecuteFunc(),
-		transactions.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f).ExecuteFunc(),
-		transactions.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f).ExecuteFunc(),
+		fc.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f).ExecuteFunc(),
+		fc.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f).ExecuteFunc(),
+		fc.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f).ExecuteFunc(),
+		fc.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f).ExecuteFunc(),
 	}
 }
 

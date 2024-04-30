@@ -4,13 +4,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.UpdateNonFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
 			if err = n.validateUpdateNonFungibleToken(tx, attr, exeCtx); err != nil {
@@ -27,8 +28,8 @@ func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.Gene
 		// update state
 		if !isLocked {
 			if err = n.state.Apply(
-				state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*NonFungibleTokenData)
+				state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+					d, ok := data.(*tokens.NonFungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 					}
@@ -40,8 +41,8 @@ func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.Gene
 		}
 
 		if err = n.state.Apply(
-			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				d, ok := data.(*NonFungibleTokenData)
+			state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+				d, ok := data.(*tokens.NonFungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
@@ -56,19 +57,19 @@ func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.Gene
 	}
 }
 
-func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
 	unitID := tx.UnitID()
-	if !unitID.HasType(NonFungibleTokenUnitType) {
+	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
 	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data().(*NonFungibleTokenData)
+	data, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
@@ -86,13 +87,13 @@ func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.Trans
 	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
-	err = runChainedPredicates[*NonFungibleTokenTypeData](
+	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
 		data.NftType,
 		attr.DataUpdateSignatures[1:],
 		n.execPredicate,
-		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeId, d.DataUpdatePredicate
 		},
 		n.state.GetUnit,
@@ -101,38 +102,4 @@ func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.Trans
 		return fmt.Errorf(`token type DataUpdatePredicate: %w`, err)
 	}
 	return nil
-}
-
-func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {
-	return u.Data
-}
-
-func (u *UpdateNonFungibleTokenAttributes) SetData(data []byte) {
-	u.Data = data
-}
-
-func (u *UpdateNonFungibleTokenAttributes) GetCounter() uint64 {
-	return u.Counter
-}
-
-func (u *UpdateNonFungibleTokenAttributes) SetCounter(counter uint64) {
-	u.Counter = counter
-}
-
-func (u *UpdateNonFungibleTokenAttributes) GetDataUpdateSignatures() [][]byte {
-	return u.DataUpdateSignatures
-}
-
-func (u *UpdateNonFungibleTokenAttributes) SetDataUpdateSignatures(signatures [][]byte) {
-	u.DataUpdateSignatures = signatures
-}
-
-func (u *UpdateNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
-	// TODO: AB-1016 exclude DataUpdateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &UpdateNonFungibleTokenAttributes{
-		Data:                 u.Data,
-		Counter:              u.Counter,
-		DataUpdateSignatures: nil,
-	}
-	return types.Cbor.Marshal(signatureAttr)
 }

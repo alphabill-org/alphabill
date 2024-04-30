@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"

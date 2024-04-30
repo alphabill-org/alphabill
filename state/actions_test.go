@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"testing"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
+	hasherUtil "github.com/alphabill-org/alphabill-go-sdk/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestAdd(t *testing.T) {
 	type args struct {
 		id     types.UnitID
 		bearer []byte
-		data   UnitData
+		data   types.UnitData
 	}
 	type testCase struct {
 		name            string
@@ -102,7 +102,7 @@ func TestUpdate(t *testing.T) {
 			name: "not found",
 			args: args{
 				id: []byte{1},
-				f: func(data UnitData) (UnitData, error) {
+				f: func(data types.UnitData) (types.UnitData, error) {
 					return data, nil
 				},
 			},
@@ -121,7 +121,7 @@ func TestUpdate(t *testing.T) {
 			name: "ok",
 			args: args{
 				id: []byte{1, 1, 1, 1},
-				f: func(data UnitData) (UnitData, error) {
+				f: func(data types.UnitData) (types.UnitData, error) {
 					return &TestData{Value: 200}, nil
 				},
 			},

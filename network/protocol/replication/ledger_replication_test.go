@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
 

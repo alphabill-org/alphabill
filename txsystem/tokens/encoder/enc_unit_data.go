@@ -3,9 +3,9 @@ package tokenenc
 import (
 	"errors"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
 )
 
 func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) error) error {
@@ -15,7 +15,7 @@ func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) erro
 	)
 }
 
-func udeNonFungibleTokenData(data state.UnitData, ver uint32) ([]byte, error) {
+func udeNonFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenData)
 	var buf encoder.WasmEnc
 	buf.WriteTypeVer(type_id_NFT_data, 1)
@@ -29,7 +29,7 @@ func udeNonFungibleTokenData(data state.UnitData, ver uint32) ([]byte, error) {
 	return buf, nil
 }
 
-func udeNonFungibleTokenTypeData(data state.UnitData, ver uint32) ([]byte, error) {
+func udeNonFungibleTokenTypeData(data types.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenTypeData)
 	var buf encoder.WasmEnc
 	buf.WriteTypeVer(type_id_NFT_type, 1)

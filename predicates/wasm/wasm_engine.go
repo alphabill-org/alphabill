@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	predeng "github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const wasmEngineID = 1
@@ -29,7 +30,7 @@ func (WasmRunner) ID() uint64 {
 	return wasmEngineID
 }
 
-func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args []byte, txo *types.TransactionOrder, env predeng.TxContext) (bool, error) {
 	if p.Tag != wasmEngineID {
 		return false, fmt.Errorf("expected predicate engine tag %d but got %d", wasmEngineID, p.Tag)
 	}

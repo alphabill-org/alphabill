@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )

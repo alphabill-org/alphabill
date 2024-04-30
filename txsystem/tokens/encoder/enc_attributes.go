@@ -4,15 +4,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAttributesEncoder) error) error {
 	key := func(attrID string) encoder.AttrEncID {
 		return encoder.AttrEncID{
-			TxSys: tokens.DefaultSystemIdentifier,
+			TxSys: tokens.DefaultSystemID,
 			Attr:  attrID,
 		}
 	}

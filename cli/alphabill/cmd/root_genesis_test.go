@@ -8,10 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +54,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 	require.Len(t, rootGenesis.Partitions, 1)
 	// verify, content
 	require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
-	require.EqualValues(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, money.DefaultSystemIdentifier)
+	require.EqualValues(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, money.DefaultSystemID)
 	//
 }
 

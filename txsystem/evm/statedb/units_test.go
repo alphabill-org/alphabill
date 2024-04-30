@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"

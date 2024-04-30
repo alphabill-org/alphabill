@@ -11,12 +11,12 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 // WASM of "env" module which exports memory so data can be shared between host

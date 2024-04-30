@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 )
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
@@ -63,7 +64,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithSystemIdentifier(options.systemIdentifier),
 		fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
-		fc.WithFeeCreditRecordUnitType(FeeCreditRecordUnitType),
+		fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)

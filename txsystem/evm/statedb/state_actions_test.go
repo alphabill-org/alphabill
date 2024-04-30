@@ -4,9 +4,10 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"

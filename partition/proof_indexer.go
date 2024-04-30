@@ -11,8 +11,8 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 var (

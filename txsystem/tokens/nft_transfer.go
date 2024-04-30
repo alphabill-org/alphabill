@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.TransferNonFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
 			if err = n.validateTransferNonFungibleToken(tx, attr, exeCtx); err != nil {
@@ -34,8 +35,8 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 
 		// backlink must be updated regardless of whether the unit is locked or not
 		if err = n.state.Apply(
-			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				d, ok := data.(*NonFungibleTokenData)
+			state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+				d, ok := data.(*tokens.NonFungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
@@ -51,16 +52,16 @@ func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.Ge
 	}
 }
 
-func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
-	if !unitID.HasType(NonFungibleTokenUnitType) {
+	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
 	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data().(*NonFungibleTokenData)
+	data, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
 	}
@@ -78,13 +79,13 @@ func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.Tra
 	if err = n.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	err = runChainedPredicates[*NonFungibleTokenTypeData](
+	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
 		data.NftType,
 		attr.InvariantPredicateSignatures,
 		n.execPredicate,
-		func(d *NonFungibleTokenTypeData) (types.UnitID, []byte) {
+		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeId, d.InvariantPredicate
 		},
 		n.state.GetUnit,
@@ -93,56 +94,4 @@ func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.Tra
 		return fmt.Errorf(`token type "InvariantPredicate": %w`, err)
 	}
 	return nil
-}
-
-func (t *TransferNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
-	// TODO: AB-1016 exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &TransferNonFungibleTokenAttributes{
-		NewBearer:                    t.NewBearer,
-		Nonce:                        t.Nonce,
-		Counter:                      t.Counter,
-		NFTTypeID:                    t.NFTTypeID,
-		InvariantPredicateSignatures: nil,
-	}
-	return types.Cbor.Marshal(signatureAttr)
-}
-
-func (t *TransferNonFungibleTokenAttributes) GetNewBearer() []byte {
-	return t.NewBearer
-}
-
-func (t *TransferNonFungibleTokenAttributes) SetNewBearer(newBearer []byte) {
-	t.NewBearer = newBearer
-}
-
-func (t *TransferNonFungibleTokenAttributes) GetNonce() []byte {
-	return t.Nonce
-}
-
-func (t *TransferNonFungibleTokenAttributes) SetNonce(nonce []byte) {
-	t.Nonce = nonce
-}
-
-func (t *TransferNonFungibleTokenAttributes) GetCounter() uint64 {
-	return t.Counter
-}
-
-func (t *TransferNonFungibleTokenAttributes) SetCounter(counter uint64) {
-	t.Counter = counter
-}
-
-func (t *TransferNonFungibleTokenAttributes) GetNFTTypeID() types.UnitID {
-	return t.NFTTypeID
-}
-
-func (t *TransferNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID types.UnitID) {
-	t.NFTTypeID = nftTypeID
-}
-
-func (t *TransferNonFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
-	return t.InvariantPredicateSignatures
-}
-
-func (t *TransferNonFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
-	t.InvariantPredicateSignatures = signatures
 }

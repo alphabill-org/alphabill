@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint32, hashFunc crypto.Hash) []byte {
@@ -20,8 +22,8 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 	return hasher.Sum(nil)
 }
 
-func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[money.SplitAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
 			if err = m.validateSplitTx(tx, attr, exeCtx); err != nil {
@@ -41,12 +43,12 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 			// add new units
 			var actions []state.Action
 			for i, targetUnit := range attr.TargetUnits {
-				newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
+				newUnitID := money.NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
 				targetUnitIDs = append(targetUnitIDs, newUnitID)
 				actions = append(actions, state.AddUnit(
 					newUnitID,
 					targetUnit.OwnerCondition,
-					&BillData{
+					&money.BillData{
 						V:       targetUnit.Amount,
 						T:       exeCtx.CurrentBlockNr,
 						Counter: 0,
@@ -55,12 +57,12 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 
 			// update existing unit
 			actions = append(actions, state.UpdateUnitData(unitID,
-				func(data state.UnitData) (state.UnitData, error) {
-					bd, ok := data.(*BillData)
+				func(data types.UnitData) (types.UnitData, error) {
+					bd, ok := data.(*money.BillData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 					}
-					return &BillData{
+					return &money.BillData{
 						V:       attr.RemainingValue,
 						T:       exeCtx.CurrentBlockNr,
 						Counter: bd.Counter + 1,
@@ -77,7 +79,7 @@ func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
 	}
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -88,8 +90,8 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttribut
 	return validateSplit(unit.Data(), attr)
 }
 
-func validateSplit(data state.UnitData, attr *SplitAttributes) error {
-	bd, ok := data.(*BillData)
+func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
+	bd, ok := data.(*money.BillData)
 	if !ok {
 		return errors.New("invalid data type, unit is not of BillData type")
 	}

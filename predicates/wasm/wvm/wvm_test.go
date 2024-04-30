@@ -8,21 +8,21 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/hash"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/money"
 	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -79,7 +79,7 @@ func Test_conference_tickets(t *testing.T) {
 		// attendee transfers to the organizer
 		txPayment := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID: money.DefaultSystemIdentifier,
+				SystemID: money.DefaultSystemID,
 				Type:     money.PayloadTypeTransfer,
 				UnitID:   money.NewBillID(nil, []byte{8, 1, 1, 1}),
 				ClientMetadata: &types.ClientMetadata{
@@ -96,7 +96,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
-		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemIdentifier))
+		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		b, err := cbor.Marshal(txRec)
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func Test_conference_tickets(t *testing.T) {
 		// "current transaction" for the predicate must be "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID: tokens.DefaultSystemIdentifier,
+				SystemID: tokens.DefaultSystemID,
 				Type:     tokens.PayloadTypeTransferNFT,
 				UnitID:   tokenID,
 			},
@@ -177,7 +177,7 @@ func Test_conference_tickets(t *testing.T) {
 		// org mints token (ticket) to the attendee
 		txNFTMint := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID: tokens.DefaultSystemIdentifier,
+				SystemID: tokens.DefaultSystemID,
 				Type:     tokens.PayloadTypeMintNFT,
 				UnitID:   tokenID,
 			},
@@ -215,7 +215,7 @@ func Test_conference_tickets(t *testing.T) {
 	t.Run("update_data", func(t *testing.T) {
 		txNFTUpdate := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID: tokens.DefaultSystemIdentifier,
+				SystemID: tokens.DefaultSystemID,
 				Type:     tokens.PayloadTypeUpdateNFT,
 				UnitID:   tokenID,
 			},

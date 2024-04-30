@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )

@@ -10,17 +10,19 @@ import (
 	"io"
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
@@ -220,7 +222,7 @@ func (ud *unitData) SummaryValueInput() uint64 {
 	return ud.I
 }
 
-func (ud *unitData) Copy() state.UnitData {
+func (ud *unitData) Copy() types.UnitData {
 	return &unitData{I: ud.I}
 }
 
@@ -284,12 +286,16 @@ func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 	return mn.maxRoundNumber, nil
 }
 
-func (mn *MockNode) SystemIdentifier() types.SystemID {
+func (mn *MockNode) SystemID() types.SystemID {
 	return 0x00010000
 }
 
-func (mn *MockNode) GetPeer() *network.Peer {
+func (mn *MockNode) Peer() *network.Peer {
 	return nil
+}
+
+func (mn *MockNode) ValidatorNodes() peer.IDSlice {
+	return []peer.ID{}
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {

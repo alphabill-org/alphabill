@@ -4,13 +4,14 @@ import (
 	"crypto"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*FeeAccount)(nil)
@@ -52,8 +53,8 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 func (m FeeAccount) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
 		//  fee credit transaction handlers (credit transfers and reclaims only!)
-		transactions.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator).ExecuteFunc(),
-		transactions.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log).ExecuteFunc(),
+		fcsdk.PayloadTypeAddFeeCredit:   addFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator).ExecuteFunc(),
+		fcsdk.PayloadTypeCloseFeeCredit: closeFeeCreditTx(m.state, m.hashAlgorithm, m.feeCalculator, m.txValidator, m.log).ExecuteFunc(),
 	}
 }
 

@@ -4,29 +4,29 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transactions.TransferFeeCreditAttributes, error) {
+func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fcsdk.TransferFeeCreditAttributes, error) {
 	if transfer == nil {
 		return nil, fmt.Errorf("transfer record is nil")
 	}
-	transferPayload := &transactions.TransferFeeCreditAttributes{}
+	transferPayload := &fcsdk.TransferFeeCreditAttributes{}
 	if err := transfer.TransactionOrder.UnmarshalAttributes(transferPayload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal transfer payload: %w", err)
 	}
 	return transferPayload, nil
 }
 
-func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[fcsdk.AddFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fcsdk.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
@@ -43,7 +43,7 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		// unit exists, and it has unit has AB fcr link set then simulate FCR bill
 		if u != nil && u.Data().(*statedb.StateObject).AlphaBill != nil {
 			stateObj := u.Data().(*statedb.StateObject)
-			data := &unit.FeeCreditRecord{
+			data := &fcsdk.FeeCreditRecord{
 				Balance:  weiToAlpha(stateObj.Account.Balance),
 				Backlink: stateObj.AlphaBill.TxHash,
 				Timeout:  stateObj.AlphaBill.Timeout,

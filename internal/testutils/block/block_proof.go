@@ -4,15 +4,15 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	DefaultSystemIdentifier = 0x00000001
 	DefaultT2Timeout        = 2500
 	DefaultRoundNumber      = 1
 )
@@ -33,7 +33,7 @@ func DefaultOptions() *Options {
 
 func DefaultSDR() *types.SystemDescriptionRecord {
 	return &types.SystemDescriptionRecord{
-		SystemIdentifier: DefaultSystemIdentifier,
+		SystemIdentifier: money.DefaultSystemID,
 		T2Timeout:        DefaultT2Timeout,
 	}
 }

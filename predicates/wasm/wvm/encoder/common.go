@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 // returns tx order attributes encoded to WASM representation
 type TxAttributesEncoder func(txo *types.TransactionOrder, ver uint32) ([]byte, error)
 
-type UnitDataEncoder func(data state.UnitData, ver uint32) ([]byte, error)
+type UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
 
 // tx attribute encoder ID
 type AttrEncID struct {

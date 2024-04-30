@@ -3,7 +3,8 @@ package tokens
 import (
 	"crypto"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -32,11 +33,11 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 
 func (m *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeCreateFungibleTokenType: m.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
-		PayloadTypeMintFungibleToken:       m.handleMintFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeTransferFungibleToken:   m.handleTransferFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeSplitFungibleToken:      m.handleSplitFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeBurnFungibleToken:       m.handleBurnFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeJoinFungibleToken:       m.handleJoinFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeCreateFungibleTokenType: m.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
+		tokens.PayloadTypeMintFungibleToken:       m.handleMintFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeTransferFungibleToken:   m.handleTransferFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeSplitFungibleToken:      m.handleSplitFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeBurnFungibleToken:       m.handleBurnFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeJoinFungibleToken:       m.handleJoinFungibleTokenTx().ExecuteFunc(),
 	}
 }

@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"path/filepath"
 
+	moneysdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -71,7 +73,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, moneyPartitionDir, moneyGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, money.NewUnitData)
+	state, err := loadStateFile(stateFilePath, moneysdk.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}

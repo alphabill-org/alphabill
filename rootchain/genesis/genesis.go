@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")

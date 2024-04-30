@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
@@ -14,8 +16,8 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttributes] {
-	return func(tx *types.TransactionOrder, attr *TransferAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[money.TransferAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
 		isLocked := false
 		if !exeCtx.StateLockReleased {
 			if err = m.validateTransferTx(tx, attr, exeCtx); err != nil {
@@ -47,7 +49,7 @@ func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[TransferAttribut
 	}
 }
 
-func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -58,12 +60,12 @@ func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *TransferAt
 	return validateTransfer(unit.Data(), attr)
 }
 
-func validateTransfer(data state.UnitData, attr *TransferAttributes) error {
+func validateTransfer(data types.UnitData, attr *money.TransferAttributes) error {
 	return validateAnyTransfer(data, attr.Counter, attr.TargetValue)
 }
 
-func validateAnyTransfer(data state.UnitData, counter uint64, targetValue uint64) error {
-	bd, ok := data.(*BillData)
+func validateAnyTransfer(data types.UnitData, counter uint64, targetValue uint64) error {
+	bd, ok := data.(*money.BillData)
 	if !ok {
 		return ErrInvalidDataType
 	}
@@ -82,8 +84,8 @@ func validateAnyTransfer(data state.UnitData, counter uint64, targetValue uint64
 func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64) state.Action {
 	unitID := tx.UnitID()
 	return state.UpdateUnitData(unitID,
-		func(data state.UnitData) (state.UnitData, error) {
-			bd, ok := data.(*BillData)
+		func(data types.UnitData) (types.UnitData, error) {
+			bd, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}

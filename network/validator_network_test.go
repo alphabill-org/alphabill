@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"crypto"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -41,9 +42,23 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 		}
 	}()
 
-	network, err := NewLibP2PValidatorNetwork(context.Background(), 1, &Peer{host: h}, opts, observability.Default(t))
+	network, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, &Peer{host: h}, nil}, opts, observability.Default(t))
 	require.NoError(t, err)
 	require.NotNil(t, network)
+}
+
+func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
+	obs := observability.Default(t)
+	peer := createPeer(t)
+	defer func() { require.NoError(t, peer.Close()) }()
+	net, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer, peer.conf.Validators}, DefaultValidatorNetworkOptions, obs)
+	require.NoError(t, err)
+	require.NotNil(t, net)
+	require.Equal(t, cap(net.ReceivedChannel()), 1000)
+	// we register protocol for each message for both value and pointer type thus
+	// there must be twice the amount of items in the sendProtocols map than the
+	// actual supported message types is
+	require.Equal(t, 10, len(net.sendProtocols))
 }
 
 func TestForwardTransactions_ChangingReceiver(t *testing.T) {
@@ -75,16 +90,16 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	peer3 := createBootstrappedPeer(t, bootstrapPeers, []peer.ID{peer1.ID(), peer2.ID()})
 	defer func() { require.NoError(t, peer3.Close()) }()
 
-	network1, err := NewLibP2PValidatorNetwork(context.Background(), 1, peer1, opts, obs)
+	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, peer1.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network1)
 
-	network2, err := NewLibP2PValidatorNetwork(context.Background(), 1, peer2, opts, obs)
+	network2, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer2, peer2.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network2)
 	require.NoError(t, peer2.BootstrapConnect(context.Background(), obs.Logger()))
 
-	network3, err := NewLibP2PValidatorNetwork(context.Background(), 1, peer3, opts, obs)
+	network3, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer3, peer3.conf.Validators}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network3)
 	require.NoError(t, peer3.BootstrapConnect(context.Background(), obs.Logger()))
@@ -161,4 +176,22 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	// Verify that streams are closed
 	require.LessOrEqual(t, peer1StreamCount, 1)
 	require.LessOrEqual(t, peer2StreamCount, 1)
+}
+
+type mockNode struct{
+	systemID       types.SystemID
+	peer           *Peer
+	validatorNodes peer.IDSlice
+}
+
+func (mn *mockNode) SystemID() types.SystemID {
+	return mn.systemID
+}
+
+func (mn *mockNode) Peer() *Peer {
+	return mn.peer
+}
+
+func (mn *mockNode) IsValidatorNode() bool {
+	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }

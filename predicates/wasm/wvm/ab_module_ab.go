@@ -8,8 +8,8 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill/hash"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 /*

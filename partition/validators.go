@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type (

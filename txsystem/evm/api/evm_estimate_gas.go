@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type EstimateGasResponse struct {
@@ -21,7 +21,7 @@ type EstimateGasResponse struct {
 }
 
 func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
-	request := &CallEVMRequest{}
+	request := &evm.CallEVMRequest{}
 	if err := types.Cbor.Decode(r.Body, request); err != nil {
 		WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return

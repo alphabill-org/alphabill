@@ -5,13 +5,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/hash"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 // TestTransferNFT_StateLock locks NFT with a transfer tx to pk1, then unlocks it with an update tx
@@ -24,13 +26,13 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// transfer NFT to pk1 with state lock
 	transferTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
+		testtransaction.WithPayloadType(tokens.PayloadTypeTransferNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithOwnerProof(nil),
-		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NFTTypeID:                    nftTypeID2,
-			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(w1PubKey)),
+			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)),
 			Nonce:                        test.RandomBytes(32),
 			Counter:                      0,
 			InvariantPredicateSignatures: [][]byte{nil},
@@ -49,8 +51,8 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, u.IsStateLocked())
 
-	require.IsType(t, &NonFungibleTokenData{}, u.Data())
-	d := u.Data().(*NonFungibleTokenData)
+	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
+	d := u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, []byte{0xa}, d.Data)
 	require.Equal(t, uint64(1), d.Counter)
@@ -59,10 +61,10 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// try to update nft without state unlocking
 	updateTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
+		testtransaction.WithPayloadType(tokens.PayloadTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
+		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 1,
 		}),
@@ -73,16 +75,16 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.ErrorContains(t, err, "unit has a state lock, but tx does not have unlock proof")
 
 	// update nft with state unlock, it must be transferred to new bearer w1
-	attr := &UpdateNonFungibleTokenAttributes{
+	attr := &tokens.UpdateNonFungibleTokenAttributes{
 		Data:                 []byte{42},
 		Counter:              2,
 		DataUpdateSignatures: [][]byte{nil, nil},
 	}
 	updateTx = testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
+		testtransaction.WithPayloadType(tokens.PayloadTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
@@ -98,10 +100,10 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, u.IsStateLocked())
 
-	require.IsType(t, &NonFungibleTokenData{}, u.Data())
-	d = u.Data().(*NonFungibleTokenData)
+	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
+	d = u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, attr.Data, d.Data)
 	require.Equal(t, uint64(3), d.Counter)
-	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(w1PubKey)), u.Bearer())
+	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), u.Bearer())
 }

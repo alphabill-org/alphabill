@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )

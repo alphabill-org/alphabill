@@ -17,18 +17,19 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 type envVar [2]string
@@ -380,7 +381,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       money.DefaultSystemIdentifier,
+			SystemID:       money.DefaultSystemID,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,

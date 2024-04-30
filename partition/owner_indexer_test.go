@@ -6,13 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func TestOwnerIndexer(t *testing.T) {
@@ -192,7 +193,7 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (m mockUnitData) Copy() state.UnitData {
+func (m mockUnitData) Copy() types.UnitData {
 	return mockUnitData{}
 }
 

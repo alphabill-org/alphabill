@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"

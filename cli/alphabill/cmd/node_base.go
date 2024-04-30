@@ -25,7 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 const (
@@ -75,7 +75,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			},
 			{
 				Namespace: "admin",
-				Service:   rpc.NewAdminAPI(node, name, node.GetPeer(), log),
+				Service:   rpc.NewAdminAPI(node, name, node.Peer(), log),
 			},
 		}
 

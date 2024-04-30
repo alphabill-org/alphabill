@@ -3,10 +3,10 @@ package tokens
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 /*
@@ -24,7 +24,7 @@ Parameters:
   - "iter": function which returns "parent ID" and predicate for given unit (the "chain iterator");
   - "getUnit": function which returns unit with given ID;
 */
-func runChainedPredicates[T state.UnitData](
+func runChainedPredicates[T types.UnitData](
 	env *txsystem.TxExecutionContext,
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
@@ -56,7 +56,7 @@ func runChainedPredicates[T state.UnitData](
 	return nil
 }
 
-func getUnitData[T state.UnitData](getUnit func(id types.UnitID, committed bool) (*state.Unit, error), unitID types.UnitID) (T, error) {
+func getUnitData[T types.UnitData](getUnit func(id types.UnitID, committed bool) (*state.Unit, error), unitID types.UnitID) (T, error) {
 	u, err := getUnit(unitID, false)
 	if err != nil {
 		return *new(T), err

@@ -4,15 +4,15 @@ import (
 	"crypto"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
-
-const DefaultSystemIdentifier types.SystemID = 0x00000001
 
 type (
 	Options struct {
@@ -35,7 +35,7 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemIdentifier: DefaultSystemIdentifier,
+		systemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:    crypto.SHA256,
 		trustBase:        make(map[string]abcrypto.Verifier),
 		feeCalculator:    fc.FixedFee(1),

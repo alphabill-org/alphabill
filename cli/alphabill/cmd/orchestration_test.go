@@ -9,11 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	ethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -23,9 +26,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func TestRunOrchestrationNode_Ok(t *testing.T) {
@@ -111,7 +111,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 				Type:           orchestration.PayloadTypeAddVAR,
 				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
-				SystemID:       orchestration.DefaultSystemIdentifier,
+				SystemID:       orchestration.DefaultSystemID,
 				Attributes:     attrBytes,
 			},
 		}

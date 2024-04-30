@@ -10,6 +10,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	moneysdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	tokenssdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
@@ -19,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/money"
 	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	tokenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
@@ -67,7 +68,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, utDir, utGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, tokens.NewUnitData)
+	state, err := loadStateFile(stateFilePath, tokenssdk.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}
@@ -113,7 +114,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		// from the money tx system we only need/want to support transfer transactions (ie to check
 		// has money transfer taken place, other money tx types shouldn't be needed by token predicates)
 		moneyenc.RegisterTxAttributeEncodersF(func(id encoder.AttrEncID) bool {
-			return slices.Contains([]string{money.PayloadTypeTransfer, money.PayloadTypeSplit}, id.Attr)
+			return slices.Contains([]string{moneysdk.PayloadTypeTransfer, moneysdk.PayloadTypeSplit}, id.Attr)
 		}),
 	)
 	if err != nil {

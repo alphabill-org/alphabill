@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
@@ -34,7 +34,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -318,7 +318,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
 		if ok := test.Eventually(
-			func() bool { return len(nd.GetPeer().Network().Peers()) >= len(n.Nodes) },
+			func() bool { return len(nd.Peer().Network().Peers()) >= len(n.Nodes) },
 			2*time.Second, 100*time.Millisecond); !ok {
 			return fmt.Errorf("network not initialized")
 		}
@@ -481,7 +481,7 @@ func (a *AlphabillNetwork) Close() (retErr error) {
 	for _, part := range a.NodePartitions {
 		// stop all nodes
 		for _, n := range part.Nodes {
-			if err := n.Node.GetPeer().Close(); err != nil {
+			if err := n.Node.Peer().Close(); err != nil {
 				retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
 			}
 			nodeErr := <-n.done

@@ -4,14 +4,15 @@ import (
 	"context"
 	"crypto"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -106,9 +107,12 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	var wg sync.WaitGroup
 
 	// peer3 starts forwarding to peer1 and peer2 in a round-robin manner
+	wg.Add(1)
 	go func() error {
+		defer wg.Done()
 		txCount := 0
 		network3.ForwardTransactions(ctx, func() peer.ID {
 			txCount++
@@ -122,7 +126,9 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 
 	// peer1 starts processing
 	var peer1TxCount atomic.Int32
+	wg.Add(1)
 	go func() error {
+		defer wg.Done()
 		network1.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
 			peer1TxCount.Add(1)
 			return nil
@@ -132,7 +138,9 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 
 	// peer2 starts processing
 	var peer2TxCount atomic.Int32
+	wg.Add(1)
 	go func() error {
+		defer wg.Done()
 		network2.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
 			peer2TxCount.Add(1)
 			return nil
@@ -176,9 +184,12 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	// Verify that streams are closed
 	require.LessOrEqual(t, peer1StreamCount, 1)
 	require.LessOrEqual(t, peer2StreamCount, 1)
+
+	cancel()
+	wg.Wait()
 }
 
-type mockNode struct{
+type mockNode struct {
 	systemID       types.SystemID
 	peer           *Peer
 	validatorNodes peer.IDSlice

@@ -2,11 +2,9 @@ package money
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
@@ -21,68 +19,54 @@ var (
 	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
-func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[fc.ReclaimFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		unitID := tx.UnitID()
-		unit, _ := m.state.GetUnit(unitID, false)
-		if unit == nil {
-			return nil, errors.New("reclaimFC: unit not found")
-		}
-		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
-			return nil, err
-		}
-		bdd, ok := unit.Data().(*money.BillData)
-		if !ok {
-			return nil, errors.New("reclaimFC: invalid unit type")
-		}
-
-		if err := validateReclaimFC(tx, attr, bdd, m.trustBase, m.hashAlgorithm); err != nil {
-			return nil, fmt.Errorf("reclaimFC: validation failed: %w", err)
-		}
-
-		// calculate actual tx fee cost
-		fee := m.feeCalculator()
-
-		closeFCAttr := &fc.CloseFeeCreditAttributes{}
-		closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
-		if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
-			return nil, fmt.Errorf("reclaimFC: failed to unmarshal close fee credit attributes: %w", err)
-		}
-
-		// add reclaimed value to source unit
-		v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
-		updateFunc := func(data types.UnitData) (types.UnitData, error) {
-			newBillData, ok := data.(*money.BillData)
-			if !ok {
-				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
-			}
-			newBillData.V += v
-			newBillData.T = exeCtx.CurrentBlockNr
-			newBillData.Counter += 1
-			newBillData.Locked = 0
-			return newBillData, nil
-		}
-		updateAction := state.UpdateUnitData(unitID, updateFunc)
-
-		if err := m.state.Apply(updateAction); err != nil {
-			return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
-		}
-		m.feeCreditTxRecorder.recordReclaimFC(
-			&reclaimFeeCreditTx{
-				tx:                  tx,
-				attr:                attr,
-				closeFCTransferAttr: closeFCAttr,
-				reclaimFee:          fee,
-				closeFee:            closeFeeCreditTransfer.ServerMetadata.ActualFee,
-			},
-		)
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.UnitID()
+	// calculate actual tx fee cost
+	fee := m.feeCalculator()
+	closeFCAttr := &fc.CloseFeeCreditAttributes{}
+	closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
+	if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
+		return nil, fmt.Errorf("reclaimFC: failed to unmarshal close fee credit attributes: %w", err)
 	}
+	// add reclaimed value to source unit
+	v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
+	updateFunc := func(data types.UnitData) (types.UnitData, error) {
+		newBillData, ok := data.(*money.BillData)
+		if !ok {
+			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+		}
+		newBillData.V += v
+		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.Counter += 1
+		newBillData.Locked = 0
+		return newBillData, nil
+	}
+	updateAction := state.UpdateUnitData(unitID, updateFunc)
+
+	if err := m.state.Apply(updateAction); err != nil {
+		return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
+	}
+	m.feeCreditTxRecorder.recordReclaimFC(
+		&reclaimFeeCreditTx{
+			tx:                  tx,
+			attr:                attr,
+			closeFCTransferAttr: closeFCAttr,
+			reclaimFee:          fee,
+			closeFee:            closeFeeCreditTransfer.ServerMetadata.ActualFee,
+		},
+	)
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, bd *money.BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	if tx == nil {
-		return ErrTxNil
+func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, _ *txsystem.TxExecutionContext) error {
+	unitID := tx.UnitID()
+	unit, err := m.state.GetUnit(unitID, false)
+	if err != nil {
+		return fmt.Errorf("get unit error: %w", err)
+	}
+	bd, ok := unit.Data().(*money.BillData)
+	if !ok {
+		return errors.New("invalid unit type")
 	}
 	if bd == nil {
 		return ErrBillNil
@@ -93,10 +77,9 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttr
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-
 	closeFeeCreditTx := attr.CloseFeeCreditTransfer
 	closeFCAttr := &fc.CloseFeeCreditAttributes{}
-	if err := closeFeeCreditTx.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
+	if err = closeFeeCreditTx.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
 		return fmt.Errorf("invalid close fee credit attributes: %w", err)
 	}
 
@@ -113,8 +96,12 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttr
 	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.Payload.ClientMetadata.MaxTransactionFee > closeFCAttr.Amount {
 		return ErrReclaimFCInvalidTxFee
 	}
+	// verify predicate
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		return err
+	}
 	// verify proof
-	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, verifiers, hashAlgorithm); err != nil {
+	if err = types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, m.trustBase, m.hashAlgorithm); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
 	return nil

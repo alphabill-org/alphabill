@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -168,9 +168,8 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := m.handleCreateFungibleTokenTypeTx()(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err = m.validateCreateFTType(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -191,9 +190,11 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	sm, err := m.handleCreateFungibleTokenTypeTx()(
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
+
+	sm, err := txExecutors.ValidateAndExecute(
 		createTransactionOrder(t, attributes, tokens.PayloadTypeCreateFungibleTokenType, unitID),
-		attributes,
 		&txsystem.TxExecutionContext{CurrentBlockNr: 10},
 	)
 	require.NoError(t, err)
@@ -249,11 +250,14 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+	sm, err := txExecutors.ValidateAndExecute(parentTx, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	sm, err = txExecutors.ValidateAndExecute(childTx, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(childID, false)
@@ -300,13 +304,15 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	childTx := createTransactionOrder(t, childAttributes, tokens.PayloadTypeCreateFungibleTokenType, childID)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	sm, err := txExecutors.ValidateAndExecute(parentTx, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
-	require.EqualError(t, err, `invalid create fungible token type tx: SubTypeCreationPredicate: executing predicate [0] in the chain: executing predicate: failed to decode P2PKH256 signature: unexpected EOF`)
+	sm, err = txExecutors.ValidateAndExecute(childTx, &txsystem.TxExecutionContext{CurrentBlockNr: 112})
+	require.EqualError(t, err, `'createFType' validation failed: SubTypeCreationPredicate: executing predicate [0] in the chain: executing predicate: failed to decode P2PKH256 signature: unexpected EOF`)
 	require.Nil(t, sm)
 }
 
@@ -412,12 +418,10 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleMintFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateMintFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -432,9 +436,10 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	tx := createTransactionOrder(t, attributes, tokens.PayloadTypeMintFungibleToken, existingTokenTypeUnitID)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	handler := m.handleMintFungibleTokenTx()
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := handler(tx, attributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -556,12 +561,10 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleTransferFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateTransferFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -580,10 +583,12 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	tx := createTransactionOrder(t, transferAttributes, tokens.PayloadTypeTransferFungibleToken, uID)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	handler := m.handleTransferFungibleTokenTx()
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	var roundNr uint64 = 10
-	sm, err := handler(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
+	require.NoError(t, m.validateTransferFT(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr}))
+	sm, err := m.executeTransferFT(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -749,12 +754,10 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleSplitFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateSplitFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -777,7 +780,8 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	var roundNr uint64 = 10
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	sm, err := m.handleSplitFungibleTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
+	require.NoError(t, m.validateSplitFT(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr}))
+	sm, err := m.executeSplitFT(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -897,12 +901,10 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleBurnFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateBurnFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -922,9 +924,12 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	// handle tx
-	sm, err := m.handleBurnFungibleTokenTx()(tx, burnAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -952,6 +957,8 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	burnAttributes := &tokens.BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
@@ -963,7 +970,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	}
 	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
 	roundNumber := uint64(10)
-	sm, err := m.handleBurnFungibleTokenTx()(burnTx.TransactionOrder, burnAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
+	sm, err := txExecutors.ValidateAndExecute(burnTx.TransactionOrder, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -974,8 +981,9 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
-	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
-	sm, err = m.handleJoinFungibleTokenTx()(joinTx, joinAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
+	joinTx := createTx(t, existingLockedTokenUnitID, joinAttr, tokens.PayloadTypeJoinFungibleToken)
+
+	sm, err = txExecutors.ValidateAndExecute(joinTx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -1149,9 +1157,8 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			attr := &tokens.JoinFungibleTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleJoinFungibleTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateJoinFT(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }

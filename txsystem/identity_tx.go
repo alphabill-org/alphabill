@@ -15,7 +15,7 @@ var _ Module = (*IdentityModule)(nil)
 const TxIdentity = "identity"
 
 type IdentityModule struct {
-	state UnitState
+	state *state.State
 	pr    predicates.PredicateRunner
 }
 
@@ -24,65 +24,58 @@ type IdentityAttributes struct {
 	Nonce []byte
 }
 
-func NewIdentityModule(state UnitState) *IdentityModule {
+func NewIdentityModule(state *state.State) (*IdentityModule, error) {
+	if state == nil {
+		return nil, fmt.Errorf("state is nil")
+	}
 	engines, err := predicates.Dispatcher(templates.New())
 	if err != nil {
-		panic(fmt.Errorf("creating predicate executor: %w", err))
+		return nil, fmt.Errorf("creating predicate executor: %w", err)
 	}
 	pr := predicates.NewPredicateRunner(engines.Execute, state)
-	return &IdentityModule{state: state, pr: pr}
+	return &IdentityModule{state: state, pr: pr}, nil
 }
 
-func (i *IdentityModule) TxExecutors() map[string]ExecuteFunc {
-	return map[string]ExecuteFunc{
-		TxIdentity: i.handleIdentityTx().ExecuteFunc(),
-	}
-}
-
-func (i *IdentityModule) handleIdentityTx() GenericExecuteFunc[IdentityAttributes] {
-	return func(tx *types.TransactionOrder, attr *IdentityAttributes, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := i.validateIdentityTx(tx, exeCtx); err != nil {
-			return nil, fmt.Errorf("invalid identity tx: %w", err)
-		}
-
-		return &types.ServerMetadata{ActualFee: 1, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+func (i *IdentityModule) TxHandlers() map[string]TxExecutor {
+	return map[string]TxExecutor{
+		TxIdentity: NewTxHandler[IdentityAttributes](i.validateIdentityTx, i.executeIdentityTx),
 	}
 }
 
-func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (err error) {
-	if tx.Payload == nil {
-		return fmt.Errorf("missing payload")
+func (i *IdentityModule) executeIdentityTx(tx *types.TransactionOrder, _ *IdentityAttributes, _ *TxExecutionContext) (*types.ServerMetadata, error) {
+	// this is basically nop tx
+	return &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful}, nil
+}
+
+func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, _ *IdentityAttributes, _ *TxExecutionContext) (err error) {
+	if tx == nil {
+		return fmt.Errorf("tx is nil")
 	}
-
-	if tx.Payload.Type != TxIdentity {
-		return fmt.Errorf("invalid tx type: %s", tx.Payload.Type)
+	// identity must either lock or unlock a unit
+	unitID := tx.UnitID()
+	var u *state.Unit
+	u, err = i.state.GetUnit(unitID, false)
+	if err != nil {
+		return fmt.Errorf("unable to fetch the unit: %w", err)
 	}
-
-	if !exeCtx.StateLockReleased {
-		unitID := tx.UnitID()
-		var u *state.Unit
-		u, err = i.state.GetUnit(unitID, false)
-		if err != nil {
-			return fmt.Errorf("identity tx: unable to fetch the unit: %w", err)
-		}
-
-		if err = i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
-			return fmt.Errorf("identity tx: %w", err)
-		}
-
-		_, err = LockUnitState(tx, i.pr, i.state)
-		if err != nil {
-			return fmt.Errorf("identity tx, failed to lock state: %w", err)
-		}
+	if u.IsStateLocked() && tx.StateUnlock == nil {
+		return fmt.Errorf("missing unlock arguments")
+	}
+	// todo: why should lock be ignored, but not unlock?
+	/*	if !u.IsStateLocked() && tx.Payload.StateLock == nil {
+		return fmt.Errorf("missing lock predicate")
+	}*/
+	if err = i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
+		return fmt.Errorf("owner proof error: %w", err)
 	}
 	return nil
 }
 
 func (i *IdentityModule) verifyUnitOwnerProof(tx *types.TransactionOrder, bearer types.PredicateBytes) error {
-	if err := i.pr(bearer, tx.OwnerProof, tx); err != nil {
+	err := i.pr(bearer, tx.OwnerProof, tx)
+	if err != nil {
 		return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x]",
 			err, tx.OwnerProof, bearer)
 	}
-
 	return nil
 }

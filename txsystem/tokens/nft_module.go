@@ -28,11 +28,11 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 	}, nil
 }
 
-func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		tokens.PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
-		tokens.PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),
+func (n *NonFungibleTokensModule) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		tokens.PayloadTypeCreateNFTType: txsystem.NewTxHandler[tokens.CreateNonFungibleTokenTypeAttributes](n.validateCreateNFTType, n.executeCreateNFTType),
+		tokens.PayloadTypeMintNFT:       txsystem.NewTxHandler[tokens.MintNonFungibleTokenAttributes](n.validateNFTMintTx, n.executeNFTMintTx),
+		tokens.PayloadTypeTransferNFT:   txsystem.NewTxHandler[tokens.TransferNonFungibleTokenAttributes](n.validateNFTTransferTx, n.executeNFTTransferTx),
+		tokens.PayloadTypeUpdateNFT:     txsystem.NewTxHandler[tokens.UpdateNonFungibleTokenAttributes](n.validateNFTUpdateTx, n.executeNFTUpdateTx),
 	}
 }

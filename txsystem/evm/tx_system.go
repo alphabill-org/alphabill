@@ -68,10 +68,10 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	if err := txs.executors.Add(evm.TxExecutors()); err != nil {
+	if err := txs.executors.Add(evm.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
-	if err := txs.executors.Add(fees.TxExecutors()); err != nil {
+	if err := txs.executors.Add(fees.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering fee executors: %w", err)
 	}
 

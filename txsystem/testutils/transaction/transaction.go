@@ -72,6 +72,13 @@ func WithClientMetadata(m *types.ClientMetadata) Option {
 	}
 }
 
+func WithStateLock(lock *types.StateLock) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.Payload.StateLock = lock
+		return nil
+	}
+}
+
 func WithAttributes(attr any) Option {
 	return func(tx *types.TransactionOrder) error {
 		bytes, err := types.Cbor.Marshal(attr)

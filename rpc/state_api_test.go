@@ -13,10 +13,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill-go-sdk/util"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -225,6 +225,8 @@ func (ud *unitData) SummaryValueInput() uint64 {
 func (ud *unitData) Copy() types.UnitData {
 	return &unitData{I: ud.I}
 }
+
+func (ud *unitData) IncrementCounter() {}
 
 var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
 

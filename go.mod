@@ -8,6 +8,8 @@ replace (
 	github.com/multiformats/go-multistream v0.5.0 => github.com/multiformats/go-multistream v0.4.1
 	github.com/nats-io/nats-server/v2 v2.1.2 => github.com/nats-io/nats-server/v2 v2.8.0
 	github.com/spf13/cobra v0.0.5 => github.com/spf13/cobra v1.6.1
+	github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240429200854-0adea9ac2348 => ../alphabill-go-sdk
+
 )
 
 require (

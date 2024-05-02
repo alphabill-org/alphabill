@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-
+	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
@@ -48,20 +47,21 @@ func TestFC_Validation(t *testing.T) {
 	})
 
 	t.Run("new fc module executors", func(t *testing.T) {
-		fcModule, err := NewFeeCreditModule(
+		fc, err := NewFeeCreditModule(
 			WithSystemIdentifier(moneySystemID),
 			WithMoneySystemIdentifier(moneySystemID),
 			WithState(s),
 			WithTrustBase(trustBase),
 		)
 		require.NoError(t, err)
-		require.Len(t, fcModule.TxExecutors(), 4)
-		require.Contains(t, fcModule.TxExecutors(), fc.PayloadTypeAddFeeCredit)
-		require.Contains(t, fcModule.TxExecutors(), fc.PayloadTypeCloseFeeCredit)
-		require.Contains(t, fcModule.TxExecutors(), fc.PayloadTypeLockFeeCredit)
-		require.Contains(t, fcModule.TxExecutors(), fc.PayloadTypeUnlockFeeCredit)
-		require.NotContains(t, fcModule.TxExecutors(), fc.PayloadTypeTransferFeeCredit)
-		require.NotContains(t, fcModule.TxExecutors(), fc.PayloadTypeReclaimFeeCredit)
+		fcExecutors := fc.TxHandlers()
+		require.Len(t, fcExecutors, 4)
+		require.Contains(t, fcExecutors, fcsdk.PayloadTypeAddFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.PayloadTypeCloseFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.PayloadTypeLockFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.PayloadTypeUnlockFeeCredit)
+		require.NotContains(t, fcExecutors, fcsdk.PayloadTypeTransferFeeCredit)
+		require.NotContains(t, fcExecutors, fcsdk.PayloadTypeReclaimFeeCredit)
 	})
 
 }

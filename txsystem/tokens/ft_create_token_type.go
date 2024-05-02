@@ -4,35 +4,30 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) handleCreateFungibleTokenTypeTx() txsystem.GenericExecuteFunc[tokens.CreateFungibleTokenTypeAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateCreateFungibleTokenType(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
-		}
-		fee := m.feeCalculator()
-		unitID := tx.UnitID()
+func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := m.feeCalculator()
+	unitID := tx.UnitID()
 
-		// update state
-		if err := m.state.Apply(
-			state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),
-		); err != nil {
-			return nil, err
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	// update state
+	if err := m.state.Apply(
+		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),
+	); err != nil {
+		return nil, err
 	}
+
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes) error {
+func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

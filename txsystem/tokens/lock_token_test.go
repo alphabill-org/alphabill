@@ -27,6 +27,8 @@ func TestLockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	attr := &tokens.LockTokenAttributes{
 		LockStatus:                   1,
 		Counter:                      0,
@@ -34,7 +36,7 @@ func TestLockFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenUnitID)
 	var roundNo uint64 = 10
-	sm, err := m.handleLockTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenUnitID, false)
@@ -118,7 +120,7 @@ func TestLockFT_NotOk(t *testing.T) {
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{{8, 4, 0}},
 			}, tokens.PayloadTypeLockToken),
-			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
+			wantErrStr: `executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
@@ -126,9 +128,8 @@ func TestLockFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleLockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateLockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -137,6 +138,9 @@ func TestLockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
+
 	attr := &tokens.LockTokenAttributes{
 		LockStatus:                   1,
 		Counter:                      0,
@@ -144,7 +148,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
-	sm, err := m.handleLockTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -225,7 +229,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{{1, 2, 3}},
 			}, tokens.PayloadTypeLockToken),
-			wantErrStr: `invalid lock token tx: token type InvariantPredicate: executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
+			wantErrStr: `executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
@@ -233,9 +237,8 @@ func TestLockNFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleLockTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateLockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }

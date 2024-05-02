@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-sdk/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
@@ -26,7 +26,7 @@ type (
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
 		feeCalculator       fc.FeeCalculator
-		execPredicate       func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate       predicates.PredicateRunner
 	}
 )
 
@@ -54,19 +54,18 @@ func NewMoneyModule(options *Options) (*Module, error) {
 	return m, nil
 }
 
-func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
+func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
 		// money partition tx handlers
-		money.PayloadTypeTransfer: m.handleTransferTx().ExecuteFunc(),
-		money.PayloadTypeSplit:    m.handleSplitTx().ExecuteFunc(),
-		money.PayloadTypeTransDC:  m.handleTransferDCTx().ExecuteFunc(),
-		money.PayloadTypeSwapDC:   m.handleSwapDCTx().ExecuteFunc(),
-		money.PayloadTypeLock:     m.handleLockTx().ExecuteFunc(),
-		money.PayloadTypeUnlock:   m.handleUnlockTx().ExecuteFunc(),
-
+		money.PayloadTypeTransfer: txsystem.NewTxHandler[money.TransferAttributes](m.validateTransferTx, m.executeTransferTx),
+		money.PayloadTypeSplit:    txsystem.NewTxHandler[money.SplitAttributes](m.validateSplitTx, m.executeSplitTx),
+		money.PayloadTypeTransDC:  txsystem.NewTxHandler[money.TransferDCAttributes](m.validateTransferDCTx, m.executeTransferDCTx),
+		money.PayloadTypeSwapDC:   txsystem.NewTxHandler[money.SwapDCAttributes](m.validateSwapTx, m.executeSwapTx),
+		money.PayloadTypeLock:     txsystem.NewTxHandler[money.LockAttributes](m.validateLockTx, m.executeLockTx),
+		money.PayloadTypeUnlock:   txsystem.NewTxHandler[money.UnlockAttributes](m.validateUnlockTx, m.executeUnlockTx),
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		fcsdk.PayloadTypeTransferFeeCredit: m.handleTransferFeeCreditTx().ExecuteFunc(),
-		fcsdk.PayloadTypeReclaimFeeCredit:  m.handleReclaimFeeCreditTx().ExecuteFunc(),
+		fcsdk.PayloadTypeTransferFeeCredit: txsystem.NewTxHandler[fcsdk.TransferFeeCreditAttributes](m.validateTransferFCTx, m.executeTransferFCTx),
+		fcsdk.PayloadTypeReclaimFeeCredit:  txsystem.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes](m.validateReclaimFCTx, m.executeReclaimFCTx),
 	}
 }
 

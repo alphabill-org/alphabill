@@ -1,55 +1,72 @@
 package evm
 
 import (
-	"crypto"
 	"fmt"
-	"log/slog"
 
-	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
+	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
-func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[fcsdk.CloseFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *fcsdk.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
-		}
-		addr, err := generateAddress(pubKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
-		}
-		txHash := tx.Hash(hashAlgorithm)
-		unitID := addr.Bytes()
-		u, _ := tree.GetUnit(unitID, false)
-		// hack to be able to use a common validator for now
-		var feeCreditRecordUnit *state.Unit = nil
-		if u != nil {
-			stateObj := u.Data().(*statedb.StateObject)
-			data := &fcsdk.FeeCreditRecord{
-				Balance:  weiToAlpha(stateObj.Account.Balance),
-				Backlink: txHash,
-				Timeout:  stateObj.AlphaBill.Timeout,
-			}
-			feeCreditRecordUnit = state.NewUnit(
-				u.Bearer(),
-				data,
-			)
-		}
-		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: feeCreditRecordUnit}); err != nil {
-			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
-		}
-
-		// decrement credit and update AB FCR bill backlink
-		if err = tree.Apply(statedb.UpdateEthAccountCloseCredit(unitID, alphaToWei(attr.Amount), txHash)); err != nil {
-			return nil, fmt.Errorf("closeFC state update failed: %w", err)
-		}
-		return &types.ServerMetadata{ActualFee: calcFee(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.UnitID()
+	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 	}
+	addr, err := generateAddress(pubKey)
+	txHash := tx.Hash(f.hashAlgorithm)
+	// decrement credit and update AB FCR bill backlink
+	if err := f.state.Apply(statedb.UpdateEthAccountCloseCredit(unitID, alphaToWei(attr.Amount), txHash)); err != nil {
+		return nil, fmt.Errorf("closeFC state update failed: %w", err)
+	}
+	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+}
+
+func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
+	// there’s no fee credit reference or separate fee authorization proof
+	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
+		return fmt.Errorf("invalid fee credit transaction: %w", err)
+	}
+	// ι identifies an existing fee credit record
+	// ExtrType(P.ι) = fcr – target unit is a fee credit record
+	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
+	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+	if err != nil {
+		return fmt.Errorf("failed to extract public key from fee credit owner proof")
+	}
+	addr, err := generateAddress(pubKey)
+	if err != nil {
+		return fmt.Errorf("failed to extract address from public key bytes, %w", err)
+	}
+	txHash := tx.Hash(f.hashAlgorithm)
+	unitID := addr.Bytes()
+	u, err := f.state.GetUnit(unitID, false)
+	if u == nil || err != nil {
+		return fmt.Errorf("get fcr unit error: %w", err)
+	}
+	stateObj, ok := u.Data().(*statedb.StateObject)
+	if !ok {
+		return fmt.Errorf("invalid unit type: not evm object")
+	}
+	fcr := &fc.FeeCreditRecord{
+		Balance:  weiToAlpha(stateObj.Account.Balance),
+		Backlink: txHash,
+		Timeout:  stateObj.AlphaBill.Timeout,
+	}
+	// verify the fee credit record is not locked
+	// P.A.v = S.N[ι].b - the amount is the current balance of the record
+	// target unit list is empty
+	if err = feeModule.ValidateCloseFC(attr, fcr); err != nil {
+		return fmt.Errorf("validation error: %w", err)
+	}
+	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
+	if err = feeModule.VerifyMaxTxFeeDoesNotExceedFRCBalance(tx, fcr.Balance); err != nil {
+		return fmt.Errorf("not enough funds: %w", err)
+	}
+	return nil
 }

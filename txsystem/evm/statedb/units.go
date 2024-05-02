@@ -75,6 +75,8 @@ func (s *StateObject) Copy() types.UnitData {
 	}
 }
 
+func (s *StateObject) IncrementCounter() {}
+
 func (f *AlphaBillLink) Copy() *AlphaBillLink {
 	if f == nil {
 		return nil

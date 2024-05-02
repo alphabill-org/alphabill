@@ -7,9 +7,9 @@ import (
 	"hash"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/alphabill-org/alphabill-go-sdk/util"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,6 +48,8 @@ func (t *TestData) SummaryValueInput() uint64 {
 func (t *TestData) Copy() types.UnitData {
 	return &TestData{Value: t.Value}
 }
+
+func (t *TestData) IncrementCounter() {}
 
 func TestNewEmptyState(t *testing.T) {
 	s := NewEmptyState()
@@ -848,6 +850,8 @@ func (p *pruneUnitData) SummaryValueInput() uint64 {
 func (p *pruneUnitData) Copy() types.UnitData {
 	return &pruneUnitData{I: p.I}
 }
+
+func (p *pruneUnitData) IncrementCounter() {}
 
 func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {
 	return &pruneUnitData{}, nil

@@ -75,7 +75,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		)
 		// no modules, no tx handlers
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, `tx error: unknown transaction type mockTx-type`)
+		require.EqualError(t, err, `tx 'mockTx-type' validation error: unknown transaction type mockTx-type`)
 		require.Nil(t, md)
 	})
 

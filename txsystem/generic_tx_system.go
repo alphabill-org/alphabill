@@ -120,10 +120,11 @@ func (m *GenericTxSystem) pruneState(blockNr uint64) error {
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
+	// Is transaction credible
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-
+	// todo: add gas handling here (buy and perhaps discount/refund)
 	exeCtx := &TxExecutionContext{
 		CurrentBlockNr: m.currentBlockNumber,
 	}
@@ -176,19 +177,23 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 	if err != nil {
 		return nil, fmt.Errorf("unit state lock error: %w", err)
 	}
-	// handle conditional lock of units
-	lockedUnits, err := m.handleLockUnitState(tx, exeCtx)
+	// transaction system specific validation
+	attr, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
-		return nil, fmt.Errorf("unit state lock error: %w", err)
+		return nil, fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
 	}
-	// If Tx conditionally locked one or more units, tx execution will be done on unit unlocking - done
-	if len(lockedUnits) > 0 {
-		m.log.Debug("unit locked", logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-		return &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful, TargetUnits: lockedUnits}, nil
+	// handle state locking
+	if tx.Payload.IsStateLock() {
+		// handle conditional lock of units
+		sm, err = m.executeLockUnitState(tx, exeCtx)
+		if err != nil {
+			return nil, fmt.Errorf("unit state lock error: %w", err)
+		}
+		return sm, err
 	}
-	// proceed with the transaction execution
+	// proceed with the transaction execution, if not state lock
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.handlers.ValidateAndExecute(tx, exeCtx)
+	sm, err = m.handlers.Execute(tx, attr, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx error: %w", err)
 	}

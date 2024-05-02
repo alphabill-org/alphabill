@@ -65,6 +65,7 @@ func (i *IdentityModule) validateIdentityTx(tx *types.TransactionOrder, _ *Ident
 	/*	if !u.IsStateLocked() && tx.Payload.StateLock == nil {
 		return fmt.Errorf("missing lock predicate")
 	}*/
+	// todo: replay attack, it should verify either counter or backlink too ?
 	if err = i.verifyUnitOwnerProof(tx, u.Bearer()); err != nil {
 		return fmt.Errorf("owner proof error: %w", err)
 	}

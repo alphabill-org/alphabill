@@ -100,7 +100,7 @@ func SetOwner(id types.UnitID, bearer types.PredicateBytes) Action {
 	}
 }
 
-// SetStateLock sets new state lock or removes the existing one.
+// SetStateLock sets new state lock or removes the existing one and increments counter
 func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {

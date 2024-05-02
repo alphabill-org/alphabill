@@ -361,7 +361,7 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
-	require.EqualError(t, err, fmt.Sprintf("tx error: 'createNType' validation failed: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
+	require.EqualError(t, err, fmt.Sprintf("tx 'createNType' validation error: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
@@ -902,7 +902,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "tx error: 'transNToken' validation failed: executing bearer predicate: decoding predicate:")
+	require.ErrorContains(t, err, "tx 'transNToken' validation error: executing bearer predicate: decoding predicate:")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -930,7 +930,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithOwnerProof(test.RandomBytes(12)),
 	)
 	_, err := txs.Execute(tx)
-	require.EqualError(t, err, `tx error: 'transNToken' validation failed: executing bearer predicate: executing predicate: "always true" predicate arguments must be empty`)
+	require.EqualError(t, err, `tx 'transNToken' validation error: executing bearer predicate: executing predicate: "always true" predicate arguments must be empty`)
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -1289,7 +1289,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(tx)
-	require.EqualError(t, err, `tx error: 'updateNToken' validation failed: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
+	require.EqualError(t, err, `tx 'updateNToken' validation error: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {

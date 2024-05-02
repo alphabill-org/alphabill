@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill/logger"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
@@ -51,6 +52,7 @@ func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
 }
 
 func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+	// todo: handle multiple target units
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -61,69 +63,55 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		return nil, fmt.Errorf("getting unit: %w", err)
 	}
 	stateLockTx := u.StateLockTx()
+	// if unit is not locked, then this method is done - nothing to unlock
+	if len(stateLockTx) == 0 {
+		return nil, nil
+	}
 	// check if unit has a state lock, any transaction with locked unit must first unlock
-	if len(stateLockTx) > 0 {
-		m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
-		// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
-		proof, err := StateUnlockProofFromBytes(tx.StateUnlock)
-		if err != nil {
-			return nil, fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
-		}
-		txOnHold := &types.TransactionOrder{}
-		if err = cbor.Unmarshal(stateLockTx, txOnHold); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
-		}
-		stateLock := txOnHold.Payload.StateLock
-		if stateLock == nil {
-			return nil, fmt.Errorf("state lock tx has no state lock")
-		}
-
-		if err = proof.check(m.pr, tx, stateLock); err != nil {
-			return nil, err
-		}
-
-		// proof is ok, release the lock
-		if err = m.state.Apply(state.ClearStateLock(unitID)); err != nil {
-			return nil, fmt.Errorf("failed to release state lock: %w", err)
-		}
-
-		// execute the tx that was "on hold"
-		if proof.Kind == StateUnlockExecute {
-			sm, err := m.handlers.Execute(txOnHold, exeCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to execute tx that was on hold: %w", err)
-			}
-			return sm, nil
-		} else {
-			// TODO: rollback for a tx that creates new unit must clean up the unit from the state tree
-		}
+	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
+	// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
+	proof, err := StateUnlockProofFromBytes(tx.StateUnlock)
+	if err != nil {
+		return nil, fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
+	}
+	txOnHold := &types.TransactionOrder{}
+	if err = cbor.Unmarshal(stateLockTx, txOnHold); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
+	}
+	stateLock := txOnHold.Payload.StateLock
+	if stateLock == nil {
+		return nil, fmt.Errorf("state lock tx has no state lock")
 	}
 
-	return nil, nil
+	if err = proof.check(m.pr, tx, stateLock); err != nil {
+		return nil, err
+	}
+
+	// proof is ok, release the lock
+	if err = m.state.Apply(state.ClearStateLock(unitID)); err != nil {
+		return nil, fmt.Errorf("failed to release state lock: %w", err)
+	}
+
+	// execute the tx that was "on hold"
+	if proof.Kind == StateUnlockExecute {
+		sm, err := m.handlers.UnmarshalAndExecute(txOnHold, exeCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute tx that was on hold: %w", err)
+		}
+		return sm, nil
+	}
+	// TODO: rollback for a tx that creates new unit must clean up the unit from the state tree
+	return nil, fmt.Errorf("rollaback not yet implemented")
 }
 
 // LockUnitState locks the state of a unit if the state lock predicate evaluates to false
-func (m *GenericTxSystem) handleLockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) ([]types.UnitID, error) {
-	if !tx.Payload.IsStateLock() {
-		return nil, nil
-	}
+func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
-	unitID := tx.UnitID()
-	u, err := m.state.GetUnit(unitID, false)
-	if err != nil {
-		return nil, fmt.Errorf("unable to fetch the unit: %w", err)
-	}
-	// if there is no unit it is not locked
-	if u.IsStateLocked() {
-		return nil, fmt.Errorf("unit's '%s' is state locked", unitID)
-	}
-	// call validate
-	if _, err = m.handlers.Validate(tx, exeCtx); err != nil {
-		return nil, fmt.Errorf("tx validation error: %w", err)
-	}
+	// todo: add support for multiple targets
+	targetUnits := []types.UnitID{tx.UnitID()}
 	// check if state has to be locked
 	// check if it evaluates to true without any input
-	err = m.pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
+	err := m.pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
 	// unexpected, predicate run successfully without parameters, this cannot be used for locking
 	if err == nil {
 		return nil, fmt.Errorf("invalid lock predicate")
@@ -133,11 +121,13 @@ func (m *GenericTxSystem) handleLockUnitState(tx *types.TransactionOrder, exeCtx
 	if err != nil {
 		return nil, fmt.Errorf("state lock: failed to marshal tx: %w", err)
 	}
-	// todo: handle multiple targets
 	// lock the state
-	action := state.SetStateLock(unitID, txBytes)
-	if err := m.state.Apply(action); err != nil {
-		return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
+	for _, targetUnit := range targetUnits {
+		action := state.SetStateLock(targetUnit, txBytes)
+		if err := m.state.Apply(action); err != nil {
+			return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
+		}
+		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.currentBlockNumber))
 	}
-	return []types.UnitID{unitID}, nil
+	return &types.ServerMetadata{ActualFee: 1, TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

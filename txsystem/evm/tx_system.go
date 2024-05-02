@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 type genericTransactionValidator func(ctx *TxValidationContext) error
@@ -158,7 +158,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.executors.Execute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
+	sm, err = m.executors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
 	if err != nil {
 		return nil, err
 	}

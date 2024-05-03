@@ -120,7 +120,8 @@ func (m *GenericTxSystem) pruneState(blockNr uint64) error {
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
-	// Is transaction credible
+	// Is the transaction credible and does the sender have fee credit?
+	// NB! this does not check the owner condition, this check is done in during tx specific checks
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
@@ -177,7 +178,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 	if err != nil {
 		return nil, fmt.Errorf("unit state lock error: %w", err)
 	}
-	// transaction system specific validation
+	// perform transaction-system-specific validation and owner condition check
 	attr, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
@@ -47,15 +48,11 @@ func (x *IrChangeReqMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *IrChangeReqMsg) Verify(rootTrust map[string]crypto.Verifier) error {
+func (x *IrChangeReqMsg) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("ir change request msg not valid: %w", err)
 	}
-	v, f := rootTrust[x.Author]
-	if !f {
-		return fmt.Errorf("author %q is not in the trustbase", x.Author)
-	}
-	if err := v.VerifyBytes(x.Signature, x.bytes()); err != nil {
+	if _, err := tb.VerifySignature(x.bytes(), x.Signature, x.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)
 	}
 	return nil

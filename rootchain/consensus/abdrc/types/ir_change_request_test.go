@@ -58,7 +58,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 	})
 }
 
-func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
+func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 	x := &IRChangeReq{
 		SystemIdentifier: sysId1,
 		CertReason:       QuorumNotPossible,
@@ -79,7 +79,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 		},
 	}
 	irHasher := gocrypto.SHA256.New()
-	x.AddToHasher(irHasher)
+	irHasher.Write(x.Bytes())
 	expectedHash := gocrypto.SHA256.New()
 	expectedHash.Write([]byte{
 		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg

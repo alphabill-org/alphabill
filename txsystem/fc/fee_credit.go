@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
@@ -21,7 +20,7 @@ var (
 	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
 	ErrMoneySystemIdentifierMissing = errors.New("money transaction system identifier is missing")
 	ErrStateIsNil                   = errors.New("state is nil")
-	ErrTrustBaseMissing             = errors.New("trust base is missing")
+	ErrTrustBaseIsNil               = errors.New("trust base is nil")
 )
 
 type (
@@ -31,7 +30,7 @@ type (
 		moneySystemIdentifier   types.SystemID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
-		trustBase               map[string]abcrypto.Verifier
+		trustBase               types.RootTrustBase
 		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
 		execPredicate           func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
@@ -94,8 +93,8 @@ func validConfiguration(m *FeeCredit) error {
 	if m.state == nil {
 		return ErrStateIsNil
 	}
-	if len(m.trustBase) == 0 {
-		return ErrTrustBaseMissing
+	if m.trustBase == nil {
+		return ErrTrustBaseIsNil
 	}
 	return nil
 }

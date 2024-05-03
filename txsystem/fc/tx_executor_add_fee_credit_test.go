@@ -4,10 +4,9 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -16,7 +15,7 @@ import (
 
 func TestAddFC_AddNewFeeCredit(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	feeCreditModule, err := NewFeeCreditModule(
 		WithSystemIdentifier(moneySystemID),
 		WithMoneySystemIdentifier(moneySystemID),
@@ -46,7 +45,7 @@ func TestAddFC_AddNewFeeCredit(t *testing.T) {
 
 func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
 	feeCreditModule, err := NewFeeCreditModule(
 		WithSystemIdentifier(moneySystemID),

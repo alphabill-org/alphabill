@@ -19,32 +19,18 @@ const (
 type combineGenesisConfig struct {
 	Base *baseConfiguration
 
-	// path to output directory where genesis files will be created (default current directory)
-	OutputDir string
-	// paths to root genesis record json files
-	RootGenesisFiles []string
+	OutputDir        string   // path to output directory where genesis files will be created (default current directory)
+	RootGenesisFiles []string // paths to root genesis record json files
 }
 
 type signGenesisConfig struct {
 	Base *baseConfiguration
 
-	Keys *keysConfig
-	// path to output directory where genesis files will be created (default current directory)
-	OutputDir string
-	// paths to root genesis record json files
-	RootGenesisFile string
+	Keys            *keysConfig
+	OutputDir       string // path to output directory where genesis files will be created (default current directory)
+	RootGenesisFile string // path to root genesis record json file
 }
 
-// getOutputDir returns custom outputdir if provided, otherwise $AB_HOME/rootchain, and creates parent directories.
-// Must be called after base command PersistentPreRunE function has been called, so that $AB_HOME is initialized.
-func createOutputDir(outputDir string) error {
-	if err := os.MkdirAll(outputDir, 0700); err != nil {
-		return fmt.Errorf("unabale to create directory, %w", err)
-	}
-	return nil
-}
-
-// combineRootGenesisCmd creates a new cobra command for the root-genesis component.
 func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	combineCfg := &combineGenesisConfig{Base: config.Base}
 	var cmd = &cobra.Command{
@@ -64,17 +50,17 @@ func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 
 func combineRootGenesisRunFunc(config *combineGenesisConfig) error {
 	// ensure output dir is present before keys generation
-	outputDir := config.Base.defaultRootGenesisDir()
+	outputDir := config.Base.defaultRootchainDir()
 	// cmd override
 	if config.OutputDir != "" {
 		outputDir = config.OutputDir
 	}
-	if err := createOutputDir(outputDir); err != nil {
+	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		return fmt.Errorf("create dir '%s' failed: %w", outputDir, err)
 	}
 	rgs, err := loadRootGenesisFiles(config.RootGenesisFiles)
 	if err != nil {
-		return fmt.Errorf("failed to read root geresis files: %w", err)
+		return fmt.Errorf("failed to read root genesis files: %w", err)
 	}
 	// Combine root genesis files to single distributed genesis file
 	rg, pg, err := rootgenesis.MergeRootGenesisFiles(rgs)
@@ -92,19 +78,6 @@ func combineRootGenesisRunFunc(config *combineGenesisConfig) error {
 	return nil
 }
 
-func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
-	var rgs []*genesis.RootGenesis
-	for _, p := range paths {
-		rg, err := util.ReadJsonFile(p, &genesis.RootGenesis{})
-		if err != nil {
-			return nil, fmt.Errorf("file '%s' read error: %w", p, err)
-		}
-		rgs = append(rgs, rg)
-	}
-	return rgs, nil
-}
-
-// combineRootGenesisCmd creates a new cobra command for the root-genesis component.
 func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	signCfg := &signGenesisConfig{Base: config.Base, Keys: config.Keys}
 	var cmd = &cobra.Command{
@@ -125,16 +98,16 @@ func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 
 func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	// ensure output dir is present before keys generation
-	outputDir := config.Base.defaultRootGenesisDir()
+	outputDir := config.Base.defaultRootchainDir()
 	// cmd override2
 	if config.OutputDir != "" {
 		outputDir = config.OutputDir
-		// if instructed to generate keys and key path not set, then set to outputpath
+		// if instructed to generate keys and key path not set, then set to output path
 		if config.Keys.GenerateKeys && config.Keys.KeyFilePath == "" {
 			config.Keys.KeyFilePath = filepath.Join(outputDir, defaultKeysFileName)
 		}
 	}
-	if err := createOutputDir(outputDir); err != nil {
+	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		return fmt.Errorf("create dir '%s' failed: %w", outputDir, err)
 	}
 	// load or generate keys
@@ -159,9 +132,20 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("root genesis add signature failed: %w", err)
 	}
-	err = saveRootGenesisFile(rg, outputDir)
-	if err != nil {
+	if err = saveRootGenesisFile(rg, outputDir); err != nil {
 		return fmt.Errorf("root genesis save failed: %w", err)
 	}
 	return nil
+}
+
+func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
+	var rgs []*genesis.RootGenesis
+	for _, p := range paths {
+		rg, err := util.ReadJsonFile(p, &genesis.RootGenesis{})
+		if err != nil {
+			return nil, fmt.Errorf("file '%s' read error: %w", p, err)
+		}
+		rgs = append(rgs, rg)
+	}
+	return rgs, nil
 }

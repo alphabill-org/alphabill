@@ -4,10 +4,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/crypto/canonicalizer"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/stretchr/testify/require"
 )
@@ -149,8 +149,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: nil,
 			BlockData:     nil,
 		}
-		verifiers := make(map[string]abcrypto.Verifier)
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "commit head is nil")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "commit head is nil")
 	})
 	t.Run("commit head, invalid block", func(t *testing.T) {
 		sm := &StateMsg{
@@ -194,8 +193,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		verifiers := make(map[string]abcrypto.Verifier)
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid commit head: block data error: proposed block is missing quorum certificate")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "invalid commit head: block data error: proposed block is missing quorum certificate")
 	})
 	t.Run("commit head, invalid QC", func(t *testing.T) {
 		sm := &StateMsg{
@@ -249,8 +247,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		verifiers := make(map[string]abcrypto.Verifier)
-		require.EqualError(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "block qc verification error: vote info hash verification failed")
+		require.EqualError(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "block qc verification error: vote info hash verification failed")
 	})
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := &StateMsg{
@@ -304,8 +301,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Payload: &drctypes.Payload{}},
 			},
 		}
-		verifiers := map[string]abcrypto.Verifier{"test": AlwaysValidVerifier{}}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, 1, verifiers), "invalid block node: proposed block is missing quorum certificate")
+		tb := testtb.NewTrustBase(t, AlwaysValidVerifier{})
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, tb), "invalid block node: proposed block is missing quorum certificate")
 	})
 	t.Run("ok", func(t *testing.T) {
 		sm := &StateMsg{
@@ -370,8 +367,8 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			},
 		}
-		verifiers := map[string]abcrypto.Verifier{"test": AlwaysValidVerifier{}}
-		require.NoError(t, sm.Verify(gocrypto.SHA256, 1, verifiers))
+		tb := testtb.NewTrustBase(t, AlwaysValidVerifier{})
+		require.NoError(t, sm.Verify(gocrypto.SHA256, tb))
 	})
 }
 

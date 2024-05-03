@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -80,7 +79,7 @@ func (m *Module) handleReclaimFeeCreditTx() txsystem.GenericExecuteFunc[fc.Recla
 	}
 }
 
-func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, bd *money.BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, bd *money.BillData, trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxNil
 	}
@@ -114,7 +113,7 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttr
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify proof
-	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, verifiers, hashAlgorithm); err != nil {
+	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, trustBase, hashAlgorithm); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
 	return nil

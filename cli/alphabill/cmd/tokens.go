@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
 	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
@@ -73,9 +73,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		}
 	}
 
-	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	trustBase, err := types.NewTrustBaseFromFile(cfg.Node.TrustBaseFile)
 	if err != nil {
-		return fmt.Errorf("creating trustbase: %w", err)
+		return fmt.Errorf("failed to load trust base file: %w", err)
 	}
 
 	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
@@ -115,7 +115,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if cfg.Node.WithOwnerIndex {
 		ownerIndexer = partition.NewOwnerIndexer(log)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, trustBase, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}

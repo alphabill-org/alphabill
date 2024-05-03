@@ -35,7 +35,7 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
 	if x.Author == "" {
 		return fmt.Errorf("author is missing")
 	}
@@ -56,15 +56,10 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	if x.HighQc == nil {
 		return fmt.Errorf("vote from '%s' high QC is nil", x.Author)
 	}
-	if err := x.HighQc.Verify(quorum, rootTrust); err != nil {
+	if err := x.HighQc.Verify(tb); err != nil {
 		return fmt.Errorf("vote from '%s' high QC error: %w", x.Author, err)
 	}
-	// verify signature
-	v, f := rootTrust[x.Author]
-	if !f {
-		return fmt.Errorf("author '%s' is not in the trustbase", x.Author)
-	}
-	if err := v.VerifyBytes(x.Signature, x.LedgerCommitInfo.Bytes()); err != nil {
+	if _, err := tb.VerifySignature(x.LedgerCommitInfo.Bytes(), x.Signature, x.Author); err != nil {
 		return fmt.Errorf("vote from '%s' signature verification error: %w", x.Author, err)
 	}
 	return nil

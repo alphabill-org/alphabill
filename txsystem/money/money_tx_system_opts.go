@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
@@ -19,7 +18,7 @@ type (
 		systemIdentifier         types.SystemID
 		state                    *state.State
 		hashAlgorithm            crypto.Hash
-		trustBase                map[string]abcrypto.Verifier
+		trustBase                types.RootTrustBase
 		systemDescriptionRecords []*types.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 		exec                     predicates.PredicateExecutor
@@ -37,7 +36,6 @@ func defaultOptions() (*Options, error) {
 	return &Options{
 		systemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:    crypto.SHA256,
-		trustBase:        make(map[string]abcrypto.Verifier),
 		feeCalculator:    fc.FixedFee(1),
 		exec:             predEng.Execute,
 	}, nil
@@ -55,7 +53,7 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithTrustBase(trust map[string]abcrypto.Verifier) Option {
+func WithTrustBase(trust types.RootTrustBase) Option {
 	return func(options *Options) {
 		options.trustBase = trust
 	}

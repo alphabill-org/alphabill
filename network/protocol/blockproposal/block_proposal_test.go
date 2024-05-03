@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +26,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
-		ucTrustBase           map[string]crypto.Verifier
+		ucTrustBase           types.RootTrustBase
 		algorithm             gocrypto.Hash
 		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
@@ -46,7 +47,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
-				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -78,7 +79,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      2,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -93,7 +94,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -110,7 +111,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -135,7 +136,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 	var bp *BlockProposal
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	ucTrustBase := map[string]crypto.Verifier{"1": verifier}
+	ucTrustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": verifier})
 	err := bp.IsValid(verifier, ucTrustBase, gocrypto.SHA256, systemIdentifier, test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrBlockProposalIsNil)
 }

@@ -1,10 +1,10 @@
 package types
 
 import (
+	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -145,12 +145,15 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 	return nil, fmt.Errorf("invalid request: unknown certification reason %v", x.CertReason)
 }
 
-func (x *IRChangeReq) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier.Bytes())
-	hasher.Write(util.Uint32ToBytes(uint32(x.CertReason)))
+// Bytes serializes entire struct.
+func (x *IRChangeReq) Bytes() []byte {
+	var b bytes.Buffer
+	b.Write(x.SystemIdentifier.Bytes())
+	b.Write(util.Uint32ToBytes(uint32(x.CertReason)))
 	for _, req := range x.Requests {
-		hasher.Write(req.Bytes())
+		b.Write(req.Bytes())
 	}
+	return b.Bytes()
 }
 
 func (x *IRChangeReq) String() string {

@@ -26,6 +26,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
+	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	logF := testobserve.NewFactory(t)
 	appStoppedWg := sync.WaitGroup{}
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -54,22 +55,27 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 	require.NoError(t, err)
 	bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
-	_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
-
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+	require.NoError(t, err)
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
+	err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
 	require.NoError(t, err)
 
 	listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 	// start the node in background
 	appStoppedWg.Add(1)
 	go func() {
+		defer appStoppedWg.Done()
 		dbLocation := homeDir + "/tx.db"
 		cmd = New(logF)
 		args = "evm --home " + evmDir +
 			" --tx-db " + dbLocation +
 			" -g " + partitionGenesisFileLocation +
 			" -s " + nodeGenesisStateFileLocation +
+			" -t " + trustBaseFileLocation +
 			" -k " + keysFileLocation +
 			" --bootnodes=" + bootNodeStr +
 			" --rpc-server-address " + listenAddr
@@ -77,7 +83,6 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 
 		err = cmd.Execute(ctx)
 		require.ErrorIs(t, err, context.Canceled)
-		appStoppedWg.Done()
 	}()
 	// Close the app, must not crash and should exit normally
 	ctxCancel()

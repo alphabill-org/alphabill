@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -54,7 +53,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			systemIdentifier,

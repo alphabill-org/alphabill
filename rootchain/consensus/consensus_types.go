@@ -30,10 +30,9 @@ type (
 // NewConsensusParams extract common consensus parameters from genesis
 func NewConsensusParams(genesisRoot *genesis.GenesisRootRecord) *Parameters {
 	return &Parameters{
-		BlockRate:          time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeout:       time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
-		ConsensusThreshold: genesisRoot.Consensus.QuorumThreshold,
-		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
+		BlockRate:     time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
+		LocalTimeout:  time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
+		HashAlgorithm: gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
 	}
 }
 

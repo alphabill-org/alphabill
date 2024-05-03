@@ -18,14 +18,13 @@ import (
 
 type consensusParams struct {
 	totalNodes uint8
-	threshold  uint8
 }
 
 // Happy path
 func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	homeDir := t.TempDir()
 	logF := testobserve.NewFactory(t)
-	consensus := consensusParams{totalNodes: 4, threshold: 3}
+	consensus := consensusParams{totalNodes: 4}
 	genesisFiles := createRootGenesisFiles(t, homeDir, consensus)
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
 	// merge to distributed root genesis
@@ -43,7 +42,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	partitionGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, "partition-genesis-1.json"), &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.Len(t, partitionGenesis.RootValidators, 4)
-	trustBase, err := genesis.NewValidatorTrustBase(partitionGenesis.RootValidators)
+	trustBase, err := partitionGenesis.GenerateRootTrustBase()
 	require.NoError(t, err)
 	require.NoError(t, partitionGenesis.IsValid(trustBase, gocrypto.SHA256))
 	// iterate over key files and make sure that they are present
@@ -75,8 +74,8 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	homeDir := t.TempDir()
 	homeDir2 := t.TempDir()
-	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 4})
-	differentGenesisFiles := createRootGenesisFiles(t, homeDir2, consensusParams{totalNodes: 2, threshold: 2})
+	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4})
+	differentGenesisFiles := createRootGenesisFiles(t, homeDir2, consensusParams{totalNodes: 2})
 	outputDir := filepath.Join(homeDir, "result")
 	cmd := New(testobserve.NewFactory(t))
 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", differentGenesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
@@ -89,7 +88,7 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	homeDir := t.TempDir()
-	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4, threshold: 3})
+	genesisFiles := createRootGenesisFiles(t, homeDir, consensusParams{totalNodes: 4})
 	// merge distributed root genesis file
 	outputDir := filepath.Join(homeDir, "result")
 	// genesis argument, repeat root node 2 genesis
@@ -194,7 +193,6 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 	totalNodesStr := strconv.Itoa(int(params.totalNodes))
-	threshold := strconv.Itoa(int(params.threshold))
 	genesisFiles := make([]string, params.totalNodes)
 	// create number of root genesis files
 	for i := uint8(0); i < params.totalNodes; i++ {
@@ -205,7 +203,6 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 			" -o " + rootNodeDir +
 			" --partition-node-genesis-file=" + nodeGenesisFileLocation +
 			" --total-nodes=" + totalNodesStr +
-			" --quorum-threshold=" + threshold +
 			" -g"
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))

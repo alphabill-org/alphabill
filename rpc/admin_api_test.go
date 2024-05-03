@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 func TestGetNodeInfo_OK(t *testing.T) {

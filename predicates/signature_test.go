@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 func Test_ExtractPubKey(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -324,7 +324,7 @@ func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addres
 	return rootID, rootAddress, nil
 }
 
-type mockNode struct{
+type mockNode struct {
 	systemID       types.SystemID
 	peer           *network.Peer
 	validatorNodes peer.IDSlice

@@ -1,6 +1,6 @@
 module github.com/alphabill-org/alphabill
 
-go 1.21
+go 1.22
 
 replace (
 	github.com/apache/thrift v0.13.0 => github.com/apache/thrift v0.16.0
@@ -12,7 +12,7 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-sdk v0.0.0-20240502155852-453007cb66f4
+	github.com/alphabill-org/alphabill-go-base v0.0.0-20240503112946-2bc8d8df9ddb
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.12.2
 	github.com/fxamacker/cbor/v2 v2.6.0

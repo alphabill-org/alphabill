@@ -3,8 +3,9 @@ package fc
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"

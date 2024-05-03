@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"

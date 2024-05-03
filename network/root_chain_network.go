@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 const (

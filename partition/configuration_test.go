@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -13,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
 

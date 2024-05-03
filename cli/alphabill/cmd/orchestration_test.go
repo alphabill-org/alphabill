@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	ethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"

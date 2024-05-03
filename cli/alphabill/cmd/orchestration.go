@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	sdkorchestration "github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	sdkorchestration "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 

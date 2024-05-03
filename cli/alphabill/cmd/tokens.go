@@ -9,7 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
-	tokenssdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
+	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"

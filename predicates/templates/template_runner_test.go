@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/hash"
-	sdkpredicates "github.com/alphabill-org/alphabill-go-sdk/predicates"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/hash"
+	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
@@ -36,7 +36,7 @@ func TestTemplateRunner(t *testing.T) {
 	t.Run("invalid predicate tag", func(t *testing.T) {
 		res, err := runner.Execute(context.Background(),
 			&sdkpredicates.Predicate{
-				Tag: 0x01,
+				Tag:  0x01,
 				Code: []byte{templates.AlwaysFalseID},
 			}, nil, nil, nil)
 		require.EqualError(t, err, "expected predicate template tag 0 but got 1")
@@ -46,7 +46,7 @@ func TestTemplateRunner(t *testing.T) {
 	t.Run("predicate code length not 1", func(t *testing.T) {
 		res, err := runner.Execute(context.Background(),
 			&sdkpredicates.Predicate{
-				Tag: templates.TemplateStartByte,
+				Tag:  templates.TemplateStartByte,
 				Code: []byte{templates.AlwaysFalseID, templates.AlwaysTrueID},
 			}, nil, nil, nil)
 		require.EqualError(t, err, "expected predicate template code length to be 1, got 2")

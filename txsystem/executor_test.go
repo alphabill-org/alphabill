@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 func Test_TxExecutors_Execute(t *testing.T) {

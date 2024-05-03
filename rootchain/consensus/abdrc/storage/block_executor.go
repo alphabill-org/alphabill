@@ -5,11 +5,11 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type (

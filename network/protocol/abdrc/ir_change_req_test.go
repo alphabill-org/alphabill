@@ -3,7 +3,7 @@ package abdrc
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/stretchr/testify/require"

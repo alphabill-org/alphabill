@@ -4,17 +4,17 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	DefaultT2Timeout        = 2500
-	DefaultRoundNumber      = 1
+	DefaultT2Timeout   = 2500
+	DefaultRoundNumber = 1
 )
 
 type (

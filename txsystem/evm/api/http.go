@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 // WriteCBORResponse replies to the request with the given response and HTTP code.

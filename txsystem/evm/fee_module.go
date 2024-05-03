@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"

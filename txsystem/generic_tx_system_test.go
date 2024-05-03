@@ -10,8 +10,8 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 func Test_NewGenericTxSystem(t *testing.T) {

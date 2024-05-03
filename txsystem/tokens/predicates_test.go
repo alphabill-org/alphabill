@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,10 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return ucErr
 			},
-			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { t.Error("unexpected call"); return nil, nil },
+			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
+				t.Error("unexpected call")
+				return nil, nil
+			},
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
@@ -49,7 +52,10 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return ucErr
 			},
-			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { t.Error("unexpected call"); return nil, nil },
+			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
+				t.Error("unexpected call")
+				return nil, nil
+			},
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
@@ -68,7 +74,10 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return ucErr
 			},
-			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { t.Error("unexpected call"); return nil, nil },
+			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
+				t.Error("unexpected call")
+				return nil, nil
+			},
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
@@ -88,7 +97,10 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return ucErr
 			},
-			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { t.Error("unexpected call"); return nil, nil },
+			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
+				t.Error("unexpected call")
+				return nil, nil
+			},
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				if !bytes.Equal(id, []byte{0, 0, 1}) {
 					t.Errorf("unexpected type id %v", id)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )

@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )

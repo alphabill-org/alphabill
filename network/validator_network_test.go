@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -178,7 +178,7 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	require.LessOrEqual(t, peer2StreamCount, 1)
 }
 
-type mockNode struct{
+type mockNode struct {
 	systemID       types.SystemID
 	peer           *Peer
 	validatorNodes peer.IDSlice

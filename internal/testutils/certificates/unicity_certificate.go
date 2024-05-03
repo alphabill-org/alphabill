@@ -4,9 +4,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 func CreateUnicityCertificate(

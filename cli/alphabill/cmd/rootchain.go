@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -22,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"

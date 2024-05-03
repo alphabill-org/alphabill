@@ -3,7 +3,7 @@ package abdrc
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

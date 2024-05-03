@@ -3,9 +3,9 @@ package fc
 import (
 	"crypto"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type Option func(f *FeeCredit)

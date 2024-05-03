@@ -3,10 +3,10 @@ package state
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-base/tree/mt"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill-go-sdk/tree/mt"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 )
 
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the

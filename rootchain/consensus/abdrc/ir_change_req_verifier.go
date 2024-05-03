@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type (

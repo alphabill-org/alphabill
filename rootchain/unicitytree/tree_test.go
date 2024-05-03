@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/tree/imt"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/tree/imt"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
 )
 

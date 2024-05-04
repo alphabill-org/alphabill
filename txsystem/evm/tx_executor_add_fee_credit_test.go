@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -62,7 +63,7 @@ func evmTestFeeCalculator() uint64 {
 
 func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 
@@ -509,9 +510,9 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 
 func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	const transferFcFee = 1
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": ver}
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pubHash := hash.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
@@ -591,7 +592,7 @@ func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitDa
 	}
 }
 
-func newTestFeeModule(t *testing.T, tb map[string]abcrypto.Verifier, opts ...feeTestOption) *FeeAccount {
+func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeAccount {
 	m := &FeeAccount{
 		hashAlgorithm: crypto.SHA256,
 		feeCalculator: FixedFee(1),

@@ -27,7 +27,7 @@ type (
 		ir           map[types.SystemID]*types.InputRecord
 		changes      map[types.SystemID]*types.InputRecord
 		signer       crypto.Signer // private key of the root chain
-		trustBase    map[string]crypto.Verifier
+		trustBase    types.RootTrustBase
 		log          *slog.Logger
 	}
 
@@ -39,12 +39,15 @@ func trackExecutionTime(start time.Time, name string, log *slog.Logger) {
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
-func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration,
-	signer crypto.Signer, log *slog.Logger, opts ...consensus.Option) (*ConsensusManager, error) {
-	verifier, err := signer.Verifier()
-	if err != nil {
-		return nil, fmt.Errorf("signing key error, %w", err)
-	}
+func NewMonolithicConsensusManager(
+	selfStr string,
+	trustBase types.RootTrustBase,
+	rg *genesis.RootGenesis,
+	partitionStore partitions.PartitionConfiguration,
+	signer crypto.Signer,
+	log *slog.Logger,
+	opts ...consensus.Option,
+) (*ConsensusManager, error) {
 	// load optional parameters
 	optional, err := consensus.LoadConf(opts)
 	if err != nil {
@@ -83,7 +86,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		ir:           lastIR,
 		changes:      make(map[types.SystemID]*types.InputRecord),
 		signer:       signer,
-		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
+		trustBase:    trustBase,
 		log:          log,
 	}
 	return consensusManager, nil

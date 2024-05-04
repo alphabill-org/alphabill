@@ -140,6 +140,7 @@ func NewNode(
 	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
 	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
+	trustBase types.RootTrustBase, // root trust base file
 	network ValidatorNetwork, // network layer of the validator node
 	observe Observability,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
@@ -149,7 +150,7 @@ func NewNode(
 	defer span.End()
 
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, trustBase, txSystem, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}

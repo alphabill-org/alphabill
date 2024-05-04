@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -17,7 +18,7 @@ import (
 
 func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	t.Run("ok - empty", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
@@ -386,9 +387,8 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 
 func TestAddFC_ExecuteAddNewFeeCredit(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	feeCreditModule := newTestFeeModule(t, trustBase)
-
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
 
@@ -410,7 +410,7 @@ func TestAddFC_ExecuteAddNewFeeCredit(t *testing.T) {
 
 func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}

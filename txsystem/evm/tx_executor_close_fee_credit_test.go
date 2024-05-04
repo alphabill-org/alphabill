@@ -5,16 +5,16 @@ import (
 	"hash"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,10 +31,10 @@ func (t *testData) IncrementCounter()    {}
 
 func TestFeeCredit_validateCloseFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
-	pubKey, err := verifier.MarshalPublicKey()
+	trustBase := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	address, err := generateAddress(pubKey)
+	address, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 
 	t.Run("Ok", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 
 func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	address, err := generateAddress(pubKey)

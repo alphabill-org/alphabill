@@ -101,7 +101,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return err
 	}
 	// verify proof
-	if err = types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, m.trustBase, m.hashAlgorithm); err != nil {
+	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, m.trustBase, m.hashAlgorithm); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
 	return nil

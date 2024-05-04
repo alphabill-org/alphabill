@@ -6,6 +6,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -17,13 +19,13 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
 )
 
 const initialDustCollectorMoneyAmount uint64 = 100
@@ -50,7 +52,7 @@ func TestNewTxSystem(t *testing.T) {
 		sdrs        = createSDRs(newBillID(3))
 		txsState    = genesisStateWithUC(t, initialBill, sdrs)
 		_, verifier = testsig.CreateSignerAndVerifier(t)
-		trustBase   = map[string]abcrypto.Verifier{"test": verifier}
+		trustBase   = testtb.NewTrustBase(t, verifier)
 	)
 	txSystem, err := NewTxSystem(
 		observability.Default(t),
@@ -81,7 +83,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	sdrs := createSDRs(newBillID(2))
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
@@ -984,7 +986,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	sdrs := createSDRs(newBillID(2))
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	mss, err := NewTxSystem(
 		observability.Default(t),

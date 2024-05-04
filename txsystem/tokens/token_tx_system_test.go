@@ -19,6 +19,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -1476,7 +1477,7 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 
 	txs, err := NewTxSystem(
 		observability.Default(t),
-		WithTrustBase(map[string]abcrypto.Verifier{"test": verifier}),
+		WithTrustBase(testtb.NewTrustBase(t, verifier)),
 		WithState(s),
 	)
 	require.NoError(t, err)

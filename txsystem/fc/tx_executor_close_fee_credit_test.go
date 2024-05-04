@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -17,7 +17,7 @@ import (
 
 func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	// create existing fee credit record for closeFC
 	attr := testfc.NewCloseFCAttr()
 	tx := testfc.NewCloseFC(t, attr)
@@ -37,7 +37,7 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 
 func TestFeeCredit_validateCloseFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	t.Run("Ok", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, nil)
@@ -153,7 +153,7 @@ func withFeeCreditType(feeType []byte) feeTestOption {
 	}
 }
 
-func newTestFeeModule(t *testing.T, tb map[string]abcrypto.Verifier, opts ...feeTestOption) *FeeCredit {
+func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeCredit {
 	m := &FeeCredit{
 		hashAlgorithm:         crypto.SHA256,
 		feeCalculator:         FixedFee(1),

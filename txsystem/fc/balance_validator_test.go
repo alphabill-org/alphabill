@@ -3,13 +3,13 @@ package fc
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 func TestCheckFeeCreditBalance(t *testing.T) {
 	sharedState := state.NewEmptyState()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
@@ -37,13 +37,13 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	}{
 		{
 			name:          "valid fee credit tx",
-			tx:            testutils.NewAddFC(t, signer, nil),
+			tx:            testfc.NewAddFC(t, signer, nil),
 			expectedError: "",
 		},
 		{
 			name: "the tx fee cannot exceed the max specified fee",
-			tx: testutils.NewAddFC(t, signer,
-				testutils.NewAddFCAttr(t, signer),
+			tx: testfc.NewAddFC(t, signer,
+				testfc.NewAddFCAttr(t, signer),
 				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 0})),
 			expectedError: "the tx fee cannot exceed the max specified fee",
 		},

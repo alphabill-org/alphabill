@@ -6,8 +6,12 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/state"
+)
+
+var (
+	ErrUnitTypeIsNotFCR     = errors.New("invalid unit identifier: type is not fee credit record")
+	ErrUnitDataTypeIsNotFCR = fmt.Errorf("invalid unit type: unit is not fee credit record")
 )
 
 // ValidateGenericFeeCreditTx none of the free credit transactions must contain fee credit reference or separate fee authorization proof

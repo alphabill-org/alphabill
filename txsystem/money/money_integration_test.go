@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -49,7 +48,7 @@ func TestPartition_Ok(t *testing.T) {
 	}
 	sdrs := createSDRs(newBillID(2))
 	s := genesisState(t, ib, sdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
 			observability.Default(t),
@@ -173,7 +172,7 @@ func TestPartition_StateLockingWithIdentityTx(t *testing.T) {
 	sdrs := createSDRs(newBillID(2))
 	s := genesisState(t, initialBill, sdrs)
 	var txState *state.State
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		txState = s
 		system, err := NewTxSystem(
@@ -389,7 +388,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	total := moneyInvariant
 	sdrs := createSDRs(newBillID(99))
 	txsState = genesisState(t, initialBill, sdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			observability.Default(t),

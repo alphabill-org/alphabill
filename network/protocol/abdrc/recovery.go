@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
@@ -60,20 +59,20 @@ func (sm *StateMsg) CanRecoverToRound(round uint64) error {
 	return nil
 }
 
-func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, quorum uint32, verifiers map[string]abcrypto.Verifier) error {
+func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) error {
 	if sm.CommittedHead == nil {
 		return fmt.Errorf("commit head is nil")
 	}
 	if err := sm.CommittedHead.IsValid(); err != nil {
 		return fmt.Errorf("invalid commit head: %w", err)
 	}
-	if err := sm.CommittedHead.Block.Qc.Verify(quorum, verifiers); err != nil {
+	if err := sm.CommittedHead.Block.Qc.Verify(tb); err != nil {
 		return fmt.Errorf("block qc verification error: %w", err)
 	}
-	if err := sm.CommittedHead.Qc.Verify(quorum, verifiers); err != nil {
+	if err := sm.CommittedHead.Qc.Verify(tb); err != nil {
 		return fmt.Errorf("qc verification error: %w", err)
 	}
-	if err := sm.CommittedHead.CommitQc.Verify(quorum, verifiers); err != nil {
+	if err := sm.CommittedHead.CommitQc.Verify(tb); err != nil {
 		return fmt.Errorf("commit qc verification error: %w", err)
 	}
 	// verify node blocks
@@ -82,13 +81,13 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, quorum uint32, verifiers m
 			return fmt.Errorf("invalid block node: %w", err)
 		}
 		if n.Qc != nil {
-			if err := n.Qc.Verify(quorum, verifiers); err != nil {
+			if err := n.Qc.Verify(tb); err != nil {
 				return fmt.Errorf("block node qc verification error: %w", err)
 			}
 		}
 	}
 	for _, c := range sm.Certificates {
-		if err := c.Verify(verifiers, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
+		if err := c.Verify(tb, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
 			return fmt.Errorf("certificate for %X is invalid: %w", c.UnicityTreeCertificate.SystemIdentifier, err)
 		}
 	}

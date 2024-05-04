@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
@@ -55,16 +56,11 @@ func (x *TimeoutMsg) Sign(s crypto.Signer) error {
 	return nil
 }
 
-func (x *TimeoutMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
-	v, f := rootTrust[x.Author]
-	if !f {
-		return fmt.Errorf("signer %q is not part of trustbase", x.Author)
-	}
-	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
+func (x *TimeoutMsg) Verify(tb types.RootTrustBase) error {
+	if _, err := tb.VerifySignature(x.Bytes(), x.Signature, x.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)
 	}
-
-	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
+	if err := x.Timeout.Verify(tb); err != nil {
 		return fmt.Errorf("timeout data verification failed: %w", err)
 	}
 	return nil

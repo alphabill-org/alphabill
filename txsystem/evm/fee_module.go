@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,7 +20,7 @@ type (
 		state         *state.State
 		systemID      types.SystemID
 		moneySystemID types.SystemID
-		trustBase     map[string]abcrypto.Verifier
+		trustBase     types.RootTrustBase
 		hashAlgorithm crypto.Hash
 		feeCalculator FeeCalculator
 		execPredicate predicates.PredicateRunner

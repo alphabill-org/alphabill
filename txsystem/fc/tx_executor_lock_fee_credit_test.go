@@ -3,10 +3,10 @@ package fc
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -15,7 +15,7 @@ import (
 
 func TestFeeCredit_validateLockFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	t.Run("ok", func(t *testing.T) {
 		tx := testutils.NewLockFC(t, nil)
@@ -126,7 +126,7 @@ func TestFeeCredit_validateLockFC(t *testing.T) {
 
 func TestFeeCredit_executeLockFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	tx := testutils.NewLockFC(t, nil)
 	initialFcr := &fc.FeeCreditRecord{Balance: 50, Backlink: []byte{4}}
 	feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, initialFcr))

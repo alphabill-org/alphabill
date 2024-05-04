@@ -1,10 +1,12 @@
 package genesis
 
 import (
+	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -63,12 +65,12 @@ func (x *RootGenesis) IsValid() error {
 	}
 
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
-	trustBase, err := NewValidatorTrustBase(x.Root.RootValidators)
+	trustBase, err := x.GenerateTrustBase()
 	if err != nil {
 		return fmt.Errorf("creating validator trustbase: %w", err)
 	}
 	for _, p := range x.Partitions {
-		if err = p.IsValid(trustBase, alg); err != nil {
+		if err := p.IsValid(trustBase, alg); err != nil {
 			return err
 		}
 	}
@@ -97,14 +99,14 @@ func (x *RootGenesis) Verify() error {
 		return fmt.Errorf("root genesis duplicate partition error: %w", err)
 	}
 	// Check all signatures on Partition UC Seals
-	verifiers, err := NewValidatorTrustBase(x.Root.RootValidators)
+	trustBase, err := x.GenerateTrustBase()
 	if err != nil {
 		return fmt.Errorf("root genesis verify failed, unable to create trust base: %w", err)
 	}
 	// Use hash algorithm from consensus structure
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	for i, p := range x.Partitions {
-		if err = p.IsValid(verifiers, alg); err != nil {
+		if err = p.IsValid(trustBase, alg); err != nil {
 			return fmt.Errorf("root genesis partition record %v error: %w", i, err)
 		}
 		// make sure all root validators have signed the UC Seal
@@ -148,4 +150,31 @@ func (x *RootGenesis) NodeIDs() ([]peer.ID, error) {
 		IDs[n] = id
 	}
 	return IDs, nil
+}
+
+// GenerateTrustBase generates root trust base. The final trust
+// base must be generated from the combined root genesis file.
+func (x *RootGenesis) GenerateTrustBase() (*types.RootTrustBaseV0, error) {
+	var trustBaseNodes []*types.NodeInfo
+	var unicityTreeRootHash []byte
+	for _, rn := range x.Root.RootValidators {
+		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SigningPublicKey)
+		if err != nil {
+			return nil, err
+		}
+		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeIdentifier, 1, verifier))
+		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
+		for _, p := range x.Partitions {
+			if len(unicityTreeRootHash) == 0 {
+				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash
+			} else if !bytes.Equal(unicityTreeRootHash, p.Certificate.UnicitySeal.Hash) {
+				return nil, errors.New("unicity certificate seal hashes are not equal")
+			}
+		}
+	}
+	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new genesis trust base")
+	}
+	return trustBase, nil
 }

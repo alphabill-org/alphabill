@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,7 +20,7 @@ type (
 	Module struct {
 		state               *state.State
 		systemID            types.SystemID
-		trustBase           map[string]abcrypto.Verifier
+		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder

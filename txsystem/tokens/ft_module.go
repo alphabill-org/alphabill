@@ -3,8 +3,8 @@ package tokens
 import (
 	"crypto"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -17,7 +17,7 @@ type FungibleTokensModule struct {
 	state         *state.State
 	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
-	trustBase     map[string]abcrypto.Verifier
+	trustBase     types.RootTrustBase
 	execPredicate predicates.PredicateRunner
 }
 

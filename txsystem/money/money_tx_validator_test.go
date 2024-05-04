@@ -4,6 +4,9 @@ import (
 	"math"
 	"testing"
 
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -18,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTransfer(t *testing.T) {
@@ -375,7 +377,7 @@ func TestSwap(t *testing.T) {
 			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
 		exeCtx := &txsystem.TxExecutionContext{}
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, exeCtx), "proof is not valid: invalid unicity certificate: unicity seal signature validation failed: invalid unicity seal signature, verification failed")
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, exeCtx), "proof is not valid: invalid unicity certificate: unicity seal signature validation failed: quorum not reached, signed_votes=0 quorum_threshold=1")
 	})
 }
 
@@ -1054,7 +1056,7 @@ func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
 	// NB! using the same pubkey for trustbase and unit bearer! TODO: use different keys...
 	options, err := defaultOptions()
 	require.NoError(t, err)
-	options.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
 	module, err := NewMoneyModule(options)
 	require.NoError(t, err)

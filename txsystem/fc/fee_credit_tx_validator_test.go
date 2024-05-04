@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"

@@ -25,7 +25,6 @@ type (
 		totalValidators       uint32
 		blockRateMs           uint32
 		consensusTimeoutMs    uint32
-		quorumThreshold       uint32
 		hashAlgorithm         gocrypto.Hash
 	}
 
@@ -33,13 +32,6 @@ type (
 
 	UnicitySealFunc func(rootHash []byte) (*types.UnicitySeal, error)
 )
-
-func (c *rootGenesisConf) QuorumThreshold() uint32 {
-	if c.quorumThreshold == 0 {
-		return genesis.GetMinQuorumThreshold(c.totalValidators)
-	}
-	return c.quorumThreshold
-}
 
 func (c *rootGenesisConf) isValid() error {
 	if c.peerID == "" {
@@ -53,14 +45,6 @@ func (c *rootGenesisConf) isValid() error {
 	}
 	if c.totalValidators < 1 {
 		return genesis.ErrInvalidNumberOfRootValidators
-	}
-	if c.totalValidators < c.quorumThreshold {
-		return fmt.Errorf("invalid quorum threshold %v is higher than total number of root nodes %v",
-			c.quorumThreshold, c.totalValidators)
-	}
-	if c.quorumThreshold < genesis.GetMinQuorumThreshold(c.totalValidators) {
-		return fmt.Errorf("invalid quorum threshold, for %v nodes minimum quorum is %v",
-			c.totalValidators, genesis.GetMinQuorumThreshold(c.totalValidators))
 	}
 	if c.consensusTimeoutMs < genesis.MinConsensusTimeout {
 		return fmt.Errorf("invalid consensus timeout, must be at least %v", genesis.MinConsensusTimeout)
@@ -93,12 +77,6 @@ func WithConsensusTimeout(timeoutMs uint32) Option {
 	}
 }
 
-func WithQuorumThreshold(threshold uint32) Option {
-	return func(c *rootGenesisConf) {
-		c.quorumThreshold = threshold
-	}
-}
-
 // WithHashAlgorithm set custom hash algorithm (unused for now, remove?)
 func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	return func(c *rootGenesisConf) {
@@ -106,24 +84,24 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	}
 }
 
-func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[types.SystemID]*types.UnicityCertificate, error) {
+func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Hash, sealFn UnicitySealFunc) ([]byte, map[types.SystemID]*types.UnicityCertificate, error) {
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash, utData)
 	if err != nil {
-		return nil, fmt.Errorf("unicity tree calculation failed: %w", err)
+		return nil, nil, fmt.Errorf("unicity tree calculation failed: %w", err)
 	}
 	// create seal
 	rootHash := ut.GetRootHash()
 	seal, err := sealFn(rootHash)
 	if err != nil {
-		return nil, fmt.Errorf("unicity seal generation failed: %w", err)
+		return nil, nil, fmt.Errorf("unicity seal generation failed: %w", err)
 	}
 	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	// extract certificates
 	for _, d := range utData {
 		utCert, err := ut.GetCertificate(d.SystemIdentifier)
 		if err != nil {
-			return nil, fmt.Errorf("get unicity tree certificate error: %w", err)
+			return nil, nil, fmt.Errorf("get unicity tree certificate error: %w", err)
 		}
 		uc := &types.UnicityCertificate{
 			InputRecord: d.InputRecord,
@@ -136,7 +114,7 @@ func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Ha
 		}
 		certs[d.SystemIdentifier] = uc
 	}
-	return certs, nil
+	return rootHash, certs, nil
 }
 
 func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.PartitionRecord, error) {
@@ -160,35 +138,32 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 	return partitionRecords, nil
 }
 
-func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*genesis.PartitionRecord,
-	opts ...Option) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
-
+func NewRootGenesis(
+	nodeID string,
+	s crypto.Signer,
+	encPubKey []byte,
+	partitions []*genesis.PartitionRecord,
+	opts ...Option,
+) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	c := &rootGenesisConf{
-		peerID:                id,
+		peerID:                nodeID,
 		signer:                s,
 		encryptionPubKeyBytes: encPubKey,
 		totalValidators:       1,
 		blockRateMs:           genesis.DefaultBlockRateMs,
 		consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
-		quorumThreshold:       0,
 		hashAlgorithm:         gocrypto.SHA256,
 	}
-
 	for _, option := range opts {
 		option(c)
-	}
-	// if not set, use min as default
-	if c.quorumThreshold == 0 {
-		c.quorumThreshold = genesis.GetMinQuorumThreshold(c.totalValidators)
 	}
 	if err := c.isValid(); err != nil {
 		return nil, nil, fmt.Errorf("consensus parameters validation failed: %w", err)
 	}
-	ver, err := s.Verifier()
+	verifier, err := s.Verifier()
 	if err != nil {
 		return nil, nil, fmt.Errorf("verifier error, %w", err)
 	}
-	trustBase := map[string]crypto.Verifier{c.peerID: ver}
 	// make sure that there are no duplicate system id's in provided partition records
 	if err = genesis.CheckPartitionSystemIdentifiersUnique(partitions); err != nil {
 		return nil, nil, fmt.Errorf("partition genesis records not unique: %w", err)
@@ -231,15 +206,23 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
 	}
 	// calculate unicity tree
-	certs, err := createUnicityCertificates(ucData, c.hashAlgorithm, sealFn)
+	rootHash, certs, err := createUnicityCertificates(ucData, c.hashAlgorithm, sealFn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unicity certificate generation failed: %w", err)
+	}
+	// create "temporary" trust base to verify self signature
+	tb, err := types.NewTrustBaseGenesis(
+		[]*types.NodeInfo{types.NewNodeInfo(nodeID, 1, verifier)},
+		rootHash,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create trust base: %w", err)
 	}
 	for sysId, uc := range certs {
 		// check the certificate
 		// ignore error, we just put it there and if not, then verify will fail anyway
 		srdh := sdrhs[sysId]
-		if err = uc.Verify(trustBase, c.hashAlgorithm, sysId, srdh); err != nil {
+		if err = uc.Verify(tb, c.hashAlgorithm, sysId, srdh); err != nil {
 			// should never happen.
 			return nil, nil, fmt.Errorf("generated unicity certificate validation failed: %w", err)
 		}
@@ -247,7 +230,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 
 	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
-	rootPublicKey, err := ver.MarshalPublicKey()
+	rootPublicKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, nil, fmt.Errorf("root public key marshal error: %w", err)
 	}
@@ -270,15 +253,6 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 			Certificate:             certificate,
 			SystemDescriptionRecord: partition.SystemDescriptionRecord,
 		}
-
-		var keys = make([]*genesis.PublicKeyInfo, len(partition.Validators))
-		for j, v := range partition.Validators {
-			keys[j] = &genesis.PublicKeyInfo{
-				NodeIdentifier:      v.NodeIdentifier,
-				SigningPublicKey:    v.SigningPublicKey,
-				EncryptionPublicKey: v.EncryptionPublicKey,
-			}
-		}
 	}
 	// sort genesis partition by system id
 	sort.Slice(genesisPartitions, func(i, j int) bool {
@@ -289,7 +263,6 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		TotalRootValidators: c.totalValidators,
 		BlockRateMs:         c.blockRateMs,
 		ConsensusTimeoutMs:  c.consensusTimeoutMs,
-		QuorumThreshold:     c.QuorumThreshold(),
 		HashAlgorithm:       uint32(c.hashAlgorithm),
 		Signatures:          make(map[string][]byte),
 	}

@@ -3,7 +3,6 @@ package fc
 import (
 	"crypto"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
@@ -34,7 +33,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(trustBase map[string]abcrypto.Verifier) Option {
+func WithTrustBase(trustBase types.RootTrustBase) Option {
 	return func(f *FeeCredit) {
 		f.trustBase = trustBase
 	}

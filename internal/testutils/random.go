@@ -15,6 +15,6 @@ func RandomBytes(len int) []byte {
 }
 
 func RandomString(len int) string {
-	b := RandomBytes(len)
+	b := RandomBytes(len/2 + 1)
 	return fmt.Sprintf("%x", b)[:len]
 }

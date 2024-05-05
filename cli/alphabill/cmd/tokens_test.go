@@ -9,12 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -22,11 +26,8 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill/rpc"
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -35,6 +36,7 @@ func TestRunTokensNode(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
+	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
 		appStoppedWg := sync.WaitGroup{}
@@ -65,26 +67,31 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+		require.NoError(t, err)
+		trustBase, err := rootGenesis.GenerateTrustBase()
+		require.NoError(t, err)
+		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
 		require.NoError(t, err)
 		rpcServerAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			cmd = New(logF)
 			args = "tokens --home " + homeDir +
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
+				" -t " + trustBaseFileLocation +
 				" -k " + keysFileLocation +
 				" --rpc-server-address " + rpcServerAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 
 		// create rpc client
@@ -114,7 +121,7 @@ func TestRunTokensNode(t *testing.T) {
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       tokens.DefaultSystemIdentifier,
+				SystemID:       tokens.DefaultSystemID,
 				Type:           tokens.PayloadTypeCreateNFTType,
 				UnitID:         id[:],
 				Attributes:     attrBytes,

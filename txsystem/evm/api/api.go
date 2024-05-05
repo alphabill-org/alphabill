@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/gorilla/mux"
 )
 

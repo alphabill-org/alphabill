@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 

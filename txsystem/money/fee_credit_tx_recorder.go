@@ -3,15 +3,16 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 // feeCreditTxRecorder container struct for recording fee credit transactions
 type feeCreditTxRecorder struct {
-	sdrs  map[types.SystemID]*genesis.SystemDescriptionRecord
+	sdrs  map[types.SystemID]*types.SystemDescriptionRecord
 	state *state.State
 	// recorded fee credit transfers indexed by system_identifier
 	transferFeeCredits map[types.SystemID][]*transferFeeCreditTx
@@ -23,19 +24,19 @@ type feeCreditTxRecorder struct {
 type transferFeeCreditTx struct {
 	tx   *types.TransactionOrder
 	fee  uint64
-	attr *transactions.TransferFeeCreditAttributes
+	attr *fc.TransferFeeCreditAttributes
 }
 
 type reclaimFeeCreditTx struct {
 	tx                  *types.TransactionOrder
-	attr                *transactions.ReclaimFeeCreditAttributes
-	closeFCTransferAttr *transactions.CloseFeeCreditAttributes
+	attr                *fc.ReclaimFeeCreditAttributes
+	closeFCTransferAttr *fc.CloseFeeCreditAttributes
 	reclaimFee          uint64
 	closeFee            uint64
 }
 
-func newFeeCreditTxRecorder(s *state.State, systemIdentifier types.SystemID, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
-	sdrs := make(map[types.SystemID]*genesis.SystemDescriptionRecord)
+func newFeeCreditTxRecorder(s *state.State, systemIdentifier types.SystemID, records []*types.SystemDescriptionRecord) *feeCreditTxRecorder {
+	sdrs := make(map[types.SystemID]*types.SystemDescriptionRecord)
 	for _, record := range records {
 		sdrs[record.SystemIdentifier] = record
 	}
@@ -108,8 +109,8 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return err
 		}
 		updateData := state.UpdateUnitData(fcUnitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
@@ -136,8 +137,8 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)
 		}
 		updateData := state.UpdateUnitData(moneyFCUnitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				bd, ok := data.(*BillData)
+			func(data types.UnitData) (types.UnitData, error) {
+				bd, ok := data.(*money.BillData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}

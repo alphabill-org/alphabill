@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"path/filepath"
 
+	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -71,7 +73,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, moneyPartitionDir, moneyGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, money.NewUnitData)
+	state, err := loadStateFile(stateFilePath, moneysdk.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}
@@ -83,12 +85,12 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		}
 	}
 
-	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	trustBase, err := types.NewTrustBaseFromFile(cfg.Node.TrustBaseFile)
 	if err != nil {
-		return fmt.Errorf("failed to create trust base validator: %w", err)
+		return fmt.Errorf("failed to load trust base file: %w", err)
 	}
 
-	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
+	keys, err := LoadKeys(cfg.Node.KeyFile, true, false)
 	if err != nil {
 		return fmt.Errorf("failed to load node keys: %w", err)
 	}
@@ -126,7 +128,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if cfg.Node.WithOwnerIndex {
 		ownerIndexer = partition.NewOwnerIndexer(log)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, trustBase, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
@@ -19,7 +20,6 @@ const (
 	maxDecimalPlaces         = 8
 
 	ErrStrInvalidUnitID         = "invalid unit ID"
-	ErrStrInvalidTypeID         = "invalid type ID"
 	ErrStrInvalidParentTypeID   = "invalid parent type ID"
 	ErrStrInvalidSystemID       = "system identifier is not assigned"
 	ErrStrStateIsNil            = "state is nil"
@@ -64,7 +64,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithSystemIdentifier(options.systemIdentifier),
 		fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
-		fc.WithFeeCreditRecordUnitType(FeeCreditRecordUnitType),
+		fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)

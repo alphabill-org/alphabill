@@ -30,7 +30,7 @@ type (
 func New(obsF Factory, opts ...interface{}) *alphabillApp {
 	baseCmd, baseConfig := newBaseCmd(obsF)
 	app := &alphabillApp{baseCmd: baseCmd, baseConfig: baseConfig}
-	app.addSubcommands(obsF, opts)
+	app.addSubcommands(opts)
 	return app
 }
 
@@ -45,7 +45,7 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *alphabillApp) addSubcommands(obsF Factory, opts []interface{}) {
+func (a *alphabillApp) addSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
@@ -55,6 +55,8 @@ func (a *alphabillApp) addSubcommands(obsF Factory, opts []interface{}) {
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newOrchestrationNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newOrchestrationGenesisCmd(a.baseConfig))
 }
 
 func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {

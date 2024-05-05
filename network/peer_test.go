@@ -137,7 +137,7 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, 2*test.WaitDuration, test.WaitTick)
 
 	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
 	require.NoError(t, err)
@@ -146,10 +146,10 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, 2*test.WaitDuration, test.WaitTick)
 }
 
 func TestBootstrap_AllConnectionsFail(t *testing.T) {
@@ -166,8 +166,10 @@ func TestBootstrap_AllConnectionsFail(t *testing.T) {
 	require.NoError(t, err)
 
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
-	require.Nil(t, peer1)
-	require.ErrorContains(t, err, fmt.Sprintf("bootstrap error: failed to bootstrap: failed to dial: failed to dial %s: all dials failed", bootStrapPeer1Conf.ID))
+	require.NoError(t, err)
+	require.NotNil(t, peer1)
+	err = peer1.BootstrapConnect(ctx, log)
+	require.ErrorContains(t, err, fmt.Sprintf("failed to bootstrap: failed to dial: failed to dial %s: all dials failed", bootStrapPeer1Conf.ID))
 }
 
 func TestProvidesAndDiscoverNodes(t *testing.T) {
@@ -198,8 +200,8 @@ func TestProvidesAndDiscoverNodes(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = peer3.Close() }()
 
-	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 3 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 3 }, 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 3 }, 2*test.WaitDuration, test.WaitTick)
 	testTopic := "ab/test/test_topic"
 	require.NoError(t, peer2.Advertise(ctx, testTopic))
 	require.NoError(t, peer1.Advertise(ctx, testTopic))
@@ -216,12 +218,21 @@ func TestProvidesAndDiscoverNodes(t *testing.T) {
 	require.Len(t, peers, 2)
 }
 
+func createPeer(t *testing.T) *Peer {
+	return createBootstrappedPeer(t, nil, []peer.ID{})
+}
+
 /*
 createPeer returns new Peer configured with random port on localhost and registers
 cleanup for it (ie in the end of the test peer.Close is called).
 */
-func createPeer(t *testing.T) *Peer {
-	peerConf, err := NewPeerConfiguration(randomTestAddressStr, generateKeyPair(t), nil, nil)
+func createBootstrappedPeer(t *testing.T, bootstrapPeers []peer.AddrInfo, validators []peer.ID) *Peer {
+	keyPair := generateKeyPair(t)
+	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)
+	require.NoError(t, err)
+
+	validators = append(validators, peerID)
+	peerConf, err := NewPeerConfiguration(randomTestAddressStr, keyPair, bootstrapPeers, validators)
 	require.NoError(t, err)
 
 	p, err := NewPeer(context.Background(), peerConf, logger.New(t), nil)

@@ -11,30 +11,18 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-type CallEVMRequest struct {
-	_     struct{} `cbor:",toarray"`
-	From  []byte
-	To    []byte
-	Data  []byte
-	Value *big.Int
-	Gas   uint64
-}
-
-type CallEVMResponse struct {
-	_                 struct{} `cbor:",toarray"`
-	ProcessingDetails *evm.ProcessingDetails
-}
-
 func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
-	request := &CallEVMRequest{}
+	request := &evmsdk.CallEVMRequest{}
 	if err := types.Cbor.Decode(r.Body, request); err != nil {
 		WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
@@ -43,7 +31,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	clonedState := a.state.Clone()
 	defer clonedState.Revert()
 
-	attr := &evm.TxAttributes{
+	attr := &evmsdk.TxAttributes{
 		From:  request.From,
 		To:    request.To,
 		Data:  request.Data,
@@ -55,7 +43,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 		WriteCBORError(w, err, http.StatusBadRequest, a.log)
 		return
 	}
-	processingDetails := &evm.ProcessingDetails{
+	processingDetails := &evmsdk.ProcessingDetails{
 		ReturnData: res.ReturnData,
 	}
 	if res.Unwrap() != nil {
@@ -69,10 +57,10 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	processingDetails.Logs = stateDB.GetLogs()
 
-	WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
+	WriteCBORResponse(w, &evmsdk.CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
 }
 
-func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {
+func (a *API) callContract(clonedState *state.State, call *evmsdk.TxAttributes) (*core.ExecutionResult, error) {
 	blockNumber := clonedState.CommittedUC().GetRoundNumber()
 	stateDB := statedb.NewStateDB(clonedState, a.log)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)

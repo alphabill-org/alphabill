@@ -3,13 +3,13 @@ package teststate
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
-func CreateUC(s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate{
+func CreateUC(s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
 	roundNumber := uint64(0)
 	if s.IsCommitted() {
 		roundNumber = s.CommittedUC().GetRoundNumber() + 1

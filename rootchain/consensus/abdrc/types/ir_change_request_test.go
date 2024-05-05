@@ -4,11 +4,11 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,7 +58,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 	})
 }
 
-func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
+func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 	x := &IRChangeReq{
 		SystemIdentifier: sysId1,
 		CertReason:       QuorumNotPossible,
@@ -79,7 +79,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 		},
 	}
 	irHasher := gocrypto.SHA256.New()
-	x.AddToHasher(irHasher)
+	irHasher.Write(x.Bytes())
 	expectedHash := gocrypto.SHA256.New()
 	expectedHash.Write([]byte{
 		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg

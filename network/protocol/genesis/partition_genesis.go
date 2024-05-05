@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -17,12 +17,12 @@ var (
 )
 
 type PartitionGenesis struct {
-	_                       struct{}                  `cbor:",toarray"`
-	SystemDescriptionRecord *SystemDescriptionRecord  `json:"system_description_record,omitempty"`
-	Certificate             *types.UnicityCertificate `json:"certificate,omitempty"`
-	RootValidators          []*PublicKeyInfo          `json:"root_validators,omitempty"`
-	Keys                    []*PublicKeyInfo          `json:"keys,omitempty"`
-	Params                  []byte                    `json:"params,omitempty"`
+	_                       struct{}                       `cbor:",toarray"`
+	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Certificate             *types.UnicityCertificate      `json:"certificate,omitempty"`
+	RootValidators          []*PublicKeyInfo               `json:"root_validators,omitempty"`
+	Keys                    []*PublicKeyInfo               `json:"keys,omitempty"`
+	Params                  []byte                         `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
@@ -35,12 +35,12 @@ func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	return nil
 }
 
-func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
 		return ErrPartitionGenesisIsNil
 	}
-	if len(verifiers) == 0 {
-		return ErrVerifiersEmpty
+	if trustBase == nil {
+		return ErrTrustBaseIsNil
 	}
 	if len(x.Keys) < 1 {
 		return ErrKeysAreMissing
@@ -60,7 +60,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	}
 
 	if x.SystemDescriptionRecord == nil {
-		return ErrSystemDescriptionIsNil
+		return types.ErrSystemDescriptionIsNil
 	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
 		return fmt.Errorf("invalid system decsrition record, %w", err)
@@ -70,7 +70,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	}
 	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
 	// validate all signatures against known root keys
-	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators
@@ -78,4 +78,32 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 		return fmt.Errorf("unicity Certificate is not signed by all root nodes")
 	}
 	return nil
+}
+
+// GenerateRootTrustBase generates trust base from partition genesis.
+func (x *PartitionGenesis) GenerateRootTrustBase() (types.RootTrustBase, error) {
+	if x == nil {
+		return nil, ErrPartitionGenesisIsNil
+	}
+	nodes, err := newTrustBaseNodes(x.RootValidators)
+	if err != nil {
+		return nil, err
+	}
+	trustBase, err := types.NewTrustBaseGenesis(nodes, x.Certificate.UnicitySeal.Hash)
+	if err != nil {
+		return nil, err
+	}
+	return trustBase, nil
+}
+
+func newTrustBaseNodes(publicKeyInfo []*PublicKeyInfo) ([]*types.NodeInfo, error) {
+	var nodeInfo []*types.NodeInfo
+	for _, info := range publicKeyInfo {
+		verifier, err := crypto.NewVerifierSecp256k1(info.SigningPublicKey)
+		if err != nil {
+			return nil, err
+		}
+		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeIdentifier, 1, verifier))
+	}
+	return nodeInfo, nil
 }

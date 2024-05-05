@@ -7,11 +7,11 @@ import (
 	"io"
 	"sync"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
+	"github.com/alphabill-org/alphabill-go-base/hash"
+	"github.com/alphabill-org/alphabill-go-base/tree/mt"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/tree/mt"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -39,7 +39,7 @@ type (
 	node = avl.Node[types.UnitID, *Unit]
 
 	// UnitDataConstructor is a function that constructs an empty UnitData structure based on UnitID
-	UnitDataConstructor func(types.UnitID) (UnitData, error)
+	UnitDataConstructor func(types.UnitID) (types.UnitData, error)
 )
 
 func NewEmptyState(opts ...Option) *State {
@@ -202,16 +202,17 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	unit := u.Clone()
 	logsCount := len(unit.logs)
 	l := &Log{
-		TxRecordHash: transactionRecordHash,
-		NewBearer:    bytes.Clone(unit.bearer),
-		NewUnitData:  copyData(unit.data),
+		TxRecordHash:   transactionRecordHash,
+		NewBearer:      bytes.Clone(unit.bearer),
+		NewUnitData:    copyData(unit.data),
+		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
 	if logsCount == 0 {
 		// newly created unit
-		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, nil, transactionRecordHash)
+		l.UnitLedgerHeadHash = hash.Sum(s.hashAlgorithm, nil, transactionRecordHash)
 	} else {
 		// a pre-existing unit
-		l.UnitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
+		l.UnitLedgerHeadHash = hash.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
 	}
 	unit.logs = append(unit.logs, l)
 	return s.latestSavepoint().Update(id, unit)
@@ -234,7 +235,7 @@ func (s *State) Apply(actions ...Action) error {
 	return nil
 }
 
-// Commit commits the changes in the latest savepoint.
+// Commit makes the changes in the latest savepoint permanent.
 func (s *State) Commit(uc *types.UnicityCertificate) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

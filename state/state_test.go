@@ -7,9 +7,9 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func (t *TestData) SummaryValueInput() uint64 {
 	return t.Value
 }
 
-func (t *TestData) Copy() UnitData {
+func (t *TestData) Copy() types.UnitData {
 	return &TestData{Value: t.Value}
 }
 
@@ -145,7 +145,7 @@ func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 	s := NewEmptyState()
 	require.ErrorContains(t, s.Apply(
 		AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData),
-		UpdateUnitData([]byte{0, 0, 0, 2}, func(data UnitData) (UnitData, error) {
+		UpdateUnitData([]byte{0, 0, 0, 2}, func(data types.UnitData) (types.UnitData, error) {
 			return data, nil
 		})), "failed to get unit: item 00000002")
 
@@ -205,11 +205,11 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 	id2 := s.Savepoint()
 	id3 := s.Savepoint()
 	require.NoError(t,
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 2
 			return data, nil
 		})),
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 2
 			return data, nil
 		})),
@@ -222,11 +222,11 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
 	id4 := s.Savepoint()
 	require.NoError(t,
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 4
 			return data, nil
 		})),
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 4
 			return data, nil
 		})),
@@ -293,11 +293,11 @@ func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
 	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
 	id = s.Savepoint()
 	require.NoError(t,
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 2
 			return data, nil
 		})),
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 4}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 4}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 2
 			return data, nil
 		})),
@@ -356,7 +356,7 @@ func TestState_RevertAVLTreeRotations(t *testing.T) {
 
 	require.NoError(t,
 		// change the unit that will be rotated
-		s.Apply(UpdateUnitData([]byte{0, 0, 0, 15}, func(data UnitData) (UnitData, error) {
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 15}, func(data types.UnitData) (types.UnitData, error) {
 			data.(*TestData).Value = 30
 			return data, nil
 		})),
@@ -458,7 +458,7 @@ func TestState_PruneState(t *testing.T) {
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 
-	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data UnitData) (UnitData, error) {
+	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		data.(*TestData).Value = 100
 		return data, nil
 	})))
@@ -644,7 +644,7 @@ func TestSerialize_UnitDataConstructorError(t *testing.T) {
 	}
 	buf := createSerializedState(t, s, h, 0)
 
-	udc := func(_ types.UnitID) (UnitData, error) {
+	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return nil, fmt.Errorf("something happened")
 	}
 	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
@@ -660,7 +660,7 @@ func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
 	}
 	buf := createSerializedState(t, s, h, 0)
 
-	udc := func(_ types.UnitID) (UnitData, error) {
+	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return struct{ *pruneUnitData }{}, nil
 	}
 	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
@@ -699,7 +699,7 @@ func TestSerialize_EmptyStateUncommitted(t *testing.T) {
 	buf := &bytes.Buffer{}
 	require.NoError(t, s.Serialize(buf, true))
 
-	udc := func(_ types.UnitID) (UnitData, error) {
+	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return &pruneUnitData{}, nil
 	}
 
@@ -720,7 +720,7 @@ func TestSerialize_EmptyStateCommitted(t *testing.T) {
 	buf := &bytes.Buffer{}
 	require.NoError(t, s.Serialize(buf, true))
 
-	udc := func(_ types.UnitID) (UnitData, error) {
+	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return &pruneUnitData{}, nil
 	}
 
@@ -795,8 +795,8 @@ func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 	return stateRootHash, summaryValue
 }
 
-func multiply(t uint64) func(data UnitData) (UnitData, error) {
-	return func(data UnitData) (UnitData, error) {
+func multiply(t uint64) func(data types.UnitData) (types.UnitData, error) {
+	return func(data types.UnitData) (types.UnitData, error) {
 		d := data.(*pruneUnitData)
 		d.I = d.I * t
 		return d, nil
@@ -845,11 +845,11 @@ func (p *pruneUnitData) SummaryValueInput() uint64 {
 	return p.I
 }
 
-func (p *pruneUnitData) Copy() UnitData {
+func (p *pruneUnitData) Copy() types.UnitData {
 	return &pruneUnitData{I: p.I}
 }
 
-func unitDataConstructor(_ types.UnitID) (UnitData, error) {
+func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {
 	return &pruneUnitData{}, nil
 }
 

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
@@ -105,7 +105,7 @@ func (r *baseConfiguration) initConfigFileLocation() {
 }
 
 /*
-LoggerCfgFilename always returns non empty filename - either the value
+LoggerCfgFilename always returns non-empty filename - either the value
 of the flag set by user or default cfg location.
 The flag will be assigned the default filename (ie without path) if user
 doesn't specify that flag.
@@ -122,7 +122,7 @@ func (r *baseConfiguration) configFileExists() bool {
 	return err == nil
 }
 
-func (r *baseConfiguration) defaultRootGenesisDir() string {
+func (r *baseConfiguration) defaultRootchainDir() string {
 	return filepath.Join(r.HomeDir, defaultRootChainDir)
 }
 
@@ -166,11 +166,11 @@ func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerF
 		return nil, err
 	}
 
-	logger, err := loggerBuilder(cfg)
+	l, err := loggerBuilder(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("building logger: %w", err)
 	}
-	return logger, nil
+	return l, nil
 }
 
 func envKey(key string) string {

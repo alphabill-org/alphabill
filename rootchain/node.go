@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -14,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -112,6 +112,10 @@ func (v *Node) Run(ctx context.Context) error {
 	// Start handling certification responses
 	g.Go(func() error { return v.handleConsensus(gctx) })
 	return g.Wait()
+}
+
+func (v *Node) GetPeer() *network.Peer {
+	return v.peer
 }
 
 // loop handles messages from different goroutines.

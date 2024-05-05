@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/util"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -32,16 +32,8 @@ type ConsensusParams struct {
 	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
 	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate (round time t3 in monolithic root chain)
 	ConsensusTimeoutMs  uint32            `json:"consensus_timeout_ms,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
-	QuorumThreshold     uint32            `json:"quorum_threshold,omitempty"`      // Optionally define a different, higher quorum threshold (only used for distributed implementation)
 	HashAlgorithm       uint32            `json:"hash_algorithm,omitempty"`        // Hash algorithm for UnicityTree calculation
 	Signatures          map[string][]byte `json:"signatures,omitempty"`            // Signed hash of all fields excluding signatures
-}
-
-// GetMinQuorumThreshold calculates minimal quorum threshold from total number of validators
-func GetMinQuorumThreshold(totalRootValidators uint32) uint32 {
-	// must be over 2/3
-	// +1 to round up and avoid using floats
-	return (totalRootValidators*2)/3 + 1
 }
 
 func (x *ConsensusParams) IsValid() error {
@@ -63,16 +55,6 @@ func (x *ConsensusParams) IsValid() error {
 	if x.BlockRateMs+MinConsensusTimeout > x.ConsensusTimeoutMs {
 		return fmt.Errorf("invalid timeout for block rate, must be at least %d", x.BlockRateMs+MinConsensusTimeout)
 	}
-	// Therefore, the defined quorum threshold must be same or higher
-	minQuorum := GetMinQuorumThreshold(x.TotalRootValidators)
-	if x.QuorumThreshold < minQuorum {
-		return fmt.Errorf("quorum threshold set too low %v, must be at least %v",
-			x.QuorumThreshold, minQuorum)
-	}
-	if x.QuorumThreshold > x.TotalRootValidators {
-		return fmt.Errorf("quorum threshold set higher %v than number of validators in root chain %v",
-			x.QuorumThreshold, x.TotalRootValidators)
-	}
 	if hashAlgo := gocrypto.Hash(x.HashAlgorithm); !hashAlgo.Available() {
 		return ErrUnknownHashAlgorithm
 	}
@@ -88,7 +70,6 @@ func (x *ConsensusParams) Bytes() []byte {
 	b.Write(util.Uint32ToBytes(x.TotalRootValidators))
 	b.Write(util.Uint32ToBytes(x.BlockRateMs))
 	b.Write(util.Uint32ToBytes(x.ConsensusTimeoutMs))
-	b.Write(util.Uint32ToBytes(x.QuorumThreshold))
 	b.Write(util.Uint32ToBytes(x.HashAlgorithm))
 	return b.Bytes()
 }

@@ -3,13 +3,14 @@ package tokens
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 /*
 runChainedPredicates recursively executes predicates returned by callback functions.
-Typically these are predicates of the token type chain.
+Typically, these are predicates of the token type chain.
 
 Parameters:
   - "txo": transaction order against which predicates are run, passed on as argument to the
@@ -18,14 +19,14 @@ Parameters:
   - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the
     TokenCreationPredicateSignatures field of the mint tx;
   - "exec": function which evaluates the predicate;
-  - "iter": function which returns "parent ID" and perdicate for given unit (the "chain iterator");
+  - "iter": function which returns "parent ID" and predicate for given unit (the "chain iterator");
   - "getUnit": function which returns unit with given ID;
 */
-func runChainedPredicates[T state.UnitData](
+func runChainedPredicates[T types.UnitData](
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
 	args [][]byte,
-	exec func(pred, arg []byte, txo *types.TransactionOrder) error,
+	exec predicates.PredicateRunner,
 	iter func(d T) (types.UnitID, []byte),
 	getUnit func(id types.UnitID, committed bool) (*state.Unit, error),
 ) error {
@@ -52,7 +53,7 @@ func runChainedPredicates[T state.UnitData](
 	return nil
 }
 
-func getUnitData[T state.UnitData](getUnit func(id types.UnitID, committed bool) (*state.Unit, error), unitID types.UnitID) (T, error) {
+func getUnitData[T types.UnitData](getUnit func(id types.UnitID, committed bool) (*state.Unit, error), unitID types.UnitID) (T, error) {
 	u, err := getUnit(unitID, false)
 	if err != nil {
 		return *new(T), err

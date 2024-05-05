@@ -3,19 +3,20 @@ package tokens
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-var _ txsystem.Module = &NonFungibleTokensModule{}
+var _ txsystem.Module = (*NonFungibleTokensModule)(nil)
 
 type NonFungibleTokensModule struct {
 	state         *state.State
 	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
-	execPredicate func(predicate, args []byte, txo *types.TransactionOrder) error
+	execPredicate predicates.PredicateRunner
 }
 
 func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, error) {
@@ -29,9 +30,9 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 
 func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
-		PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
-		PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeCreateNFTType: n.handleCreateNonFungibleTokenTypeTx().ExecuteFunc(),
+		tokens.PayloadTypeMintNFT:       n.handleMintNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeTransferNFT:   n.handleTransferNonFungibleTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeUpdateNFT:     n.handleUpdateNonFungibleTokenTx().ExecuteFunc(),
 	}
 }

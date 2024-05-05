@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core"
+
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/ethereum/go-ethereum/core"
 )
 
 var _ txsystem.Module = (*Module)(nil)
@@ -32,14 +34,14 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		systemIdentifier: systemIdentifier,
 		options:          opts,
 		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:    predicates.PredicateRunner(opts.execPredicate, opts.state),
+		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate, opts.state),
 		log:              log,
 	}, nil
 }
 
 func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log).ExecuteFunc(),
+		evm.PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log).ExecuteFunc(),
 	}
 }
 

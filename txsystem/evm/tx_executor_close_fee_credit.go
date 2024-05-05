@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"log/slog"
 
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
-	return func(tx *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[fcsdk.CloseFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *fcsdk.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
@@ -32,7 +32,7 @@ func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeC
 		var feeCreditRecordUnit *state.Unit = nil
 		if u != nil {
 			stateObj := u.Data().(*statedb.StateObject)
-			data := &unit.FeeCreditRecord{
+			data := &fcsdk.FeeCreditRecord{
 				Balance:  weiToAlpha(stateObj.Account.Balance),
 				Backlink: txHash,
 				Timeout:  stateObj.AlphaBill.Timeout,

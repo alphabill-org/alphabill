@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
@@ -12,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func NewTestNode(t *testing.T) *TestNode {
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+		SystemDescriptionRecord: &types.SystemDescriptionRecord{
 			SystemIdentifier: systemID,
 			T2Timeout:        2500,
 		},

@@ -5,21 +5,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
 )
 
-type UnlockFeeCreditOption func(Attributes *transactions.UnlockFeeCreditAttributes)
+type UnlockFeeCreditOption func(Attributes *fc.UnlockFeeCreditAttributes)
 
-func NewUnlockFC(t *testing.T, attr *transactions.UnlockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewUnlockFC(t *testing.T, attr *fc.UnlockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewUnlockFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(transactions.PayloadTypeUnlockFeeCredit),
+		testtransaction.WithPayloadType(fc.PayloadTypeUnlockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
@@ -32,13 +32,13 @@ func NewUnlockFC(t *testing.T, attr *transactions.UnlockFeeCreditAttributes, opt
 	return tx
 }
 
-func NewDefaultUnlockFCAttr() *transactions.UnlockFeeCreditAttributes {
-	return &transactions.UnlockFeeCreditAttributes{
+func NewDefaultUnlockFCAttr() *fc.UnlockFeeCreditAttributes {
+	return &fc.UnlockFeeCreditAttributes{
 		Backlink: backlink,
 	}
 }
 
-func NewUnlockFCAttr(opts ...UnlockFeeCreditOption) *transactions.UnlockFeeCreditAttributes {
+func NewUnlockFCAttr(opts ...UnlockFeeCreditOption) *fc.UnlockFeeCreditAttributes {
 	defaultTx := NewDefaultUnlockFCAttr()
 	for _, opt := range opts {
 		opt(defaultTx)
@@ -47,7 +47,7 @@ func NewUnlockFCAttr(opts ...UnlockFeeCreditOption) *transactions.UnlockFeeCredi
 }
 
 func WithUnlockFCBacklink(backlink []byte) UnlockFeeCreditOption {
-	return func(attr *transactions.UnlockFeeCreditAttributes) {
+	return func(attr *fc.UnlockFeeCreditAttributes) {
 		attr.Backlink = backlink
 	}
 }

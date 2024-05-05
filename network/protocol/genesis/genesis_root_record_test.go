@@ -84,7 +84,6 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	err = consensus.Sign("test", signer)
@@ -123,7 +122,6 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 					TotalRootValidators: totalNodes,
 					BlockRateMs:         0,
 					ConsensusTimeoutMs:  DefaultConsensusTimeout,
-					QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 					HashAlgorithm:       hashAlgo}},
 			wantErr: "block rate too small",
 		},
@@ -135,7 +133,6 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 					TotalRootValidators: totalNodes,
 					BlockRateMs:         blockRate,
 					ConsensusTimeoutMs:  DefaultConsensusTimeout,
-					QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 					HashAlgorithm:       hashAlgo}},
 			wantErr: "consensus parameters is not signed by all validators",
 		},
@@ -187,7 +184,6 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	err := consensus.Sign("test1", signer)
@@ -215,7 +211,6 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
@@ -239,7 +234,6 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
@@ -265,7 +259,6 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		TotalRootValidators: totalNodes + 1,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(totalNodes + 1),
 		HashAlgorithm:       hashAlgo,
 	}
 	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)

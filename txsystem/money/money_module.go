@@ -4,13 +4,14 @@ import (
 	"crypto"
 	"errors"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*Module)(nil)
@@ -19,7 +20,7 @@ type (
 	Module struct {
 		state               *state.State
 		systemID            types.SystemID
-		trustBase           map[string]abcrypto.Verifier
+		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
@@ -47,7 +48,7 @@ func NewMoneyModule(options *Options) (*Module, error) {
 		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, options.systemIdentifier, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		feeCalculator:       options.feeCalculator,
-		execPredicate:       predicates.PredicateRunner(options.exec, options.state),
+		execPredicate:       predicates.NewPredicateRunner(options.exec, options.state),
 	}
 	return m, nil
 }
@@ -55,16 +56,16 @@ func NewMoneyModule(options *Options) (*Module, error) {
 func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
 		// money partition tx handlers
-		PayloadTypeTransfer: m.handleTransferTx().ExecuteFunc(),
-		PayloadTypeSplit:    m.handleSplitTx().ExecuteFunc(),
-		PayloadTypeTransDC:  m.handleTransferDCTx().ExecuteFunc(),
-		PayloadTypeSwapDC:   m.handleSwapDCTx().ExecuteFunc(),
-		PayloadTypeLock:     m.handleLockTx().ExecuteFunc(),
-		PayloadTypeUnlock:   m.handleUnlockTx().ExecuteFunc(),
+		money.PayloadTypeTransfer: m.handleTransferTx().ExecuteFunc(),
+		money.PayloadTypeSplit:    m.handleSplitTx().ExecuteFunc(),
+		money.PayloadTypeTransDC:  m.handleTransferDCTx().ExecuteFunc(),
+		money.PayloadTypeSwapDC:   m.handleSwapDCTx().ExecuteFunc(),
+		money.PayloadTypeLock:     m.handleLockTx().ExecuteFunc(),
+		money.PayloadTypeUnlock:   m.handleUnlockTx().ExecuteFunc(),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		transactions.PayloadTypeTransferFeeCredit: m.handleTransferFeeCreditTx().ExecuteFunc(),
-		transactions.PayloadTypeReclaimFeeCredit:  m.handleReclaimFeeCreditTx().ExecuteFunc(),
+		fcsdk.PayloadTypeTransferFeeCredit: m.handleTransferFeeCreditTx().ExecuteFunc(),
+		fcsdk.PayloadTypeReclaimFeeCredit:  m.handleReclaimFeeCreditTx().ExecuteFunc(),
 	}
 }
 

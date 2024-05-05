@@ -3,8 +3,8 @@ package transaction
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +37,7 @@ func WithSystemID(id types.SystemID) Option {
 	}
 }
 
-func WithUnitId(id []byte) Option {
+func WithUnitID(id []byte) Option {
 	return func(tx *types.TransactionOrder) error {
 		tx.Payload.UnitID = id
 		return nil

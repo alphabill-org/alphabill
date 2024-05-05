@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/alphabill-org/alphabill/tree/imt"
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/tree/imt"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 type (

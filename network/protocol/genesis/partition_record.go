@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -14,12 +14,12 @@ var (
 )
 
 type PartitionRecord struct {
-	_                       struct{}                 `cbor:",toarray"`
-	SystemDescriptionRecord *SystemDescriptionRecord `json:"system_description_record,omitempty"`
-	Validators              []*PartitionNode         `json:"validators,omitempty"`
+	_                       struct{}                       `cbor:",toarray"`
+	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Validators              []*PartitionNode               `json:"validators,omitempty"`
 }
 
-func (x *PartitionRecord) GetSystemDescriptionRecord() *SystemDescriptionRecord {
+func (x *PartitionRecord) GetSystemDescriptionRecord() *types.SystemDescriptionRecord {
 	if x == nil {
 		return nil
 	}

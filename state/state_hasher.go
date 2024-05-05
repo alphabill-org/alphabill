@@ -3,10 +3,10 @@ package state
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-base/tree/mt"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/tree/mt"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the
@@ -42,6 +42,8 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 
 	// bearer update
 	unit.bearer = unit.latestUnitBearer()
+
+	unit.stateLockTx = unit.latestStateLockTx()
 
 	// D - unit data
 	unit.data = unit.latestUnitData()

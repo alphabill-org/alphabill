@@ -4,8 +4,8 @@ import (
 	"errors"
 	"io"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
@@ -16,6 +16,7 @@ type (
 	// Execute (called once for each transaction in the block), EndBlock, and Commit (consensus round was successful) or
 	// Revert (consensus round was unsuccessful).
 	TransactionSystem interface {
+		TransactionExecutor
 
 		// StateSummary returns the summary of the current state of the transaction system or an ErrStateContainsUncommittedChanges if
 		// current state contains uncommitted changes.
@@ -23,10 +24,6 @@ type (
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64) error
-
-		// Execute method executes the transaction order. An error must be returned if the transaction order execution
-		// was not successful.
-		Execute(order *types.TransactionOrder) (*types.ServerMetadata, error)
 
 		// EndBlock signals the end of the block and is called after all transactions have been delivered to the
 		// transaction system.
@@ -57,6 +54,12 @@ type (
 
 		// Serialize writes the serialized state to the given writer.
 		Serialize(writer io.Writer, committed bool) error
+	}
+
+	TransactionExecutor interface {
+		// Execute method executes the transaction order. An error must be returned if the transaction order execution
+		// was not successful.
+		Execute(order *types.TransactionOrder) (*types.ServerMetadata, error)
 	}
 
 	// StateSummary represents the root hash and summary value of the transaction system.

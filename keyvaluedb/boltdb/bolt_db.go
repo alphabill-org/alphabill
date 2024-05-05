@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	bolt "go.etcd.io/bbolt"

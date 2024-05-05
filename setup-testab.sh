@@ -3,6 +3,7 @@
 money_nodes=3
 token_nodes=3
 evm_nodes=3
+orchestration_nodes=3
 root_nodes=3
 reset_db_only=false
 # exit on error
@@ -10,12 +11,12 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes]  [-r number of root nodes] [-c reset all DB files]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes] [-o number of orchestration nodes]  [-r number of root nodes] [-c reset all DB files]"
   exit 0
 }
 # handle arguments
 # NB! add check to make parameter is numeric
-while getopts "chd:m:t:r:e:" o; do
+while getopts "chd:m:t:r:e:o:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -31,6 +32,9 @@ while getopts "chd:m:t:r:e:" o; do
     ;;
   e)
     evm_nodes=${OPTARG}
+    ;;
+  o)
+    orchestration_nodes=${OPTARG}
     ;;
   h | *) # help.
     usage
@@ -78,8 +82,12 @@ if [ "$money_nodes" -ne 0 ]; then
   moneySdrFlags+=" -c testab/money-sdr.json"
   generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"
 fi
+# Generate orchestration nodes genesis files.
+if [ "$orchestration_nodes" -ne 0 ]; then
+  generate_partition_node_genesis "orchestration" "$orchestration_nodes" " --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+fi
 # generate root node genesis files
 generate_root_genesis $root_nodes
 
 # generate log configuration for all nodes
-generate_log_configuration
+generate_log_configuration "testab/*/"

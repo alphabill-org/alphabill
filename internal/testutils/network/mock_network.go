@@ -9,6 +9,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -18,9 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/txbuffer"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
 
 type MockNet struct {
@@ -149,7 +150,11 @@ func (m *MockNet) ProcessTransactions(ctx context.Context, txProcessor network.T
 	}
 }
 
-func (m *MockNet) ForwardTransactions(ctx context.Context, receiver peer.ID) {
+func (m *MockNet) ForwardTransactions(ctx context.Context, receiverFunc network.TxReceiver) {
+}
+
+func (m *MockNet) PublishBlock(ctx context.Context, block *types.Block) error {
+	return nil
 }
 
 type msgProtocol struct {

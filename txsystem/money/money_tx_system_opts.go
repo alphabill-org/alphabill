@@ -1,35 +1,30 @@
 package money
 
 import (
-	"context"
 	"crypto"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
-
-const DefaultSystemIdentifier types.SystemID = 0x00000001
 
 type (
 	Options struct {
 		systemIdentifier         types.SystemID
 		state                    *state.State
 		hashAlgorithm            crypto.Hash
-		trustBase                map[string]abcrypto.Verifier
-		systemDescriptionRecords []*genesis.SystemDescriptionRecord
+		trustBase                types.RootTrustBase
+		systemDescriptionRecords []*types.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
-		exec                     PredicateExecutor
+		exec                     predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 )
 
 func defaultOptions() (*Options, error) {
@@ -39,9 +34,8 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemIdentifier: DefaultSystemIdentifier,
+		systemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:    crypto.SHA256,
-		trustBase:        make(map[string]abcrypto.Verifier),
 		feeCalculator:    fc.FixedFee(1),
 		exec:             predEng.Execute,
 	}, nil
@@ -59,7 +53,7 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithTrustBase(trust map[string]abcrypto.Verifier) Option {
+func WithTrustBase(trust types.RootTrustBase) Option {
 	return func(options *Options) {
 		options.trustBase = trust
 	}
@@ -71,7 +65,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithSystemDescriptionRecords(records []*genesis.SystemDescriptionRecord) Option {
+func WithSystemDescriptionRecords(records []*types.SystemDescriptionRecord) Option {
 	return func(g *Options) {
 		g.systemDescriptionRecords = records
 	}
@@ -87,7 +81,7 @@ func WithFeeCalculator(calc fc.FeeCalculator) Option {
 WithPredicateExecutor allows to replace the default predicate executor function.
 Should be used by tests only.
 */
-func WithPredicateExecutor(exec PredicateExecutor) Option {
+func WithPredicateExecutor(exec predicates.PredicateExecutor) Option {
 	return func(g *Options) {
 		if exec != nil {
 			g.exec = exec

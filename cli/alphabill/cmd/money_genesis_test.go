@@ -8,12 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,11 +153,11 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+	sdr := &types.SystemDescriptionRecord{
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitID:         money.NewBillID(nil, []byte{2}),
+		FeeCreditBill: &types.FeeCreditBill{
+			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}
@@ -185,10 +187,10 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsInitialBill(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+	sdr := &types.SystemDescriptionRecord{
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         defaultInitialBillID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -208,10 +210,10 @@ func TestMoneyGenesis_InvalidFeeCreditBill_SameAsDCBill(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+	sdr := &types.SystemDescriptionRecord{
+		SystemIdentifier: moneysdk.DefaultSystemID,
 		T2Timeout:        10000,
-		FeeCreditBill: &genesis.FeeCreditBill{
+		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.DustCollectorMoneySupplyID,
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
@@ -263,7 +265,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 	})
 }
 
-func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {
+func createSDRFile(dir string, sdr *types.SystemDescriptionRecord) (string, error) {
 	filePath := filepath.Join(dir, "money-sdr.json")
 	if err := util.WriteJsonFile(filePath, sdr); err != nil {
 		return "", err

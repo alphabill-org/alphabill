@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
@@ -20,7 +18,7 @@ type (
 		moneySystemID           types.SystemID
 		systemID                types.SystemID
 		hashAlgorithm           crypto.Hash
-		verifiers               map[string]abcrypto.Verifier
+		trustBase               types.RootTrustBase
 		feeCreditRecordUnitType []byte
 	}
 
@@ -37,23 +35,23 @@ type (
 
 	LockFCValidationContext struct {
 		Tx   *types.TransactionOrder
-		Attr *transactions.LockFeeCreditAttributes
+		Attr *fc.LockFeeCreditAttributes
 		Unit *state.Unit
 	}
 
 	UnlockFCValidationContext struct {
 		Tx   *types.TransactionOrder
-		Attr *transactions.UnlockFeeCreditAttributes
+		Attr *fc.UnlockFeeCreditAttributes
 		Unit *state.Unit
 	}
 )
 
-func NewDefaultFeeCreditTxValidator(moneySystemID, systemID types.SystemID, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
+func NewDefaultFeeCreditTxValidator(moneySystemID, systemID types.SystemID, hashAlgorithm crypto.Hash, trustBase types.RootTrustBase, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
 		moneySystemID:           moneySystemID,
 		systemID:                systemID,
 		hashAlgorithm:           hashAlgorithm,
-		verifiers:               verifiers,
+		trustBase:               trustBase,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 	}
 }
@@ -72,7 +70,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return errors.New("fee tx cannot contain fee authorization proof")
 	}
 
-	attr := &transactions.AddFeeCreditAttributes{}
+	attr := &fc.AddFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(attr); err != nil {
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
 	}
@@ -94,10 +92,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return errors.New("invalid unit identifier: type is not fee credit record")
 	}
 
-	var fcr *unit.FeeCreditRecord
+	var fcr *fc.FeeCreditRecord
 	if ctx.Unit != nil {
 		var ok bool
-		fcr, ok = ctx.Unit.Data().(*unit.FeeCreditRecord)
+		fcr, ok = ctx.Unit.Data().(*fc.FeeCreditRecord)
 		if !ok {
 			return errors.New("invalid unit type: unit is not fee credit record")
 		}
@@ -114,11 +112,11 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("addFC: invalid transferFC money system identifier %s (expected %s)", transferTx.SystemID(), v.moneySystemID)
 	}
 
-	if transferTx.PayloadType() != transactions.PayloadTypeTransferFeeCredit {
+	if transferTx.PayloadType() != fc.PayloadTypeTransferFeeCredit {
 		return fmt.Errorf("invalid transfer fee credit transation payload type: %s", transferTx.PayloadType())
 	}
 
-	transferTxAttr := &transactions.TransferFeeCreditAttributes{}
+	transferTxAttr := &fc.TransferFeeCreditAttributes{}
 	if err := transferTx.UnmarshalAttributes(transferTxAttr); err != nil {
 		return fmt.Errorf("failed to unmarshal transfer fee credit attributes: %w", err)
 	}
@@ -153,7 +151,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	err := types.VerifyTxProof(attr.FeeCreditTransferProof, attr.FeeCreditTransfer, v.verifiers, v.hashAlgorithm)
+	err := types.VerifyTxProof(attr.FeeCreditTransferProof, attr.FeeCreditTransfer, v.trustBase, v.hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}
@@ -180,7 +178,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	fcr, ok := ctx.Unit.Data().(*unit.FeeCreditRecord)
+	fcr, ok := ctx.Unit.Data().(*fc.FeeCreditRecord)
 	if !ok {
 		return errors.New("unit data is not of type fee credit record")
 	}
@@ -191,7 +189,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
-	closeFCAttributes := &transactions.CloseFeeCreditAttributes{}
+	closeFCAttributes := &fc.CloseFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(closeFCAttributes); err != nil {
 		return fmt.Errorf("failed to unmarshal transaction attributes: %w", err)
 	}
@@ -200,9 +198,6 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 	if len(closeFCAttributes.TargetUnitID) == 0 {
 		return errors.New("TargetUnitID is empty")
-	}
-	if len(closeFCAttributes.TargetUnitBacklink) == 0 {
-		return errors.New("TargetUnitBacklink is empty")
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
@@ -250,7 +245,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateUnlockFC(ctx *UnlockFCValidationCo
 	return v.validateLockTxs(ctx.Tx, fcr, ctx.Attr.Backlink)
 }
 
-func (v *DefaultFeeCreditTxValidator) validateLockTxs(tx *types.TransactionOrder, fcr *unit.FeeCreditRecord, txBacklink []byte) error {
+func (v *DefaultFeeCreditTxValidator) validateLockTxs(tx *types.TransactionOrder, fcr *fc.FeeCreditRecord, txBacklink []byte) error {
 	// the transaction follows the previous valid transaction with the record
 	if !bytes.Equal(txBacklink, fcr.GetBacklink()) {
 		return fmt.Errorf("the transaction backlink does not match with fee credit record backlink: "+
@@ -340,13 +335,13 @@ func (c *UnlockFCValidationContext) isValid() error {
 	return nil
 }
 
-func (v *DefaultFeeCreditTxValidator) parseFeeCreditRecord(tx *types.TransactionOrder, u *state.Unit) (*unit.FeeCreditRecord, error) {
+func (v *DefaultFeeCreditTxValidator) parseFeeCreditRecord(tx *types.TransactionOrder, u *state.Unit) (*fc.FeeCreditRecord, error) {
 	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
 		return nil, errors.New("invalid unit identifier: type is not fee credit record")
 	}
-	var fcr *unit.FeeCreditRecord
+	var fcr *fc.FeeCreditRecord
 	var ok bool
-	fcr, ok = u.Data().(*unit.FeeCreditRecord)
+	fcr, ok = u.Data().(*fc.FeeCreditRecord)
 	if !ok {
 		return nil, errors.New("invalid unit type: unit is not fee credit record")
 	}

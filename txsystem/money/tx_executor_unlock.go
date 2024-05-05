@@ -1,21 +1,22 @@
 package money
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var (
 	ErrBillUnlocked = errors.New("bill is already unlocked")
 )
 
-func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] {
-	return func(tx *types.TransactionOrder, attr *UnlockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[money.UnlockAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.UnlockAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		unit, _ := m.state.GetUnit(unitID, false)
 		if unit == nil {
@@ -24,7 +25,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 		if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 			return nil, err
 		}
-		billData, ok := unit.Data().(*BillData)
+		billData, ok := unit.Data().(*money.BillData)
 		if !ok {
 			return nil, errors.New("unlock tx: invalid unit type")
 		}
@@ -32,14 +33,14 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 			return nil, fmt.Errorf("unlock tx: validation failed: %w", err)
 		}
 		// unlock the unit
-		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-			newBillData, ok := data.(*BillData)
+		action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			newBillData, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unlock tx: unit %v does not contain bill data", unitID)
 			}
 			newBillData.Locked = 0
-			newBillData.T = currentBlockNumber
-			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			newBillData.T = exeCtx.CurrentBlockNr
+			newBillData.Counter += 1
 			return newBillData, nil
 		})
 		if err := m.state.Apply(action); err != nil {
@@ -49,7 +50,7 @@ func (m *Module) handleUnlockTx() txsystem.GenericExecuteFunc[UnlockAttributes] 
 	}
 }
 
-func validateUnlockTx(attr *UnlockAttributes, bd *BillData) error {
+func validateUnlockTx(attr *money.UnlockAttributes, bd *money.BillData) error {
 	if attr == nil {
 		return ErrTxAttrNil
 	}
@@ -59,8 +60,8 @@ func validateUnlockTx(attr *UnlockAttributes, bd *BillData) error {
 	if !bd.IsLocked() {
 		return ErrBillUnlocked
 	}
-	if !bytes.Equal(attr.Backlink, bd.Backlink) {
-		return ErrInvalidBacklink
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	return nil
 }

@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -29,7 +30,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -56,6 +56,7 @@ type partitionStartupDependencies struct {
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
+	trustBase   types.RootTrustBase
 	network     ValidatorNetwork
 	nodeOptions []NodeOption
 }
@@ -95,6 +96,8 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
 
 	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
 
@@ -112,6 +115,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
+		trustBase:   trustBase,
 		network:     net,
 		nodeOptions: nodeOptions,
 	}
@@ -165,6 +169,7 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
+		sn.nodeDeps.trustBase,
 		sn.nodeDeps.network,
 		sn.obs,
 		append([]NodeOption{
@@ -300,7 +305,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()))
+	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
 type TestLeaderSelector struct {
@@ -355,11 +360,15 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
+	peerID, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
-		[]peer.ID{fakeValidatorID},
+		// Need to also add peerID to make it a validator node.
+		[]peer.ID{fakeValidatorID, peerID},
 	)
 	require.NoError(t, err)
 

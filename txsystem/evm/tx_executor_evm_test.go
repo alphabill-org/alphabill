@@ -7,13 +7,15 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -39,7 +41,7 @@ func BenchmarkCallContract(b *testing.B) {
 	blockDB, err := memorydb.New()
 	require.NoError(b, err)
 
-	_, err = Execute(1, stateDB, blockDB, &TxAttributes{
+	_, err = Execute(1, stateDB, blockDB, &evm.TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
@@ -50,7 +52,7 @@ func BenchmarkCallContract(b *testing.B) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(b, err)
 	inc := cABI.Methods["increment"]
-	callContract := &TxAttributes{
+	callContract := &evm.TxAttributes{
 		From:  from,
 		To:    scAddr.Bytes(),
 		Data:  inc.ID,
@@ -86,7 +88,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 		stateDB.AddBalance(eoa.Addr, big.NewInt(int64(eoa.Balance)))
 		if len(eoa.Code) != 0 {
 			// deploy a contract
-			evmAttr := &TxAttributes{
+			evmAttr := &evm.TxAttributes{
 				From:  eoa.Addr.Bytes(),
 				Data:  common.Hex2Bytes(eoa.Code),
 				Value: big.NewInt(0),
@@ -120,7 +122,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 func Test_validate(t *testing.T) {
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	type args struct {
-		attr *TxAttributes
+		attr *evm.TxAttributes
 	}
 	tests := []struct {
 		name       string
@@ -130,7 +132,7 @@ func Test_validate(t *testing.T) {
 		{
 			name: "err - invalid attributes from is nil",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  nil,
 					Value: big.NewInt(0),
 					Gas:   10,
@@ -142,7 +144,7 @@ func Test_validate(t *testing.T) {
 		{
 			name: "err - value is nil",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: nil,
 					Gas:   10,
@@ -154,7 +156,7 @@ func Test_validate(t *testing.T) {
 		{
 			name: "err - invalid negative value",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(-2),
 					Gas:   0,
@@ -185,7 +187,7 @@ func Test_execute(t *testing.T) {
 	type args struct {
 		currentBlockNumber uint64
 		stateDB            *statedb.StateDB
-		attr               *TxAttributes
+		attr               *evm.TxAttributes
 		gp                 *core.GasPool
 	}
 	tests := []struct {
@@ -193,13 +195,13 @@ func Test_execute(t *testing.T) {
 		args                 args
 		wantErrStr           string
 		wantSuccessIndicator types.TxStatus
-		wantDetails          *ProcessingDetails
+		wantDetails          *evm.ProcessingDetails
 		wantUpdatedUnits     int
 	}{
 		{
 			name: "err - nonce too high",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
@@ -213,7 +215,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - nonce too low",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
@@ -227,7 +229,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - nonce overflow",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
@@ -241,7 +243,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - from address is account with code",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000000,
@@ -257,7 +259,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - insufficient funds",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(1),
 					Gas:   10,
@@ -272,7 +274,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - insufficient fee balance",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(10),
 					Gas:   1000000,
@@ -287,7 +289,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - insufficient funds to execute call get",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
@@ -299,7 +301,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusFailed,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "evm runtime error: out of gas",
 				ContractAddr: common.Address{},
 			},
@@ -308,7 +310,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - block gas limit reached",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000,
@@ -324,7 +326,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - not enough to pay intrinsic cost", // contract creation intrinsic cost is higher than max gas
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000,
@@ -340,7 +342,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - runtime out of gas",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
@@ -352,7 +354,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusFailed,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "evm runtime error: out of gas",
 				ContractAddr: common.Address{},
 			},
@@ -361,7 +363,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - not enough funds for transfer",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    test.RandomBytes(20),
 					Value: big.NewInt(10),
@@ -378,7 +380,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "err - unknown method",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
@@ -390,7 +392,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 53000*DefaultGasPrice + 1, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusFailed,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "evm runtime error: execution reverted",
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   nil,
@@ -400,7 +402,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "ok - transfer exact amount",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    toAddr.Bytes(),
 					Value: big.NewInt(10),
@@ -411,7 +413,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: (params.TxGas + 10) * DefaultGasPrice}, {Addr: toAddr}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "",
 				ContractAddr: common.Address{},
 			},
@@ -420,7 +422,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "ok - transfer to unknown recipient address",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    common.FromHex("0x4a18f39d69cb1b2f7278345df2ba4d691470e908"),
 					Value: big.NewInt(10),
@@ -431,7 +433,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: params.TxGas*DefaultGasPrice + 10}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "",
 			},
 			wantUpdatedUnits: 2, // caller still gets charged since work is done
@@ -439,7 +441,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "ok - call get",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
@@ -451,7 +453,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "",
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   uint256.NewInt(0).PaddedBytes(32),
@@ -461,7 +463,7 @@ func Test_execute(t *testing.T) {
 		{
 			name: "ok - call increment method",
 			args: args{
-				attr: &TxAttributes{
+				attr: &evm.TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
@@ -473,7 +475,7 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
-			wantDetails: &ProcessingDetails{
+			wantDetails: &evm.ProcessingDetails{
 				ErrorDetails: "",
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   uint256.NewInt(1).PaddedBytes(32),
@@ -500,7 +502,7 @@ func Test_execute(t *testing.T) {
 			}
 			require.Len(t, metadata.TargetUnits, tt.wantUpdatedUnits)
 			require.NotNil(t, metadata.ProcessingDetails)
-			var details ProcessingDetails
+			var details evm.ProcessingDetails
 			require.NoError(t, types.Cbor.Unmarshal(metadata.ProcessingDetails, &details))
 			if tt.wantDetails.ErrorDetails != "" {
 				require.Equal(t, details.ErrorDetails, tt.wantDetails.ErrorDetails)
@@ -523,7 +525,7 @@ func Test_ReplayContractCreation(t *testing.T) {
 	initialBalance := big.NewInt(1000000000000000000)
 	stateDB.AddBalance(eoaAddr, initialBalance) // add 1 ETH
 	// deploy a contract
-	evmAttr := &TxAttributes{
+	evmAttr := &evm.TxAttributes{
 		From:  eoaAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
@@ -551,7 +553,7 @@ func Test_ReplayCall(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 	inc := cABI.Methods["increment"]
-	callContract := &TxAttributes{
+	callContract := &evm.TxAttributes{
 		From:  fromAddr.Bytes(),
 		To:    scAddr.Bytes(),
 		Data:  inc.ID,
@@ -591,12 +593,12 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	mockDB, err := memorydb.New()
 	require.NoError(t, err)
 	b := &types.Block{
-		Header:             &types.Header{SystemID: DefaultEvmTxSystemIdentifier},
+		Header:             &types.Header{SystemID: evm.DefaultSystemID},
 		Transactions:       []*types.TransactionRecord{},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1, BlockHash: test.RandomBytes(32)}},
 	}
 	require.NoError(t, mockDB.Write(util.Uint64ToBytes(uint64(1)), &b))
-	_, err = Execute(2, stateDB, mockDB, &TxAttributes{
+	_, err = Execute(2, stateDB, mockDB, &evm.TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(getPreviousHashCode),
 		Gas:   10000000,
@@ -607,7 +609,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(getPreviousHashABI)))
 	require.NoError(t, err)
 	inc := cABI.Methods["previousBlockHash"]
-	callContract := &TxAttributes{
+	callContract := &evm.TxAttributes{
 		From:  from,
 		To:    scAddr.Bytes(),
 		Data:  inc.ID,
@@ -619,7 +621,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
-	var details ProcessingDetails
+	var details evm.ProcessingDetails
 	require.NoError(t, types.Cbor.Unmarshal(res.ProcessingDetails, &details))
 	require.EqualValues(t, b.UnicityCertificate.InputRecord.BlockHash, details.ReturnData)
 	// query not existing block

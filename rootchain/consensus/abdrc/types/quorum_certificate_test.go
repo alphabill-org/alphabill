@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,15 +48,15 @@ func TestQuorumCert_IsValid(t *testing.T) {
 
 func TestQuorumCert_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	rootTrust := sb.Verifiers()
-	require.NoError(t, sb.QC(t, 10).Verify(3, rootTrust), `sb.QC must return valid QuorumCert struct`)
+	rootTrust := sb.trustBase
+	require.NoError(t, sb.QC(t, 10).Verify(rootTrust), `sb.QC must return valid QuorumCert struct`)
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		// trigger an error from IsValid to make sure it is called - so we do not need
 		// to test for validity conditions here...
 		qc := sb.QC(t, 10)
 		qc.VoteInfo = nil
-		require.EqualError(t, qc.Verify(3, rootTrust), `invalid quorum certificate: vote info is nil`)
+		require.EqualError(t, qc.Verify(rootTrust), `invalid quorum certificate: vote info is nil`)
 	})
 
 	t.Run("invalid vote info hash", func(t *testing.T) {
@@ -65,27 +64,24 @@ func TestQuorumCert_Verify(t *testing.T) {
 
 		// change vote info so hash should change
 		qc.VoteInfo.Timestamp += 1
-		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
+		require.EqualError(t, qc.Verify(rootTrust), `vote info hash verification failed`)
 
 		// change stored hash
 		qc.VoteInfo.Timestamp -= 1 // restore original value
 		qc.LedgerCommitInfo.PreviousHash[0] += 1
-		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
+		require.EqualError(t, qc.Verify(rootTrust), `vote info hash verification failed`)
 	})
 
 	t.Run("do we have enough signatures for quorum", func(t *testing.T) {
 		qc := sb.QC(t, 10)
 		// we have enough signatures for quorum
-		require.NoError(t, qc.Verify(2, rootTrust))
-		require.NoError(t, qc.Verify(3, rootTrust))
+		require.NoError(t, qc.Verify(rootTrust))
 		// require more signatures than QC has
-		require.EqualError(t, qc.Verify(4, rootTrust), `quorum requires 4 signatures but certificate has 3`)
-	})
-
-	t.Run("unknown signer", func(t *testing.T) {
-		qc := sb.QC(t, 10)
-		qc.Signatures["foobar"] = []byte{1, 2, 3}
-		require.EqualError(t, qc.Verify(2, rootTrust), `signer "foobar" is not part of trustbase`)
+		for k := range qc.Signatures {
+			delete(qc.Signatures, k)
+			break
+		}
+		require.EqualError(t, qc.Verify(rootTrust), `failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
@@ -97,8 +93,8 @@ func TestQuorumCert_Verify(t *testing.T) {
 			qc.Signatures[signerID] = []byte{1, 2, 3}
 			break
 		}
-		// require one less signature than qc has but the invalid signature must still trigger error!
-		require.ErrorContains(t, qc.Verify(uint32(len(qc.Signatures)-1), rootTrust), fmt.Sprintf("signer %q signature is not valid:", signerID))
+		// the invalid signature must trigger error
+		require.ErrorContains(t, qc.Verify(rootTrust), "failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3")
 	})
 }
 

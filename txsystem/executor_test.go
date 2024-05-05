@@ -6,17 +6,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 func Test_TxExecutors_Execute(t *testing.T) {
 	t.Run("unknown tx type", func(t *testing.T) {
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 			return nil, errors.New("unexpected call")
 		}}))
 
-		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "bar"}}, 5)
+		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "bar"}}, &TxExecutionContext{CurrentBlockNr: 5})
 		require.Nil(t, sm)
 		require.EqualError(t, err, `unknown transaction type bar`)
 	})
@@ -24,31 +24,31 @@ func Test_TxExecutors_Execute(t *testing.T) {
 	t.Run("tx handler returns error", func(t *testing.T) {
 		expErr := errors.New("tx handler failed")
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
-			require.EqualValues(t, 5, currentBlockNr)
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+			require.EqualValues(t, 5, exeCtx.CurrentBlockNr)
 			return nil, expErr
 		}}))
 
-		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "foo"}}, 5)
+		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "foo"}}, &TxExecutionContext{CurrentBlockNr: 5})
 		require.Nil(t, sm)
 		require.ErrorIs(t, err, expErr)
 	})
 
 	t.Run("success", func(t *testing.T) {
 		exec := make(TxExecutors)
-		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
-			require.EqualValues(t, 12, currentBlockNr)
+		require.NoError(t, exec.Add(TxExecutors{"foo": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+			require.EqualValues(t, 12, exeCtx.CurrentBlockNr)
 			return &types.ServerMetadata{}, nil
 		}}))
 
-		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "foo"}}, 12)
+		sm, err := exec.Execute(&types.TransactionOrder{Payload: &types.Payload{Type: "foo"}}, &TxExecutionContext{CurrentBlockNr: 12})
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
 }
 
 func Test_TxExecutors_Add(t *testing.T) {
-	txHandler := func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	txHandler := func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 		return nil, nil
 	}
 

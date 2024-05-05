@@ -6,6 +6,10 @@ import (
 	"math/big"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
@@ -13,9 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 type (
@@ -90,9 +91,9 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("unable to initialize proof DB: %w", err)
 	}
 
-	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	trustBase, err := types.NewTrustBaseFromFile(cfg.Node.TrustBaseFile)
 	if err != nil {
-		return fmt.Errorf("failed to create trust base validator: %w", err)
+		return fmt.Errorf("failed to load trust base file: %w", err)
 	}
 
 	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
@@ -125,7 +126,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if cfg.Node.WithOwnerIndex {
 		ownerIndexer = partition.NewOwnerIndexer(log)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, trustBase, obs)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}

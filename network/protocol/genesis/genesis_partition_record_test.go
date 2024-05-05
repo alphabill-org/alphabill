@@ -4,10 +4,11 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,10 +25,10 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	type fields struct {
 		Nodes                   []*PartitionNode
 		Certificate             *types.UnicityCertificate
-		SystemDescriptionRecord *SystemDescriptionRecord
+		SystemDescriptionRecord *types.SystemDescriptionRecord
 	}
 	type args struct {
-		verifier      map[string]abcrypto.Verifier
+		verifier      types.RootTrustBase
 		hashAlgorithm gocrypto.Hash
 	}
 	tests := []struct {
@@ -40,69 +41,69 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			name:       "verifier is nil",
 			args:       args{verifier: nil},
 			fields:     fields{},
-			wantErrStr: ErrVerifiersEmpty.Error(),
+			wantErrStr: ErrTrustBaseIsNil.Error(),
 		},
 		{
 			name:       "nodes missing",
-			args:       args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args:       args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields:     fields{},
 			wantErrStr: ErrNodesAreMissing.Error(),
 		},
 		{
 			name: "system description record is nil",
-			args: args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes:                   []*PartitionNode{nil},
 				SystemDescriptionRecord: nil,
 			},
-			wantErrStr: ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "contains nodes with same node identifier",
-			args: args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node id: 1",
 		},
 		{
 			name: "contains nodes with same signing public key",
-			args: args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node signing public key",
 		},
 		{
 			name: "contains nodes with same encryption public key",
-			args: args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey2, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
 			wantErrStr: "partition nodes validation failed, duplicated node encryption public key",
 		},
 		{
 			name: "certificate is nil",
-			args: args{verifier: map[string]abcrypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
-				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
 			},
-			wantErrStr: "unicity certificate validation failed, unicity certificate is nil",
+			wantErrStr: "unicity certificate verify error: unicity certificate validation failed: unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {
@@ -126,7 +127,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 func TestGenesisPartitionRecord_IsValid_Nil(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	var pr *GenesisPartitionRecord
-	require.ErrorIs(t, ErrGenesisPartitionRecordIsNil, pr.IsValid(map[string]abcrypto.Verifier{"test": verifier}, gocrypto.SHA256))
+	require.ErrorIs(t, ErrGenesisPartitionRecordIsNil, pr.IsValid(testtb.NewTrustBase(t, verifier), gocrypto.SHA256))
 }
 
 func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer, encryptionPubKey abcrypto.Verifier) *PartitionNode {

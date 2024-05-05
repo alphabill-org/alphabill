@@ -7,21 +7,17 @@ import (
 
 	"github.com/multiformats/go-multiaddr"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
 	AdminAPI struct {
-		node AdminNode
+		node partitionNode
 		name string
 		self *network.Peer
 		log  *slog.Logger
-	}
-
-	AdminNode interface {
-		SystemIdentifier() types.SystemID
 	}
 
 	NodeInfoResponse struct {
@@ -32,7 +28,6 @@ type (
 		RootValidators      []PeerInfo     `json:"rootValidators"`
 		PartitionValidators []PeerInfo     `json:"partitionValidators"`
 		OpenConnections     []PeerInfo     `json:"openConnections"` // all libp2p connections to other peers in the network
-
 	}
 
 	PeerInfo struct {
@@ -41,14 +36,14 @@ type (
 	}
 )
 
-func NewAdminAPI(node AdminNode, name string, self *network.Peer, log *slog.Logger) *AdminAPI {
+func NewAdminAPI(node partitionNode, name string, self *network.Peer, log *slog.Logger) *AdminAPI {
 	return &AdminAPI{node: node, name: name, self: self, log: log}
 }
 
 // GetNodeInfo returns status information about the node.
 func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 	return &NodeInfoResponse{
-		SystemID: s.node.SystemIdentifier(),
+		SystemID: s.node.SystemID(),
 		Name:     s.name,
 		Self: PeerInfo{
 			Identifier: s.self.ID().String(),
@@ -56,13 +51,13 @@ func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 		},
 		BootstrapNodes:      getBootstrapNodes(s.self),
 		RootValidators:      getRootValidators(s.self, s.log),
-		PartitionValidators: getPartitionValidators(s.self),
+		PartitionValidators: getPartitionValidators(s.node, s.self),
 		OpenConnections:     getOpenConnections(s.self),
 	}, nil
 }
 
-func getPartitionValidators(self *network.Peer) []PeerInfo {
-	validators := self.Validators()
+func getPartitionValidators(node partitionNode, self *network.Peer) []PeerInfo {
+	validators := node.ValidatorNodes()
 	peers := make([]PeerInfo, len(validators))
 	peerStore := self.Network().Peerstore()
 	for i, v := range validators {

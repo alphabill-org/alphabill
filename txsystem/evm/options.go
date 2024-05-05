@@ -1,37 +1,32 @@
 package evm
 
 import (
-	"context"
 	gocrypto "crypto"
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const DefaultBlockGasLimit = 15000000
 const DefaultGasPrice = 210000000
-
-const DefaultEvmTxSystemIdentifier types.SystemID = 0x00000003
 
 type (
 	Options struct {
 		moneyTXSystemIdentifier types.SystemID
 		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
-		trustBase               map[string]crypto.Verifier
+		trustBase               types.RootTrustBase
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
-		execPredicate           PredicateExecutor
+		execPredicate           predicates.PredicateExecutor
 	}
-
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error)
 
 	Option func(*Options)
 )
@@ -70,7 +65,7 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(tb map[string]crypto.Verifier) Option {
+func WithTrustBase(tb types.RootTrustBase) Option {
 	return func(c *Options) {
 		c.trustBase = tb
 	}

@@ -4,23 +4,22 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	DefaultSystemIdentifier = 0x00000001
-	DefaultT2Timeout        = 2500
-	DefaultRoundNumber      = 1
+	DefaultT2Timeout   = 2500
+	DefaultRoundNumber = 1
 )
 
 type (
 	Options struct {
-		sdr *genesis.SystemDescriptionRecord
+		sdr *types.SystemDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -32,9 +31,9 @@ func DefaultOptions() *Options {
 	}
 }
 
-func DefaultSDR() *genesis.SystemDescriptionRecord {
-	return &genesis.SystemDescriptionRecord{
-		SystemIdentifier: DefaultSystemIdentifier,
+func DefaultSDR() *types.SystemDescriptionRecord {
+	return &types.SystemDescriptionRecord{
+		SystemIdentifier: money.DefaultSystemID,
 		T2Timeout:        DefaultT2Timeout,
 	}
 }
@@ -84,7 +83,7 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	return proofs
 }
 
-func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *genesis.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
 	b := &types.Block{
 		Header: &types.Header{
 			SystemID:          types.SystemID(1),

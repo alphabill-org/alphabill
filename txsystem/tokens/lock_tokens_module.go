@@ -3,10 +3,11 @@ package tokens
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 var _ txsystem.Module = (*LockTokensModule)(nil)
@@ -15,7 +16,7 @@ type LockTokensModule struct {
 	state         *state.State
 	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
-	execPredicate func(predicate, args []byte, txo *types.TransactionOrder) error
+	execPredicate predicates.PredicateRunner
 }
 
 func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
@@ -27,9 +28,9 @@ func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
 	}, nil
 }
 
-func (n *LockTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
+func (m *LockTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
 	return map[string]txsystem.ExecuteFunc{
-		PayloadTypeLockToken:   n.handleLockTokenTx().ExecuteFunc(),
-		PayloadTypeUnlockToken: n.handleUnlockTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeLockToken:   m.handleLockTokenTx().ExecuteFunc(),
+		tokens.PayloadTypeUnlockToken: m.handleUnlockTokenTx().ExecuteFunc(),
 	}
 }

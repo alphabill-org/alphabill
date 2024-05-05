@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/partition/genesis"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -162,8 +162,7 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 		InputRecord:      gIR,
 		RootRoundNumber:  pg.RootRoundNumber,
 	}
-	err = blockCertificationRequest.Sign(c.signer)
-	if err != nil {
+	if err := blockCertificationRequest.Sign(c.signer); err != nil {
 		return nil, err
 	}
 
@@ -173,9 +172,6 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 	}
 
 	if err := blockCertificationRequest.IsValid(verifier); err != nil {
-		return nil, err
-	}
-	if err != nil {
 		return nil, err
 	}
 

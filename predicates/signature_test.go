@@ -6,8 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
-	"github.com/alphabill-org/alphabill/types"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 func Test_ExtractPubKey(t *testing.T) {
@@ -23,7 +24,7 @@ func Test_ExtractPubKey(t *testing.T) {
 
 	t.Run("invalid CBOR input", func(t *testing.T) {
 		pk, err := ExtractPubKey([]byte{0})
-		require.EqualError(t, err, `decoding owner proof as Signature: cbor: cannot unmarshal positive integer into Go value of type predicates.P2pkh256Signature`)
+		require.EqualError(t, err, `decoding owner proof as Signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
 		require.Nil(t, pk)
 	})
 
@@ -73,7 +74,7 @@ func Test_OwnerProofer(t *testing.T) {
 
 		ownerProof, err := proofer(data)
 		require.NoError(t, err)
-		sig := P2pkh256Signature{}
+		sig := templates.P2pkh256Signature{}
 		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.Equal(t, signature, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)
@@ -142,7 +143,7 @@ func Test_OwnerProoferForSigner(t *testing.T) {
 
 		ownerProof, err := proofer(data)
 		require.NoError(t, err)
-		sig := P2pkh256Signature{}
+		sig := templates.P2pkh256Signature{}
 		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.Equal(t, signature, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)
@@ -168,7 +169,7 @@ func Test_OwnerProoferSecp256K1(t *testing.T) {
 
 		ownerProof, err := proofer([]byte{0xD, 0xA, 0x7, 0xA})
 		require.NoError(t, err)
-		sig := P2pkh256Signature{}
+		sig := templates.P2pkh256Signature{}
 		require.NoError(t, types.Cbor.Unmarshal(ownerProof, &sig))
 		require.NotEmpty(t, sig.Sig)
 		require.Equal(t, pubKey, sig.PubKey)

@@ -3,12 +3,13 @@ package genesis
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &SystemDescriptionRecord{
+var systemDescription = &types.SystemDescriptionRecord{
 	SystemIdentifier: 1,
 	T2Timeout:        10,
 }
@@ -18,7 +19,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		SystemDescriptionRecord *SystemDescriptionRecord
+		SystemDescriptionRecord *types.SystemDescriptionRecord
 		Validators              []*PartitionNode
 	}
 
@@ -30,7 +31,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name:       "system description record is nil",
 			fields:     fields{},
-			wantErrStr: ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "validators are missing",
@@ -50,7 +51,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name: "invalid validator system identifier",
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 2,
 					T2Timeout:        10,
 				},

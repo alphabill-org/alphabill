@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -17,7 +20,6 @@ import (
 	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -79,7 +81,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 		blockGasLimit:    evm.DefaultBlockGasLimit,
 		log:              logger.New(t),
 	}
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From: test.RandomBytes(20),
 		Data: common.Hex2Bytes(counterContractCode),
 		Gas:  600000,
@@ -91,7 +93,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 
 	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
-	resp := &CallEVMResponse{}
+	resp := &evmsdk.CallEVMResponse{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
@@ -117,7 +119,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["get"].ID,
@@ -131,12 +133,12 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
-	resp := &CallEVMResponse{}
+	resp := &evmsdk.CallEVMResponse{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 
 	require.Equal(t, make([]byte, 32), resp.ProcessingDetails.ReturnData)
 
-	callContract := &evm.TxAttributes{
+	callContract := &evmsdk.TxAttributes{
 		From:  address.Bytes(),
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["increment"].ID,
@@ -157,7 +159,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 
 	rpc.NewRESTServer("", 2000, observe, a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
-	resp = &CallEVMResponse{}
+	resp = &evmsdk.CallEVMResponse{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}, resp.ProcessingDetails.ReturnData)
 }
@@ -175,7 +177,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
-	call := &CallEVMRequest{
+	call := &evmsdk.CallEVMRequest{
 		From: address.Bytes(),
 		// To: is missing, should be a deployed contract address
 		Data: cABI.Methods["get"].ID,
@@ -188,7 +190,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	// this is an ok call, no an error, but You have to pay for your nonsense
 	require.Equal(t, http.StatusOK, recorder.Code)
-	resp := &CallEVMResponse{}
+	resp := &evmsdk.CallEVMResponse{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Empty(t, resp.ProcessingDetails.ErrorDetails)
 	require.NotEqual(t, resp.ProcessingDetails.ContractAddr, common.Address{})
@@ -216,7 +218,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 		Err string
 	}{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
-	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type api.CallEVMRequest", resp.Err)
+	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type evm.CallEVMRequest", resp.Err)
 }
 
 func initState(t *testing.T, tree *abstate.State) (common.Address, common.Address) {
@@ -228,7 +230,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	balance := big.NewInt(5000000000000100)
 	stateDB.AddBalance(address, balance)
 
-	evmAttr := &evm.TxAttributes{
+	evmAttr := &evmsdk.TxAttributes{
 		From:  address.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
@@ -240,7 +242,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
-	details := &evm.ProcessingDetails{}
+	details := &evmsdk.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)
 	teststate.CommitWithUC(t, tree)

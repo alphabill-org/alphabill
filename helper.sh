@@ -5,7 +5,7 @@ rootPortStart=26662
 # generate logger configuration file
 function generate_log_configuration() {
   # to iterate over all home directories
-  for homedir in testab/*/; do
+  for homedir in $1; do
     # generate log file itself
     cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
@@ -65,6 +65,10 @@ case $1 in
       cmd="evm-genesis"
       home="testab/evm"
       ;;
+  orchestration)
+      cmd="orchestration-genesis"
+      home="testab/orchestration"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -86,7 +90,7 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json testab/orchestration*/orchestration/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -98,11 +102,7 @@ function generate_root_genesis() {
   do
     build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=400 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
   done
-  # if only one root node, then we are done
-  if [ $1 == 1 ]; then
-    return 0
-  fi
-  # else combine to generate common root genesis
+  # create --root-genesis argument list
   root_genesis_files=""
   for file in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -112,6 +112,13 @@ function generate_root_genesis() {
   for i in $(seq 1 "$1")
   do
   build/alphabill root-genesis combine --home testab/rootchain"$i" $root_genesis_files
+  done
+  # generate trust base file
+  build/alphabill root-genesis gen-trust-base --home testab $root_genesis_files
+  # sign trust base file by each root node
+  for i in $(seq 1 "$1")
+  do
+  build/alphabill root-genesis sign-trust-base --home testab -k testab/rootchain"$i"/rootchain/keys.json
   done
 }
 
@@ -128,11 +135,11 @@ function start_root_nodes() {
       exit 1
     fi
     if [[ $i -eq 1 ]]; then
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
           # give bootstrap node a head start
           sleep 0.200
     else
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     fi
     ((port=port+1))
     ((i=i+1))
@@ -144,36 +151,44 @@ function start_partition_nodes() {
 local home=""
 local key_files=""
 local genesis_file=""
+local trust_base_file="testab/root-trust-base.json"
 local aPort=0
 local rpcPort=0
   case $1 in
     money)
       home="testab/money"
-      key_files="testab/money*/money/keys.json"
+      key_files="testab/money[0-9]*/money/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
       aPort=26666
       rpcPort=26866
       ;;
     tokens)
       home="testab/tokens"
-      key_files="testab/tokens*/tokens/keys.json"
+      key_files="testab/tokens[0-9]*/tokens/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-2.json"
       aPort=28666
       rpcPort=28866
       ;;
     evm)
       home="testab/evm"
-      key_files="testab/evm*/evm/keys.json"
+      key_files="testab/evm[0-9]*/evm/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
       aPort=29666
       rpcPort=29866
+      ;;
+    orchestration)
+      home="testab/orchestration"
+      key_files="testab/orchestration*/orchestration/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-4.json"
+      aPort=30666
+      rpcPort=30866
       ;;
     *)
       echo "error: unknown partition $1" >&2
       return 1
       ;;
   esac
-  # create a bootnodes
+  # create bootnodes
   local bootNodes=""
   bootNodes=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   # Start nodes
@@ -186,6 +201,7 @@ local rpcPort=0
         --tx-db ${home}$i/"$1"/tx.db \
         --key-file $keyf \
         --genesis $genesis_file \
+        --trust-base-file $trust_base_file \
         --state "$(dirname $keyf)/node-genesis-state.cbor" \
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \
@@ -196,4 +212,66 @@ local rpcPort=0
     ((rpcPort=rpcPort+1))
   done
     echo "started $(($i-1)) $1 nodes"
+}
+
+function start_non_validator_partition_nodes() {
+  partition=$1
+  count=$2
+  home="testab/$partition-non-validator"
+
+  echo "starting $count non-validator $partition nodes"
+
+  # Set up partition specific variables
+  case $partition in
+      money)
+          partitionGenesis="testab/rootchain1/rootchain/partition-genesis-1.json"
+          p2pPort=36666
+          rpcPort=36866
+          sdrFlags="-c testab/money-sdr.json"
+          [ -f testab/evm-sdr.json ] && sdrFlags+=" -c testab/evm-sdr.json"
+          [ -f testab/tokens-sdr.json ] && sdrFlags+=" -c testab/tokens-sdr.json"
+          ;;
+      tokens)
+          partitionGenesis="testab/rootchain1/rootchain/partition-genesis-2.json"
+          p2pPort=38666
+          rpcPort=38866
+          sdrFlags=""
+          ;;
+  esac
+
+  # create bootnodes
+  local bootNodes=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
+
+  # Start non-validator partition nodes
+  for i in $(seq $count); do
+    if [[ ! -d ${home}$i ]]; then
+      build/alphabill $partition-genesis --home ${home}$i -g $sdrFlags
+      generate_log_configuration ${home}$i
+    fi
+
+    rpcServerAddress="localhost:$rpcPort"
+
+    # Already started?
+    if lsof -i:$rpcPort >/dev/null; then
+      echo "non-validator $partition node" $i "already running? ($rpcServerAddress in use)"
+      ((p2pPort=p2pPort+1))
+      ((rpcPort=rpcPort+1))
+      continue
+    fi
+
+    echo "starting non-validator $partition node" $i "($rpcServerAddress)"
+    build/alphabill $partition \
+      --home ${home}$i \
+      --db ${home}$i/$partition/blocks.db \
+      --tx-db ${home}$i/$partition/tx.db \
+      --key-file ${home}$i/$partition/keys.json \
+      --genesis $partitionGenesis \
+      --state ${home}$i/$partition/node-genesis-state.cbor \
+      --address "/ip4/127.0.0.1/tcp/$p2pPort" \
+      --bootnodes="$bootNodes" \
+      --rpc-server-address $rpcServerAddress \
+      >> ${home}$i/$partition/$partition.log 2>&1 &
+    ((p2pPort=p2pPort+1))
+    ((rpcPort=rpcPort+1))
+  done
 }

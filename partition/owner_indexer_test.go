@@ -6,13 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func TestOwnerIndexer(t *testing.T) {
@@ -39,7 +40,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index with given state and block
-		b := &types.Block{Transactions: []*types.TransactionRecord{testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID))}}
+		b := &types.Block{Transactions: []*types.TransactionRecord{testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID))}}
 		err = ownerIndexer.IndexBlock(b, s)
 		require.NoError(t, err)
 
@@ -71,7 +72,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// update index
 		b := &types.Block{Transactions: []*types.TransactionRecord{
-			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID2)),
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID2)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
 
@@ -106,7 +107,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// update index
 		b := &types.Block{Transactions: []*types.TransactionRecord{
-			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
 
@@ -134,7 +135,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// update index
 		b := &types.Block{Transactions: []*types.TransactionRecord{
-			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
 
@@ -155,7 +156,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// update index
 		b := &types.Block{Transactions: []*types.TransactionRecord{
-			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
 
@@ -192,7 +193,7 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (m mockUnitData) Copy() state.UnitData {
+func (m mockUnitData) Copy() types.UnitData {
 	return mockUnitData{}
 }
 

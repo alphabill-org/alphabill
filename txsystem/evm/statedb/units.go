@@ -6,16 +6,15 @@ import (
 	"hash"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
-	abstate "github.com/alphabill-org/alphabill/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
-	_ abstate.UnitData = (*StateObject)(nil)
+	_ types.UnitData = (*StateObject)(nil)
 
 	emptyCodeHash = crypto.Keccak256(nil)
 )
@@ -62,7 +61,7 @@ func (s *StateObject) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (s *StateObject) Copy() abstate.UnitData {
+func (s *StateObject) Copy() types.UnitData {
 	if s == nil {
 		return nil
 	}

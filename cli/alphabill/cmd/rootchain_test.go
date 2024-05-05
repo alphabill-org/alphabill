@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -65,6 +67,12 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
+	// create trust base
+	cmd = New(logF)
+	args = "root-genesis gen-trust-base --home " + homeDir +
+		" --root-genesis=" + filepath.Join(rootDir, rootGenesisFileName)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.Execute(context.Background()))
 	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
 }
 
@@ -131,6 +139,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			// start root node
 			cmd := New(observe.Factory())
 			dbLocation := filepath.Join(rootDir)
@@ -140,7 +149,6 @@ func Test_StartMonolithicNode(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 			err := cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
@@ -158,14 +166,16 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
+		n, err := network.NewLibP2PValidatorNetwork(
+			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -252,6 +262,14 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
+	// create trust base file
+	cmd = New(obsF)
+	args = "root-genesis gen-trust-base --home " + homeDir +
+		" --root-genesis=" + filepath.Join(homeDir, rootGenesisFileName)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.Execute(context.Background())
+	require.NoError(t, err)
+	// TODO sign trust base?
 	// start a root node and if it receives handshake, then it must be up and running
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
@@ -284,13 +302,15 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetworkOptions, observe)
+		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
+		n, err := network.NewLibP2PValidatorNetwork(
+			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
 		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemIdentifier,
+				SystemIdentifier: money.DefaultSystemID,
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -316,4 +336,22 @@ func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addres
 		return "", nil, err
 	}
 	return rootID, rootAddress, nil
+}
+
+type mockNode struct {
+	systemID       types.SystemID
+	peer           *network.Peer
+	validatorNodes peer.IDSlice
+}
+
+func (mn *mockNode) SystemID() types.SystemID {
+	return mn.systemID
+}
+
+func (mn *mockNode) Peer() *network.Peer {
+	return mn.peer
+}
+
+func (mn *mockNode) IsValidatorNode() bool {
+	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }

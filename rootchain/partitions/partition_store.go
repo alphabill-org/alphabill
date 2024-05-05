@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"sync"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
 	PartitionInfo struct {
 		// partition system description record,
-		SystemDescription *genesis.SystemDescriptionRecord
+		SystemDescription *types.SystemDescriptionRecord
 		// registered nodes and their public key's
 		Verifier PartitionTrustBase
 	}
@@ -77,7 +77,7 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 	return &PartitionStore{partitions: parts}, nil
 }
 
-func (ps *PartitionStore) GetInfo(id types.SystemID) (*genesis.SystemDescriptionRecord, PartitionTrustBase, error) {
+func (ps *PartitionStore) GetInfo(id types.SystemID) (*types.SystemDescriptionRecord, PartitionTrustBase, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	info, f := ps.partitions[id]

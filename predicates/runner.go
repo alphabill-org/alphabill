@@ -5,29 +5,27 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const MaxPredicateBinSize = 65536
 
 type (
-	Predicate struct {
-		_      struct{} `cbor:",toarray"`
-		Tag    uint64
-		Code   []byte
-		Params []byte
-	}
-
 	PredicateEngine interface {
 		// unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
 		// to the engine which is supposed to evaluate it.
 		ID() uint64
 		// executes given predicate
-		Execute(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 	}
 
-	PredicateEngines map[uint64]func(ctx context.Context, predicate *Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+
+	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+
+	PredicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 
 	// environment where predicate runs (AKA transaction execution context)
 	// This is meant to provide the predicate engine with access to the
@@ -39,16 +37,8 @@ type (
 	}
 )
 
-func (p Predicate) AsBytes() (types.PredicateBytes, error) {
-	buf, err := types.Cbor.Marshal(p)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-func ExtractPredicate(predicateBytes []byte) (*Predicate, error) {
-	predicate := &Predicate{}
+func ExtractPredicate(predicateBytes []byte) (*predicates.Predicate, error) {
+	predicate := &predicates.Predicate{}
 	if err := types.Cbor.Unmarshal(predicateBytes, predicate); err != nil {
 		return nil, err
 	}
@@ -105,7 +95,7 @@ func (pe PredicateEngines) Execute(ctx context.Context, predicate types.Predicat
 }
 
 /*
-PredicateRunner is a helper to refactor predicate support - provide implementation which is common
+NewPredicateRunner is a helper to refactor predicate support - provide implementation which is common
 for most tx systems (as of now only tokens tx system requires different PayloadBytes implementation,
 see AB-1012 for details) and "translates" between two interfaces:
   - currently tx handlers do not have context.Context to pass to the predicate engine so wrapper
@@ -119,14 +109,14 @@ see AB-1012 for details) and "translates" between two interfaces:
 Each instance of the wrapper is tx system / shard specific (tied to the state passed in as argument) and
 thus can't be shared between "modules" which do not share the state!
 */
-func PredicateRunner(
+func NewPredicateRunner(
 	// executor is the function which takes raw predicate binary and routes it to correct predicate engine.
 	// usually it is PredicateEngines.Execute
-	executor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error),
+	executor PredicateExecutor,
 	// state of the tx system which executes transactions using this wrapper (ie this var
 	// is cached and forwarded to predicate engine on subsequent calls)
-	state *state.State,
-) func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
+	state unitState,
+) PredicateRunner {
 	env := &execEnv{state: state}
 	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
 		res, err := executor(context.Background(), predicate, args, txo, env)
@@ -142,7 +132,11 @@ func PredicateRunner(
 
 // execEnv implements TxContext suitable for most tx systems.
 type execEnv struct {
-	state *state.State
+	state unitState
+}
+
+type unitState interface {
+	GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 }
 
 func (ee *execEnv) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {

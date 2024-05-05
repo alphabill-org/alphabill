@@ -4,10 +4,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ var inputRecord1 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr1 = &genesis.SystemDescriptionRecord{
+var sdr1 = &types.SystemDescriptionRecord{
 	SystemIdentifier: sysID1,
 	T2Timeout:        2500,
 }
@@ -34,7 +34,7 @@ var inputRecord2 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr2 = &genesis.SystemDescriptionRecord{
+var sdr2 = &types.SystemDescriptionRecord{
 	SystemIdentifier: sysID2,
 	T2Timeout:        2500,
 }

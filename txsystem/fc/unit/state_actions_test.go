@@ -3,9 +3,11 @@ package unit
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +18,7 @@ var (
 
 func TestAddCredit_OK(t *testing.T) {
 	hash := test.RandomBytes(32)
-	fcr := &FeeCreditRecord{
+	fcr := &fc.FeeCreditRecord{
 		Balance:  1,
 		Backlink: hash,
 		Timeout:  2,
@@ -31,12 +33,12 @@ func TestAddCredit_OK(t *testing.T) {
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
 	require.Equal(t, owner, unit.Bearer())
-	require.Equal(t, hash, unit.Data().(*FeeCreditRecord).Backlink)
+	require.Equal(t, hash, unit.Data().(*fc.FeeCreditRecord).Backlink)
 	require.Equal(t, fcr, unit.Data())
 }
 
 func TestDelCredit_OK(t *testing.T) {
-	fcr := &FeeCreditRecord{
+	fcr := &fc.FeeCreditRecord{
 		Balance:  1,
 		Backlink: test.RandomBytes(32),
 		Timeout:  2,
@@ -58,7 +60,7 @@ func TestDelCredit_OK(t *testing.T) {
 
 func TestIncrCredit_OK(t *testing.T) {
 	h := test.RandomBytes(32)
-	fcr := &FeeCreditRecord{
+	fcr := &fc.FeeCreditRecord{
 		Balance:  1,
 		Backlink: test.RandomBytes(32),
 		Timeout:  2,
@@ -76,7 +78,7 @@ func TestIncrCredit_OK(t *testing.T) {
 	// verify balance is incremented
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	unitFCR := unit.Data().(*FeeCreditRecord)
+	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, 100, unitFCR.Balance)
 	require.EqualValues(t, 200, unitFCR.Timeout)
 	require.Equal(t, h, unitFCR.Backlink)
@@ -84,7 +86,7 @@ func TestIncrCredit_OK(t *testing.T) {
 }
 
 func TestDecrCredit_OK(t *testing.T) {
-	fcr := &FeeCreditRecord{
+	fcr := &fc.FeeCreditRecord{
 		Balance:  1,
 		Backlink: test.RandomBytes(32),
 		Timeout:  2,
@@ -102,7 +104,7 @@ func TestDecrCredit_OK(t *testing.T) {
 	// verify balance is decrement
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	unitFCR := unit.Data().(*FeeCreditRecord)
+	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, -100, unitFCR.Balance) // fcr and go negative
 
 	// and timeout and hash are not changed

@@ -3,8 +3,10 @@ package abdrc
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/stretchr/testify/require"
 )
@@ -17,10 +19,10 @@ func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
 			CertReason:       abdrc.Quorum,
 		},
 	}
-	signer, ver := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	require.NoError(t, msg.Sign(signer))
 	require.NotEmpty(t, msg.Signature)
-	rootTrust := map[string]crypto.Verifier{"test": ver}
+	rootTrust := testtb.NewTrustBase(t, verifier)
 	require.NoError(t, msg.Verify(rootTrust))
 }
 
@@ -146,8 +148,8 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 }
 
 func TestIrChangeReqMsg_Verify(t *testing.T) {
-	_, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]crypto.Verifier{"test": ver}
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	tb := testtb.NewTrustBase(t, verifier)
 
 	type fields struct {
 		Author      string
@@ -155,7 +157,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 		Signature   []byte
 	}
 	type args struct {
-		rootTrust map[string]crypto.Verifier
+		rootTrust types.RootTrustBase
 	}
 	tests := []struct {
 		name    string
@@ -185,7 +187,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				},
 			},
 			args:    args{rootTrust: tb},
-			wantErr: `author "bar" is not in the trustbase`,
+			wantErr: `author 'bar' is not part of the trust base`,
 		},
 		{
 			name: "verify error",
@@ -198,7 +200,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				Signature: []byte{0, 1, 2, 3, 4, 5},
 			},
 			args:    args{rootTrust: tb},
-			wantErr: "signature verification failed: signature length is 6",
+			wantErr: "signature verification failed: verify bytes failed: signature length is 6 b (expected 64 b)",
 		},
 	}
 	for _, tt := range tests {

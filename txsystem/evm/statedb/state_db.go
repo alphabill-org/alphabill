@@ -9,11 +9,13 @@ import (
 	"math/big"
 	"sort"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethstate "github.com/ethereum/go-ethereum/core/state"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -39,7 +41,7 @@ type (
 		accessList *accessList
 
 		suicides []common.Address
-		logs     []*LogEntry
+		logs     []*evm.LogEntry
 		// The refund counter, also used by state transitioning.
 		refund uint64
 		// Transient storage
@@ -49,13 +51,6 @@ type (
 		revisions []revision
 		created   map[common.Address]struct{}
 		log       *slog.Logger
-	}
-
-	LogEntry struct {
-		_       struct{} `cbor:",toarray"`
-		Address common.Address
-		Topics  []common.Hash
-		Data    []byte
 	}
 )
 
@@ -122,7 +117,7 @@ func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("SubBalance: account %v, initial balance %v, amount to subtract %v", address, stateObject.Account.Balance, amount))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		newBalance := new(big.Int).Sub(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
 		return so
@@ -139,7 +134,7 @@ func (s *StateDB) AddBalance(address common.Address, amount *big.Int) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("AddBalance: account %v, initial balance %v, amount to add %v", address, stateObject.Account.Balance, amount))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		newBalance := new(big.Int).Add(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
 		return so
@@ -171,7 +166,7 @@ func (s *StateDB) SetNonce(address common.Address, nonce uint64) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting a new nonce %v for an account: %v", nonce, address))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.Account.Nonce = nonce
 		return so
 	})
@@ -202,7 +197,7 @@ func (s *StateDB) SetCode(address common.Address, code []byte) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting code %X for an account: %v", code, address))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.Account.Code = code
 		so.Account.CodeHash = crypto.Keccak256Hash(code).Bytes()
 		return so
@@ -258,7 +253,7 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting a state (key=%v, value=%v) for an account: %v", key, value, address))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.Storage[key] = value
 		return so
 	})
@@ -291,7 +286,7 @@ func (s *StateDB) SelfDestruct(address common.Address) {
 	if stateObject == nil {
 		return
 	}
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.Suicided = true
 		so.Account.Balance = big.NewInt(0)
 		s.suicides = append(s.suicides, address)
@@ -410,14 +405,14 @@ func (s *StateDB) AddLog(log *ethtypes.Log) {
 		return
 	}
 	// fields log.BlockNumber, log.TxHash, log.TxIndex, log.BlockHash and log.Index aren't initialized because of logs are stored inside a TransactionRecord.
-	s.logs = append(s.logs, &LogEntry{
+	s.logs = append(s.logs, &evm.LogEntry{
 		Address: log.Address,
 		Topics:  log.Topics,
 		Data:    log.Data,
 	})
 }
 
-func (s *StateDB) GetLogs() []*LogEntry {
+func (s *StateDB) GetLogs() []*evm.LogEntry {
 	return s.logs
 }
 
@@ -470,7 +465,7 @@ func (s *StateDB) SetAlphaBillData(address common.Address, fee *AlphaBillLink) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting fee credit data for an account: %v", address))
-	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.AlphaBill = fee
 		return so
 	})
@@ -515,8 +510,8 @@ func (s *StateDB) GetUpdatedUnits() []types.UnitID {
 	return units
 }
 
-func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject) state.UnitData) error {
-	if err := s.tree.Apply(state.UpdateUnitData(id, func(data state.UnitData) (state.UnitData, error) {
+func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject) types.UnitData) error {
+	if err := s.tree.Apply(state.UpdateUnitData(id, func(data types.UnitData) (types.UnitData, error) {
 		so, ok := data.(*StateObject)
 		if !ok {
 			return so, fmt.Errorf("unit data is not an instance of StateObject")

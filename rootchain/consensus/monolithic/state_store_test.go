@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +38,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID3,
 				T2Timeout:        2500,
 			},
@@ -46,7 +46,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID1,
 				T2Timeout:        2500,
 			},

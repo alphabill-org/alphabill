@@ -17,18 +17,19 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 type envVar [2]string
@@ -290,6 +291,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
+	trustBaseFileLocation := filepath.Join(homeDirMoney, rootTrustBaseFileName)
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
 
@@ -319,27 +321,31 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
-
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+		require.NoError(t, err)
+		trustBase, err := rootGenesis.GenerateTrustBase()
+		require.NoError(t, err)
+		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
 		require.NoError(t, err)
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			cmd = New(logF)
 			args = "money --home " + homeDirMoney +
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
+				" -t " + trustBaseFileLocation +
 				" -k " + keysFileLocation +
 				" --rpc-server-address " + rpcServerAddress
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 
 		t.Log("Started money node and dialing...")
@@ -380,7 +386,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       money.DefaultSystemIdentifier,
+			SystemID:       money.DefaultSystemID,
 			Attributes:     attrBytes,
 		},
 		OwnerProof: nil,

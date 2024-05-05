@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"hash"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 type (
@@ -15,17 +14,11 @@ type (
 		logs                []*Log               // state changes of the unit during the current round
 		logsHash            []byte               // root value of the hash tree built on the logs
 		bearer              types.PredicateBytes // current bearer condition
-		data                UnitData             // current data of the unit
+		data                types.UnitData       // current data of the unit
+		stateLockTx         []byte               // bytes of transaction that locked the unit
 		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
 		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
-	}
-
-	// UnitData is a generic data type for the unit state.
-	UnitData interface {
-		Write(hasher hash.Hash) error
-		SummaryValueInput() uint64
-		Copy() UnitData
 	}
 
 	// Log contains a state changes of the unit during the transaction execution.
@@ -33,11 +26,12 @@ type (
 		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
 		NewBearer          types.PredicateBytes
-		NewUnitData        UnitData
+		NewUnitData        types.UnitData
+		NewStateLockTx     []byte
 	}
 )
 
-func NewUnit(bearer types.PredicateBytes, data UnitData) *Unit {
+func NewUnit(bearer types.PredicateBytes, data types.UnitData) *Unit {
 	return &Unit{
 		bearer: bearer,
 		data:   data,
@@ -51,6 +45,7 @@ func (u *Unit) Clone() *Unit {
 	return &Unit{
 		logs:                copyLogs(u.logs),
 		bearer:              bytes.Clone(u.bearer),
+		stateLockTx:         bytes.Clone(u.stateLockTx),
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,
 		summaryCalculated:   false,
@@ -65,7 +60,15 @@ func (u *Unit) Bearer() types.PredicateBytes {
 	return bytes.Clone(u.bearer)
 }
 
-func (u *Unit) Data() UnitData {
+func (u *Unit) IsStateLocked() bool {
+	return len(u.stateLockTx) > 0
+}
+
+func (u *Unit) StateLockTx() []byte {
+	return bytes.Clone(u.stateLockTx)
+}
+
+func (u *Unit) Data() types.UnitData {
 	return copyData(u.data)
 }
 
@@ -77,7 +80,7 @@ func (u *Unit) LastLogIndex() int {
 	return len(u.logs) - 1
 }
 
-func MarshalUnitData(u UnitData) ([]byte, error) {
+func MarshalUnitData(u types.UnitData) ([]byte, error) {
 	return types.Cbor.Marshal(u)
 }
 
@@ -98,12 +101,16 @@ func (l *Log) Clone() *Log {
 		UnitLedgerHeadHash: bytes.Clone(l.UnitLedgerHeadHash),
 		NewBearer:          bytes.Clone(l.NewBearer),
 		NewUnitData:        copyData(l.NewUnitData),
+		NewStateLockTx:     bytes.Clone(l.NewStateLockTx),
 	}
 }
 
 func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.NewBearer)
+	if l.NewStateLockTx != nil {
+		hasher.Write(l.NewStateLockTx)
+	}
 	if l.NewUnitData != nil {
 		// todo: change Hash interface to allow errors
 		_ = l.NewUnitData.Write(hasher)
@@ -125,10 +132,18 @@ func (u *Unit) latestUnitBearer() []byte {
 	return u.logs[l-1].NewBearer
 }
 
-func (u *Unit) latestUnitData() UnitData {
+func (u *Unit) latestUnitData() types.UnitData {
 	l := len(u.logs)
 	if l == 0 {
 		return u.data
 	}
 	return u.logs[l-1].NewUnitData
+}
+
+func (u *Unit) latestStateLockTx() []byte {
+	l := len(u.logs)
+	if l == 0 {
+		return u.stateLockTx
+	}
+	return u.logs[l-1].NewStateLockTx
 }

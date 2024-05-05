@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,7 +67,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2000,
 			},
@@ -257,7 +257,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
@@ -302,7 +302,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: 1,
 				T2Timeout:        2600,
 			},
@@ -345,7 +345,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
 				SystemIdentifier: sysID1,
 				T2Timeout:        2500,
 			},

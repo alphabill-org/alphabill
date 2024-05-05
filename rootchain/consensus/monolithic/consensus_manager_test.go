@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -21,8 +23,6 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/stretchr/testify/require"
 )
 
 const sysID1 types.SystemID = 1
@@ -59,18 +59,20 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewMonolithicConsensusManager(rootNode.PeerConf.ID.String(), rootGenesis, partitions, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
+	cm, err := NewMonolithicConsensusManager(rootNode.PeerConf.ID.String(), trustBase, rootGenesis, partitionStore, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
-	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	db, err := memorydb.New()
@@ -99,7 +101,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		params: &consensus.Parameters{
 			BlockRate: 900 * time.Millisecond, // also known as T3
 		},
-		partitions: partitions,
+		partitions: partitionStore,
 		stateStore: store,
 		ir: map[types.SystemID]*types.InputRecord{
 			sysID3: {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
@@ -119,7 +121,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 func TestConsensusManager_NormalOperation(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
+	cm, _, partitionNodes, rg := initConsensusManager(t, db)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
@@ -151,9 +153,10 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
 	require.NotNil(t, result.UnicitySeal.Hash)
-	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
+	trustBase, err := rg.GenerateTrustBase()
+	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
@@ -167,7 +170,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 func TestConsensusManager_PersistFails(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
+	cm, _, partitionNodes, rg := initConsensusManager(t, db)
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// mock requests from partition node
@@ -218,9 +221,10 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
 	require.NotNil(t, result.UnicitySeal.Hash)
-	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
+	trustBase, err := rg.GenerateTrustBase()
+	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
@@ -228,7 +232,7 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	dir := t.TempDir()
 	boltDb, err := boltdb.New(filepath.Join(dir, "bolt.db"))
 	require.NoError(t, err)
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, boltDb)
+	cm, _, partitionNodes, rg := initConsensusManager(t, boltDb)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
@@ -246,7 +250,8 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	// ensure repeat UC is created in a different rc round
 	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
-	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
+	trustBase, err := rg.GenerateTrustBase()
+	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }

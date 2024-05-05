@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alphabill-org/alphabill/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 func serializeMsg(msg any) ([]byte, error) {
@@ -15,7 +15,7 @@ func serializeMsg(msg any) ([]byte, error) {
 		return nil, fmt.Errorf("marshaling %T as CBOR: %w", msg, err)
 	}
 	length := uint64(len(data))
-	lengthBytes := make([]byte, 8)
+	lengthBytes := make([]byte, 8, 8+length)
 	bytesWritten := binary.PutUvarint(lengthBytes, length)
 	return append(lengthBytes[:bytesWritten], data...), nil
 }

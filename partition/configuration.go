@@ -9,13 +9,13 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	abcrypto "github.com/alphabill-org/alphabill/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition/event"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 const (
@@ -25,8 +25,9 @@ const (
 )
 
 var (
-	ErrTxSystemIsNil = errors.New("transaction system is nil")
-	ErrGenesisIsNil  = errors.New("genesis is nil")
+	ErrTxSystemIsNil  = errors.New("transaction system is nil")
+	ErrGenesisIsNil   = errors.New("genesis is nil")
+	ErrTrustBaseIsNil = errors.New("trust base is nil")
 )
 
 type (
@@ -42,7 +43,7 @@ type (
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      abcrypto.Signer
 		genesis                     *genesis.PartitionGenesis
-		rootTrustBase               map[string]abcrypto.Verifier
+		trustBase                   types.RootTrustBase
 		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
@@ -129,12 +130,15 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, trustBase types.RootTrustBase, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}
 	if genesis == nil {
 		return nil, ErrGenesisIsNil
+	}
+	if trustBase == nil {
+		return nil, ErrTrustBaseIsNil
 	}
 	if txs == nil {
 		return nil, ErrTxSystemIsNil
@@ -146,6 +150,7 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 		proofIndexConfig: proofIndexConfig{
 			historyLen: 20,
 		},
+		trustBase: trustBase,
 	}
 	for _, option := range nodeOptions {
 		option(c)
@@ -154,7 +159,7 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	if err := c.initMissingDefaults(); err != nil {
 		return nil, fmt.Errorf("initializing missing configuration to default values: %w", err)
 	}
-	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
+	if err := c.genesis.IsValid(c.trustBase, c.hashAlgorithm); err != nil {
 		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}
 
@@ -184,18 +189,14 @@ func (c *configuration) initMissingDefaults() error {
 		c.leaderSelector = NewDefaultLeaderSelector()
 	}
 
-	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
-	if err != nil {
-		return fmt.Errorf("initializing root trust base: %w", err)
-	}
 	if c.blockProposalValidator == nil {
-		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
+		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing block proposal validator: %w", err)
 		}
 	}
 	if c.unicityCertificateValidator == nil {
-		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
+		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing unicity certificate validator: %w", err)
 		}

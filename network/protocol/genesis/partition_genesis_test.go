@@ -4,10 +4,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/types"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	verifiers := map[string]crypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	keyInfo := &PublicKeyInfo{
 		NodeIdentifier:      "1",
 		SigningPublicKey:    pubKey,
@@ -29,13 +29,13 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	}
 
 	type fields struct {
-		SystemDescriptionRecord *SystemDescriptionRecord
+		SystemDescriptionRecord *types.SystemDescriptionRecord
 		Certificate             *types.UnicityCertificate
 		RootValidators          []*PublicKeyInfo
 		Keys                    []*PublicKeyInfo
 	}
 	type args struct {
-		verifier      map[string]crypto.Verifier
+		verifier      types.RootTrustBase
 		hashAlgorithm gocrypto.Hash
 	}
 	tests := []struct {
@@ -50,22 +50,22 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Keys: []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: ErrVerifiersEmpty.Error(),
+			wantErrStr: ErrTrustBaseIsNil.Error(),
 		},
 		{
 			name: "system description record is nil",
-			args: args{verifier: verifiers},
+			args: args{verifier: trustBase},
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: ErrSystemDescriptionIsNil.Error(),
+			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "keys are missing",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -76,9 +76,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "node signing key info is nil",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -90,9 +90,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 
 		{
 			name: "key info identifier is empty",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -105,9 +105,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "signing pub key is invalid",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -118,9 +118,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption pub key is invalid",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -131,9 +131,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid root signing public key",
-			args: args{verifier: verifiers},
+			args: args{verifier: trustBase},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -144,9 +144,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "certificate is nil",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -158,9 +158,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption key is nil",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -171,9 +171,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption key is invalid",
-			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &SystemDescriptionRecord{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
 					SystemIdentifier: 1,
 					T2Timeout:        100,
 				},
@@ -204,6 +204,6 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 func TestPartitionGenesis_IsValid_Nil(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	var pr *PartitionGenesis
-	verifiers := map[string]crypto.Verifier{"test": verifier}
+	verifiers := testtb.NewTrustBase(t, verifier)
 	require.ErrorIs(t, pr.IsValid(verifiers, gocrypto.SHA256), ErrPartitionGenesisIsNil)
 }

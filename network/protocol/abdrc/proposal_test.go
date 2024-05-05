@@ -4,11 +4,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -179,7 +180,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
+	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
@@ -203,34 +204,34 @@ func TestProposalMsg_Verify(t *testing.T) {
 		return proposeMsg
 	}
 
-	require.NoError(t, validProposal(t).Verify(3, rootTrust))
+	require.NoError(t, validProposal(t).Verify(rootTrust))
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block = nil
-		require.EqualError(t, prop.Verify(3, rootTrust), `validation failed: block is nil`)
+		require.EqualError(t, prop.Verify(rootTrust), `validation failed: block is nil`)
 	})
 
 	t.Run("unknown signer", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block.Author = "xyz"
-		require.EqualError(t, prop.Verify(3, rootTrust), `unknown root validator "xyz"`)
+		require.EqualError(t, prop.Verify(rootTrust), `signature verification failed: author 'xyz' is not part of the trust base`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block.Timestamp = 0x11111111 // changing block after signing makes signature invalid
-		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: verification failed`)
+		require.ErrorContains(t, prop.Verify(rootTrust), `signature verification failed: verify bytes failed`)
 
 		prop.Signature = []byte{0, 1, 2, 3, 4}
-		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: signature length is 5 b (expected 64 b)`)
+		require.ErrorContains(t, prop.Verify(rootTrust), `signature verification failed: verify bytes failed: signature length is 5 b (expected 64 b)`)
 	})
 
 	t.Run("no quorum signatures", func(t *testing.T) {
 		// this basically tests that Block.Verify is called
 		prop := validProposal(t)
 		delete(prop.Block.Qc.Signatures, "3")
-		require.ErrorContains(t, prop.Verify(3, rootTrust), `block verification failed: invalid block data QC: quorum requires 3 signatures but certificate has 2`)
+		require.ErrorContains(t, prop.Verify(rootTrust), `block verification failed: invalid block data QC: failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
 	})
 }
 
@@ -238,7 +239,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
+	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(8)
 	lastRoundQc := &drctypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
@@ -274,5 +275,5 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 		LastRoundTc: lastRoundTc,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
-	require.NoError(t, proposeMsg.Verify(3, rootTrust))
+	require.NoError(t, proposeMsg.Verify(rootTrust))
 }

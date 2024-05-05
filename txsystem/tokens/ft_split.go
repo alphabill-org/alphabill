@@ -6,14 +6,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
-func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.SplitFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -22,36 +22,40 @@ func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExec
 		if err != nil {
 			return nil, err
 		}
-		d := u.Data().(*FungibleTokenData)
-		// add new token unit
-		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
+		ftData := u.Data().(*tokens.FungibleTokenData)
 
+		// add new token unit
+		newTokenID := tokens.NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
 		fee := m.feeCalculator()
-		txHash := tx.Hash(m.hashAlgorithm)
 
 		// update state
 		if err := m.state.Apply(
 			state.AddUnit(newTokenID,
 				attr.NewBearer,
-				&FungibleTokenData{
-					TokenType: d.TokenType,
+				&tokens.FungibleTokenData{
+					TokenType: ftData.TokenType,
 					Value:     attr.TargetValue,
-					T:         currentBlockNr,
-					Backlink:  txHash,
+					T:         exeCtx.CurrentBlockNr,
+					Counter:   0,
+					T1:        0,
+					Locked:    0,
 				}),
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) (state.UnitData, error) {
-					d, ok := data.(*FungibleTokenData)
+				func(data types.UnitData) (types.UnitData, error) {
+					d, ok := data.(*tokens.FungibleTokenData)
 					if !ok {
 						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
-					return &FungibleTokenData{
+					return &tokens.FungibleTokenData{
 						TokenType: d.TokenType,
 						Value:     d.Value - attr.TargetValue,
-						T:         currentBlockNr,
-						Backlink:  txHash,
+						T:         exeCtx.CurrentBlockNr,
+						Counter:   d.Counter + 1,
+						T1:        d.T1,
+						Locked:    d.Locked,
 					}, nil
-				})); err != nil {
+				}),
+		); err != nil {
 			return nil, err
 		}
 
@@ -63,11 +67,11 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	hasher := hashFunc.New()
 	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
-	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
+	tx.Payload.ClientMetadata.AddToHasher(hasher)
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -89,8 +93,8 @@ func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionO
 		return errors.New("remaining value must equal to the original value minus target value")
 	}
 
-	if !bytes.Equal(d.Backlink, attr.Backlink) {
-		return fmt.Errorf("invalid backlink: expected %X, got %X", d.Backlink, attr.Backlink)
+	if d.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
@@ -99,12 +103,12 @@ func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionO
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
-	err = runChainedPredicates[*FungibleTokenTypeData](
+	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
-		func(d *FungibleTokenTypeData) (types.UnitID, []byte) {
+		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeId, d.InvariantPredicate
 		},
 		m.state.GetUnit,
@@ -113,74 +117,4 @@ func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionO
 		return fmt.Errorf("evaluating InvariantPredicate: %w", err)
 	}
 	return nil
-}
-
-func (s *SplitFungibleTokenAttributes) GetNewBearer() []byte {
-	return s.NewBearer
-}
-
-func (s *SplitFungibleTokenAttributes) SetNewBearer(newBearer []byte) {
-	s.NewBearer = newBearer
-}
-
-func (s *SplitFungibleTokenAttributes) GetTargetValue() uint64 {
-	return s.TargetValue
-}
-
-func (s *SplitFungibleTokenAttributes) SetTargetValue(targetValue uint64) {
-	s.TargetValue = targetValue
-}
-
-func (s *SplitFungibleTokenAttributes) GetNonce() []byte {
-	return s.Nonce
-}
-
-func (s *SplitFungibleTokenAttributes) SetNonce(nonce []byte) {
-	s.Nonce = nonce
-}
-
-func (s *SplitFungibleTokenAttributes) GetBacklink() []byte {
-	return s.Backlink
-}
-
-func (s *SplitFungibleTokenAttributes) SetBacklink(backlink []byte) {
-	s.Backlink = backlink
-}
-
-func (s *SplitFungibleTokenAttributes) GetTypeID() types.UnitID {
-	return s.TypeID
-}
-
-func (s *SplitFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
-	s.TypeID = typeID
-}
-
-func (s *SplitFungibleTokenAttributes) GetRemainingValue() uint64 {
-	return s.RemainingValue
-}
-
-func (s *SplitFungibleTokenAttributes) SetRemainingValue(remainingValue uint64) {
-	s.RemainingValue = remainingValue
-}
-
-func (s *SplitFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
-	return s.InvariantPredicateSignatures
-}
-
-func (s *SplitFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
-	s.InvariantPredicateSignatures = signatures
-}
-
-func (s *SplitFungibleTokenAttributes) SigBytes() ([]byte, error) {
-	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &SplitFungibleTokenAttributes{
-		NewBearer:                    s.NewBearer,
-		TargetValue:                  s.TargetValue,
-		Nonce:                        s.Nonce,
-		Backlink:                     s.Backlink,
-		TypeID:                       s.TypeID,
-		RemainingValue:               s.RemainingValue,
-		InvariantPredicateSignatures: nil,
-	}
-	return types.Cbor.Marshal(signatureAttr)
 }

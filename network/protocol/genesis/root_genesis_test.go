@@ -4,9 +4,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,6 @@ func TestRootGenesis_IsValid(t *testing.T) {
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(1),
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 		Signatures:          make(map[string][]byte),
 	}
@@ -93,12 +92,12 @@ func TestRootGenesis_IsValid(t *testing.T) {
 					{
 						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
 						Certificate:             nil,
-						SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
+						SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
 					},
 					{
 						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
 						Certificate:             nil,
-						SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
+						SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
 					},
 				},
 			},
@@ -138,7 +137,6 @@ func TestRootGenesis(t *testing.T) {
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  MinBlockRateMs + MinConsensusTimeout,
-		QuorumThreshold:     GetMinQuorumThreshold(1),
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 	}
 	// create root node
@@ -155,7 +153,7 @@ func TestRootGenesis(t *testing.T) {
 		Timestamp:            1000,
 		Hash:                 hash,
 	}
-	unicitySeal.Sign(rootID, rSigner)
+	require.NoError(t, unicitySeal.Sign(rootID, rSigner))
 	rg := &RootGenesis{
 		Partitions: []*GenesisPartitionRecord{
 			{
@@ -188,7 +186,7 @@ func TestRootGenesis(t *testing.T) {
 	}
 	require.ErrorContains(t, rg.Verify(), "root genesis record error: consensus parameters is not signed by all validators")
 	// sign consensus
-	consensus.Sign(rootID, rSigner)
+	require.NoError(t, consensus.Sign(rootID, rSigner))
 	rg.Root.Consensus = consensus
 	require.ErrorContains(t, rg.Verify(), "root genesis partition record 0 error:")
 	// no partitions

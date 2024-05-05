@@ -3,20 +3,21 @@ package testutils
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
+
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewCloseFC(t *testing.T, attr *fc.CloseFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewCloseFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitId(unitID),
+		testtransaction.WithUnitID(unitID),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(transactions.PayloadTypeCloseFeeCredit),
+		testtransaction.WithPayloadType(fc.PayloadTypeCloseFeeCredit),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))
@@ -24,9 +25,9 @@ func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts 
 	return tx
 }
 
-type CloseFCOption func(*transactions.CloseFeeCreditAttributes) CloseFCOption
+type CloseFCOption func(*fc.CloseFeeCreditAttributes) CloseFCOption
 
-func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttributes {
+func NewCloseFCAttr(opts ...CloseFCOption) *fc.CloseFeeCreditAttributes {
 	defaultTx := NewDefaultCloseFCAttr()
 	for _, opt := range opts {
 		opt(defaultTx)
@@ -34,31 +35,31 @@ func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttribute
 	return defaultTx
 }
 
-func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
-	return &transactions.CloseFeeCreditAttributes{
-		Amount:             amount,
-		TargetUnitID:       unitID,
-		TargetUnitBacklink: targetUnitBacklink,
+func NewDefaultCloseFCAttr() *fc.CloseFeeCreditAttributes {
+	return &fc.CloseFeeCreditAttributes{
+		Amount:            amount,
+		TargetUnitID:      unitID,
+		TargetUnitCounter: targetUnitCounter,
 	}
 }
 
 func WithCloseFCAmount(amount uint64) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
+	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
 		tx.Amount = amount
 		return nil
 	}
 }
 
 func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
+	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
 		tx.TargetUnitID = targetUnitID
 		return nil
 	}
 }
 
-func WithCloseFCTargetUnitBacklink(targetUnitBacklink []byte) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
-		tx.TargetUnitBacklink = targetUnitBacklink
+func WithCloseFCTargetUnitCounter(counter uint64) CloseFCOption {
+	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
+		tx.TargetUnitCounter = counter
 		return nil
 	}
 }

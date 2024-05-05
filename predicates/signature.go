@@ -4,20 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/types"
-
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
-
-/*
-P2pkh256Signature is a signature and public key pair, typically used as
-owner proof (ie the public key can be used to verify the signature).
-*/
-type P2pkh256Signature struct {
-	_      struct{} `cbor:",toarray"`
-	Sig    []byte
-	PubKey []byte
-}
 
 type Signer interface {
 	SignBytes([]byte) ([]byte, error)
@@ -25,14 +15,14 @@ type Signer interface {
 }
 
 func EncodeSignature(sig, pubKey []byte) ([]byte, error) {
-	return types.Cbor.Marshal(P2pkh256Signature{Sig: sig, PubKey: pubKey})
+	return types.Cbor.Marshal(templates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
 }
 
 func ExtractPubKey(ownerProof []byte) ([]byte, error) {
 	if len(ownerProof) == 0 {
 		return nil, errors.New("empty owner proof as input")
 	}
-	sig := P2pkh256Signature{}
+	sig := templates.P2pkh256Signature{}
 	if err := types.Cbor.Unmarshal(ownerProof, &sig); err != nil {
 		return nil, fmt.Errorf("decoding owner proof as Signature: %w", err)
 	}

@@ -1,8 +1,11 @@
-FROM golang:1.21-bullseye AS builder
+FROM golang:1.22-bullseye AS builder
 
 WORKDIR /usr/src/app
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN --mount=type=bind,source=ci/.gitconfig,target=/root/.gitconfig \
+    --mount=type=bind,source=ci/known_hosts,target=/root/.ssh/known_hosts \
+    --mount=type=ssh \
+    go mod download && go mod verify
 
 COPY . .
 RUN make build

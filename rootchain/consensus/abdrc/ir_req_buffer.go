@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (

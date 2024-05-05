@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"testing"
 
-	hasherUtil "github.com/alphabill-org/alphabill/hash"
+	hasherUtil "github.com/alphabill-org/alphabill-go-base/hash"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestAdd(t *testing.T) {
 	type args struct {
 		id     types.UnitID
 		bearer []byte
-		data   UnitData
+		data   types.UnitData
 	}
 	type testCase struct {
 		name            string
@@ -102,7 +102,7 @@ func TestUpdate(t *testing.T) {
 			name: "not found",
 			args: args{
 				id: []byte{1},
-				f: func(data UnitData) (UnitData, error) {
+				f: func(data types.UnitData) (types.UnitData, error) {
 					return data, nil
 				},
 			},
@@ -121,7 +121,7 @@ func TestUpdate(t *testing.T) {
 			name: "ok",
 			args: args{
 				id: []byte{1, 1, 1, 1},
-				f: func(data UnitData) (UnitData, error) {
+				f: func(data types.UnitData) (types.UnitData, error) {
 					return &TestData{Value: 200}, nil
 				},
 			},
@@ -245,6 +245,37 @@ func TestSetOwner(t *testing.T) {
 			assertUnit(t, tt.initialState, tt.args.id, tt.expectedUnit, false)
 		})
 	}
+}
+
+func Test_SetStateLock(t *testing.T) {
+	t.Run("id is nil", func(t *testing.T) {
+		err := SetStateLock(nil, []byte{})(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Equal(t, "id is nil", err.Error())
+	})
+
+	t.Run("unit not found", func(t *testing.T) {
+		err := SetStateLock([]byte{1}, []byte{})(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to find unit")
+	})
+
+	t.Run("unit already has a state lock", func(t *testing.T) {
+		s := newStateWithUnits(t)
+		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		require.NoError(t, err)
+		err = SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.Equal(t, "unit already has a state lock", err.Error())
+	})
+
+	t.Run("successful state lock set", func(t *testing.T) {
+		s := newStateWithUnits(t).latestSavepoint()
+		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s, crypto.SHA256)
+		require.NoError(t, err)
+		u, _ := s.Get([]byte{1, 1, 1, 1})
+		require.Equal(t, []byte{1}, u.stateLockTx)
+	})
 }
 
 func newStateWithUnits(t *testing.T) *State {

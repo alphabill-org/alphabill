@@ -1,15 +1,16 @@
 package money
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/types"
-	"github.com/alphabill-org/alphabill/util"
 )
 
 func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint32, hashFunc crypto.Hash) []byte {
@@ -21,50 +22,64 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 	return hasher.Sum(nil)
 }
 
-func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[SplitAttributes] {
-	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		if err := m.validateSplitTx(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid split transaction: %w", err)
+func (m *Module) handleSplitTx() txsystem.GenericExecuteFunc[money.SplitAttributes] {
+	return func(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+		isLocked := false
+		if !exeCtx.StateLockReleased {
+			if err = m.validateSplitTx(tx, attr); err != nil {
+				return nil, fmt.Errorf("invalid split transaction: %w", err)
+			}
+
+			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lock unit state: %w", err)
+			}
 		}
+
 		unitID := tx.UnitID()
-		txHash := tx.Hash(m.hashAlgorithm)
 		targetUnitIDs := []types.UnitID{unitID}
 
-		// add new units
-		var actions []state.Action
-		for i, targetUnit := range attr.TargetUnits {
-			newUnitID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
-			targetUnitIDs = append(targetUnitIDs, newUnitID)
-			actions = append(actions, state.AddUnit(
-				newUnitID,
-				targetUnit.OwnerCondition,
-				&BillData{
-					V:        targetUnit.Amount,
-					T:        currentBlockNumber,
-					Backlink: txHash,
-				}))
-		}
+		if !isLocked {
+			// add new units
+			var actions []state.Action
+			for i, targetUnit := range attr.TargetUnits {
+				newUnitID := money.NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
+				targetUnitIDs = append(targetUnitIDs, newUnitID)
+				actions = append(actions, state.AddUnit(
+					newUnitID,
+					targetUnit.OwnerCondition,
+					&money.BillData{
+						V:       targetUnit.Amount,
+						T:       exeCtx.CurrentBlockNr,
+						Counter: 0,
+					}))
+			}
 
-		// update existing unit
-		actions = append(actions, state.UpdateUnitData(unitID,
-			func(data state.UnitData) (state.UnitData, error) {
-				return &BillData{
-					V:        attr.RemainingValue,
-					T:        currentBlockNumber,
-					Backlink: txHash,
-				}, nil
-			},
-		))
+			// update existing unit
+			actions = append(actions, state.UpdateUnitData(unitID,
+				func(data types.UnitData) (types.UnitData, error) {
+					bd, ok := data.(*money.BillData)
+					if !ok {
+						return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+					}
+					return &money.BillData{
+						V:       attr.RemainingValue,
+						T:       exeCtx.CurrentBlockNr,
+						Counter: bd.Counter + 1,
+					}, nil
+				},
+			))
 
-		// update state
-		if err := m.state.Apply(actions...); err != nil {
-			return nil, fmt.Errorf("state update failed: %w", err)
+			// update state
+			if err := m.state.Apply(actions...); err != nil {
+				return nil, fmt.Errorf("state update failed: %w", err)
+			}
 		}
 		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -75,16 +90,16 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *SplitAttribut
 	return validateSplit(unit.Data(), attr)
 }
 
-func validateSplit(data state.UnitData, attr *SplitAttributes) error {
-	bd, ok := data.(*BillData)
+func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
+	bd, ok := data.(*money.BillData)
 	if !ok {
 		return errors.New("invalid data type, unit is not of BillData type")
 	}
 	if bd.IsLocked() {
 		return ErrBillLocked
 	}
-	if !bytes.Equal(attr.Backlink, bd.Backlink) {
-		return fmt.Errorf("the transaction backlink 0x%x is not equal to unit backlink 0x%x", attr.Backlink, bd.Backlink)
+	if bd.Counter != attr.Counter {
+		return ErrInvalidCounter
 	}
 	if len(attr.TargetUnits) == 0 {
 		return errors.New("target units are empty")

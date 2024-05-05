@@ -4,17 +4,16 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/alphabill-org/alphabill/types"
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &genesis.SystemDescriptionRecord{
+var systemDescription = &types.SystemDescriptionRecord{
 	SystemIdentifier: 1,
 	T2Timeout:        2500,
 }
@@ -22,8 +21,8 @@ var systemDescription = &genesis.SystemDescriptionRecord{
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
-		rootTrustBase     map[string]crypto.Verifier
+		systemDescription *types.SystemDescriptionRecord
+		rootTrustBase     types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
 	tests := []struct {
@@ -35,10 +34,10 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 			name: "system description record is nil",
 			args: args{
 				systemDescription: nil,
-				rootTrustBase:     map[string]crypto.Verifier{"test": v},
+				rootTrustBase:     trustbase.NewTrustBase(t, v),
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: types.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -61,7 +60,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 
 func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"test": verifier}
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	require.ErrorIs(t, v.Validate(nil), types.ErrUnicityCertificateIsNil)
@@ -69,7 +68,7 @@ func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"test": verifier}
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{
@@ -93,8 +92,8 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
-		trustBase         map[string]crypto.Verifier
+		systemDescription *types.SystemDescriptionRecord
+		trustBase         types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
 	tests := []struct {
@@ -106,10 +105,10 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 			name: "system description record is nil",
 			args: args{
 				systemDescription: nil,
-				trustBase:         map[string]crypto.Verifier{"test": v},
+				trustBase:         trustbase.NewTrustBase(t, v),
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: types.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -132,7 +131,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 
 func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"test": verifier}
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	require.ErrorIs(t, v.Validate(nil, nil), blockproposal.ErrBlockProposalIsNil)
@@ -141,7 +140,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
 func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"test": verifier}
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{

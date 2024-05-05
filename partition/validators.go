@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/types"
 )
 
 type (
@@ -36,7 +35,7 @@ type (
 	DefaultUnicityCertificateValidator struct {
 		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
-		rootTrustBase         map[string]crypto.Verifier
+		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
@@ -44,7 +43,7 @@ type (
 	DefaultBlockProposalValidator struct {
 		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
-		rootTrustBase         map[string]crypto.Verifier
+		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
@@ -78,44 +77,51 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 		// transaction is expired
 		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
 	}
+
+	if tx.Payload != nil && tx.Payload.ClientMetadata != nil {
+		if n := len(tx.Payload.ClientMetadata.ReferenceNumber); n > 32 {
+			return fmt.Errorf("maximum allowed length of the ReferenceNumber is 32 bytes, got %d bytes", n)
+		}
+	}
+
 	return nil
 }
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
-	rootTrust map[string]crypto.Verifier,
+	systemDescription *types.SystemDescriptionRecord,
+	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if len(rootTrust) == 0 {
+	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
 		systemIdentifier:      systemDescription.SystemIdentifier,
-		rootTrustBase:         rootTrust,
+		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
 	}, nil
 }
 
 func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
-	return uc.IsValid(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
+	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *genesis.SystemDescriptionRecord,
-	rootTrust map[string]crypto.Verifier,
+	systemDescription *types.SystemDescriptionRecord,
+	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if len(rootTrust) == 0 {
+	if rootTrust == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)

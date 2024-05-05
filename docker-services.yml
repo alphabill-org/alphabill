@@ -3,13 +3,22 @@ services:
     build:
       context: ./
       dockerfile: ./cli/alphabill/Dockerfile
+  alphabill-root-bootnode:
+    extends:
+      service: alphabill
+    entrypoint:
+      - /busybox/sh
+      - -c
+      - 'alphabill root --home /genesis --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn --trust-base-file /genesis-nodes/root-trust-base.json'
+    expose:
+      - 8000
   alphabill-root:
     extends:
       service: alphabill
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill root --home /genesis --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
+      - 'alphabill root --home /genesis --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000 --trust-base-file /genesis-nodes/root-trust-base.json'
     expose:
       - 8000
   alphabill-money:
@@ -18,7 +27,7 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill money --home /genesis/money --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn  --rpc-server-address=$(hostname -i):8001 --key-file /genesis/money/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-1.json --state /genesis/money/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
+      - 'alphabill money --home /genesis/money --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn  --rpc-server-address=$(hostname -i):8001 --key-file /genesis/money/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-1.json --state /genesis/money/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000 --trust-base-file /genesis-nodes/root-trust-base.json'
     expose:
       - 8000
   alphabill-tokens:
@@ -27,68 +36,54 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill tokens --home /genesis/tokens --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn --rpc-server-address=$(hostname -i):8001 --key-file /genesis/tokens/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-2.json --state /genesis/tokens/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000'
+      - 'alphabill tokens --home /genesis/tokens --address="/ip4/$(hostname -i)/tcp/8000" --log-level warn --rpc-server-address=$(hostname -i):8001 --key-file /genesis/tokens/keys.json --genesis /genesis-nodes/root1/rootchain/partition-genesis-2.json --state /genesis/tokens/node-genesis-state.cbor --db /genesis/blocks.db --tx-db /genesis/tx.db --bootnodes=$(alphabill identifier -k /genesis-nodes/root1/rootchain/keys.json | tail -n1)@/dns/alphabill-root1/tcp/8000,$(alphabill identifier -k /genesis-nodes/root2/rootchain/keys.json | tail -n1)@/dns/alphabill-root2/tcp/8000,$(alphabill identifier -k /genesis-nodes/root3/rootchain/keys.json | tail -n1)@/dns/alphabill-root3/tcp/8000 --trust-base-file /genesis-nodes/root-trust-base.json'
     expose:
       - 8000
   generate-tokens-genesis:
     extends:
       service: alphabill
     entrypoint:
-      - alphabill
-      - tokens-genesis
-      - -g
-      - --home
-      - /genesis
+      - /busybox/sh
+      - -c
+      -  'if [ -z "$(ls -A /genesis)" ]; then alphabill tokens-genesis -g --home /genesis; else echo "Genesis exists"; exit 0; fi'
   generate-money-genesis:
     extends:
       service: alphabill
     entrypoint:
-      - alphabill
-      - money-genesis
-      - -g
-      - --home
-      - /genesis
+      - /busybox/sh
+      - -c
+      - 'if [ -z "$(ls -A /genesis)" ]; then alphabill money-genesis -g --home /genesis; else echo "Genesis exists"; exit 0; fi'
   generate-root-genesis:
     extends:
       service: alphabill
     entrypoint:
-      - alphabill
-      - root-genesis
-      - new
-      - -g
-      - --block-rate
-      - "400"
-      - --consensus-timeout
-      - "2500"
-      - --total-nodes
-      - "3"
-      - --home
-      - /genesis
-      - -p
-      - /genesis-nodes/money1/money/node-genesis.json
-      - -p
-      - /genesis-nodes/money2/money/node-genesis.json
-      - -p
-      - /genesis-nodes/money3/money/node-genesis.json
-      - -p
-      - /genesis-nodes/tokens1/tokens/node-genesis.json
-      - -p
-      - /genesis-nodes/tokens2/tokens/node-genesis.json
-      - -p
-      - /genesis-nodes/tokens3/tokens/node-genesis.json
+      - /busybox/sh
+      - -c
+      - 'if [ -z "$(ls -A /genesis)" ]; then alphabill root-genesis new -g --block-rate "400" --consensus-timeout "2500" --total-nodes "3" --home /genesis -p /genesis-nodes/money1/money/node-genesis.json -p /genesis-nodes/money2/money/node-genesis.json -p /genesis-nodes/money3/money/node-genesis.json -p /genesis-nodes/tokens1/tokens/node-genesis.json -p /genesis-nodes/tokens2/tokens/node-genesis.json -p /genesis-nodes/tokens3/tokens/node-genesis.json; else echo "Genesis exists"; exit 0; fi'
     volumes:
       - ./.genesis:/genesis-nodes
   combine-root-genesis:
     extends:
       service: alphabill
     entrypoint:
-      - alphabill
-      - root-genesis
-      - combine
-      - --home
-      - /genesis/root
-      - --root-genesis=/genesis/root1/rootchain/root-genesis.json
-      - --root-genesis=/genesis/root2/rootchain/root-genesis.json
-      - --root-genesis=/genesis/root3/rootchain/root-genesis.json
+      - /busybox/sh
+      - -c
+      - 'alphabill root-genesis combine --home /genesis/root --root-genesis=/genesis/root1/rootchain/root-genesis.json --root-genesis=/genesis/root2/rootchain/root-genesis.json --root-genesis=/genesis/root3/rootchain/root-genesis.json'
     volumes:
       - ./.genesis:/genesis
+  generate-root-trust-base:
+    extends:
+      service: alphabill
+    entrypoint:
+      - /busybox/sh
+      - -c
+      - 'alphabill root-genesis gen-trust-base --home /genesis-nodes --root-genesis=/genesis-nodes/root1/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root2/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root3/rootchain/root-genesis.json'
+    volumes:
+      - ./.genesis:/genesis-nodes
+  sign-root-trust-base:
+    extends:
+      service: alphabill
+    entrypoint:
+      - /busybox/sh
+      - -c
+      - 'alphabill root-genesis sign-trust-base --home /genesis-nodes -k /genesis/root/rootchain/keys.json'

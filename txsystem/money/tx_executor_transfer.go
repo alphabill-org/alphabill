@@ -16,13 +16,13 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 	// calculate actual tx fee cost
 	fee := m.feeCalculator()
 	// update state
 	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
 	setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
-	if err = m.state.Apply(
+	if err := m.state.Apply(
 		setOwnerFunc,
 		updateDataFunc,
 	); err != nil {

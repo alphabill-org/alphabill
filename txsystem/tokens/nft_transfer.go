@@ -11,11 +11,11 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
+func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 	fee := n.feeCalculator()
 	unitID := tx.UnitID()
 	// update owner, counter and last updated block number
-	if err = n.state.Apply(
+	if err := n.state.Apply(
 		state.SetOwner(unitID, attr.NewBearer),
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 			d, ok := data.(*tokens.NonFungibleTokenData)

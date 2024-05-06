@@ -14,8 +14,8 @@ type (
 
 	TxExecutor interface {
 		ValidateTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (any, error)
-		ExecuteTx(tx *types.TransactionOrder, attributes any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
-		UnmarshalAndExecute(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
+		ExecuteTxWithAttr(tx *types.TransactionOrder, attributes any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
+		ExecuteTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
 	}
 
 	TxExecutors map[string]TxExecutor
@@ -48,7 +48,7 @@ func (t *TxHandler[T]) ValidateTx(txo *types.TransactionOrder, exeCtx *TxExecuti
 	return attr, nil
 }
 
-func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (t *TxHandler[T]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	txAttr, ok := attr.(*T)
 	if !ok {
 		return nil, fmt.Errorf("incorrect attribute type: %T for tx order %s", attr, txo.PayloadType())
@@ -56,7 +56,7 @@ func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, attr any, exeCtx *
 	return t.Execute(txo, txAttr, exeCtx)
 }
 
-func (t *TxHandler[T]) UnmarshalAndExecute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	attr := new(T)
 	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
@@ -73,7 +73,7 @@ func (h TxExecutors) ValidateAndExecute(txo *types.TransactionOrder, exeCtx *TxE
 	if err != nil {
 		return nil, fmt.Errorf("'%s' validation failed: %w", txo.PayloadType(), err)
 	}
-	sm, err := handler.ExecuteTx(txo, attr, exeCtx)
+	sm, err := handler.ExecuteTxWithAttr(txo, attr, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("'%s' execution failed: %w", txo.PayloadType(), err)
 	}
@@ -89,22 +89,22 @@ func (h TxExecutors) Validate(txo *types.TransactionOrder, exeCtx *TxExecutionCo
 	return handler.ValidateTx(txo, exeCtx)
 }
 
-func (h TxExecutors) Execute(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (h TxExecutors) ExecuteWithAttr(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
 	}
 
-	return handler.ExecuteTx(txo, attr, exeCtx)
+	return handler.ExecuteTxWithAttr(txo, attr, exeCtx)
 }
 
-func (h TxExecutors) UnmarshalAndExecute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (h TxExecutors) Execute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
 	}
 
-	sm, err := handler.UnmarshalAndExecute(txo, exeCtx)
+	sm, err := handler.ExecuteTx(txo, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx order execution failed: %w", err)
 	}

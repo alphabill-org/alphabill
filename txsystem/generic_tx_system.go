@@ -189,7 +189,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 	}
 	// proceed with the transaction execution, if not state lock
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.handlers.Execute(tx, attr, exeCtx)
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx error: %w", err)
 	}

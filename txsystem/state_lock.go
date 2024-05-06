@@ -91,7 +91,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	}
 	// execute the tx that was "on hold"
 	if proof.Kind == StateUnlockExecute {
-		sm, err := m.handlers.UnmarshalAndExecute(txOnHold, exeCtx)
+		sm, err := m.handlers.Execute(txOnHold, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute tx that was on hold: %w", err)
 		}

@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/state"
@@ -180,6 +181,31 @@ func TestGetBlock(t *testing.T) {
 	})
 }
 
+func TestGetTrustBase(t *testing.T) {
+	node := &MockNode{}
+	api := NewStateAPI(node, nil)
+
+	t.Run("ok", func(t *testing.T) {
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{types.NewNodeInfo("1", 1, verifier)}, []byte{1})
+		require.NoError(t, err)
+		node.trustBase = trustBase
+
+		res, err := api.GetTrustBase(1)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, trustBase, res)
+
+	})
+	t.Run("err", func(t *testing.T) {
+		node.err = errors.New("trust base not found")
+
+		res, err := api.GetTrustBase(1)
+		require.ErrorContains(t, err, "trust base not found")
+		require.Nil(t, res)
+	})
+}
+
 func prepareState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
@@ -235,6 +261,7 @@ type (
 		transactions   []*types.TransactionOrder
 		err            error
 		txs            txsystem.TransactionSystem
+		trustBase      types.RootTrustBase
 	}
 
 	MockOwnerIndex struct {
@@ -303,6 +330,13 @@ func (mn *MockNode) SerializeState(writer io.Writer) error {
 		return mn.err
 	}
 	return nil
+}
+
+func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
+	if mn.err != nil {
+		return nil, mn.err
+	}
+	return mn.trustBase, nil
 }
 
 func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {

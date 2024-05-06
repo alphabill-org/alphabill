@@ -28,7 +28,6 @@ func (t *TestData) SummaryValueInput() uint64 {
 	return 0
 }
 func (t *TestData) Copy() types.UnitData { return &TestData{} }
-func (t *TestData) IncrementCounter()    {}
 
 func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

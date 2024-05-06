@@ -196,7 +196,6 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 func (m mockUnitData) Copy() types.UnitData {
 	return mockUnitData{}
 }
-func (m mockUnitData) IncrementCounter() {}
 
 func commitState(t *testing.T, s *state.State) {
 	rootVal, rootHash, err := s.CalculateRoot()

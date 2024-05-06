@@ -67,11 +67,6 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		pr:                    options.predicateRunner,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	identity, err := NewIdentityModule(txs.state)
-	if err != nil {
-		return nil, fmt.Errorf("identity module init error: %w", err)
-	}
-	modules = append(modules, identity)
 
 	for _, module := range modules {
 		if err := txs.handlers.Add(module.TxHandlers()); err != nil {

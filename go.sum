@@ -66,6 +66,8 @@ github.com/alphabill-org/alphabill-go-base v0.0.0-20240503113550-8c5ce3a60181 h1
 github.com/alphabill-org/alphabill-go-base v0.0.0-20240503113550-8c5ce3a60181/go.mod h1:Au6zMDSmQ1FG0hv/CWaPQekQuUrwTr7gyYMbW5RP+JI=
 github.com/alphabill-org/alphabill-go-base v0.0.0-20240503130235-1ca04df508d9 h1:ENFtIQR+axIR5K53rU7mG6z82klWsEkotWz7kk30nkU=
 github.com/alphabill-org/alphabill-go-base v0.0.0-20240503130235-1ca04df508d9/go.mod h1:Au6zMDSmQ1FG0hv/CWaPQekQuUrwTr7gyYMbW5RP+JI=
+github.com/alphabill-org/alphabill-go-base v0.0.0-20240506081940-c8ba2b1fb6b1 h1:vjojGqGHt2KNfJS7T+6hbwJheIrqQsE0hcAVnNEsago=
+github.com/alphabill-org/alphabill-go-base v0.0.0-20240506081940-c8ba2b1fb6b1/go.mod h1:Au6zMDSmQ1FG0hv/CWaPQekQuUrwTr7gyYMbW5RP+JI=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=

@@ -226,8 +226,6 @@ func (ud *unitData) Copy() types.UnitData {
 	return &unitData{I: ud.I}
 }
 
-func (ud *unitData) IncrementCounter() {}
-
 var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
 
 type (

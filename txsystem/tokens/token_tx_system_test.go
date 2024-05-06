@@ -1436,8 +1436,6 @@ func (m mockUnitData) Copy() types.UnitData {
 	return &mockUnitData{}
 }
 
-func (m mockUnitData) IncrementCounter() {}
-
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {
 	t.Helper()
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()

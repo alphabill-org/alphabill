@@ -27,7 +27,6 @@ func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }
 func (t *testData) Copy() types.UnitData { return &testData{} }
-func (t *testData) IncrementCounter()    {}
 
 func TestFeeCredit_validateCloseFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

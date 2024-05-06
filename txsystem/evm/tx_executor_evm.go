@@ -31,7 +31,7 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 	from := common.BytesToAddress(attr.From)
 	stateDB := statedb.NewStateDB(m.options.state, m.log)
 	if !stateDB.Exist(from) {
-		return nil, fmt.Errorf(" address %v does not exist", from)
+		return nil, fmt.Errorf("address %v does not exist", from)
 	}
 	defer func() {
 		if retErr == nil {

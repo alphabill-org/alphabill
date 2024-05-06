@@ -6,10 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -20,7 +18,7 @@ type (
 		moneySystemID           types.SystemID
 		systemID                types.SystemID
 		hashAlgorithm           crypto.Hash
-		verifiers               map[string]abcrypto.Verifier
+		trustBase               types.RootTrustBase
 		feeCreditRecordUnitType []byte
 	}
 
@@ -48,12 +46,12 @@ type (
 	}
 )
 
-func NewDefaultFeeCreditTxValidator(moneySystemID, systemID types.SystemID, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
+func NewDefaultFeeCreditTxValidator(moneySystemID, systemID types.SystemID, hashAlgorithm crypto.Hash, trustBase types.RootTrustBase, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
 		moneySystemID:           moneySystemID,
 		systemID:                systemID,
 		hashAlgorithm:           hashAlgorithm,
-		verifiers:               verifiers,
+		trustBase:               trustBase,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 	}
 }
@@ -153,7 +151,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	err := types.VerifyTxProof(attr.FeeCreditTransferProof, attr.FeeCreditTransfer, v.verifiers, v.hashAlgorithm)
+	err := types.VerifyTxProof(attr.FeeCreditTransferProof, attr.FeeCreditTransfer, v.trustBase, v.hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}

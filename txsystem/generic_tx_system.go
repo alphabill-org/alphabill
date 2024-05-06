@@ -8,16 +8,16 @@ import (
 	"io"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
@@ -32,7 +32,7 @@ type GenericTxSystem struct {
 	state                 UnitState //*state.State
 	currentBlockNumber    uint64
 	executors             TxExecutors
-	trustBase             map[string]abcrypto.Verifier
+	trustBase             types.RootTrustBase
 	checkFeeCreditBalance FeeCreditBalanceValidator
 	beginBlockFunctions   []func(blockNumber uint64) error
 	endBlockFunctions     []func(blockNumber uint64) error
@@ -66,7 +66,7 @@ type UnitState interface {
 	Savepoint() int
 }
 
-func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, trustBase map[string]abcrypto.Verifier, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, trustBase types.RootTrustBase, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if systemID == 0 {
 		return nil, errors.New("system ID must be assigned")
 	}

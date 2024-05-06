@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 )
 
 type (
@@ -35,7 +35,7 @@ type (
 	DefaultUnicityCertificateValidator struct {
 		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
-		rootTrustBase         map[string]crypto.Verifier
+		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
@@ -43,7 +43,7 @@ type (
 	DefaultBlockProposalValidator struct {
 		systemIdentifier      types.SystemID
 		systemDescriptionHash []byte
-		rootTrustBase         map[string]crypto.Verifier
+		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
@@ -90,19 +90,19 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
 	systemDescription *types.SystemDescriptionRecord,
-	rootTrust map[string]crypto.Verifier,
+	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if len(rootTrust) == 0 {
+	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
 		systemIdentifier:      systemDescription.SystemIdentifier,
-		rootTrustBase:         rootTrust,
+		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
 	}, nil
@@ -115,13 +115,13 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
 	systemDescription *types.SystemDescriptionRecord,
-	rootTrust map[string]crypto.Verifier,
+	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if len(rootTrust) == 0 {
+	if rootTrust == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)

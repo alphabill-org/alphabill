@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	sdkorchestration "github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	sdkorchestration "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
@@ -78,9 +78,9 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 		}
 	}
 
-	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	trustBase, err := types.NewTrustBaseFromFile(cfg.Node.TrustBaseFile)
 	if err != nil {
-		return fmt.Errorf("creating trustbase: %w", err)
+		return fmt.Errorf("failed to load trust base file: %w", err)
 	}
 
 	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
@@ -121,7 +121,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	if cfg.Node.WithOwnerIndex {
 		ownerIndexer = partition.NewOwnerIndexer(log)
 	}
-	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, obs)
+	node, err := createNode(ctx, txs, cfg.Node, keys, blockStore, proofStore, ownerIndexer, trustBase, obs)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}

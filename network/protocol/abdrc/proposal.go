@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
 
 var (
@@ -15,8 +16,8 @@ var (
 
 type ProposalMsg struct {
 	_           struct{}           `cbor:",toarray"`
-	Block       *types.BlockData   `json:"block,omitempty"`         // Proposed change
-	LastRoundTc *types.TimeoutCert `json:"last_round_tc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
+	Block       *abdrc.BlockData   `json:"block,omitempty"`         // Proposed change
+	LastRoundTc *abdrc.TimeoutCert `json:"last_round_tc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
 	Signature   []byte             `json:"signature,omitempty"`
 }
 
@@ -44,30 +45,24 @@ func (x *ProposalMsg) IsValid() error {
 	return nil
 }
 
-func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *ProposalMsg) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	if err := x.Block.Verify(quorum, rootTrust); err != nil {
+	if err := x.Block.Verify(tb); err != nil {
 		return fmt.Errorf("block verification failed: %w", err)
 	}
-	v, f := rootTrust[x.Block.Author]
-	if !f {
-		return fmt.Errorf("unknown root validator %q", x.Block.Author)
-	}
-	hash := x.Block.Hash(gocrypto.SHA256)
-	if err := v.VerifyHash(x.Signature, hash); err != nil {
-		return fmt.Errorf("invalid signature: %w", err)
+	if _, err := tb.VerifySignature(x.Block.Bytes(), x.Signature, x.Block.Author); err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
 	}
 
 	// Optional timeout certificate
 	if x.LastRoundTc != nil {
-		if err := x.LastRoundTc.Verify(quorum, rootTrust); err != nil {
+		if err := x.LastRoundTc.Verify(tb); err != nil {
 			return fmt.Errorf("invalid timeout certificate: %w", err)
 		}
 	}
-
 	return nil
 }
 

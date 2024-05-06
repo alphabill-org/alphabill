@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -27,7 +27,7 @@ type BlockProposal struct {
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier types.SystemID, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, systemIdentifier types.SystemID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
@@ -37,13 +37,13 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 	if len(x.NodeIdentifier) == 0 {
 		return errBlockProposerIDMissing
 	}
-	if ucTrustBase == nil {
+	if tb == nil {
 		return ErrTrustBaseIsNil
 	}
 	if systemIdentifier != x.SystemIdentifier {
 		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
 	}
-	if err := x.UnicityCertificate.Verify(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityCertificate.Verify(tb, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err
 	}
 	return x.Verify(algorithm, nodeSignatureVerifier)

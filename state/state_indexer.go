@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 // stateIndexer traverses the state tree and constructs an index using the keyExtractor
@@ -39,7 +39,7 @@ func (s *stateIndexer[T]) Traverse(n *node) {
 
 func CreateIndex[T comparable](s *State, ke KeyExtractor[T]) (Index[T], error) {
 	indexer := &stateIndexer[T]{
-		index: Index[T]{},
+		index:        Index[T]{},
 		keyExtractor: ke,
 	}
 	s.Traverse(indexer)

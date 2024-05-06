@@ -102,11 +102,7 @@ function generate_root_genesis() {
   do
     build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=400 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
   done
-  # if only one root node, then we are done
-  if [ $1 == 1 ]; then
-    return 0
-  fi
-  # else combine to generate common root genesis
+  # create --root-genesis argument list
   root_genesis_files=""
   for file in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -116,6 +112,13 @@ function generate_root_genesis() {
   for i in $(seq 1 "$1")
   do
   build/alphabill root-genesis combine --home testab/rootchain"$i" $root_genesis_files
+  done
+  # generate trust base file
+  build/alphabill root-genesis gen-trust-base --home testab $root_genesis_files
+  # sign trust base file by each root node
+  for i in $(seq 1 "$1")
+  do
+  build/alphabill root-genesis sign-trust-base --home testab -k testab/rootchain"$i"/rootchain/keys.json
   done
 }
 
@@ -132,11 +135,11 @@ function start_root_nodes() {
       exit 1
     fi
     if [[ $i -eq 1 ]]; then
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
           # give bootstrap node a head start
           sleep 0.200
     else
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     fi
     ((port=port+1))
     ((i=i+1))
@@ -148,6 +151,7 @@ function start_partition_nodes() {
 local home=""
 local key_files=""
 local genesis_file=""
+local trust_base_file="testab/root-trust-base.json"
 local aPort=0
 local rpcPort=0
   case $1 in
@@ -197,6 +201,7 @@ local rpcPort=0
         --tx-db ${home}$i/"$1"/tx.db \
         --key-file $keyf \
         --genesis $genesis_file \
+        --trust-base-file $trust_base_file \
         --state "$(dirname $keyf)/node-genesis-state.cbor" \
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \

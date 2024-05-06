@@ -6,20 +6,22 @@ import (
 	"math"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/stretchr/testify/require"
+
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTransfer(t *testing.T) {
@@ -357,7 +359,7 @@ func TestSwap(t *testing.T) {
 		{
 			name: "InvalidDcProofInvalid",
 			ctx:  newSwapValidationContext(t, verifier, newInvalidDcProofsSwap(t, signer)),
-			err:  "invalid unicity seal signature",
+			err:  "quorum not reached",
 		},
 	}
 	for _, tt := range tests {
@@ -478,7 +480,7 @@ func TestTransferFC(t *testing.T) {
 
 func TestReclaimFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	var (
 		amount  = uint64(100)
@@ -573,7 +575,7 @@ func TestReclaimFC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &fc.ReclaimFeeCreditAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
-			err := validateReclaimFC(tt.tx, attr, tt.bd, verifiers, crypto.SHA256)
+			err := validateReclaimFC(tt.tx, attr, tt.bd, trustBase, crypto.SHA256)
 			if tt.wantErr == nil && tt.wantErrMsg == "" {
 				require.NoError(t, err)
 			}
@@ -923,7 +925,7 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 func newInvalidDcProofsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	UCSigner, _ := testsig.CreateSignerAndVerifier(t)
 	txo := newSwapDC(t, UCSigner)
-	// newSwapDC uses passed in signer for both trustbase and txo
+	// newSwapDC uses passed in signer for both trust base and txo,
 	// so we need to reset owner proof to the correct tx signer
 	require.NoError(t, txo.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 	return txo
@@ -1018,7 +1020,7 @@ func newSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *type
 }
 
 func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *types.TransactionOrder) *swapValidationContext {
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	attr := &money.SwapDCAttributes{}
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 

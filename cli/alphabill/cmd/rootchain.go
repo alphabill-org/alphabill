@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -22,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,7 +33,6 @@ import (
 
 const (
 	boltRootChainStoreFileName = "rootchain.db"
-	rootPortCmdFlag            = "root-listener"
 	rootBootStrapNodesCmdFlag  = "bootnodes"
 	defaultNetworkTimeout      = 300 * time.Millisecond
 )
@@ -42,6 +41,7 @@ type rootNodeConfig struct {
 	Base               *baseConfiguration
 	KeyFile            string // path to rootchain chain key file
 	GenesisFile        string // path to rootchain-genesis.json file
+	TrustBaseFile      string // path to root-trust-base.json file
 	Address            string // node address (libp2p multiaddress format)
 	StoragePath        string // path to Bolt storage file
 	MaxRequests        uint   // validator partition certification request channel capacity
@@ -64,6 +64,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to node validator key file  (default $AB_HOME/rootchain/"+defaultKeysFileName+")")
 	cmd.Flags().StringVar(&config.GenesisFile, "genesis-file", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
+	cmd.Flags().StringVar(&config.TrustBaseFile, "trust-base-file", "", "path to root-trust-base.json file (default $AB_HOME/"+rootTrustBaseFileName+")")
 	cmd.Flags().StringVar(&config.StoragePath, "db", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
@@ -89,21 +90,30 @@ func (c *rootNodeConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
-	return filepath.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
+	return filepath.Join(c.Base.defaultRootchainDir(), rootGenesisFileName)
+}
+
+// getRootTrustBaseFilePath returns root trust base file path if provided, otherwise $AB_HOME/root-trust-base.json
+// Must be called after $AB_HOME is initialized in base command PersistentPreRunE function.
+func (c *rootNodeConfig) getRootTrustBaseFilePath() string {
+	if c.TrustBaseFile != "" {
+		return c.TrustBaseFile
+	}
+	return filepath.Join(c.Base.HomeDir, rootTrustBaseFileName)
 }
 
 func (c *rootNodeConfig) getStoragePath() string {
 	if c.StoragePath != "" {
 		return c.StoragePath
 	}
-	return c.Base.defaultRootGenesisDir()
+	return c.Base.defaultRootchainDir()
 }
 
 func (c *rootNodeConfig) getKeyFilePath() string {
 	if c.KeyFile != "" {
 		return c.KeyFile
 	}
-	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
+	return filepath.Join(c.Base.defaultRootchainDir(), defaultKeysFileName)
 }
 
 func getBootStrapNodes(bootNodesStr string) ([]peer.AddrInfo, error) {
@@ -131,7 +141,7 @@ func getBootStrapNodes(bootNodesStr string) ([]peer.AddrInfo, error) {
 	return bootNodes, nil
 }
 
-func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
+func initRootStore(dbPath string) (*boltdb.BoltDB, error) {
 	if dbPath != "" {
 		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
 	}
@@ -153,6 +163,11 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	}
 	log := config.Base.observe.Logger().With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(config.Base.observe, log)
+	// load trust base
+	trustBase, err := types.NewTrustBaseFromFile(config.getRootTrustBaseFilePath())
+	if err != nil {
+		return fmt.Errorf("loading root trust base file %s: %w", config.getRootTrustBaseFilePath(), err)
+	}
 	// check if genesis file is valid and exit early if is not
 	if err = rootGenesis.Verify(); err != nil {
 		return fmt.Errorf("root genesis verification failed: %w", err)
@@ -188,30 +203,37 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		// use monolithic consensus algorithm
 		cm, err = monolithic.NewMonolithicConsensusManager(
 			host.ID().String(),
+			trustBase,
 			rootGenesis,
 			partitionCfg,
 			keys.SigningPrivateKey,
 			log,
-			consensus.WithStorage(store))
+			consensus.WithStorage(store),
+		)
+		if err != nil {
+			return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
+		}
 	} else {
-		var rootNet *network.LibP2PNetwork
-		rootNet, err = network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
+		rootNet, err := network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed initiate root network, %w", err)
 		}
 		// Create distributed consensus manager function
-		cm, err = abdrc.NewDistributedAbConsensusManager(host.ID(),
+		cm, err = abdrc.NewDistributedAbConsensusManager(
+			host.ID(),
 			rootGenesis,
+			trustBase,
 			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
 			obs,
-			consensus.WithStorage(store))
+			consensus.WithStorage(store),
+		)
+		if err != nil {
+			return fmt.Errorf("failed initiate distributed consensus manager: %w", err)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("failed initiate consensus manager: %w", err)
-	}
-	if err := host.BootstrapConnect(ctx, log); err != nil {
+	if err = host.BootstrapConnect(ctx, log); err != nil {
 		return err
 	}
 	node, err := rootchain.New(

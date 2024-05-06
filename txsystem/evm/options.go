@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/predicates"
@@ -22,7 +21,7 @@ type (
 		moneyTXSystemIdentifier types.SystemID
 		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
-		trustBase               map[string]crypto.Verifier
+		trustBase               types.RootTrustBase
 		blockGasLimit           uint64
 		gasUnitPrice            *big.Int
 		blockDB                 keyvaluedb.KeyValueDB
@@ -66,7 +65,7 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(tb map[string]crypto.Verifier) Option {
+func WithTrustBase(tb types.RootTrustBase) Option {
 	return func(c *Options) {
 		c.trustBase = tb
 	}

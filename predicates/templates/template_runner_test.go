@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/hash"
-	sdkpredicates "github.com/alphabill-org/alphabill-go-sdk/predicates"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/hash"
+	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
@@ -356,6 +356,6 @@ func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, err
 
 func (env *mockTxContext) CurrentRound() uint64 { return 0 }
 
-func (env *mockTxContext) TrustBase() (map[string]crypto.Verifier, error) {
+func (env *mockTxContext) TrustBase() (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("mockTxContext.TrustBase is not implemented")
 }

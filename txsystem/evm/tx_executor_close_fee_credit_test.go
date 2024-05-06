@@ -5,15 +5,15 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/evm"
-	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -34,19 +34,19 @@ func newCloseFCTx(t *testing.T, unitID []byte, attr *fcsdk.CloseFeeCreditAttribu
 
 func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amount uint64) []byte {
 	t.Helper()
-	ver, err := signer.Verifier()
+	verifier, err := signer.Verifier()
 	require.NoError(t, err)
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pubHash := sha256.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
-	tb := map[string]abcrypto.Verifier{"test": ver}
+	trustBase := testtb.NewTrustBase(t, verifier)
 
 	addExecFn := addFeeCreditTx(
 		tree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, trustBase, nil))
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(
@@ -72,15 +72,15 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		blockNumber uint64
 	}
 	stateTree := state.NewEmptyState()
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]abcrypto.Verifier{"test": ver}
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, verifier)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	_ = addFeeCredit(t, stateTree, signer, 100)
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil),
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, trustBase, nil),
 		logger.New(t))
 
 	tests := []struct {
@@ -129,9 +129,9 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 
 func Test_closeFeeCreditTx(t *testing.T) {
 	stateTree := state.NewEmptyState()
-	signer, ver := testsig.CreateSignerAndVerifier(t)
-	tb := map[string]abcrypto.Verifier{"test": ver}
-	pubKeyBytes, err := ver.MarshalPublicKey()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	_ = addFeeCredit(t, stateTree, signer, 100)
@@ -147,8 +147,9 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		stateTree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, tb, nil),
-		log)
+		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, trustBase, nil),
+		log,
+	)
 
 	// create close order
 	closeOrder := newCloseFCTx(t,

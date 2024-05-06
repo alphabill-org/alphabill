@@ -1,12 +1,16 @@
 package rootchain
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -23,7 +27,6 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -123,8 +126,11 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	log := testlogger.New(t).With(logger.NodeID(id))
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
 	cm, err := monolithic.NewMonolithicConsensusManager(
 		node.PeerConf.ID.String(),
+		trustBase,
 		rootGenesis,
 		partitionStore,
 		node.Signer,
@@ -153,10 +159,13 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	rootNetMock := testnetwork.NewMockNetwork(t)
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
+	trustBase, err := createTrustBaseFromRootGenesis(rootGenesis)
+	require.NoError(t, err)
 	obs := testobservability.Default(t)
 	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
 	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
+		trustBase,
 		partitionStore,
 		rootNetMock,
 		rootHost.Signer,
@@ -166,6 +175,31 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	validator, err := New(p, partitionNetMock, partitionStore, cm, observe)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
+}
+
+func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.RootTrustBase, error) {
+	var trustBaseNodes []*types.NodeInfo
+	var unicityTreeRootHash []byte
+	for _, rn := range rootGenesis.Root.RootValidators {
+		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SigningPublicKey)
+		if err != nil {
+			return nil, err
+		}
+		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeIdentifier, 1, verifier))
+		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
+		for _, p := range rootGenesis.Partitions {
+			if len(unicityTreeRootHash) == 0 {
+				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash
+			} else if !bytes.Equal(unicityTreeRootHash, p.Certificate.UnicitySeal.Hash) {
+				return nil, errors.New("unicity certificate seal hashes are not equal")
+			}
+		}
+	}
+	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash)
+	if err != nil {
+		return nil, err
+	}
+	return trustBase, nil
 }
 
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {

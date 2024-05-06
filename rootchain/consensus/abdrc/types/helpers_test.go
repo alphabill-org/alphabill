@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -20,6 +20,7 @@ succeed IsValid and Verify checks.
 type structBuilder struct {
 	verifiers map[string]abcrypto.Verifier
 	signers   map[string]abcrypto.Signer
+	trustBase *types.RootTrustBaseV0
 }
 
 func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
@@ -28,8 +29,10 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 	sb := &structBuilder{
 		verifiers: map[string]abcrypto.Verifier{},
 		signers:   map[string]abcrypto.Signer{},
+		trustBase: &types.RootTrustBaseV0{},
 	}
 
+	var nodes []*types.NodeInfo
 	for i := 0; i < peerCnt; i++ {
 		signer, err := abcrypto.NewInMemorySecp256K1Signer()
 		require.NoError(t, err)
@@ -47,13 +50,20 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 		nodeID := id.String()
 		sb.signers[nodeID] = signer
 		sb.verifiers[nodeID] = verifier
+		nodes = append(nodes, types.NewNodeInfo(nodeID, 1, sb.verifiers[nodeID]))
 	}
+
+	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
+	if err != nil {
+		require.NoError(t, err)
+	}
+	sb.trustBase = tb
 
 	return sb
 }
 
 /*
-Verifiers returns map of Verifier-s which is usable as trustbase for data structs created by the builder.
+Verifiers returns map of Verifier-s which is usable as trust base for data structs created by the builder.
 NB! returned map should be treated as read only!
 */
 func (sb structBuilder) Verifiers() map[string]abcrypto.Verifier {
@@ -61,7 +71,7 @@ func (sb structBuilder) Verifiers() map[string]abcrypto.Verifier {
 }
 
 /*
-RandomPeerID returns random peer ID from trustbase.
+RandomPeerID returns random peer ID from trust base.
 */
 func (sb structBuilder) RandomPeerID(t *testing.T) string {
 	for k := range sb.verifiers {
@@ -140,34 +150,29 @@ func (sb structBuilder) BlockData(t *testing.T) *BlockData {
 
 func Test_structBuilder(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	trustBase := sb.Verifiers()
-	quorum := uint32(len(trustBase))
-
-	nodeID := sb.RandomPeerID(t)
-	require.NotEmpty(t, trustBase[nodeID])
-
+	tb := sb.trustBase
+	require.NotNil(t, tb)
 	require.Equal(t, len(sb.signers), len(sb.verifiers))
 	for k := range sb.verifiers {
 		require.NotNil(t, sb.signers[k], "missing signer %q", k)
 	}
 
 	// make sure we get valid objects from builder
-
 	qc := sb.QC(t, 42)
 	require.NoError(t, qc.IsValid())
-	require.NoError(t, qc.Verify(quorum, trustBase))
+	require.NoError(t, qc.Verify(tb))
 
 	tc := sb.TimeoutCert(t)
-	require.NoError(t, tc.Verify(quorum, trustBase))
+	require.NoError(t, tc.Verify(tb))
 
 	to := sb.Timeout(t, tc)
 	require.NoError(t, to.IsValid())
-	require.NoError(t, to.Verify(quorum, trustBase))
+	require.NoError(t, to.Verify(tb))
 	to = sb.Timeout(t, nil)
 	require.NoError(t, to.IsValid())
-	require.NoError(t, to.Verify(quorum, trustBase))
+	require.NoError(t, to.Verify(tb))
 
 	bd := sb.BlockData(t)
 	require.NoError(t, bd.IsValid())
-	require.NoError(t, bd.Verify(quorum, trustBase))
+	require.NoError(t, bd.Verify(tb))
 }

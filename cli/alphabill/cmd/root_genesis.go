@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -35,8 +35,6 @@ type rootGenesisConfig struct {
 	BlockRateMs uint32
 	// Time to abandon proposal and vote for timeout (only used in distributed implementation)
 	ConsensusTimeoutMs uint32
-	// Optionally define a different, higher quorum threshold
-	QuorumThreshold uint32
 	// Hash algorithm for UnicityTree calculation
 	HashAlgorithm string
 }
@@ -52,6 +50,8 @@ func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.AddCommand(newGenesisCmd(config))
 	cmd.AddCommand(combineRootGenesisCmd(config))
 	cmd.AddCommand(signRootGenesisCmd(config))
+	cmd.AddCommand(genTrustBaseCmd(config))
+	cmd.AddCommand(signTrustBaseCmd(config))
 	return cmd
 }
 
@@ -73,12 +73,11 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
 	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "minimal rate (in milliseconds) at which root certifies requests from partition")
 	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time (in milliseconds) until round timeout (must be at least block-rate+2000)")
-	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "hash algorithm to be used")
 	return cmd
 }
 
-// getOutputDir returns custom outputdir if provided, otherwise $AB_HOME/rootchain, and creates parent directories.
+// getOutputDir returns custom output directory if provided, otherwise $AB_HOME/rootchain, and creates parent directories.
 // Must be called after base command PersistentPreRunE function has been called, so that $AB_HOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
 	var outputDir string
@@ -89,17 +88,9 @@ func (c *rootGenesisConfig) getOutputDir() string {
 			c.Keys.KeyFilePath = filepath.Join(c.OutputDir, defaultKeysFileName)
 		}
 	} else {
-		outputDir = c.Base.defaultRootGenesisDir()
+		outputDir = c.Base.defaultRootchainDir()
 	}
 	return outputDir
-}
-
-func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
-	// If not set by user, calculate minimal threshold
-	if c.QuorumThreshold == 0 {
-		return genesis.GetMinQuorumThreshold(c.TotalNodes)
-	}
-	return c.QuorumThreshold
 }
 
 func rootGenesisRunFunc(config *rootGenesisConfig) error {
@@ -137,18 +128,16 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 		encPubKeyBytes,
 		pr,
 		rootgenesis.WithTotalNodes(config.TotalNodes),
-		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
 		rootgenesis.WithBlockRate(config.BlockRateMs),
-		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
+		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs),
+	)
 	if err != nil {
 		return fmt.Errorf("generate root genesis record failed: %w", err)
 	}
-	err = saveRootGenesisFile(rg, config.getOutputDir())
-	if err != nil {
+	if err = saveRootGenesisFile(rg, config.getOutputDir()); err != nil {
 		return fmt.Errorf("root genesis save failed: %w", err)
 	}
-	err = savePartitionGenesisFiles(pg, config.getOutputDir())
-	if err != nil {
+	if err = savePartitionGenesisFiles(pg, config.getOutputDir()); err != nil {
 		return fmt.Errorf("save partition genesis failed: %w", err)
 	}
 	return nil

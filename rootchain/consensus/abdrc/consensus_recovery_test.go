@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	abtypes "github.com/alphabill-org/alphabill-go-base/types"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -21,9 +25,6 @@ import (
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	abtypes "github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -286,8 +287,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
@@ -348,8 +348,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -390,8 +389,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -448,8 +446,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		deadID := cms[1].id
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			return from == deadID || to == deadID
@@ -492,8 +489,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -555,8 +551,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		// round-robin leader in the order nodes are in the cms slice. system is starting
 		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
 		rootNodes := make([]peer.ID, 0, len(cms))
@@ -626,8 +621,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -663,8 +657,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -711,8 +704,7 @@ func Test_recoverState(t *testing.T) {
 		// timeout rounds (ie node doesn't get quorum for latest round so stays in previous TO round)
 		var cmCount atomic.Int32
 		cmCount.Store(3)
-		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
-		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms), `there must be exactly quorum consensus managers`)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 
 		// set filter so that one node (slowID) does not see any messages and only sends TO votes
 		slowID := cms[0].id
@@ -777,6 +769,9 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	require.NotNil(t, partG)
 	require.NotNil(t, rootG)
 
+	trustBase, err := rootG.GenerateTrustBase()
+	require.NoError(t, err)
+
 	nw := newMockNetwork(t)
 	cms := make([]*ConsensusManager, 0, len(rootG.Root.RootValidators))
 	for _, v := range rootG.Root.RootValidators {
@@ -785,7 +780,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 		pStore, err := partitions.NewPartitionStoreFromGenesis(rootG.Partitions)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, trustBase, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

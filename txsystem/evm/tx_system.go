@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -201,7 +200,7 @@ func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.
 
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
 
-func (vc *TxValidationContext) TrustBase() (map[string]abcrypto.Verifier, error) {
+func (vc *TxValidationContext) TrustBase() (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
 }
 

@@ -4,9 +4,8 @@ import (
 	"crypto"
 	"log/slog"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	fcsdk "github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
@@ -20,7 +19,7 @@ type (
 	FeeAccount struct {
 		state            *state.State
 		systemIdentifier types.SystemID
-		trustBase        map[string]abcrypto.Verifier
+		trustBase        types.RootTrustBase
 		hashAlgorithm    crypto.Hash
 		txValidator      *fc.DefaultFeeCreditTxValidator
 		feeCalculator    FeeCalculator

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -31,7 +31,6 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
@@ -69,10 +68,12 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, trustBase, partitionStore, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -388,11 +389,13 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootVote, lastVoteMsg)
 	// after two successful rounds the IR change will be committed and UC is returned
 	result, err := readResult(cm.CertificationResult(), time.Second)
-	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
+	require.NoError(t, err)
+	trustBase, err := rg.GenerateTrustBase()
+	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
-	// roor will continue and next proposal is also triggered by the same QC
+	// root will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
 	require.NoError(t, err)
@@ -539,7 +542,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		vote := makeVoteMsg(t, cms, votedRound)
 		vote.Author = "foobar"
 		err := cms[0].onVoteMsg(context.Background(), vote)
-		require.EqualError(t, err, `invalid vote: author 'foobar' is not in the trustbase`)
+		require.EqualError(t, err, `invalid vote: vote from 'foobar' signature verification error: author 'foobar' is not part of the trust base`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
 
@@ -649,7 +652,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	t.Run("IR change request from partition included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
 
-		// proposal will be broadcasted so eavesdrop the network and make copy of it
+		// proposal will be broadcast so eavesdrop the network and make copy of it
 		propCh := make(chan *abdrc.ProposalMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			if msg, ok := msg.(*abdrc.ProposalMsg); ok {
@@ -780,7 +783,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 	t.Run("IR change request arrives late and is forwarded to the next leader", func(t *testing.T) {
 		// mimic situation where nonLeaderNode was the leader and IRCR was sent to it. However, by
-		// the time msg arrives leader has changed to cmLeader so we expect nonLeaderNode to
+		// the time msg arrives leader has changed to cmLeader, so we expect nonLeaderNode to
 		// forward the message.
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -1099,7 +1102,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 	// this test is mostly useful for debugging - modify conditions in the test,
 	// launch the test and observe logs...
 
-	// for quorum we need ⅔+1 validators (root nodes) to be healthy
+	// for quorum, we need 2/3+1 validators (root nodes) to be healthy
 	const rootNodeCnt = 4
 	// destination round - until which round (minimum) the test should run. test stops as soon as
 	// one node is in that round so last round might be "incomplete". System starts with round 2.
@@ -1158,7 +1161,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 	cancel()
 	// when calculating expected message counts keep in mind that last round might not be complete
 	// ie the test ended before all nodes had a chance to post their message. so use -1 rounds!
-	// and we start from round 2 so thats another -1 completed rounds.
+	// and we start from round 2 so that's another -1 completed rounds.
 	completeRounds := cm.pacemaker.GetCurrentRound() - 2
 	avgRoundLen := time.Duration(int64(stop.Sub(start)) / int64(completeRounds))
 
@@ -1180,7 +1183,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 	}
 }
 
-func TestConsensusManger_ResoreVote(t *testing.T) {
+func TestConsensusManger_RestoreVote(t *testing.T) {
 	net := testnetwork.NewRootMockNetwork()
 	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
@@ -1196,7 +1199,9 @@ func TestConsensusManger_ResoreVote(t *testing.T) {
 		rootgenesis.WithConsensusTimeout(2200),
 	)
 	require.NoError(t, err)
-	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	trustBase, err := rootGenesis.GenerateTrustBase()
+	require.NoError(t, err)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	// store timeout vote to DB
 	db, err := memorydb.New()
@@ -1207,7 +1212,13 @@ func TestConsensusManger_ResoreVote(t *testing.T) {
 	timeoutVote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 2}, Author: "test"}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))
 	observe := testobservability.Default(t)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer,
+	cm, err := NewDistributedAbConsensusManager(
+		id,
+		rootGenesis,
+		trustBase,
+		partitionStore,
+		net,
+		rootNode.Signer,
 		observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))),
 		consensus.WithStorage(db),
 	)

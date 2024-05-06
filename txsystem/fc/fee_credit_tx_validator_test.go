@@ -5,11 +5,11 @@ import (
 	"hash"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -27,8 +27,8 @@ var (
 
 func TestAddFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, trustBase, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name        string
@@ -290,8 +290,8 @@ func TestAddFC(t *testing.T) {
 
 func TestCloseFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, trustBase, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name       string
@@ -392,8 +392,8 @@ func TestCloseFC(t *testing.T) {
 
 func TestLockFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, trustBase, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name string
@@ -519,8 +519,8 @@ func TestLockFC(t *testing.T) {
 
 func TestUnlockFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, trustBase, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name string

@@ -17,10 +17,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -291,6 +291,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
+	trustBaseFileLocation := filepath.Join(homeDirMoney, rootTrustBaseFileName)
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
 
@@ -320,27 +321,31 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
-
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+		require.NoError(t, err)
+		trustBase, err := rootGenesis.GenerateTrustBase()
+		require.NoError(t, err)
+		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
 		require.NoError(t, err)
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			cmd = New(logF)
 			args = "money --home " + homeDirMoney +
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
+				" -t " + trustBaseFileLocation +
 				" -k " + keysFileLocation +
 				" --rpc-server-address " + rpcServerAddress
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 
 		t.Log("Started money node and dialing...")

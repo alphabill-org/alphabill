@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -13,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,7 +59,8 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, tt.args.txs)
+			trustBase, _ := tt.args.genesis.GenerateRootTrustBase()
+			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, trustBase, tt.args.txs)
 			require.ErrorIs(t, tt.wantErr, err)
 			require.Nil(t, c)
 		})
@@ -70,7 +71,9 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
+	trustBase, err := pg.GenerateRootTrustBase()
+	require.NoError(t, err)
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -93,7 +96,9 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	selector := NewDefaultLeaderSelector()
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
+	trustBase, err := pg.GenerateRootTrustBase()
+	require.NoError(t, err)
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{}, WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -125,7 +130,9 @@ func TestGetPublicKey_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
+	trustBase, err := pg.GenerateRootTrustBase()
+	require.NoError(t, err)
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 
 	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
@@ -138,7 +145,9 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
+	trustBase, err := pg.GenerateRootTrustBase()
+	require.NoError(t, err)
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	_, err = conf.GetSigningPublicKey("1")
 	require.ErrorContains(t, err, "public key for id 1 not found")
@@ -149,7 +158,9 @@ func TestGetRootNodes(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{})
+	trustBase, err := pg.GenerateRootTrustBase()
+	require.NoError(t, err)
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	nodes, err := conf.getRootNodes()
 	require.NoError(t, err)

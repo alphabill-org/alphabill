@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 
 	"github.com/alphabill-org/alphabill/state"
@@ -27,7 +26,7 @@ type (
 		state         stateProvider
 		systemID      types.SystemID
 		hashAlgorithm crypto.Hash
-		trustBase     map[string]abcrypto.Verifier
+		trustBase     types.RootTrustBase
 		execPredicate predicates.PredicateRunner
 	}
 	stateProvider interface {

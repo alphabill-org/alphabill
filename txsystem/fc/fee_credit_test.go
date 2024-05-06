@@ -3,10 +3,9 @@ package fc
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/fc"
-
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ func TestFC_Validation(t *testing.T) {
 	t.Parallel()
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
@@ -33,7 +32,7 @@ func TestFC_Validation(t *testing.T) {
 		_, err = NewFeeCreditModule(WithSystemIdentifier(moneySystemID),
 			WithMoneySystemIdentifier(moneySystemID),
 			WithState(s))
-		require.ErrorIs(t, err, ErrTrustBaseMissing)
+		require.ErrorIs(t, err, ErrTrustBaseIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {

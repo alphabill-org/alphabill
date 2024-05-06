@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,19 +107,22 @@ func TestBlockData_IsValid(t *testing.T) {
 
 func TestBlockData_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	rootTrust := sb.Verifiers()
+	rootTrust := sb.trustBase
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		bd := sb.BlockData(t)
 		bd.Round = 0
-		require.ErrorIs(t, bd.Verify(3, rootTrust), errRoundNumberUnassigned)
+		require.ErrorIs(t, bd.Verify(rootTrust), errRoundNumberUnassigned)
 	})
 
 	t.Run("no quorum for QC", func(t *testing.T) {
 		// basically check that QC.Verify is called
+		sb := newStructBuilder(t, 3)
 		bd := sb.BlockData(t)
-		err := bd.Verify(uint32(len(bd.Qc.Signatures)+1), rootTrust)
-		require.EqualError(t, err, `invalid block data QC: quorum requires 4 signatures but certificate has 3`)
+		tb := sb.trustBase
+		tb.QuorumThreshold = 4
+		err := bd.Verify(tb)
+		require.EqualError(t, err, `invalid block data QC: failed to verify quorum signatures: quorum not reached, signed_votes=3 quorum_threshold=4`)
 	})
 }
 

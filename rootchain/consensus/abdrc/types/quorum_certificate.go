@@ -5,11 +5,9 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 	"sort"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -84,7 +82,7 @@ func (x *QuorumCert) IsValid() error {
 	return nil
 }
 
-func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *QuorumCert) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
@@ -96,24 +94,16 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	if err := x.LedgerCommitInfo.Verify(rootTrust); err != nil {
 		return fmt.Errorf("invalid commit info: %w", err)
 	}*/
-	// Check quorum, if not fail without checking signatures
-	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("quorum requires %d signatures but certificate has %d", quorum, len(x.Signatures))
-	}
-	// Verify all signatures
-	for author, sig := range x.Signatures {
-		ver, f := rootTrust[author]
-		if !f {
-			return fmt.Errorf("signer %q is not part of trustbase", author)
-		}
-		if err := ver.VerifyBytes(sig, x.LedgerCommitInfo.Bytes()); err != nil {
-			return fmt.Errorf("signer %q signature is not valid: %w", author, err)
-		}
+
+	if err, _ := tb.VerifyQuorumSignatures(x.LedgerCommitInfo.Bytes(), x.Signatures); err != nil {
+		return fmt.Errorf("failed to verify quorum signatures: %w", err)
 	}
 	return nil
 }
 
-func (x *QuorumCert) AddSignersToHasher(hasher hash.Hash) {
+// SignatureBytes serializes signatures.
+func (x *QuorumCert) SignatureBytes() []byte {
+	var b bytes.Buffer
 	if x != nil {
 		// From QC signers (in the alphabetical order of signer ID!) must be included
 		signatures := x.Signatures
@@ -123,7 +113,8 @@ func (x *QuorumCert) AddSignersToHasher(hasher hash.Hash) {
 		}
 		sort.Strings(authors)
 		for _, author := range authors {
-			hasher.Write(signatures[author])
+			b.Write(signatures[author])
 		}
 	}
+	return b.Bytes()
 }

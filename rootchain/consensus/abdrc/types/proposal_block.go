@@ -1,15 +1,14 @@
 package types
 
 import (
+	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"hash"
 	"strings"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -35,12 +34,16 @@ type Payload struct {
 	Requests []*IRChangeReq `json:"requests,omitempty"` // IR change requests with quorum or no quorum possible
 }
 
-func (x *Payload) AddToHasher(hasher hash.Hash) {
-	if x != nil {
-		for _, r := range x.Requests {
-			r.AddToHasher(hasher)
-		}
+// Bytes serializes entire struct.
+func (x *Payload) Bytes() []byte {
+	var b bytes.Buffer
+	if x == nil {
+		return nil
 	}
+	for _, r := range x.Requests {
+		b.Write(r.Bytes())
+	}
+	return b.Bytes()
 }
 
 func (x *Payload) IsValid() error {
@@ -90,11 +93,11 @@ func (x *BlockData) IsValid() error {
 	return nil
 }
 
-func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *BlockData) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid block data: %w", err)
 	}
-	if err := x.Qc.Verify(quorum, rootTrust); err != nil {
+	if err := x.Qc.Verify(tb); err != nil {
 		return fmt.Errorf("invalid block data QC: %w", err)
 	}
 	return nil
@@ -102,16 +105,23 @@ func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) 
 
 func (x *BlockData) Hash(algo gocrypto.Hash) []byte {
 	hasher := algo.New()
+	hasher.Write(x.Bytes())
+	return hasher.Sum(nil)
+}
+
+// Bytes serializes entire struct for hash calculation.
+func (x *BlockData) Bytes() []byte {
+	var b bytes.Buffer
 	// Block ID is defined as block hash, so hence it is not included
-	hasher.Write([]byte(x.Author))
-	hasher.Write(util.Uint64ToBytes(x.Round))
-	hasher.Write(util.Uint64ToBytes(x.Epoch))
-	hasher.Write(util.Uint64ToBytes(x.Timestamp))
-	x.Payload.AddToHasher(hasher)
+	b.Write([]byte(x.Author))
+	b.Write(util.Uint64ToBytes(x.Round))
+	b.Write(util.Uint64ToBytes(x.Epoch))
+	b.Write(util.Uint64ToBytes(x.Timestamp))
+	b.Write(x.Payload.Bytes())
 	// From QC signatures (in the alphabetical order of signer ID!) must be included
 	// Genesis block does not have a QC
-	x.Qc.AddSignersToHasher(hasher)
-	return hasher.Sum(nil)
+	b.Write(x.Qc.SignatureBytes())
+	return b.Bytes()
 }
 
 func (x *BlockData) GetRound() uint64 {

@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	ethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -34,6 +34,8 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, orchestrationGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, orchestrationGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
+	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
 
@@ -64,28 +66,36 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		// write partition-genesis.json
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
+
+		// write root-trust-base.json
+		trustBase, err := rootGenesis.GenerateTrustBase()
+		require.NoError(t, err)
+		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
+		require.NoError(t, err)
+
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
+			defer appStoppedWg.Done()
 			cmd = New(logF)
 			args = "orchestration --home " + homeDir +
 				" -g " + partitionGenesisFileLocation +
 				" -s " + nodeGenesisStateFileLocation +
+				" -t " + trustBaseFileLocation +
 				" -k " + keysFileLocation +
 				" --rpc-server-address " + rpcServerAddress
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.Execute(ctx)
 			require.ErrorIs(t, err, context.Canceled)
-			appStoppedWg.Done()
 		}()
 
 		t.Log("Started orchestration node and dialing...")

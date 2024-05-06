@@ -3,8 +3,7 @@ package txsystem
 import (
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -69,7 +68,7 @@ func (ec TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Un
 
 func (ec TxExecutionContext) CurrentRound() uint64 { return ec.txs.currentBlockNumber }
 
-func (ec TxExecutionContext) TrustBase() (map[string]abcrypto.Verifier, error) {
+func (ec TxExecutionContext) TrustBase() (types.RootTrustBase, error) {
 	return ec.txs.trustBase, nil
 }
 

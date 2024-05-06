@@ -4,9 +4,8 @@ import (
 	"crypto"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -19,7 +18,7 @@ type (
 		state            *state.State
 		hashAlgorithm    crypto.Hash
 		ownerPredicate   types.PredicateBytes
-		trustBase        map[string]abcrypto.Verifier
+		trustBase        types.RootTrustBase
 		exec             predicates.PredicateExecutor
 	}
 
@@ -57,9 +56,9 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(tb map[string]abcrypto.Verifier) Option {
+func WithTrustBase(trustBase types.RootTrustBase) Option {
 	return func(c *Options) {
-		c.trustBase = tb
+		c.trustBase = trustBase
 	}
 }
 

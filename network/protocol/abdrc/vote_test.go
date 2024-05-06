@@ -4,11 +4,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,7 +88,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
+	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 2)
 	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
@@ -116,69 +117,69 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		require.NoError(t, vote.Sign(s1))
 		return vote
 	}
-	require.NoError(t, validVoteMsg(t).Verify(uint32(len(rootTrust)), rootTrust), "expected validVoteMsg to return valid vote struct")
+	require.NoError(t, validVoteMsg(t).Verify(rootTrust), "expected validVoteMsg to return valid vote struct")
 
 	t.Run("VoteInfo is missing", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.VoteInfo = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' is missing vote info`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' is missing vote info`)
 	})
 
 	t.Run("invalid vote info", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.VoteInfo.RoundNumber = 0
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' vote info error: round number is not assigned`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' vote info error: round number is not assigned`)
 	})
 
 	t.Run("missing US", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.LedgerCommitInfo = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' ledger commit info (unicity seal) is missing`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' ledger commit info (unicity seal) is missing`)
 	})
 
 	t.Run("invalid vote info hash", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.VoteInfo.Epoch += 1
-		require.ErrorContains(t, vi.Verify(3, rootTrust), `vote from '1' vote info hash does not match hash in commit info`)
+		require.ErrorContains(t, vi.Verify(rootTrust), `vote from '1' vote info hash does not match hash in commit info`)
 
 		vi.VoteInfo.Epoch -= 1
 		vi.LedgerCommitInfo.PreviousHash = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' vote info hash does not match hash in commit info`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' vote info hash does not match hash in commit info`)
 	})
 
 	t.Run("high QC is missing", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.HighQc = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' high QC is nil`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' high QC is nil`)
 	})
 
 	t.Run("invalid high QC", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.HighQc.VoteInfo = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' high QC error: invalid quorum certificate: vote info is nil`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' high QC error: invalid quorum certificate: vote info is nil`)
 	})
 
 	t.Run("unassigned author", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.Author = ""
-		require.EqualError(t, vi.Verify(3, rootTrust), `author is missing`)
+		require.EqualError(t, vi.Verify(rootTrust), `author is missing`)
 	})
 
 	t.Run("missing author", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.Author = "unknown"
-		require.EqualError(t, vi.Verify(3, rootTrust), `author 'unknown' is not in the trustbase`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from 'unknown' signature verification error: author 'unknown' is not part of the trust base`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.Signature[0] = vi.Signature[0] + 1
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: verification failed`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' signature verification error: verify bytes failed: verification failed`)
 
 		vi.Signature = []byte{0, 1, 2, 3, 4}
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: signature length is 5 b (expected 64 b)`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' signature verification error: verify bytes failed: signature length is 5 b (expected 64 b)`)
 
 		vi.Signature = nil
-		require.EqualError(t, vi.Verify(3, rootTrust), `vote from '1' signature verification error: invalid nil argument`)
+		require.EqualError(t, vi.Verify(rootTrust), `vote from '1' signature verification error: verify bytes failed: invalid nil argument`)
 	})
 }

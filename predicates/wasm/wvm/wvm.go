@@ -11,8 +11,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
@@ -70,7 +69,7 @@ type (
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
-		TrustBase() (map[string]abcrypto.Verifier, error)
+		TrustBase() (types.RootTrustBase, error)
 	}
 
 	// translates AB types to WASM consumable representation

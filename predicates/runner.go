@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/predicates"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -34,7 +33,7 @@ type (
 	TxContext interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
-		TrustBase() (map[string]abcrypto.Verifier, error)
+		TrustBase() (types.RootTrustBase, error)
 		// until AB-1012 gets resolved we need this hack to get correct payload bytes.
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 	}

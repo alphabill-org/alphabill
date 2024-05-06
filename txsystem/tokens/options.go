@@ -6,10 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -22,7 +21,7 @@ type (
 		systemIdentifier        types.SystemID
 		moneyTXSystemIdentifier types.SystemID
 		hashAlgorithm           gocrypto.Hash
-		trustBase               map[string]crypto.Verifier
+		trustBase               types.RootTrustBase
 		state                   *state.State
 		feeCalculator           fc.FeeCalculator
 		exec                    predicates.PredicateExecutor
@@ -42,7 +41,6 @@ func defaultOptions() (*Options, error) {
 		moneyTXSystemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:           gocrypto.SHA256,
 		feeCalculator:           fc.FixedFee(1),
-		trustBase:               map[string]crypto.Verifier{},
 		exec:                    predEng.Execute,
 	}, nil
 }
@@ -77,7 +75,7 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(trustBase map[string]crypto.Verifier) Option {
+func WithTrustBase(trustBase types.RootTrustBase) Option {
 	return func(c *Options) {
 		c.trustBase = trustBase
 	}

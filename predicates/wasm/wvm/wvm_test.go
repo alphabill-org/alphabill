@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/hash"
-	"github.com/alphabill-org/alphabill-go-sdk/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-sdk/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/hash"
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -58,7 +58,11 @@ func Test_conference_tickets(t *testing.T) {
 	require.NoError(t, err)
 	// not ideal but we use org and attendee also for trustbase
 	// the testblock.CreateProof takes single signer as trustbase and used id "test" for it
-	trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
+	//trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
+	// need VerifyQuorumSignatures
+	trustbase := &mockRootTrustBase{
+		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+	}
 
 	enc := encoder.TXSystemEncoder{}
 	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(enc.RegisterAttrEncoder))
@@ -191,7 +195,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
 		env := &mockTxContext{
-			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
+			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
 			curRound:  func() uint64 { return D1 },
 		}
 
@@ -240,7 +244,7 @@ func Test_conference_tickets(t *testing.T) {
 						NftType: nftTypeID,
 					}), nil
 			},
-			trustBase: func() (map[string]abcrypto.Verifier, error) { return trustbase, nil },
+			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
 			curRound:  func() uint64 { return D2 },
 		}
 
@@ -327,7 +331,7 @@ type mockTxContext struct {
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
 	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
 	curRound     func() uint64
-	trustBase    func() (map[string]abcrypto.Verifier, error)
+	trustBase    func() (types.RootTrustBase, error)
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
@@ -337,5 +341,19 @@ func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, err
 	return env.payloadBytes(txo)
 }
 
-func (env *mockTxContext) CurrentRound() uint64                             { return env.curRound() }
-func (env *mockTxContext) TrustBase() (map[string]abcrypto.Verifier, error) { return env.trustBase() }
+func (env *mockTxContext) CurrentRound() uint64                    { return env.curRound() }
+func (env *mockTxContext) TrustBase() (types.RootTrustBase, error) { return env.trustBase() }
+
+type mockRootTrustBase struct {
+	verifyQuorumSignatures func(data []byte, signatures map[string][]byte) (error, []error)
+
+	// instead of implementing all methods just embed the interface for now
+	types.RootTrustBase
+	//VerifySignature(data []byte, sig []byte, nodeID string) (uint64, error)
+	//GetQuorumThreshold() uint64
+	//GetMaxFaultyNodes() uint64
+}
+
+func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string][]byte) (error, []error) {
+	return rtb.verifyQuorumSignatures(data, signatures)
+}

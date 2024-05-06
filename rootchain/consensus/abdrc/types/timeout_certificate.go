@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 type Timeout struct {
@@ -62,17 +62,17 @@ func (x *Timeout) IsValid() error {
 }
 
 // Verify verifies timeout vote received.
-func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *Timeout) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid timeout data: %w", err)
 	}
 
-	if err := x.HighQc.Verify(quorum, rootTrust); err != nil {
+	if err := x.HighQc.Verify(tb); err != nil {
 		return fmt.Errorf("invalid high QC: %w", err)
 	}
 
 	if x.LastTC != nil {
-		if err := x.LastTC.Verify(quorum, rootTrust); err != nil {
+		if err := x.LastTC.Verify(tb); err != nil {
 			return fmt.Errorf("invalid last TC: %w", err)
 		}
 	}
@@ -151,34 +151,32 @@ func (x *TimeoutCert) IsValid() error {
 	return nil
 }
 
-func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *TimeoutCert) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid certificate: %w", err)
 	}
 
-	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
+	if err := x.Timeout.Verify(tb); err != nil {
 		return fmt.Errorf("invalid timeout data: %w", err)
 	}
 
-	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("quorum requires %d signatures but certificate has %d", quorum, len(x.Signatures))
-	}
-
-	maxSignedRound := uint64(0)
+	var signedVotes uint64
+	var maxSignedRound uint64
 	highQcRound := x.Timeout.HighQc.VoteInfo.RoundNumber
 	// Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
-		v, f := rootTrust[author]
-		if !f {
-			return fmt.Errorf("signer %q is not part of trustbase", author)
-		}
-		timeout := BytesFromTimeoutVote(x.Timeout, author, timeoutSig)
-		if err := v.VerifyBytes(timeoutSig.Signature, timeout); err != nil {
+		timeoutBytes := BytesFromTimeoutVote(x.Timeout, author, timeoutSig)
+		stake, err := tb.VerifySignature(timeoutBytes, timeoutSig.Signature, author)
+		if err != nil {
 			return fmt.Errorf("timeout certificate signature verification failed: %w", err)
 		}
+		signedVotes += stake
 		if maxSignedRound < timeoutSig.HqcRound {
 			maxSignedRound = timeoutSig.HqcRound
 		}
+	}
+	if signedVotes < tb.GetQuorumThreshold() {
+		return fmt.Errorf("quorum requires %d votes but certificate has %d", tb.GetQuorumThreshold(), signedVotes)
 	}
 	// Verify that the highest quorum certificate stored has max QC round over all timeout votes received
 	if highQcRound != maxSignedRound {

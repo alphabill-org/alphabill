@@ -10,7 +10,16 @@ import (
 	"slices"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-sdk/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -20,13 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill-go-sdk/types"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 // how long to wait before repeating status request
@@ -78,7 +80,7 @@ type (
 		net            RootNet
 		pacemaker      *Pacemaker
 		leaderSelector Leader
-		trustBase      *RootTrustBase
+		trustBase      types.RootTrustBase
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
 		blockStore     *storage.BlockStore
@@ -86,8 +88,8 @@ type (
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
 		// votes need to be buffered when CM will be the next leader (so other nodes
-		// will send votes to it) but it hasn't got the proposal yet so it can't process
-		// the votes. voteBuffer maps author id to vote so we do not buffer same vote
+		// will send votes to it) but it hasn't got the proposal yet, so it can't process
+		// the votes. voteBuffer maps author id to vote, so we do not buffer same vote
 		// multiple times (votes are buffered for single round only)
 		voteBuffer map[string]*abdrc.VoteMsg
 		// when set (ie not nil) CM is in recovery mode, trying to get into the same
@@ -110,8 +112,16 @@ type (
 )
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
-func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
-	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, observe Observability, opts ...consensus.Option) (*ConsensusManager, error) {
+func NewDistributedAbConsensusManager(
+	nodeID peer.ID,
+	rg *genesis.RootGenesis,
+	genesisTrustBase types.RootTrustBase, // must be provided for initial run only
+	partitionStore partitions.PartitionConfiguration,
+	net RootNet,
+	signer crypto.Signer,
+	observe Observability,
+	opts ...consensus.Option,
+) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -143,15 +153,13 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	if err != nil {
 		return nil, err
 	}
-
-	leader, err := leaderSelector(rg)
+	ls, err := leaderSelector(rg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
-
-	tb, err := NewRootTrustBaseFromGenesis(rg.Root)
+	tb, err := initTrustBase(optional.Storage, genesisTrustBase)
 	if err != nil {
-		return nil, fmt.Errorf("consensus root trust base init failed: %w", err)
+		return nil, fmt.Errorf("failed to init trust base: %w", err)
 	}
 	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
 	if err != nil {
@@ -165,7 +173,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		id:             nodeID,
 		net:            net,
 		pacemaker:      pm,
-		leaderSelector: leader,
+		leaderSelector: ls,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(observe.Logger()),
 		safety:         safetyModule,
@@ -243,7 +251,7 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 
 func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
 	// NB! both leader selector algorithms make the assumption that the rootNodes slice is
-	// sorted and it's content doesn't change!
+	// sorted, and it's content doesn't change!
 	rootNodes, err := rg.NodeIDs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root node IDs: %w", err)
@@ -263,6 +271,30 @@ func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
 		// keep history, ie we can't load blocks older than previous block.
 		return leader.NewReputationBased(rootNodes, 1, 1)
 	}
+}
+
+// initTrustBase returns the stored trust base if it exists, if it does not exist then
+// verify that the genesis trust base is provided, store it, and return it.
+func initTrustBase(store keyvaluedb.KeyValueDB, genesisTrustBase types.RootTrustBase) (types.RootTrustBase, error) {
+	trustBaseStore, err := storage.NewTrustBaseStore(store)
+	if err != nil {
+		return nil, fmt.Errorf("consensus trust base storage init failed: %w", err)
+	}
+	// TODO latest epoch number must be provided externally or stored internally
+	trustBase, err := trustBaseStore.LoadTrustBase(0)
+	if err != nil {
+		return nil, err
+	}
+	if trustBase != nil {
+		return trustBase, nil
+	}
+	if genesisTrustBase == nil {
+		return nil, errors.New("trust base must be provided for initial run")
+	}
+	if err := trustBaseStore.StoreTrustBase(0, genesisTrustBase); err != nil {
+		return nil, fmt.Errorf("failed to store genesis trust base: %w", err)
+	}
+	return genesisTrustBase, nil
 }
 
 func (x *ConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
@@ -378,13 +410,13 @@ func (x *ConsensusManager) handlePacemakerEvent(ctx context.Context, event paceM
 
 	switch event {
 	case pmsRoundMatured:
-		leader := x.leaderSelector.GetLeaderForRound(currentRound + 1)
-		x.log.DebugContext(ctx, fmt.Sprintf("round has lasted minimum required duration; next leader %s", leader.ShortString()), logger.Round(currentRound))
+		nextLeader := x.leaderSelector.GetLeaderForRound(currentRound + 1)
+		x.log.DebugContext(ctx, fmt.Sprintf("round has lasted minimum required duration; next leader %s", nextLeader.ShortString()), logger.Round(currentRound))
 		// round 2 is system bootstrap and is a special case - as there is no proposal no one is sending votes
 		// and thus leader won't achieve quorum and doesn't make next proposal (and the round would time out).
 		// So we just have the round 2 leader to trigger next round when it's mature (root genesis QC will be
 		// used as HighQc in the proposal).
-		if leader == x.id || (currentRound == 2 && x.id == x.leaderSelector.GetLeaderForRound(2)) {
+		if nextLeader == x.id || (currentRound == 2 && x.id == x.leaderSelector.GetLeaderForRound(2)) {
 			if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
 				x.processQC(ctx, qc)
 				x.processNewRoundEvent(ctx)
@@ -484,7 +516,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onIRChangeMsg")
 	defer span.End()
 
-	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
+	if err := irChangeMsg.Verify(x.trustBase); err != nil {
 		return fmt.Errorf("invalid IR change request from node %s: %w", irChangeMsg.Author, err)
 	}
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
@@ -522,8 +554,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		return fmt.Errorf("stale vote for round %d from %s", vote.VoteInfo.RoundNumber, vote.Author)
 	}
 	// verify signature on vote
-	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
-	if err != nil {
+	if err := vote.Verify(x.trustBase); err != nil {
 		return fmt.Errorf("invalid vote: %w", err)
 	}
 	// if a vote is received for future round it is intended for the node which is going to be the
@@ -543,8 +574,8 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		// NB! it seems that it's quite common that votes arrive before proposal and going into recovery
 		// too early is counterproductive... maybe do not trigger recovery here at all - if we're lucky
 		// proposal will arrive on time, otherwise round will likely TO anyway?
-		if uint32(len(x.voteBuffer)) >= x.trustBase.GetQuorumThreshold() {
-			err = fmt.Errorf("have received %d votes but no proposal, entering recovery", len(x.voteBuffer))
+		if uint64(len(x.voteBuffer)) >= x.trustBase.GetQuorumThreshold() {
+			err := fmt.Errorf("have received %d votes but no proposal, entering recovery", len(x.voteBuffer))
 			if e := x.sendRecoveryRequests(ctx, vote); e != nil {
 				err = errors.Join(err, fmt.Errorf("sending recovery requests failed: %w", e))
 			}
@@ -552,7 +583,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		}
 		return nil
 	}
-	if err = x.checkRecoveryNeeded(vote.HighQc); err != nil {
+	if err := x.checkRecoveryNeeded(vote.HighQc); err != nil {
 		// we need to buffer the vote(s) so that when recovery succeeds we can "replay"
 		// them - otherwise there might not be enough votes to achieve quorum and round
 		// will time out
@@ -594,7 +625,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 		return fmt.Errorf("stale timeout vote for round %d from %s", vote.Timeout.Round, vote.Author)
 	}
 	// verify signature on vote
-	if err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
+	if err := vote.Verify(x.trustBase); err != nil {
 		return fmt.Errorf("invalid timeout vote: %w", err)
 	}
 	// SyncState, compare last handled QC
@@ -660,7 +691,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		return fmt.Errorf("stale proposal for round %d from %s", proposal.Block.Round, proposal.Block.Author)
 	}
 	// verify signature on proposal (does not verify partition request signatures)
-	if err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
+	if err := proposal.Verify(x.trustBase); err != nil {
 		return fmt.Errorf("invalid proposal: %w", err)
 	}
 	// Check current state against new QC
@@ -738,7 +769,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCer
 		return
 	}
 
-	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
+	// in the "DiemBFT v4" pseudocode the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
 	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
@@ -765,7 +796,7 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 sendCertificates reads UCs produced by processing QC and makes them available for
 validator via certResultCh chan (returned by CertificationResult method).
 The idea is not to block CM until validator consumes the certificates, ie to
-send the UCs in a async fashion.
+send the UCs in an async fashion.
 */
 func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 	// pending certificates, to be consumed by the validator.
@@ -794,7 +825,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 		select {
 		case nm := <-x.ucSink:
 			stopFeed()
-			// NB! if previous UC for given system hasn't been consumed yet we'll overwrite it!
+			// NB! if previous UC for given system hasn't been consumed, yet we'll overwrite it!
 			// this means that the validator sees newer UC than expected and goes into recovery,
 			// rolling back pending block proposal?
 			for sysID, uc := range nm {
@@ -833,7 +864,7 @@ func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
 	}
 	if len(errs) > 0 {
 		// log the error(s) rather than return them as failing to process buffered
-		// votes is not critical from the callers POV but we want to have this info
+		// votes is not critical from the callers POV, but we want to have this info
 		// for debugging
 		err := errors.Join(errs...)
 		x.log.WarnContext(ctx, fmt.Sprintf("out of %d buffered votes %d caused error on replay", voteCnt, len(errs)), logger.Round(x.pacemaker.GetCurrentRound()), logger.Error(err))
@@ -915,7 +946,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
 		return nil
 	}
-	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers()); err != nil {
+	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase); err != nil {
 		return fmt.Errorf("recovery response verification failed: %w", err)
 	}
 	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
@@ -963,7 +994,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	x.log.DebugContext(ctx, "completed recovery", logger.Round(x.pacemaker.GetCurrentRound()))
 	triggerMsg := x.recovery.triggerMsg
 	x.recovery = nil
-	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
+	// in the "DiemBFT v4" pseudocode the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
 	if err = x.leaderSelector.Update(x.blockStore.GetHighQc(), x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
@@ -1065,7 +1096,7 @@ selectRandomNodeIdsFromSignatureMap returns slice with up to "count" random keys
 from "m" without duplicates. The "count" assumed to be greater than zero, iow the
 function always returns at least one item (given that map is not empty).
 The key of the "m" must be of type peer.ID encoded as string (if it's not it is ignored).
-When "m" has less items than "count" then len(m) items is returned (iow all map keys),
+When "m" has fewer items than "count" then len(m) items is returned (iow all map keys),
 when "m" is empty then empty/nil slice is returned.
 */
 func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes []peer.ID) {
@@ -1086,7 +1117,7 @@ func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes 
 }
 
 /*
-updateQCMetrics updates metrics about QC. Only leader should call it so we get "per round" counts.
+updateQCMetrics updates metrics about QC. Only leader should call it, so we get "per round" counts.
 */
 func (x *ConsensusManager) updateQCMetrics(ctx context.Context, qc *drctypes.QuorumCert) {
 	if qc == nil {

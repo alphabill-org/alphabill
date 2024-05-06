@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-sdk/util"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,6 +71,7 @@ func TestAllocate(t *testing.T) {
 	require.EqualValues(t, freePtr, WasmPageSize+8)
 	// allocate another 2*pages
 	ptr3, err := allocator.Alloc(mem, WasmPageSize*2)
+	require.NoError(t, err)
 	require.EqualValues(t, freePtr, ptr3)
 	freePtr = allocator.freePtr
 	require.EqualValues(t, freePtr, 3*WasmPageSize+8)

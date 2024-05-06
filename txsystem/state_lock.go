@@ -82,16 +82,13 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if stateLock == nil {
 		return nil, fmt.Errorf("state lock tx has no state lock")
 	}
-
 	if err = proof.check(m.pr, tx, stateLock); err != nil {
 		return nil, err
 	}
-
 	// proof is ok, release the lock
-	if err = m.state.Apply(state.ClearStateLock(unitID)); err != nil {
+	if err = m.state.Apply(state.SetStateLock(unitID, nil)); err != nil {
 		return nil, fmt.Errorf("failed to release state lock: %w", err)
 	}
-
 	// execute the tx that was "on hold"
 	if proof.Kind == StateUnlockExecute {
 		sm, err := m.handlers.UnmarshalAndExecute(txOnHold, exeCtx)

@@ -123,29 +123,6 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 	}
 }
 
-// ClearStateLock clears the state lock
-func ClearStateLock(id types.UnitID) Action {
-	return func(s ShardState, hashAlgorithm crypto.Hash) error {
-		if id == nil {
-			return errors.New("id is nil")
-		}
-		u, err := s.Get(id)
-		if err != nil {
-			return fmt.Errorf("failed to find unit: %w", err)
-		}
-		if u.stateLockTx == nil {
-			return errors.New("unit already unlocked")
-		}
-		cloned := u.Clone()
-		cloned.stateLockTx = nil
-		// the Counter shall increment by Tx on hold
-		if err = s.Update(id, cloned); err != nil {
-			return fmt.Errorf("unable to update unit: %w", err)
-		}
-		return nil
-	}
-}
-
 // DeleteUnit removes the unit from the state with given identifier.
 func DeleteUnit(id types.UnitID) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {

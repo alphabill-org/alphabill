@@ -31,7 +31,7 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 	if err := m.state.Apply(action); err != nil {
 		return nil, fmt.Errorf("unlock tx: failed to update state: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{unitID}}, nil
+	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, exeCtx *txsystem.TxExecutionContext) error {
@@ -40,24 +40,18 @@ func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.Unlock
 	if err != nil {
 		return fmt.Errorf("unlock tx: get unit error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
-		return err
-	}
 	billData, ok := unit.Data().(*money.BillData)
 	if !ok {
 		return errors.New("unlock tx: invalid unit type")
-	}
-	if attr == nil {
-		return ErrTxAttrNil
-	}
-	if billData == nil {
-		return ErrBillNil
 	}
 	if !billData.IsLocked() {
 		return ErrBillUnlocked
 	}
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
+	}
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		return err
 	}
 	return nil
 }

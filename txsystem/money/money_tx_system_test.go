@@ -1073,3 +1073,30 @@ func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertifi
 		SummaryValue: s.Summary(),
 	}}
 }
+
+type moneyModuleOption func(m *Module) error
+
+func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData) moneyModuleOption {
+	return func(m *Module) error {
+		return m.state.Apply(state.AddUnit(unitID, bearer, data))
+	}
+}
+
+func newTestMoneyModule(t *testing.T, verifier abcrypto.Verifier, opts ...moneyModuleOption) *Module {
+	module := defaultMoneyModule(t, verifier)
+	for _, opt := range opts {
+		require.NoError(t, opt(module))
+	}
+	return module
+}
+
+func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
+	// NB! using the same pubkey for trustbase and unit bearer! TODO: use different keys...
+	options, err := defaultOptions()
+	require.NoError(t, err)
+	options.trustBase = testtb.NewTrustBase(t, verifier)
+	options.state = state.NewEmptyState()
+	module, err := NewMoneyModule(options)
+	require.NoError(t, err)
+	return module
+}

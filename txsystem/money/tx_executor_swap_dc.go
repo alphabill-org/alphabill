@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -61,10 +60,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {
-		return err
-	}
-	if dcMoneySupply == nil {
-		return fmt.Errorf("DC-money supply unit not found: id=%X", DustCollectorMoneySupplyID)
+		return fmt.Errorf("DC-money supply unit error: %w", err)
 	}
 	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*money.BillData)
 	if !ok {
@@ -73,37 +69,31 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if dcMoneySupplyBill.V < attr.TargetValue {
 		return errors.New("insufficient DC-money supply")
 	}
-
 	// 3. tx unit id identifies an existing bill
 	unitData, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return fmt.Errorf("target unit error: %w", err)
 	}
-	if unitData == nil {
-		return fmt.Errorf("target unit is nil id=%X", tx.UnitID())
-	}
+	// if unit exists (get returns no error) it must not be nil, if unit data is nil then this type assertion will fail
 	billData, ok := unitData.Data().(*money.BillData)
 	if !ok {
 		return fmt.Errorf("target unit invalid data type")
 	}
-
 	// 5. bills were transferred to DC
 	dustTransfers, err := getDCTransfers(attr)
 	if err != nil {
 		return fmt.Errorf("failed to extract DC transfers: %w", err)
 	}
-
 	// 1. target value is the sum of the values of the transDC payments
 	sum := sumDcTransferValues(dustTransfers)
 	if attr.TargetValue != sum {
 		return fmt.Errorf("target value must be equal to the sum of dust transfer values: expected %d vs provided %d", sum, attr.TargetValue)
 	}
-
 	if len(dustTransfers) != len(attr.DcTransferProofs) {
 		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
 	}
 	if err = m.execPredicate(unitData.Bearer(), tx.OwnerProof, tx); err != nil {
-		return fmt.Errorf("swap tx predicat validation failed: %w", err)
+		return fmt.Errorf("swap tx predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {
 		// 4. transfers were in the money partition

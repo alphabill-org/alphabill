@@ -68,9 +68,6 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 	if !ok {
 		return errors.New("invalid unit type")
 	}
-	if bd == nil {
-		return ErrBillNil
-	}
 	if tx.GetClientFeeCreditRecordID() != nil {
 		return ErrRecordIDExists
 	}
@@ -101,7 +98,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return err
 	}
 	// verify proof
-	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, m.trustBase, m.hashAlgorithm); err != nil {
+	if err = types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, m.trustBase, m.hashAlgorithm); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
 	return nil

@@ -34,12 +34,15 @@ func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.Trans
 func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, _ *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
-		return fmt.Errorf("transfer tx validation error: %w", err)
+		return fmt.Errorf("transfer validation error: %w", err)
+	}
+	if err = validateTransfer(unit.Data(), attr); err != nil {
+		return fmt.Errorf("transfer validation error: %w", err)
 	}
 	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	return validateTransfer(unit.Data(), attr)
+	return nil
 }
 
 func validateTransfer(data types.UnitData, attr *money.TransferAttributes) error {

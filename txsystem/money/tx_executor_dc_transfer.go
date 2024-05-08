@@ -62,10 +62,13 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.Tr
 	if err != nil {
 		return err
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
-		return fmt.Errorf("tranfer to DC tx validation error: %w", err)
+	if err = validateTransferDC(unit.Data(), attr); err != nil {
+		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
-	return validateTransferDC(unit.Data(), attr)
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+		return fmt.Errorf("validateTransferDC error: %w", err)
+	}
+	return nil
 }
 
 func validateTransferDC(data types.UnitData, tx *money.TransferDCAttributes) error {

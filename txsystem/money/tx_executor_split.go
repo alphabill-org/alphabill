@@ -65,10 +65,13 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 	if err != nil {
 		return err
 	}
-	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = validateSplit(unit.Data(), attr); err != nil {
+		return fmt.Errorf("split error: %w", err)
+	}
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	return validateSplit(unit.Data(), attr)
+	return nil
 }
 
 func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {

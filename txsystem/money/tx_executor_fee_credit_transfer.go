@@ -52,13 +52,10 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 		attr: attr,
 		fee:  fee,
 	})
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
-	if tx == nil {
-		return ErrTxNil
-	}
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -95,7 +92,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
 		return fmt.Errorf("verify owner proof: %w", err)
 	}
 	return nil

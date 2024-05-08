@@ -62,9 +62,8 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		}
 		return nil, fmt.Errorf("getting unit: %w", err)
 	}
-	stateLockTx := u.StateLockTx()
 	// if unit is not locked, then this method is done - nothing to unlock
-	if len(stateLockTx) == 0 {
+	if !u.IsStateLocked() {
 		return nil, nil
 	}
 	// check if unit has a state lock, any transaction with locked unit must first unlock
@@ -75,7 +74,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		return nil, fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
 	}
 	txOnHold := &types.TransactionOrder{}
-	if err = cbor.Unmarshal(stateLockTx, txOnHold); err != nil {
+	if err = cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
 	}
 	stateLock := txOnHold.Payload.StateLock

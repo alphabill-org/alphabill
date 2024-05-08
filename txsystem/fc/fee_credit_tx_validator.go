@@ -50,7 +50,7 @@ func ValidateCloseFC(attr *fc.CloseFeeCreditAttributes, fcr *fc.FeeCreditRecord)
 	return nil
 }
 
-func parseFeeCreditRecord(id types.UnitID, fcrType []byte, state *state.State) (*fc.FeeCreditRecord, []byte, error) {
+func parseFeeCreditRecord(id types.UnitID, fcrType []byte, state *state.State) (*fc.FeeCreditRecord, types.PredicateBytes, error) {
 	if !id.HasType(fcrType) {
 		return nil, nil, ErrUnitTypeIsNotFCR
 	}

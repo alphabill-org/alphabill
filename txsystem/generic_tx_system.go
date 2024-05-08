@@ -179,7 +179,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 		return nil, fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
 	}
 	// handle state locking
-	if tx.Payload.IsStateLock() {
+	if tx.Payload.HasStateLock() {
 		// handle conditional lock of units
 		sm, err = m.executeLockUnitState(tx, exeCtx)
 		if err != nil {

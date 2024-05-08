@@ -10,6 +10,8 @@ import (
 
 	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -227,8 +229,8 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
-	balance := big.NewInt(5000000000000100)
-	stateDB.AddBalance(address, balance)
+	balance := uint256.NewInt(5000000000000100)
+	stateDB.AddBalance(address, balance, tracing.BalanceChangeUnspecified)
 
 	evmAttr := &evmsdk.TxAttributes{
 		From:  address.Bytes(),

@@ -1,10 +1,10 @@
 package statedb
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -16,7 +16,7 @@ import (
 func TestCreateAccountAndAddCredit(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
-	balance := big.NewInt(123)
+	balance := uint256.NewInt(123)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
 	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
@@ -37,7 +37,7 @@ func TestCreateAccountAndAddCredit(t *testing.T) {
 func TestUpdateEthAccountAddCredit(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
-	balance := big.NewInt(100)
+	balance := uint256.NewInt(100)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
 	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
@@ -48,7 +48,7 @@ func TestUpdateEthAccountAddCredit(t *testing.T) {
 	err = tr.Apply(UpdateEthAccountAddCredit(unitID, balance, 2, txHashUpdate))
 	require.NoError(t, err)
 	stateDB := NewStateDB(tr, logger.New(t))
-	require.Equal(t, big.NewInt(200), stateDB.GetBalance(address))
+	require.Equal(t, uint256.NewInt(200), stateDB.GetBalance(address))
 	abLink := stateDB.GetAlphaBillData(address)
 	require.EqualValues(t, 3, abLink.Timeout)
 	require.Equal(t, txHashUpdate, abLink.TxHash)
@@ -57,15 +57,15 @@ func TestUpdateEthAccountAddCredit(t *testing.T) {
 func TestSetAccountBalance(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
-	balance := big.NewInt(100)
+	balance := uint256.NewInt(100)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
 	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
 	require.NoError(t, err)
 	// update
 	unitID := address.Bytes()
-	err = tr.Apply(SetBalance(unitID, big.NewInt(300)))
+	err = tr.Apply(SetBalance(unitID, uint256.NewInt(300)))
 	require.NoError(t, err)
 	stateDB := NewStateDB(tr, logger.New(t))
-	require.Equal(t, big.NewInt(300), stateDB.GetBalance(address))
+	require.Equal(t, uint256.NewInt(300), stateDB.GetBalance(address))
 }

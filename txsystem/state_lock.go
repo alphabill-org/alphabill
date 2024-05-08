@@ -105,13 +105,6 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, exeCt
 	// transaction contains lock and execution predicate - lock unit
 	// todo: add support for multiple targets
 	targetUnits := []types.UnitID{tx.UnitID()}
-	// check if state has to be locked
-	// check if it evaluates to true without any input
-	err := m.pr(tx.Payload.StateLock.ExecutionPredicate, nil, tx)
-	// unexpected, predicate run successfully without parameters, this cannot be used for locking
-	if err == nil {
-		return nil, fmt.Errorf("invalid lock predicate")
-	}
 	// ignore 'err' as we are only interested if the predicate evaluates to true or not
 	txBytes, err := cbor.Marshal(tx)
 	if err != nil {
@@ -119,8 +112,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, exeCt
 	}
 	// lock the state
 	for _, targetUnit := range targetUnits {
-		action := state.SetStateLock(targetUnit, txBytes)
-		if err := m.state.Apply(action); err != nil {
+		if err = m.state.Apply(state.SetStateLock(targetUnit, txBytes)); err != nil {
 			return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
 		}
 		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.currentBlockNumber))

@@ -2,15 +2,15 @@ package statedb
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 )
 
 // CreateAccountAndAddCredit - creates EMV account from add fee credit
-func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *big.Int, timeout uint64, transactionRecordHash []byte) state.Action {
+func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *uint256.Int, timeout uint64, transactionRecordHash []byte) state.Action {
 	id := addr.Bytes()
 	stateObj := &StateObject{
 		Address: addr,
@@ -28,13 +28,13 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 }
 
 // UpdateEthAccountAddCredit - increments the balance and updates free credit link
-func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, transactionRecordHash []byte) state.Action {
+func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64, transactionRecordHash []byte) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)
 		}
-		newBalance := new(big.Int).Add(stateObj.Account.Balance, value)
+		newBalance := new(uint256.Int).Add(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
 			TxHash:  transactionRecordHash,
@@ -46,13 +46,13 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, 
 }
 
 // UpdateEthAccountCloseCredit - decrements the balance and updates free credit link
-func UpdateEthAccountCloseCredit(id types.UnitID, value *big.Int, txHash []byte) state.Action {
+func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int, txHash []byte) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)
 		}
-		newBalance := new(big.Int).Sub(stateObj.Account.Balance, value)
+		newBalance := new(uint256.Int).Sub(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
 			TxHash:  txHash,
@@ -64,7 +64,7 @@ func UpdateEthAccountCloseCredit(id types.UnitID, value *big.Int, txHash []byte)
 }
 
 // SetBalance - set balance to value
-func SetBalance(id types.UnitID, value *big.Int) state.Action {
+func SetBalance(id types.UnitID, value *uint256.Int) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {

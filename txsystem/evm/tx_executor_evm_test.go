@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/ethereum/go-ethereum/core/tracing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -35,7 +36,7 @@ func BenchmarkCallContract(b *testing.B) {
 	stateDB := statedb.NewStateDB(s, log)
 	fromAddr := common.BytesToAddress(from)
 	stateDB.CreateAccount(fromAddr)
-	stateDB.AddBalance(fromAddr, big.NewInt(oneEth)) // add 1 ETH
+	stateDB.AddBalance(fromAddr, uint256.NewInt(oneEth), tracing.BalanceChangeUnspecified) // add 1 ETH
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(DefaultGasPrice)
 	blockDB, err := memorydb.New()
@@ -85,7 +86,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 	stateDB := statedb.NewStateDB(s, logger.New(t))
 	for _, eoa := range accounts {
 		stateDB.CreateAccount(eoa.Addr)
-		stateDB.AddBalance(eoa.Addr, big.NewInt(int64(eoa.Balance)))
+		stateDB.AddBalance(eoa.Addr, uint256.NewInt(eoa.Balance), tracing.BalanceChangeUnspecified)
 		if len(eoa.Code) != 0 {
 			// deploy a contract
 			evmAttr := &evm.TxAttributes{
@@ -99,7 +100,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 			require.NoError(t, err)
 			blockCtx := NewBlockContext(0, blockDB)
 			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier.Bytes())), NewVMConfig())
-			_, _, _, err = evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
+			_, _, _, err = evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, uint256.MustFromBig(evmAttr.Value))
 			require.NoError(t, err)
 			if eoa.Nonce != 0 {
 				stateDB.SetNonce(eoa.Addr, eoa.Nonce)
@@ -522,8 +523,8 @@ func Test_ReplayContractCreation(t *testing.T) {
 	s := abstate.NewEmptyState()
 	stateDB := statedb.NewStateDB(s, log)
 	stateDB.CreateAccount(eoaAddr)
-	initialBalance := big.NewInt(1000000000000000000)
-	stateDB.AddBalance(eoaAddr, initialBalance) // add 1 ETH
+	initialBalance := uint256.NewInt(1000000000000000000)
+	stateDB.AddBalance(eoaAddr, initialBalance, tracing.BalanceChangeUnspecified) // add 1 ETH
 	// deploy a contract
 	evmAttr := &evm.TxAttributes{
 		From:  eoaAddr.Bytes(),
@@ -538,7 +539,7 @@ func Test_ReplayContractCreation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
-	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
+	require.EqualValues(t, initialBalance, new(uint256.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
 	// Try to replay
 	_, err = Execute(1, stateDB, blockDB, evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
 	require.ErrorContains(t, err, "nonce too low")
@@ -568,8 +569,8 @@ func Test_ReplayCall(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
-	initialBalance := big.NewInt(2 * (53000 * DefaultGasPrice)) // this is the value set as balance in initStateDBWithAccountAndSC
-	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
+	initialBalance := uint256.NewInt(2 * (53000 * DefaultGasPrice)) // this is the value set as balance in initStateDBWithAccountAndSC
+	require.EqualValues(t, initialBalance, new(uint256.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
 
 	// try to replay
 	_, err = Execute(2, stateDB, blockDB, callContract, systemIdentifier, gasPool, gasPrice, false, log)
@@ -587,7 +588,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	stateDB := statedb.NewStateDB(s, log)
 	fromAddr := common.BytesToAddress(from)
 	stateDB.CreateAccount(fromAddr)
-	stateDB.AddBalance(fromAddr, big.NewInt(oneEth)) // add 1 ETH
+	stateDB.AddBalance(fromAddr, uint256.NewInt(oneEth), tracing.BalanceChangeUnspecified) // add 1 ETH
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(DefaultGasPrice)
 	mockDB, err := memorydb.New()

@@ -242,7 +242,7 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 		Err string
 	}{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
-	require.Equal(t, resp.Err, "gas required exceeds allowance (50000)")
+	require.Equal(t, resp.Err, "out of gas: not enough gas for reentrancy sentry")
 }
 
 func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {

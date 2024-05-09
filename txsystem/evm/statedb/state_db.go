@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"sort"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
@@ -99,7 +100,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 	s.errDB = s.tree.Apply(state.AddUnit(
 		unitID,
 		templates.AlwaysFalseBytes(),
-		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
+		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: uint256.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 	))
 	if s.errDB == nil {
 		s.created[address] = struct{}{}
@@ -107,7 +108,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 	}
 }
 
-func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
+func (s *StateDB) SubBalance(address common.Address, amount *uint256.Int, _ tracing.BalanceChangeReason) {
 	if amount.Sign() == 0 {
 		return
 	}
@@ -118,13 +119,13 @@ func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("SubBalance: account %v, initial balance %v, amount to subtract %v", address, stateObject.Account.Balance, amount))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
-		newBalance := new(big.Int).Sub(so.Account.Balance, amount)
+		newBalance := new(uint256.Int).Sub(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
 		return so
 	})
 }
 
-func (s *StateDB) AddBalance(address common.Address, amount *big.Int) {
+func (s *StateDB) AddBalance(address common.Address, amount *uint256.Int, _ tracing.BalanceChangeReason) {
 	if amount.Sign() == 0 {
 		return
 	}
@@ -135,19 +136,19 @@ func (s *StateDB) AddBalance(address common.Address, amount *big.Int) {
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("AddBalance: account %v, initial balance %v, amount to add %v", address, stateObject.Account.Balance, amount))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
-		newBalance := new(big.Int).Add(so.Account.Balance, amount)
+		newBalance := new(uint256.Int).Add(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
 		return so
 	})
 }
 
-func (s *StateDB) GetBalance(address common.Address) *big.Int {
+func (s *StateDB) GetBalance(address common.Address) *uint256.Int {
 	unitID := address.Bytes()
 	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return stateObject.Account.Balance
 	}
-	return big.NewInt(0)
+	return uint256.NewInt(0)
 }
 
 func (s *StateDB) GetNonce(address common.Address) uint64 {
@@ -259,6 +260,11 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 	})
 }
 
+func (s *StateDB) GetStorageRoot(addr common.Address) common.Hash {
+	// todo: investigate if this needs to be supported
+	return common.Hash{}
+}
+
 // GetTransientState gets transient storage for a given account.
 func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
 	return s.transientStorage.Get(addr, key)
@@ -288,7 +294,7 @@ func (s *StateDB) SelfDestruct(address common.Address) {
 	}
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) types.UnitData {
 		so.Suicided = true
-		so.Account.Balance = big.NewInt(0)
+		so.Account.Balance = uint256.NewInt(0)
 		s.suicides = append(s.suicides, address)
 		return so
 	})

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,7 +23,7 @@ func TestStateObject_Write(t *testing.T) {
 	so := &StateObject{
 		Address: common.BytesToAddress(test.RandomBytes(20)),
 		Account: &Account{
-			Balance:  big.NewInt(200),
+			Balance:  uint256.NewInt(200),
 			CodeHash: emptyCodeHash,
 			Nonce:    2,
 		},

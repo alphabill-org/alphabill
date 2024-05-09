@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,11 +17,11 @@ var pubKey = [33]byte{0x03,
 	0x4F, 0x93, 0xA5, 0x2E, 0xE2, 0x16, 0x4C, 0xFC, 0x48, 0xC2, 0x87, 0x62, 0x57, 0xCC, 0xF0, 0x43,
 	0xAD, 0x71, 0xCF, 0x5A, 0x5D, 0x6B, 0x4B, 0x1F, 0x2F, 0x19, 0xA, 0xDC, 0xBF, 0x90, 0x1C, 0x56}
 
-func bigIntFromString(t *testing.T, value string) *big.Int {
+func bigIntFromString(t *testing.T, value string) *uint256.Int {
 	t.Helper()
 	i, b := new(big.Int).SetString(value, 10)
 	require.True(t, b)
-	return i
+	return uint256.MustFromBig(i)
 }
 
 func Test_generateAddress(t *testing.T) {
@@ -120,7 +121,7 @@ func Test_alphaToWei(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *big.Int
+		want *uint256.Int
 	}{
 		{
 			name: "1 alpha is 10^10 wei",
@@ -149,7 +150,7 @@ func Test_alphaToWei(t *testing.T) {
 
 func Test_weiToAlpha(t *testing.T) {
 	type args struct {
-		wei *big.Int
+		wei *uint256.Int
 	}
 	tests := []struct {
 		name string
@@ -203,7 +204,7 @@ func Test_weiToAlpha(t *testing.T) {
 		},
 		{
 			name: "default gas price",
-			args: args{wei: new(big.Int).Mul(big.NewInt(DefaultGasPrice), big.NewInt(1000))},
+			args: args{wei: new(uint256.Int).Mul(uint256.NewInt(DefaultGasPrice), uint256.NewInt(1000))},
 			want: 21,
 		},
 	}

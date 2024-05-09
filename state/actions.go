@@ -56,6 +56,39 @@ func AddUnit(id types.UnitID, bearer types.PredicateBytes, data types.UnitData) 
 	}
 }
 
+// AddUnitWithLock adds a new unit with given identifier, owner condition, unit data and lock.
+func AddUnitWithLock(id types.UnitID, bearer types.PredicateBytes, data types.UnitData, l []byte) Action {
+	return func(s ShardState, hashAlgorithm crypto.Hash) error {
+		if id == nil {
+			return errors.New("id is nil")
+		}
+		b := bytes.Clone(bearer)
+		d := copyData(data)
+
+		unitDataSummaryValue := d.SummaryValueInput()
+		hasher := hashAlgorithm.New()
+		hasher.Write(id)
+		hasher.Write(util.Uint64ToBytes(unitDataSummaryValue))
+		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(util.Uint64ToBytes(0))
+		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(util.Uint64ToBytes(0))
+		subTreeSummaryHash := hasher.Sum(nil)
+		u := &Unit{
+			logs:                []*Log{},
+			bearer:              b,
+			data:                d,
+			stateLockTx:         l,
+			subTreeSummaryValue: unitDataSummaryValue,
+			subTreeSummaryHash:  subTreeSummaryHash,
+		}
+		if err := s.Add(id, u); err != nil {
+			return fmt.Errorf("unable to add unit: %w", err)
+		}
+		return nil
+	}
+}
+
 // UpdateUnitData changes the data of the item, leaves owner as is.
 func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {

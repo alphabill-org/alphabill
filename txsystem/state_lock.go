@@ -85,7 +85,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
 	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock); err != nil {
-		return nil, fmt.Errorf("lock error: %w", err)
+		return nil, fmt.Errorf("unlock error: %w", err)
 	}
 	// proof is ok, release the lock
 	if err = m.state.Apply(state.SetStateLock(unitID, nil)); err != nil {
@@ -106,6 +106,9 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 // LockUnitState locks the state of a unit if the state lock predicate evaluates to false
 func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
+	if err := tx.Payload.StateLock.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid state lock parameter: %w", err)
+	}
 	// todo: add support for multiple targets
 	targetUnits := []types.UnitID{tx.UnitID()}
 	// ignore 'err' as we are only interested if the predicate evaluates to true or not

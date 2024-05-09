@@ -40,7 +40,8 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithStateLock(&types.StateLock{
-			ExecutionPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey)}),
+			ExecutionPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey),
+			RollbackPredicate:  templates.NewP2pkh256BytesFromKey(w1PubKey)}),
 	)
 	_, err := txs.Execute(transferTx)
 	require.NoError(t, err)

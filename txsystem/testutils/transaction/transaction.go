@@ -65,6 +65,13 @@ func WithFeeProof(feeProof []byte) Option {
 	}
 }
 
+func WithUnlockProof(unlockProof []byte) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.StateUnlock = unlockProof
+		return nil
+	}
+}
+
 func WithClientMetadata(m *types.ClientMetadata) Option {
 	return func(tx *types.TransactionOrder) error {
 		tx.Payload.ClientMetadata = m

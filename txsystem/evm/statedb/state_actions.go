@@ -27,7 +27,7 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 	return state.AddUnit(id, owner, stateObj)
 }
 
-// UpdateEthAccountAddCredit - increments the balance and updates free credit link
+// UpdateEthAccountAddCredit - increments the balance and updates fee credit link
 func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64, transactionRecordHash []byte) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
@@ -45,7 +45,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint
 	return state.UpdateUnitData(id, updateDataFunc)
 }
 
-// UpdateEthAccountCloseCredit - decrements the balance and updates free credit link
+// UpdateEthAccountCloseCredit - decrements the balance and updates fee credit link
 func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int, txHash []byte) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)

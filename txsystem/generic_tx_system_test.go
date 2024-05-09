@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 
@@ -39,21 +40,8 @@ func Test_NewGenericTxSystem(t *testing.T) {
 }
 
 func Test_GenericTxSystem_Execute(t *testing.T) {
-
-	createTxSystem := func(t *testing.T, modules []Module) *GenericTxSystem {
-		txs, err := NewGenericTxSystem(
-			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
-			modules,
-			observability.Default(t),
-		)
-		require.NoError(t, err)
-		txs.currentBlockNumber = 837644
-		return txs
-	}
-
 	t.Run("tx order is validated", func(t *testing.T) {
-		txSys := createTxSystem(t, nil)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(txSys.systemIdentifier+1),
 			transaction.WithPayloadType(mockTxType),
@@ -64,7 +52,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	})
 
 	t.Run("no executor for the tx type", func(t *testing.T) {
-		txSys := createTxSystem(t, nil)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(txSys.systemIdentifier),
 			transaction.WithPayloadType(mockTxType),
@@ -82,7 +70,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	t.Run("tx handler returns error", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
-		txSys := createTxSystem(t, []Module{m})
+		txSys := newTestGenericTxSystem(t, []Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(txSys.systemIdentifier),
 			transaction.WithPayloadType(mockTxType),
@@ -98,7 +86,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
-		txSys := createTxSystem(t, []Module{m})
+		txSys := newTestGenericTxSystem(t, []Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(txSys.systemIdentifier),
 			transaction.WithPayloadType(mockTxType),
@@ -114,22 +102,6 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 }
 
 func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
-
-	// share observability between all sub-tests
-	obs := observability.Default(t)
-
-	createTxSystem := func(t *testing.T) *GenericTxSystem {
-		txs, err := NewGenericTxSystem(
-			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
-			nil, // test doesn't depend on modules
-			obs,
-		)
-		require.NoError(t, err)
-		txs.currentBlockNumber = 837644
-		return txs
-	}
-
 	// create valid order (in the sense of basic checks performed by the generic
 	// tx system) for "txs" transaction system
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
@@ -146,20 +118,20 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		// this (also) tests that our helper functions do create valid
 		// tx system and tx order combination (other tests depend on that)
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		require.NoError(t, txSys.validateGenericTransaction(txo))
 	})
 
 	t.Run("system ID is checked", func(t *testing.T) {
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		txo.Payload.SystemID = txSys.systemIdentifier + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
 	})
 
 	t.Run("timeout is checked", func(t *testing.T) {
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 
 		txSys.currentBlockNumber = txo.Timeout()
@@ -172,7 +144,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 
 	t.Run("fee credit balance is checked", func(t *testing.T) {
 		expErr := errors.New("nope!")
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txSys.checkFeeCreditBalance = func(tx *types.TransactionOrder) error { return expErr }
 		txo := createTxOrder(txSys)
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), expErr)
@@ -206,4 +178,35 @@ func (mm MockModule) TxHandlers() map[string]TxExecutor {
 	return map[string]TxExecutor{
 		mockTxType: NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
 	}
+}
+
+type txSystemTestOption func(m *GenericTxSystem) error
+
+func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData, lock []byte) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		return m.state.Apply(state.AddUnitWithLock(unitID, bearer, data, lock))
+	}
+}
+
+func withFeeCreditValidator(v func(tx *types.TransactionOrder) error) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		m.checkFeeCreditBalance = v
+		return nil
+	}
+}
+
+func newTestGenericTxSystem(t *testing.T, modules []Module, opts ...txSystemTestOption) *GenericTxSystem {
+	txSys := defaultTestConfiguration(t, modules)
+	// apply test overrides
+	for _, opt := range opts {
+		require.NoError(t, opt(txSys))
+	}
+	return txSys
+}
+
+func defaultTestConfiguration(t *testing.T, modules []Module) *GenericTxSystem {
+	txSys, err := NewGenericTxSystem(types.SystemID(1), nil, modules, observability.Default(t))
+	txSys.checkFeeCreditBalance = func(tx *types.TransactionOrder) error { return nil }
+	require.NoError(t, err)
+	return txSys
 }

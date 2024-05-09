@@ -9,7 +9,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -21,7 +20,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		tx := &types.TransactionOrder{StateUnlock: nil}
 
-		_, err := StateUnlockProofFromTx(tx)
+		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
 		require.Equal(t, "invalid state unlock proof: empty", err.Error())
 	})
@@ -29,7 +28,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("empty input", func(t *testing.T) {
 		tx := &types.TransactionOrder{StateUnlock: []byte{}}
 
-		_, err := StateUnlockProofFromTx(tx)
+		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
 		require.Equal(t, "invalid state unlock proof: empty", err.Error())
 	})
@@ -39,7 +38,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		proof := []byte("proof")
 
 		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
-		result, err := StateUnlockProofFromTx(tx)
+		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
 		require.Equal(t, proof, result.Proof)
@@ -50,7 +49,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		proof := []byte("proof")
 
 		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
-		result, err := StateUnlockProofFromTx(tx)
+		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
 		require.Equal(t, proof, result.Proof)
@@ -61,7 +60,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		proof := []byte("proof")
 		tx := &types.TransactionOrder{StateUnlock: append([]byte{kind}, proof...)}
 
-		result, err := StateUnlockProofFromTx(tx)
+		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.NotEqual(t, StateUnlockExecute, result.Kind)
 		require.NotEqual(t, StateUnlockRollback, result.Kind)
@@ -73,7 +72,7 @@ func Test_proof_check_with_nil(t *testing.T) {
 	kind := StateUnlockExecute
 	proof := []byte("proof")
 	tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
-	result, err := StateUnlockProofFromTx(tx)
+	result, err := stateUnlockProofFromTx(tx)
 	require.NoError(t, err)
 	engines, err := predicates.Dispatcher(templates.New())
 	require.NoError(t, err)
@@ -331,27 +330,4 @@ func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte 
 	txBytes, err := cbor.Marshal(tx)
 	require.NoError(t, err)
 	return txBytes
-}
-
-type txSystemTestOption func(m *GenericTxSystem) error
-
-func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData, lock []byte) txSystemTestOption {
-	return func(m *GenericTxSystem) error {
-		return m.state.Apply(state.AddUnitWithLock(unitID, bearer, data, lock))
-	}
-}
-
-func newTestGenericTxSystem(t *testing.T, modules []Module, opts ...txSystemTestOption) *GenericTxSystem {
-	txSys := defaultTestConfiguration(t, modules)
-	// apply test overrides
-	for _, opt := range opts {
-		require.NoError(t, opt(txSys))
-	}
-	return txSys
-}
-
-func defaultTestConfiguration(t *testing.T, modules []Module) *GenericTxSystem {
-	txSys, err := NewGenericTxSystem(types.SystemID(1), nil, modules, observability.Default(t))
-	require.NoError(t, err)
-	return txSys
 }

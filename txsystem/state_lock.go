@@ -45,7 +45,7 @@ func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.Transa
 	return nil
 }
 
-func StateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, error) {
+func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, error) {
 	if len(tx.StateUnlock) < 1 {
 		return nil, fmt.Errorf("invalid state unlock proof: empty")
 	}
@@ -74,7 +74,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	// unit has a state lock, any transaction with locked unit must first unlock
 	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
 	// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
-	proof, err := StateUnlockProofFromTx(tx)
+	proof, err := stateUnlockProofFromTx(tx)
 	if err != nil {
 		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
@@ -103,8 +103,8 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	return nil, fmt.Errorf("rollaback not yet implemented")
 }
 
-// LockUnitState locks the state of a unit if the state lock predicate evaluates to false
-func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+// executeLockUnitState - validates lock predicate and locks the state of a unit
+func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *TxExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
 	if err := tx.Payload.StateLock.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid state lock parameter: %w", err)

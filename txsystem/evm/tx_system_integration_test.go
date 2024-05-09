@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core/tracing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -214,7 +215,7 @@ func newGenesisState(t *testing.T, initialAccountAddress []byte, initialAccountB
 		id := s.Savepoint()
 		stateDB := statedb.NewStateDB(s, logger.New(t))
 		stateDB.CreateAccount(address)
-		stateDB.AddBalance(address, initialAccountBalance)
+		stateDB.AddBalance(address, uint256.MustFromBig(initialAccountBalance), tracing.BalanceChangeUnspecified)
 		s.ReleaseToSavepoint(id)
 
 		_, _, err := s.CalculateRoot()

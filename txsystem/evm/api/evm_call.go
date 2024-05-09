@@ -10,6 +10,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
@@ -74,10 +75,11 @@ func (a *API) callContract(clonedState *state.State, call *evmsdk.TxAttributes) 
 	// Set infinite balance to the fake caller account.
 	u, _ := clonedState.GetUnit(call.From, false)
 	var err error
+	balance := uint256.MustFromBig(math.MaxBig256)
 	if u == nil {
-		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), math.MaxBig256, 0, nil))
+		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), balance, 0, nil))
 	} else {
-		err = clonedState.Apply(statedb.SetBalance(call.From, math.MaxBig256))
+		err = clonedState.Apply(statedb.SetBalance(call.From, balance))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to set fake balance: %w", err)

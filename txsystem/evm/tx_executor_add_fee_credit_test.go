@@ -3,7 +3,6 @@ package evm
 import (
 	"crypto"
 	"crypto/sha256"
-	"math/big"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -22,6 +21,8 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtx "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -229,8 +230,8 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
 	// balance is equal to 100 - "transfer fee" - "add fee" to wei
-	remainingCredit := new(big.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	remainingCredit := new(uint256.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 	// check owner condition set
 	u, err := stateTree.GetUnit(addr.Bytes(), false)
@@ -253,11 +254,11 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 	_, err = addExecFn(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
-	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
+	remainingCredit = new(uint256.Int).Add(remainingCredit, alphaToWei(10))
 	balance = stateDB.GetBalance(addr)
 	// balance is equal to remaining+10-"transfer fee 1" -"ass fee = 2" to wei
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 	// check owner condition
 	u, err = stateTree.GetUnit(addr.Bytes(), false)
@@ -276,7 +277,7 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	require.NoError(t, err)
 	stateDB := statedb.NewStateDB(stateTree, logger.New(t))
 	stateDB.CreateAccount(address)
-	stateDB.AddBalance(address, alphaToWei(100))
+	stateDB.AddBalance(address, alphaToWei(100), tracing.BalanceChangeTransfer)
 	pubHash := hash.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	addExecFn := addFeeCreditTx(
@@ -304,8 +305,8 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	// validate stateDB
 	balance := stateDB.GetBalance(address)
 	// balance is equal to 100+100 - "transfer fee" - "add fee" to wei
-	remainingCredit := new(big.Int).Sub(alphaToWei(200), alphaToWei(transferFcFee))
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	remainingCredit := new(uint256.Int).Sub(alphaToWei(200), alphaToWei(transferFcFee))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 	// check owner condition as well
 	u, err := stateTree.GetUnit(address.Bytes(), false)

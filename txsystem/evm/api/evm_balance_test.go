@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -26,8 +28,8 @@ func TestAPI_Balance_OK(t *testing.T) {
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
-	balance := big.NewInt(101)
-	stateDB.AddBalance(address, balance)
+	balance := uint256.NewInt(101)
+	stateDB.AddBalance(address, balance, tracing.BalanceChangeUnspecified)
 	teststate.CommitWithUC(t, tree)
 
 	a := &API{
@@ -58,8 +60,8 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
-	balance := big.NewInt(101)
-	stateDB.AddBalance(address, balance)
+	balance := uint256.NewInt(101)
+	stateDB.AddBalance(address, balance, tracing.BalanceChangeUnspecified)
 	backlink := test.RandomBytes(20)
 	stateDB.SetAlphaBillData(address, &statedb.AlphaBillLink{
 		TxHash: backlink,

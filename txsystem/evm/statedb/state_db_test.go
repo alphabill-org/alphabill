@@ -8,7 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	teststate "github.com/alphabill-org/alphabill/internal/testutils/state"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -22,7 +24,7 @@ func TestStateDB_CreateAccount(t *testing.T) {
 		name                   string
 		tree                   *state.State
 		address                common.Address
-		expectedAccountBalance *big.Int
+		expectedAccountBalance *uint256.Int
 	}{
 		{
 
@@ -30,13 +32,13 @@ func TestStateDB_CreateAccount(t *testing.T) {
 			name:                   "account exists",
 			tree:                   initState(t),
 			address:                initialAccountAddress,
-			expectedAccountBalance: big.NewInt(200),
+			expectedAccountBalance: uint256.NewInt(200),
 		},
 		{
 			name:                   "creates an account",
 			tree:                   initState(t),
 			address:                common.BytesToAddress(test.RandomBytes(20)),
-			expectedAccountBalance: big.NewInt(0),
+			expectedAccountBalance: uint256.NewInt(0),
 		},
 	}
 	for _, tt := range tests {
@@ -62,36 +64,36 @@ func TestStateDB_SubBalance(t *testing.T) {
 		name                   string
 		tree                   *state.State
 		address                common.Address
-		subAmount              *big.Int
-		expectedAccountBalance *big.Int
+		subAmount              *uint256.Int
+		expectedAccountBalance *uint256.Int
 	}{
 		{
 			name:                   "account does not exist",
 			tree:                   initState(t),
 			address:                common.BytesToAddress(test.RandomBytes(20)),
-			subAmount:              big.NewInt(10),
-			expectedAccountBalance: big.NewInt(0),
+			subAmount:              uint256.NewInt(10),
+			expectedAccountBalance: uint256.NewInt(0),
 		},
 		{
 			name:                   "ok",
 			tree:                   initState(t),
 			address:                initialAccountAddress,
-			subAmount:              big.NewInt(10),
-			expectedAccountBalance: big.NewInt(190),
+			subAmount:              uint256.NewInt(10),
+			expectedAccountBalance: uint256.NewInt(190),
 		},
 		{
 			name:                   "subtract zero",
 			tree:                   initState(t),
 			address:                initialAccountAddress,
-			subAmount:              big.NewInt(0),
-			expectedAccountBalance: big.NewInt(200),
+			subAmount:              uint256.NewInt(0),
+			expectedAccountBalance: uint256.NewInt(200),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewStateDB(tt.tree, logger.New(t))
 
-			s.SubBalance(tt.address, tt.subAmount)
+			s.SubBalance(tt.address, tt.subAmount, tracing.BalanceChangeUnspecified)
 			require.NoError(t, s.errDB)
 			require.Equal(t, tt.expectedAccountBalance, s.GetBalance(tt.address))
 		})
@@ -103,36 +105,36 @@ func TestStateDB_AddBalance(t *testing.T) {
 		name                   string
 		tree                   *state.State
 		address                common.Address
-		addAmount              *big.Int
-		expectedAccountBalance *big.Int
+		addAmount              *uint256.Int
+		expectedAccountBalance *uint256.Int
 	}{
 		{
 			name:                   "account does not exist",
 			tree:                   initState(t),
 			address:                common.BytesToAddress(test.RandomBytes(20)),
-			addAmount:              big.NewInt(10),
-			expectedAccountBalance: big.NewInt(0),
+			addAmount:              uint256.NewInt(10),
+			expectedAccountBalance: uint256.NewInt(0),
 		},
 		{
 			name:                   "ok",
 			tree:                   initState(t),
 			address:                initialAccountAddress,
-			addAmount:              big.NewInt(10),
-			expectedAccountBalance: big.NewInt(210),
+			addAmount:              uint256.NewInt(10),
+			expectedAccountBalance: uint256.NewInt(210),
 		},
 		{
 			name:                   "add zero",
 			tree:                   initState(t),
 			address:                initialAccountAddress,
-			addAmount:              big.NewInt(0),
-			expectedAccountBalance: big.NewInt(200),
+			addAmount:              uint256.NewInt(0),
+			expectedAccountBalance: uint256.NewInt(200),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewStateDB(tt.tree, logger.New(t))
 
-			s.AddBalance(tt.address, tt.addAmount)
+			s.AddBalance(tt.address, tt.addAmount, tracing.BalanceChangeUnspecified)
 			require.NoError(t, s.errDB)
 			require.Equal(t, tt.expectedAccountBalance, s.GetBalance(tt.address))
 		})
@@ -339,7 +341,7 @@ func TestStateDB_SelfDestruct6780(t *testing.T) {
 	// add a new account and call self-destruct immediately
 	newAddr := common.BytesToAddress(test.RandomBytes(20))
 	db.CreateAccount(newAddr)
-	db.AddBalance(newAddr, big.NewInt(10000))
+	db.AddBalance(newAddr, uint256.NewInt(10000), tracing.BalanceChangeUnspecified)
 	db.Selfdestruct6780(newAddr)
 	require.True(t, db.Exist(newAddr))
 	require.True(t, db.HasSelfDestructed(newAddr))
@@ -352,7 +354,7 @@ func TestStateDB_RevertSnapshot(t *testing.T) {
 	s := NewStateDB(initState(t), logger.New(t))
 	snapID := s.Snapshot()
 	s.SetNonce(initialAccountAddress, 1)
-	s.AddBalance(initialAccountAddress, big.NewInt(100))
+	s.AddBalance(initialAccountAddress, uint256.NewInt(100), tracing.BalanceChangeUnspecified)
 	s.SetCode(initialAccountAddress, []byte("hello world"))
 	s.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
 	address := common.BytesToAddress(test.RandomBytes(20))
@@ -363,7 +365,7 @@ func TestStateDB_RevertSnapshot(t *testing.T) {
 	s.RevertToSnapshot(snapID)
 	require.False(t, s.Exist(address))
 
-	require.Equal(t, big.NewInt(200), s.GetBalance(initialAccountAddress))
+	require.Equal(t, uint256.NewInt(200), s.GetBalance(initialAccountAddress))
 	require.Equal(t, uint64(0), s.GetNonce(initialAccountAddress))
 	require.Equal(t, []byte(nil), s.GetCode(initialAccountAddress))
 	require.Equal(t, common.Hash{}, s.GetState(initialAccountAddress, common.BigToHash(big.NewInt(1))))
@@ -373,7 +375,7 @@ func TestStateDB_RevertSnapshot2(t *testing.T) {
 	s := NewStateDB(initState(t), logger.New(t))
 	snapID := s.Snapshot()
 	s.SetNonce(initialAccountAddress, 1)
-	s.AddBalance(initialAccountAddress, big.NewInt(100))
+	s.AddBalance(initialAccountAddress, uint256.NewInt(100), tracing.BalanceChangeUnspecified)
 	s.SetCode(initialAccountAddress, []byte("hello world"))
 	s.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
 	address := common.BytesToAddress(test.RandomBytes(20))
@@ -389,7 +391,7 @@ func TestStateDB_RevertSnapshot2(t *testing.T) {
 	s.RevertToSnapshot(snapID)
 	require.False(t, s.Exist(address))
 
-	require.Equal(t, big.NewInt(200), s.GetBalance(initialAccountAddress))
+	require.Equal(t, uint256.NewInt(200), s.GetBalance(initialAccountAddress))
 	require.Equal(t, uint64(0), s.GetNonce(initialAccountAddress))
 	require.Equal(t, []byte(nil), s.GetCode(initialAccountAddress))
 	require.Equal(t, common.Hash{}, s.GetState(initialAccountAddress, common.BigToHash(big.NewInt(1))))
@@ -404,7 +406,7 @@ func TestStateDB_GetUpdatedUnits(t *testing.T) {
 	db.CreateAccount(initialAccountAddress)
 	snapID := db.Snapshot()
 	db.SetNonce(initialAccountAddress, 1)
-	db.AddBalance(initialAccountAddress, big.NewInt(100))
+	db.AddBalance(initialAccountAddress, uint256.NewInt(100), tracing.BalanceChangeUnspecified)
 	db.SetCode(initialAccountAddress, []byte("hello world"))
 	db.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
 	address := common.BytesToAddress(test.RandomBytes(20))
@@ -433,7 +435,7 @@ func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {
 	require.Len(t, units, 0)
 	db.CreateAccount(initialAccountAddress)
 	db.SetNonce(initialAccountAddress, 1)
-	db.AddBalance(initialAccountAddress, big.NewInt(100))
+	db.AddBalance(initialAccountAddress, uint256.NewInt(100), tracing.BalanceChangeUnspecified)
 	db.SetCode(initialAccountAddress, []byte("hello world"))
 	db.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
 	// snapID1 snapshot has 1 account created
@@ -476,7 +478,7 @@ func initState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 	db := NewStateDB(s, logger.New(t))
 	db.CreateAccount(initialAccountAddress)
-	db.AddBalance(initialAccountAddress, big.NewInt(200))
+	db.AddBalance(initialAccountAddress, uint256.NewInt(200), tracing.BalanceChangeUnspecified)
 	require.NoError(t, s.Prune())
 	teststate.CommitWithUC(t, s)
 	require.NoError(t, db.Finalize())

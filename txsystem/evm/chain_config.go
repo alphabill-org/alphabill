@@ -35,6 +35,5 @@ func NewChainConfig(chainID *big.Int) *params.ChainConfig {
 		TerminalTotalDifficulty: nil,
 		Ethash:                  nil,
 		Clique:                  nil,
-		IsDevMode:               false,
 	}
 }

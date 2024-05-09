@@ -71,7 +71,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(updateTx)
-	require.ErrorContains(t, err, "unit has a state lock, but tx does not have unlock proof")
+	require.ErrorContains(t, err, "unit state lock error: unlock proof error: invalid state unlock proof: empty")
 
 	// update nft with state unlock, it must be transferred to new bearer w1
 	attr := &tokens.UpdateNonFungibleTokenAttributes{

@@ -27,6 +27,9 @@ type StateUnlockProof struct {
 
 // check checks if the state unlock proof is valid, gives error if not
 func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
+	if stateLock == nil {
+		return fmt.Errorf("StateLock is nil")
+	}
 	switch p.Kind {
 	case StateUnlockExecute:
 		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
@@ -42,15 +45,17 @@ func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.Transa
 	return nil
 }
 
-func StateUnlockProofFromBytes(b []byte) (*StateUnlockProof, error) {
-	if len(b) < 1 {
+func StateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, error) {
+	if len(tx.StateUnlock) < 1 {
 		return nil, fmt.Errorf("invalid state unlock proof: empty")
 	}
-	kind := StateUnlockProofKind(b[0])
-	proof := b[1:]
+	kind := StateUnlockProofKind(tx.StateUnlock[0])
+	proof := tx.StateUnlock[1:]
 	return &StateUnlockProof{Kind: kind, Proof: proof}, nil
 }
 
+// handleUnlockUnitState - tries to unlock a state locked unit.
+// Returns error if unit is locked and could not be unlocked (either predicate fails or none input is provided).
 func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
 	// todo: handle multiple target units
 	unitID := tx.UnitID()
@@ -69,20 +74,18 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	// check if unit has a state lock, any transaction with locked unit must first unlock
 	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
 	// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
-	proof, err := StateUnlockProofFromBytes(tx.StateUnlock)
+	proof, err := StateUnlockProofFromTx(tx)
 	if err != nil {
-		return nil, fmt.Errorf("unit has a state lock, but tx does not have unlock proof")
+		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
 	txOnHold := &types.TransactionOrder{}
 	if err = cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
 	}
-	stateLock := txOnHold.Payload.StateLock
-	if stateLock == nil {
-		return nil, fmt.Errorf("state lock tx has no state lock")
-	}
-	if err = proof.check(m.pr, tx, stateLock); err != nil {
-		return nil, err
+	// The following line assumes that the pending transaction is valid and has a Payload
+	// this will crash if not, a separate method to return state lock or nil would be better
+	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock); err != nil {
+		return nil, fmt.Errorf("lock error: %w", err)
 	}
 	// proof is ok, release the lock
 	if err = m.state.Apply(state.SetStateLock(unitID, nil)); err != nil {

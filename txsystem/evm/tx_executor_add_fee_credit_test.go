@@ -3,7 +3,6 @@ package evm
 import (
 	"crypto"
 	"crypto/sha256"
-	"math/big"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -20,6 +19,8 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
+	"github.com/holiman/uint256"
+
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
@@ -335,7 +336,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
-				Account:   &statedb.Account{Balance: big.NewInt(100)},
+				Account:   &statedb.Account{Balance: uint256.NewInt(100)},
 				AlphaBill: &statedb.AlphaBillLink{TxHash: []byte("actual target unit backlink")},
 			}))
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
@@ -363,7 +364,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
-				Account:   &statedb.Account{Balance: big.NewInt(100)},
+				Account:   &statedb.Account{Balance: uint256.NewInt(100)},
 				AlphaBill: &statedb.AlphaBillLink{TxHash: []byte("actual target unit backlink")},
 			}))
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
@@ -542,8 +543,8 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
 	// balance is equal to 100 - "transfer fee" - "add fee" to wei
-	remainingCredit := new(big.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	remainingCredit := new(uint256.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 	// check owner condition set
 	u, err := feeCreditModule.state.GetUnit(addr.Bytes(), false)
@@ -572,11 +573,11 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	metaData, err = feeCreditModule.executeAddFC(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
-	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
+	remainingCredit = new(uint256.Int).Add(remainingCredit, alphaToWei(10))
 	balance = stateDB.GetBalance(addr)
 	// balance is equal to remaining+10-"transfer fee 1" -"ass fee = 2" to wei
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
-	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
+	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 	// check owner condition
 	u, err = feeCreditModule.state.GetUnit(addr.Bytes(), false)

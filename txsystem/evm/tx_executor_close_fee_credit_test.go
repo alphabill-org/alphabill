@@ -184,5 +184,5 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	obj, ok := fcrUnit.Data().(*statedb.StateObject)
 	require.True(t, ok)
 	require.Equal(t, tx.Hash(crypto.SHA256), obj.AlphaBill.TxHash)
-	require.EqualValues(t, 0, obj.Account.Balance.Int64())
+	require.EqualValues(t, 0, obj.Account.Balance.Uint64())
 }

@@ -27,6 +27,7 @@ type (
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		TransactionSystemState() txsystem.StateReader
 		ValidatorNodes() peer.IDSlice
+		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
 	}
 
 	Unit[T any] struct {
@@ -119,11 +120,11 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) 
 		}
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordBytes, err := encodeCbor(txRecord)
+	txRecordBytes, err := types.Cbor.Marshal(txRecord)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
-	txProofBytes, err := encodeCbor(txProof)
+	txProofBytes, err := types.Cbor.Marshal(txProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx proof: %w", err)
 	}
@@ -142,17 +143,18 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber types.Uint64) (type
 	if block == nil {
 		return nil, nil
 	}
-	blockCbor, err := encodeCbor(block)
+	blockCbor, err := types.Cbor.Marshal(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode block: %w", err)
 	}
 	return blockCbor, nil
 }
 
-func encodeCbor(v interface{}) ([]byte, error) {
-	data, err := types.Cbor.Marshal(v)
+// GetTrustBase returns trust base for the given epoch.
+func (s *StateAPI) GetTrustBase(epochNumber types.Uint64) (types.RootTrustBase, error) {
+	trustBase, err := s.node.GetTrustBase(uint64(epochNumber))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load trust base: %w", err)
 	}
-	return data, nil
+	return trustBase, nil
 }

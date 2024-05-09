@@ -3,17 +3,17 @@ package evm
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
-var alpha2Wei = new(big.Int).Exp(big.NewInt(10), big.NewInt(10), nil)
-var alpha2WeiRoundCorrector = new(big.Int).Div(alpha2Wei, big.NewInt(2))
+var alpha2Wei = new(uint256.Int).Exp(uint256.NewInt(10), uint256.NewInt(10))
+var alpha2WeiRoundCorrector = new(uint256.Int).Div(alpha2Wei, uint256.NewInt(2))
 
 func generateAddress(pubKeyBytes []byte) (common.Address, error) {
 	if pubKeyBytes == nil {
@@ -45,12 +45,12 @@ func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
 
 // alphaToWei - converts from alpha to wei, assuming 1:1 exchange
 // 1 wei = 1 tema / 10^10
-func alphaToWei(alpha uint64) *big.Int {
-	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
+func alphaToWei(alpha uint64) *uint256.Int {
+	return new(uint256.Int).Mul(new(uint256.Int).SetUint64(alpha), alpha2Wei)
 }
 
 // weiToAlpha - converts from wei to alpha, rounding half up.
 // 1 wei = wei * 10^10 / 10^18
-func weiToAlpha(wei *big.Int) uint64 {
-	return new(big.Int).Div(new(big.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
+func weiToAlpha(wei *uint256.Int) uint64 {
+	return new(uint256.Int).Div(new(uint256.Int).Add(wei, alpha2WeiRoundCorrector), alpha2Wei).Uint64()
 }

@@ -4,10 +4,6 @@ go 1.22
 
 replace (
 	github.com/apache/thrift v0.13.0 => github.com/apache/thrift v0.16.0
-	github.com/cockroachdb/pebble v1.1.0 => github.com/cockroachdb/pebble v0.0.0-20230209160836-829675f94811
-	github.com/crate-crypto/go-kzg-4844 v1.0.0 => github.com/crate-crypto/go-kzg-4844 v0.3.0
-	github.com/ethereum/c-kzg-4844 v1.0.1 => github.com/ethereum/c-kzg-4844 v0.3.1
-	github.com/ethereum/go-ethereum v1.14.0 => github.com/ethereum/go-ethereum v1.12.2
 	github.com/microcosm-cc/bluemonday v1.0.1 => github.com/microcosm-cc/bluemonday v1.0.18
 	github.com/multiformats/go-multistream v0.5.0 => github.com/multiformats/go-multistream v0.4.1
 	github.com/nats-io/nats-server/v2 v2.1.2 => github.com/nats-io/nats-server/v2 v2.8.0
@@ -52,6 +48,7 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -64,10 +61,12 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/pebble v1.1.0 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.12.1 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
+	github.com/crate-crypto/go-ipa v0.0.0-20231025140028-3c0104f4b233 // indirect
 	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
@@ -80,11 +79,11 @@ require (
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
@@ -202,7 +201,6 @@ require (
 	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect

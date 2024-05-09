@@ -1416,6 +1416,15 @@ func (n *Node) IsValidatorNode() bool {
 	return slices.Contains(n.validatorNodes, n.Peer().ID())
 }
 
+func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
+	// TODO verify epoch number after epoch switching is implemented
+	trustBase := n.configuration.trustBase
+	if trustBase == nil {
+		return nil, fmt.Errorf("trust base for epoch %d does not exist", epochNumber)
+	}
+	return trustBase, nil
+}
+
 func (n *Node) FilterValidatorNodes(exclude peer.ID) []peer.ID {
 	var result []peer.ID
 	for _, v := range n.validatorNodes {

@@ -71,7 +71,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if !u.IsStateLocked() {
 		return nil, nil
 	}
-	// check if unit has a state lock, any transaction with locked unit must first unlock
+	// unit has a state lock, any transaction with locked unit must first unlock
 	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
 	// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
 	proof, err := StateUnlockProofFromTx(tx)

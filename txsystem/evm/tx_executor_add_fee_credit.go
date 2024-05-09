@@ -46,7 +46,7 @@ func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	}
 	v := transferFc.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
 
-	// if unit exists update balance and alphabill free credit link data
+	// if unit exists update balance and alphabill fee credit link data
 	addCredit := []state.Action{
 		statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(f.hashAlgorithm)),
 		state.SetOwner(unitID, attr.FeeCreditOwnerCondition),

@@ -14,7 +14,7 @@ var (
 	ErrUnitDataTypeIsNotFCR = fmt.Errorf("invalid unit type: unit is not fee credit record")
 )
 
-// ValidateGenericFeeCreditTx none of the free credit transactions must contain fee credit reference or separate fee authorization proof
+// ValidateGenericFeeCreditTx none of the fee credit transactions must contain fee credit reference or separate fee authorization proof
 func ValidateGenericFeeCreditTx(tx *types.TransactionOrder) error {
 	// P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if tx.GetClientFeeCreditRecordID() != nil {

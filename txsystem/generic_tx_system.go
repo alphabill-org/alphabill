@@ -142,7 +142,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 			sm.TargetUnits = append(sm.TargetUnits, unlockSm.TargetUnits...)
 		}
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
-		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close free credit" transactions in all
+		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		if sm.ActualFee > 0 && !fc.IsFeeCreditTx(tx) {
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()

@@ -44,6 +44,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		expErr := errors.New("tx handler failed")
 		mock := NewMockTxModule(expErr)
+		mock.ValidateError = expErr
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
@@ -67,17 +68,17 @@ func Test_TxExecutors_Execute(t *testing.T) {
 
 	t.Run("tx handler validate, incorrect attributes", func(t *testing.T) {
 		type TestData struct {
-			_   struct{} `cbor:",toarray"`
-			Foo uint64
+			_    struct{} `cbor:",toarray"`
+			Data []byte
 		}
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
-			transaction.WithAttributes(TestData{Foo: 1}))
+			transaction.WithAttributes(TestData{Data: []byte{1, 4}}))
 		attr, err := exec.Validate(txOrder, &TxExecutionContext{CurrentBlockNr: 5})
-		require.EqualError(t, err, "failed to unmarshal payload: cbor: cannot unmarshal positive integer into Go struct field txsystem.MockTxAttributes.Data of type []uint8")
+		require.EqualError(t, err, "failed to unmarshal payload: cbor: cannot unmarshal byte string into Go struct field txsystem.MockTxAttributes.Value of type uint64")
 		require.Nil(t, attr)
 	})
 
@@ -101,6 +102,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		expErr := errors.New("tx handler failed")
 		mock := NewMockTxModule(expErr)
+		mock.ValidateError = expErr
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),

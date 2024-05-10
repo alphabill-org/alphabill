@@ -17,17 +17,11 @@ type UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
 type AttrEncID struct {
 	TxSys types.SystemID
 	Attr  string // tx attributes type id (payload type name)
-	// version of the encoding. makes sense when SDK can request version / supports multiple versions?
-	// when using the SDK version to determine the response encoding then it is probably
-	// more flexible/easier is to send version as a param to the encoder func - then when nothing
-	// changes between SDK versions don't have to repeat same encoder for different SDK versions?
-	// however when each struct in SDK has it's own ver and sends it with request this key makes sense?
-	//Ver   int
 }
 
 /*
-TXSystemEncoder is "generic" tx system encoder, parts specific to given tx system (which wants to
-use it with Wazero WASM predicates) must be added using Register*Encoder methods.
+TXSystemEncoder is "generic" tx system encoder, parts specific to given tx system (which
+wants to use it with Wazero WASM predicates) must be added using Register*Encoder methods.
 */
 type TXSystemEncoder struct {
 	attrEnc map[AttrEncID]TxAttributesEncoder
@@ -35,29 +29,34 @@ type TXSystemEncoder struct {
 }
 
 func New(f ...any) (TXSystemEncoder, error) {
-	txse := TXSystemEncoder{}
+	enc := TXSystemEncoder{}
 	for x, v := range f {
 		switch rf := v.(type) {
 		case func(func(id AttrEncID, enc TxAttributesEncoder) error) error:
-			if err := rf(txse.RegisterAttrEncoder); err != nil {
-				return txse, fmt.Errorf("registering attribute encoder [%d]: %w", x, err)
+			if err := rf(enc.RegisterAttrEncoder); err != nil {
+				return enc, fmt.Errorf("registering attribute encoder [%d]: %w", x, err)
 			}
 		case func(func(ud any, encoder UnitDataEncoder) error) error:
-			if err := rf(txse.RegisterUnitDataEncoder); err != nil {
-				return txse, fmt.Errorf("registering unit-data encoder [%d]: %w", x, err)
+			if err := rf(enc.RegisterUnitDataEncoder); err != nil {
+				return enc, fmt.Errorf("registering unit-data encoder [%d]: %w", x, err)
 			}
 		default:
-			return txse, fmt.Errorf("unsupported registration function type [%d]: %T", x, v)
+			return enc, fmt.Errorf("unsupported registration function type [%d]: %T", x, v)
 		}
 	}
-	return txse, nil
+	return enc, nil
 }
 
 /*
-Encode serializes well known types (not tx system specific) to WASM representation.
+Encode serializes well known types (not tx system specific) to representation WASM
+predicate SDK can load.
 
-ver - version of the encoding/object the predicate expects;
-getHandle - add type id param and encode it into handle? ie CBOR, BO, []byte,...?
+  - obj: data to serialize, must be of "well known type";
+  - ver: version of the encoding/object the predicate expects;
+  - getHandle: callback to register variable in the execution context, returns handle
+    of the new variable. Ie instead of "flattening" sub-object it can be registered and
+    it's handle returned as part of response allowing predicate to load the sub-object
+    with next call.
 */
 func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error) {
 	switch t := obj.(type) {
@@ -73,30 +72,21 @@ func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) u
 	return nil, fmt.Errorf("no encoder for %T", obj)
 }
 
-func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, ver uint32, getHandle func(obj any) uint64) ([]byte, error) {
-	var buf WasmEnc
-	buf.WriteTypeVer(type_id_tx_record, 1)
-	buf.WriteUInt64(getHandle(txo.TransactionOrder))
-	return buf, nil
+func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandle func(obj any) uint64) ([]byte, error) {
+	var buf TVEnc
+	buf.EncodeTagged(1, getHandle(txo.TransactionOrder))
+	return buf.Bytes()
 }
 
-func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	var buf WasmEnc
-	switch {
-	case ver <= sdk_version:
-		buf.WriteUInt32(uint32(txo.SystemID()))
-		buf.WriteString(txo.Payload.Type)
-		buf.WriteBytes(txo.Payload.UnitID)
-		if txo.Payload.ClientMetadata != nil {
-			buf.WriteBytes(txo.Payload.ClientMetadata.ReferenceNumber)
-		} else {
-			buf.WriteBytes(nil)
-		}
-	default:
-		// if we'd use "tagged encoding" could send latest version instead of error?
-		return nil, fmt.Errorf("requested tx order version %d is not supported", ver)
+func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, error) {
+	var buf TVEnc
+	buf.EncodeTagged(1, uint32(txo.SystemID()))
+	buf.EncodeTagged(2, txo.Payload.Type)
+	buf.EncodeTagged(3, txo.Payload.UnitID)
+	if txo.Payload.ClientMetadata != nil {
+		buf.EncodeTagged(4, txo.Payload.ClientMetadata.ReferenceNumber)
 	}
-	return buf, nil
+	return buf.Bytes()
 }
 
 func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
@@ -143,9 +133,11 @@ func (enc *TXSystemEncoder) RegisterAttrEncoder(id AttrEncID, encoder TxAttribut
 }
 
 /*
-reg is a func which attempts to register "all" encoders and for each "filter" is
-executed and only these for which filter returned true actual registration is
-attempted.
+RegisterTxAttributeEncoders is like RegisterAttrEncoder but allows to filter
+out undesired encoders.
+  - reg: func which attempts to register "all" encoders but for each "filter" is
+    executed and only these for which filter returned true actual registration is
+    attempted.
 */
 func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id AttrEncID, enc TxAttributesEncoder) error) error, filter func(AttrEncID) bool) error {
 	return reg(func(id AttrEncID, encoder TxAttributesEncoder) error {
@@ -155,14 +147,3 @@ func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id AttrEnc
 		return enc.RegisterAttrEncoder(id, encoder)
 	})
 }
-
-const (
-	// The latest SDK version this encoder (TXSystemEncoder) is aware of.
-	// Note that attribute and unit data encoders registered with it might
-	// support different SDK versions (could be both lower or higher!).
-	sdk_version = 1
-
-	type_id_tx_order  = 1
-	type_id_tx_record = 8
-	type_id_tx_proof  = 9
-)

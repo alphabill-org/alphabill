@@ -81,7 +81,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, trustBase, nil),
-		logger.New(t))
+	)
 
 	tests := []struct {
 		name       string
@@ -148,7 +148,6 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator(0x00000001, evm.DefaultSystemID, crypto.SHA256, trustBase, nil),
-		log,
 	)
 
 	// create close order

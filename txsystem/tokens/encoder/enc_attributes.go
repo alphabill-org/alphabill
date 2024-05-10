@@ -30,12 +30,11 @@ func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver ui
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	// alloc: 3*uint32 for lengths + data lengths
-	buf := make(encoder.WasmEnc, 0, (3*4)+len(attr.Symbol)+len(attr.Name)+len(attr.ParentTypeID))
-	buf.WriteString(attr.Symbol)
-	buf.WriteString(attr.Name)
-	buf.WriteBytes(attr.ParentTypeID)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, attr.Symbol)
+	buf.EncodeTagged(2, attr.Name)
+	buf.EncodeTagged(3, attr.ParentTypeID)
+	return buf.Bytes()
 }
 
 func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
@@ -43,12 +42,12 @@ func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) 
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0)
-	buf.WriteString(attr.Name)
-	buf.WriteString(attr.URI)
-	buf.WriteBytes(attr.Data)
-	buf.WriteUInt64(attr.Nonce)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, attr.Name)
+	buf.EncodeTagged(2, attr.URI)
+	buf.EncodeTagged(3, attr.Data)
+	buf.EncodeTagged(4, attr.Nonce)
+	return buf.Bytes()
 }
 
 func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
@@ -56,11 +55,11 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0)
-	buf.WriteBytes(attr.NFTTypeID)
-	buf.WriteBytes(attr.Nonce)
-	buf.WriteUInt64(attr.Counter)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, attr.NFTTypeID)
+	buf.EncodeTagged(2, attr.Nonce)
+	buf.EncodeTagged(3, attr.Counter)
+	return buf.Bytes()
 }
 
 func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
@@ -68,10 +67,10 @@ func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0, 8+len(attr.Data)+8)
-	buf.WriteBytes(attr.Data)
-	buf.WriteUInt64(attr.Counter)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, attr.Data)
+	buf.EncodeTagged(2, attr.Counter)
+	return buf.Bytes()
 }
 
 func txaCreateFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {

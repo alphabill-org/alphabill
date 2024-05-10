@@ -5,12 +5,17 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -23,9 +28,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-	"github.com/tetratelabs/wazero"
 )
 
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
@@ -59,7 +61,7 @@ func Test_conference_tickets(t *testing.T) {
 	// not ideal but we use org and attendee also for trustbase
 	// the testblock.CreateProof takes single signer as trustbase and used id "test" for it
 	//trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
-	// need VerifyQuorumSignatures
+	// need VerifyQuorumSignatures for verifing tx proofs
 	trustbase := &mockRootTrustBase{
 		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
 	}
@@ -102,27 +104,28 @@ func Test_conference_tickets(t *testing.T) {
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
 		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
-		b, err := cbor.Marshal(txRec)
+		b, err := types.Cbor.Marshal(txRec)
 		require.NoError(t, err)
 
 		args := []types.RawCBOR{b}
-		b, err = cbor.Marshal(proof)
+		b, err = types.Cbor.Marshal(proof)
 		require.NoError(t, err)
 
-		b, err = cbor.Marshal(append(args, b))
+		b, err = types.Cbor.Marshal(append(args, b))
 		require.NoError(t, err)
 
 		// and wrap it into another array
-		b, err = cbor.Marshal([]types.RawCBOR{b})
+		b, err = types.Cbor.Marshal([]types.RawCBOR{b})
 		require.NoError(t, err)
 		return b
 	}
 
-	// params hardcoded to the predicates:
-	const D1 uint64 = 1709683200
-	const D2 uint64 = D1 + 100000
-	const P1 uint64 = 1000
-	const P2 uint64 = 1500
+	const earlyBirdDate uint64 = 1709683200
+	const regularDate uint64 = earlyBirdDate + 100000
+	const earlyBirdPrice uint64 = 1000
+	const regularPrice uint64 = 1500
+	predArg, err := types.Cbor.Marshal([]any{earlyBirdDate, regularDate, earlyBirdPrice, regularPrice, hash.Sum256(pubKeyOrg)})
+	require.NoError(t, err)
 
 	nftTypeID := tokens.NewNonFungibleTokenTypeID(nil, []byte{7, 7, 7, 7, 7, 7, 7})
 	tokenID, err := tokens.NewRandomNonFungibleTokenID(nil)
@@ -139,7 +142,7 @@ func Test_conference_tickets(t *testing.T) {
 				}
 				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
 			},
-			curRound: func() uint64 { return D1 },
+			curRound: func() uint64 { return earlyBirdDate },
 		}
 
 		// "current transaction" for the predicate must be "transfer NFT"
@@ -160,18 +163,19 @@ func Test_conference_tickets(t *testing.T) {
 		wvm, err := New(context.Background(), enc, obs)
 		require.NoError(t, err)
 		args := []byte{} // predicate expects no arguments
+		conf := wasm.PredicateParams{Entrypoint: "bearer_invariant", Args: predArg}
 
 		// should eval to "true"
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res)
 
 		// hackish way to change current round past D1 so now should eval to "false"
-		env.curRound = func() uint64 { return D1 + 1 }
+		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		start = time.Now()
-		res, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, args, txNFTTransfer, env)
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
@@ -196,22 +200,23 @@ func Test_conference_tickets(t *testing.T) {
 
 		env := &mockTxContext{
 			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:  func() uint64 { return D1 },
+			curRound:  func() uint64 { return earlyBirdDate },
 		}
+		conf := wasm.PredicateParams{Entrypoint: "mint_token", Args: predArg}
 
 		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, P1, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
+		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
-		env.curRound = func() uint64 { return D1 + 1 }
-		res, err = wvm.Exec(context.Background(), "mint_token", ticketsWasm, args, txNFTMint, env)
+		env.curRound = func() uint64 { return earlyBirdDate + 1 }
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		require.NoError(t, err)
 		require.EqualValues(t, 0x01, res)
 	})
@@ -245,16 +250,17 @@ func Test_conference_tickets(t *testing.T) {
 					}), nil
 			},
 			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:  func() uint64 { return D2 },
+			curRound:  func() uint64 { return regularDate },
 		}
+		conf := wasm.PredicateParams{Entrypoint: "update_data", Args: predArg}
 
 		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
 		// upgrade early-bird to regular so it can be transferred after D2
-		args := predicateArgs(t, P2-P1, hash.Sum256(append(append([]byte{2}, nftTypeID...), txNFTUpdate.Payload.UnitID...)))
+		args := predicateArgs(t, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, nftTypeID, txNFTUpdate.Payload.UnitID)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), "update_data", ticketsWasm, args, txNFTUpdate, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 0x0, res)
@@ -281,9 +287,10 @@ func TestReadHeapBase(t *testing.T) {
 		curRound: func() uint64 { return 1709683000 },
 	}
 	enc := encoder.TXSystemEncoder{}
+	conf := wasm.PredicateParams{Entrypoint: "bearer_invariant"}
 	wvm, err := New(context.Background(), enc, observability.Default(t))
 	require.NoError(t, err)
-	_, err = wvm.Exec(context.Background(), "bearer_invariant", ticketsWasm, nil, nil, env)
+	_, err = wvm.Exec(context.Background(), ticketsWasm, nil, conf, nil, env)
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
@@ -337,6 +344,7 @@ type mockTxContext struct {
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return env.getUnit(id, committed)
 }
+
 func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	return env.payloadBytes(txo)
 }
@@ -349,9 +357,6 @@ type mockRootTrustBase struct {
 
 	// instead of implementing all methods just embed the interface for now
 	types.RootTrustBase
-	//VerifySignature(data []byte, sig []byte, nodeID string) (uint64, error)
-	//GetQuorumThreshold() uint64
-	//GetMaxFaultyNodes() uint64
 }
 
 func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string][]byte) (error, []error) {

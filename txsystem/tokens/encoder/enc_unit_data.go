@@ -17,29 +17,22 @@ func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) erro
 
 func udeNonFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenData)
-	var buf encoder.WasmEnc
-	buf.WriteTypeVer(type_id_NFT_data, 1)
-	buf.WriteBytes(value.NftType)
-	buf.WriteString(value.Name)
-	buf.WriteString(value.URI)
-	buf.WriteBytes(value.Data)
-	buf.WriteUInt64(value.T)
-	buf.WriteUInt64(value.Counter)
-	buf.WriteUInt64(value.Locked)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, value.NftType)
+	buf.EncodeTagged(2, value.Name)
+	buf.EncodeTagged(3, value.URI)
+	buf.EncodeTagged(4, value.Data)
+	buf.EncodeTagged(5, value.T)
+	buf.EncodeTagged(6, value.Counter)
+	buf.EncodeTagged(7, value.Locked)
+	return buf.Bytes()
 }
 
 func udeNonFungibleTokenTypeData(data types.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.NonFungibleTokenTypeData)
-	var buf encoder.WasmEnc
-	buf.WriteTypeVer(type_id_NFT_type, 1)
-	buf.WriteBytes(value.ParentTypeId)
-	buf.WriteString(value.Symbol)
-	buf.WriteString(value.Name)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, value.ParentTypeId)
+	buf.EncodeTagged(2, value.Symbol)
+	buf.EncodeTagged(3, value.Name)
+	return buf.Bytes()
 }
-
-const (
-	type_id_NFT_data = 5
-	type_id_NFT_type = 6
-)

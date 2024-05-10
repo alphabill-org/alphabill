@@ -40,8 +40,8 @@ func txaTransferAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, err
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
-	buf := make(encoder.WasmEnc, 0, 8+8)
-	buf.WriteUInt64(attr.TargetValue)
-	buf.WriteUInt64(attr.Counter)
-	return buf, nil
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, attr.TargetValue)
+	buf.EncodeTagged(2, attr.Counter)
+	return buf.Bytes()
 }

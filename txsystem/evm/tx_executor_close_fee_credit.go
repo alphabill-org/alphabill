@@ -3,7 +3,6 @@ package evm
 import (
 	"crypto"
 	"fmt"
-	"log/slog"
 
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -15,7 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
-func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[fcsdk.CloseFeeCreditAttributes] {
+func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[fcsdk.CloseFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *fcsdk.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 		pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {

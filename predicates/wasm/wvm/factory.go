@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 // AB "common types", ie not tx system specific stuff
@@ -13,6 +12,7 @@ type ABTypesFactory struct{}
 // must be "tx system id + type id" to support tx system specific objects?
 // or we only support generic types here?
 // either the "data" (CBOR!) must have version id or version must come in as param?
+// the data (CBOR) could also encode the type?
 func (ABTypesFactory) create_obj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {
@@ -26,7 +26,7 @@ func (ABTypesFactory) create_obj(typID uint32, data []byte) (any, error) {
 		return nil, fmt.Errorf("unknown type ID %d", typID)
 	}
 
-	if err := cbor.Unmarshal(data, obj); err != nil {
+	if err := types.Cbor.Unmarshal(data, obj); err != nil {
 		return nil, fmt.Errorf("decoding data as %T: %w", obj, err)
 	}
 	return obj, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -30,8 +31,9 @@ type rtCtxKey string
 const runtimeContextKey = rtCtxKey("rt.Ctx")
 
 const (
-	handle_current_tx_order = 1
-	handle_current_args     = 2
+	handle_current_tx_order = 1 // tx order which triggered the predicate
+	handle_current_args     = 2 // user supplied arguments to the tx
+	handle_predicate_conf   = 3 // BLOB saved with the predicate binary
 	handle_max_reserved     = 10
 )
 
@@ -61,7 +63,6 @@ type (
 		vars   map[uint64]any
 		varIdx uint64          // "handle generator" for vars
 		env    EvalEnvironment // callback to the tx system
-		sdkVer uint32          // what SDK version current (predicate) program uses
 	}
 
 	EvalEnvironment interface {
@@ -130,7 +131,6 @@ func (vmc *VmContext) getBytesVariable(handle uint64) ([]byte, error) {
 
 func (vmc *VmContext) EndEval() {
 	vmc.curPrg.mod = nil
-	vmc.curPrg.sdkVer = 0
 	vmc.curPrg.env = nil
 	clear(vmc.curPrg.vars)
 }
@@ -177,6 +177,9 @@ func New(ctx context.Context, enc Encoder, observe Observability, opts ...Option
 	if err := addContextModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding current eval context module: %w", err)
 	}
+	if err := addCBORModule(ctx, rt, observe); err != nil {
+		return nil, fmt.Errorf("adding CBOR API module: %w", err)
+	}
 
 	if err := addAlphabillModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding alphabill API module: %w", err)
@@ -201,7 +204,7 @@ Exec loads the WASM module in "predicate" and calls the "fName" function in it.
   - "fName" function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
+func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -216,12 +219,6 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
 
-	if fn := m.ExportedFunction("_ab_sdk_version"); fn != nil {
-		rsp, err := fn.Call(ctx)
-		vm.ctx.curPrg.sdkVer = api.DecodeU32(rsp[0])
-		vm.ctx.log.DebugContext(ctx, fmt.Sprintf("SDK: %d (%v) = %v", vm.ctx.curPrg.sdkVer, rsp, err))
-	}
-
 	// do we need to create new mem manager for each predicate?
 	hb := api.DecodeU32(global.Get())
 	vm.ctx.MemMngr = allocator.NewBumpAllocator(hb, m.Memory().Definition())
@@ -231,10 +228,11 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	defer vm.ctx.EndEval()
 	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
 	vm.ctx.curPrg.vars[handle_current_args] = args
+	vm.ctx.curPrg.vars[handle_predicate_conf] = conf.Args
 
-	fn := m.ExportedFunction(fName)
+	fn := m.ExportedFunction(conf.Entrypoint)
 	if fn == nil {
-		return 0, fmt.Errorf("module doesn't export function %q", fName)
+		return 0, fmt.Errorf("module doesn't export function %q", conf.Entrypoint)
 	}
 
 	// all programs must complete in 100 ms, this will later be replaced with gas cost
@@ -243,9 +241,9 @@ func (vm *WasmVM) Exec(ctx context.Context, fName string, predicate, args []byte
 	defer cancel()
 	res, err := fn.Call(context.WithValue(ctx, runtimeContextKey, vm.ctx))
 	if err != nil {
-		return 0, fmt.Errorf("calling %s returned error: %w", fName, err)
+		return 0, fmt.Errorf("calling %s returned error: %w", conf.Entrypoint, err)
 	}
-	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), fName, res))
+	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), conf.Entrypoint, res))
 	if len(res) != 1 {
 		return 0, fmt.Errorf("unexpected return value length %v", len(res))
 	}

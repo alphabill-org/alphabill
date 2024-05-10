@@ -12,55 +12,49 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) handleSplitFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.SplitFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateSplitFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
-		}
-		unitID := tx.UnitID()
-		u, err := m.state.GetUnit(unitID, false)
-		if err != nil {
-			return nil, err
-		}
-		ftData := u.Data().(*tokens.FungibleTokenData)
-
-		// add new token unit
-		newTokenID := tokens.NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
-		fee := m.feeCalculator()
-
-		// update state
-		if err := m.state.Apply(
-			state.AddUnit(newTokenID,
-				attr.NewBearer,
-				&tokens.FungibleTokenData{
-					TokenType: ftData.TokenType,
-					Value:     attr.TargetValue,
-					T:         exeCtx.CurrentBlockNr,
-					Counter:   0,
-					T1:        0,
-					Locked:    0,
-				}),
-			state.UpdateUnitData(unitID,
-				func(data types.UnitData) (types.UnitData, error) {
-					d, ok := data.(*tokens.FungibleTokenData)
-					if !ok {
-						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
-					}
-					return &tokens.FungibleTokenData{
-						TokenType: d.TokenType,
-						Value:     d.Value - attr.TargetValue,
-						T:         exeCtx.CurrentBlockNr,
-						Counter:   d.Counter + 1,
-						T1:        d.T1,
-						Locked:    d.Locked,
-					}, nil
-				}),
-		); err != nil {
-			return nil, err
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.UnitID()
+	u, err := m.state.GetUnit(unitID, false)
+	if err != nil {
+		return nil, err
 	}
+	ftData := u.Data().(*tokens.FungibleTokenData)
+
+	// add new token unit
+	newTokenID := tokens.NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
+	fee := m.feeCalculator()
+
+	// update state
+	if err = m.state.Apply(
+		state.AddUnit(newTokenID,
+			attr.NewBearer,
+			&tokens.FungibleTokenData{
+				TokenType: ftData.TokenType,
+				Value:     attr.TargetValue,
+				T:         exeCtx.CurrentBlockNr,
+				Counter:   0,
+				T1:        0,
+				Locked:    0,
+			}),
+		state.UpdateUnitData(unitID,
+			func(data types.UnitData) (types.UnitData, error) {
+				d, ok := data.(*tokens.FungibleTokenData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
+				}
+				return &tokens.FungibleTokenData{
+					TokenType: d.TokenType,
+					Value:     d.Value - attr.TargetValue,
+					T:         exeCtx.CurrentBlockNr,
+					Counter:   d.Counter + 1,
+					T1:        d.T1,
+					Locked:    d.Locked,
+				}, nil
+			}),
+	); err != nil {
+		return nil, err
+	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
@@ -71,7 +65,7 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFungibleToken(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err

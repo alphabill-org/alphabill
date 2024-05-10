@@ -2,17 +2,44 @@ package txsystem
 
 import (
 	"errors"
-	"io"
+	"fmt"
+	"hash"
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
+
+const mockTxType = "mockTx-type"
+const mockTxSystemID = types.SystemID(10)
+
+type MockData struct {
+	_     struct{} `cbor:",toarray"`
+	Value uint64
+}
+
+func (t *MockData) Write(hasher hash.Hash) error {
+	res, err := types.Cbor.Marshal(t)
+	if err != nil {
+		return fmt.Errorf("test data serialization error: %w", err)
+	}
+	_, err = hasher.Write(res)
+	return err
+}
+func (t *MockData) SummaryValueInput() uint64 {
+	return t.Value
+}
+func (t *MockData) Copy() types.UnitData {
+	return &MockData{Value: t.Value}
+}
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("system ID param is mandatory", func(t *testing.T) {
@@ -25,13 +52,13 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		obs := observability.Default(t)
 		feeCheck := func(tx *types.TransactionOrder) error { return errors.New("FCC") }
 		txSys, err := NewGenericTxSystem(
-			1,
+			mockTxSystemID,
 			feeCheck,
 			nil,
 			obs,
 		)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, txSys.systemIdentifier)
+		require.EqualValues(t, mockTxSystemID, txSys.systemIdentifier)
 		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.checkFeeCreditBalance)
 		require.EqualError(t, txSys.checkFeeCreditBalance(nil), "FCC")
@@ -39,77 +66,218 @@ func Test_NewGenericTxSystem(t *testing.T) {
 }
 
 func Test_GenericTxSystem_Execute(t *testing.T) {
-
-	createTxSystem := func(t *testing.T, modules []Module) *GenericTxSystem {
-		txs, err := NewGenericTxSystem(
-			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
-			modules,
-			observability.Default(t),
-		)
-		require.NoError(t, err)
-		txs.currentBlockNumber = 837644
-		return txs
-	}
-
-	// create valid order (in the sense of basic checks performed by the generic
-	// tx system) for "txs" transaction system
-	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
-		return &types.TransactionOrder{
-			Payload: &types.Payload{
-				SystemID: txs.systemIdentifier,
-				Type:     "tx-type",
-				ClientMetadata: &types.ClientMetadata{
-					Timeout: txs.currentBlockNumber + 1,
-				},
-			},
-		}
-	}
-
 	t.Run("tx order is validated", func(t *testing.T) {
-		txSys := createTxSystem(t, nil)
-		txo := createTxOrder(txSys)
-		// make a change that should cause tx validation fo fail, ie we check that
-		// before executing the tx the validateGenericTransaction method is called
-		txo.Payload.SystemID = txSys.systemIdentifier + 1
+		txSys := newTestGenericTxSystem(t, nil)
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID+1),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}))
 		md, err := txSys.Execute(txo)
 		require.ErrorIs(t, err, ErrInvalidSystemIdentifier)
 		require.Nil(t, md)
 	})
 
 	t.Run("no executor for the tx type", func(t *testing.T) {
-		txSys := createTxSystem(t, nil) // no modules, no tx handlers
-		txo := createTxOrder(txSys)
+		txSys := newTestGenericTxSystem(t, nil)
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+		)
+		// no modules, no tx handlers
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, `unknown transaction type tx-type`)
+		require.EqualError(t, err, `tx 'mockTx-type' validation error: unknown transaction type mockTx-type`)
 		require.Nil(t, md)
 	})
 
-	t.Run("tx handler returns error", func(t *testing.T) {
+	t.Run("tx validate returns error", func(t *testing.T) {
 		expErr := errors.New("nope!")
-		m := mockModule{
-			executors: map[string]ExecuteFunc{
-				"tx-type": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
-					return nil, expErr
-				},
-			},
-		}
-		txSys := createTxSystem(t, []Module{m})
-		txo := createTxOrder(txSys)
+		m := NewMockTxModule(nil)
+		m.ValidateError = expErr
+		txSys := newTestGenericTxSystem(t, []Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+		)
 		md, err := txSys.Execute(txo)
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, md)
 	})
 
+	t.Run("tx execute returns error", func(t *testing.T) {
+		expErr := errors.New("nope!")
+		m := NewMockTxModule(expErr)
+		txSys := newTestGenericTxSystem(t, []Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+		)
+		md, err := txSys.Execute(txo)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, md)
+	})
+
+	t.Run("locked unit - unlock fails", func(t *testing.T) {
+		expErr := errors.New("nope!")
+		m := NewMockTxModule(expErr)
+		unitID := []byte{1, 2, 3}
+		txSys := newTestGenericTxSystem(t,
+			[]Module{m},
+			withStateUnit(unitID,
+				templates.AlwaysTrueBytes(),
+				&MockData{Value: 1}, newMockLockTx(t,
+					transaction.WithSystemID(mockTxSystemID),
+					transaction.WithPayloadType(mockTxType),
+					transaction.WithAttributes(MockTxAttributes{}),
+					transaction.WithClientMetadata(&types.ClientMetadata{
+						Timeout: 1000000,
+					}),
+					transaction.WithStateLock(&types.StateLock{
+						ExecutionPredicate: templates.AlwaysTrueBytes(),
+						RollbackPredicate:  templates.AlwaysTrueBytes(),
+					}),
+				),
+			),
+		)
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(unitID),
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+		)
+		md, err := txSys.Execute(txo)
+		require.EqualError(t, err, "unit state lock error: unlock proof error: invalid state unlock proof: empty")
+		require.Nil(t, md)
+	})
+
+	t.Run("locked unit - unlocked, but execution fails", func(t *testing.T) {
+		expErr := errors.New("nope!")
+		m := NewMockTxModule(expErr)
+		unitID := []byte{1, 2, 3}
+		txSys := newTestGenericTxSystem(t,
+			[]Module{m},
+			withStateUnit(unitID,
+				templates.AlwaysTrueBytes(),
+				&MockData{Value: 1}, newMockLockTx(t,
+					transaction.WithSystemID(mockTxSystemID),
+					transaction.WithPayloadType(mockTxType),
+					transaction.WithAttributes(MockTxAttributes{}),
+					transaction.WithClientMetadata(&types.ClientMetadata{
+						Timeout: 1000000,
+					}),
+					transaction.WithStateLock(&types.StateLock{
+						ExecutionPredicate: templates.AlwaysTrueBytes(),
+						RollbackPredicate:  templates.AlwaysTrueBytes(),
+					}),
+				),
+			),
+		)
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(unitID),
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+			transaction.WithUnlockProof([]byte{byte(StateUnlockExecute)}),
+		)
+		md, err := txSys.Execute(txo)
+		require.EqualError(t, err, "unit state lock error: failed to execute tx that was on hold: tx order execution failed: nope!")
+		require.Nil(t, md)
+	})
+
+	t.Run("lock fails - validate fails", func(t *testing.T) {
+		expErr := errors.New("nope!")
+		m := NewMockTxModule(nil)
+		m.ValidateError = expErr
+		txSys := newTestGenericTxSystem(t, []Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+			transaction.WithStateLock(&types.StateLock{
+				ExecutionPredicate: templates.AlwaysTrueBytes(),
+				RollbackPredicate:  templates.AlwaysTrueBytes()}),
+		)
+		md, err := txSys.Execute(txo)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, md)
+	})
+
+	t.Run("lock fails - state lock invalid", func(t *testing.T) {
+		m := NewMockTxModule(nil)
+		txSys := newTestGenericTxSystem(t, []Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+			transaction.WithStateLock(&types.StateLock{}),
+		)
+		md, err := txSys.Execute(txo)
+		require.EqualError(t, err, "unit state lock error: invalid state lock parameter: missing execution predicate")
+		require.Nil(t, md)
+	})
+
+	t.Run("lock success", func(t *testing.T) {
+		m := NewMockTxModule(nil)
+		unitID := []byte{2}
+		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		txSys := newTestGenericTxSystem(t, []Module{m},
+			withStateUnit(unitID,
+				templates.AlwaysTrueBytes(),
+				&MockData{Value: 1}, nil),
+			withStateUnit(fcrID,
+				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil))
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(unitID),
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentBlockNumber + 1,
+				FeeCreditRecordID: fcrID,
+			}),
+			transaction.WithStateLock(&types.StateLock{
+				ExecutionPredicate: templates.AlwaysTrueBytes(),
+				RollbackPredicate:  templates.AlwaysTrueBytes()}),
+		)
+		md, err := txSys.Execute(txo)
+		require.NoError(t, err)
+		require.NotNil(t, md)
+	})
+
 	t.Run("success", func(t *testing.T) {
-		m := mockModule{executors: map[string]ExecuteFunc{
-			"tx-type": func(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
-				return &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}, nil
-			},
-		},
-		}
-		txSys := createTxSystem(t, []Module{m})
-		txo := createTxOrder(txSys)
+		m := NewMockTxModule(nil)
+		txSys := newTestGenericTxSystem(t, []Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout: txSys.currentBlockNumber + 1,
+			}),
+		)
 		md, err := txSys.Execute(txo)
 		require.NoError(t, err)
 		require.NotNil(t, md)
@@ -117,22 +285,6 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 }
 
 func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
-
-	// share observability between all sub-tests
-	obs := observability.Default(t)
-
-	createTxSystem := func(t *testing.T) *GenericTxSystem {
-		txs, err := NewGenericTxSystem(
-			1,
-			func(tx *types.TransactionOrder) error { return nil }, // "all OK" fee credit validator
-			nil, // test doesn't depend on modules
-			obs,
-		)
-		require.NoError(t, err)
-		txs.currentBlockNumber = 837644
-		return txs
-	}
-
 	// create valid order (in the sense of basic checks performed by the generic
 	// tx system) for "txs" transaction system
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
@@ -149,20 +301,20 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		// this (also) tests that our helper functions do create valid
 		// tx system and tx order combination (other tests depend on that)
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		require.NoError(t, txSys.validateGenericTransaction(txo))
 	})
 
 	t.Run("system ID is checked", func(t *testing.T) {
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		txo.Payload.SystemID = txSys.systemIdentifier + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
 	})
 
 	t.Run("timeout is checked", func(t *testing.T) {
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 
 		txSys.currentBlockNumber = txo.Timeout()
@@ -175,136 +327,77 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 
 	t.Run("fee credit balance is checked", func(t *testing.T) {
 		expErr := errors.New("nope!")
-		txSys := createTxSystem(t)
+		txSys := newTestGenericTxSystem(t, nil)
 		txSys.checkFeeCreditBalance = func(tx *types.TransactionOrder) error { return expErr }
 		txo := createTxOrder(txSys)
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), expErr)
 	})
 }
 
-type mockModule struct {
-	executors TxExecutors
+type MockTxAttributes struct {
+	_     struct{} `cbor:",toarray"`
+	Value uint64
 }
 
-func (mm mockModule) TxExecutors() map[string]ExecuteFunc {
-	return mm.executors
+func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
+	txo := transaction.NewTransactionOrder(t, option...)
+	txBytes, err := cbor.Marshal(txo)
+	require.NoError(t, err)
+	return txBytes
 }
 
-type mockUnitState struct {
-	ApplyFunc               func(actions ...state.Action) error
-	IsCommittedFunc         func() bool
-	CalculateRootFunc       func() (uint64, []byte, error)
-	PruneFunc               func() error
-	GetUnitFunc             func(id types.UnitID, committed bool) (*state.Unit, error)
-	AddUnitLogFunc          func(id types.UnitID, transactionRecordHash []byte) error
-	CloneFunc               func() *state.State
-	CommitFunc              func(uc *types.UnicityCertificate) error
-	CommittedUCFunc         func() *types.UnicityCertificate
-	SerializeFunc           func(writer io.Writer, committed bool) error
-	TraverseFunc            func(traverser avl.Traverser[types.UnitID, *state.Unit])
-	RevertFunc              func()
-	RollbackToSavepointFunc func(int)
-	ReleaseToSavepointFunc  func(int)
-	SavepointFunc           func() int
+type MockModule struct {
+	ValidateError error
+	Result        error
 }
 
-func (m *mockUnitState) Apply(actions ...state.Action) error {
-	if m.ApplyFunc != nil {
-		return m.ApplyFunc(actions...)
+func NewMockTxModule(wantErr error) *MockModule {
+	return &MockModule{Result: wantErr}
+}
+
+func (mm MockModule) mockValidateTx(tx *types.TransactionOrder, _ *MockTxAttributes, exeCtx *TxExecutionContext) (err error) {
+	return mm.ValidateError
+}
+func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ *TxExecutionContext) (*types.ServerMetadata, error) {
+	if mm.Result != nil {
+		return nil, mm.Result
 	}
-	return nil
+	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *mockUnitState) IsCommitted() bool {
-	if m.IsCommittedFunc != nil {
-		return m.IsCommittedFunc()
-	}
-	return false
-}
-
-func (m *mockUnitState) CalculateRoot() (uint64, []byte, error) {
-	if m.CalculateRootFunc != nil {
-		return m.CalculateRootFunc()
-	}
-	return 0, nil, nil
-}
-
-func (m *mockUnitState) Prune() error {
-	if m.PruneFunc != nil {
-		return m.PruneFunc()
-	}
-	return nil
-}
-
-func (m *mockUnitState) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	if m.GetUnitFunc != nil {
-		return m.GetUnitFunc(id, committed)
-	}
-	return nil, nil
-}
-
-func (m *mockUnitState) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
-	if m.AddUnitLogFunc != nil {
-		return m.AddUnitLogFunc(id, transactionRecordHash)
-	}
-	return nil
-}
-
-func (m *mockUnitState) Clone() *state.State {
-	if m.CloneFunc != nil {
-		return m.CloneFunc()
-	}
-	return nil
-}
-
-func (m *mockUnitState) Commit(uc *types.UnicityCertificate) error {
-	if m.CommitFunc != nil {
-		return m.CommitFunc(uc)
-	}
-	return nil
-}
-
-func (m *mockUnitState) CommittedUC() *types.UnicityCertificate {
-	if m.CommittedUCFunc != nil {
-		return m.CommittedUCFunc()
-	}
-	return nil
-}
-
-func (m *mockUnitState) Serialize(writer io.Writer, committed bool) error {
-	if m.SerializeFunc != nil {
-		return m.SerializeFunc(writer, committed)
-	}
-	return nil
-}
-
-func (m *mockUnitState) Traverse(traverser avl.Traverser[types.UnitID, *state.Unit]) {
-	if m.TraverseFunc != nil {
-		m.TraverseFunc(traverser)
+func (mm MockModule) TxHandlers() map[string]TxExecutor {
+	return map[string]TxExecutor{
+		mockTxType: NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
 	}
 }
 
-func (m *mockUnitState) Revert() {
-	if m.RevertFunc != nil {
-		m.RevertFunc()
+type txSystemTestOption func(m *GenericTxSystem) error
+
+func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData, lock []byte) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		return m.state.Apply(state.AddUnitWithLock(unitID, bearer, data, lock))
 	}
 }
 
-func (m *mockUnitState) RollbackToSavepoint(id int) {
-	if m.RollbackToSavepointFunc != nil {
-		m.RollbackToSavepointFunc(id)
+func withFeeCreditValidator(v func(tx *types.TransactionOrder) error) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		m.checkFeeCreditBalance = v
+		return nil
 	}
 }
 
-func (m *mockUnitState) ReleaseToSavepoint(id int) {
-	if m.ReleaseToSavepointFunc != nil {
-		m.ReleaseToSavepointFunc(id)
+func newTestGenericTxSystem(t *testing.T, modules []Module, opts ...txSystemTestOption) *GenericTxSystem {
+	txSys := defaultTestConfiguration(t, modules)
+	// apply test overrides
+	for _, opt := range opts {
+		require.NoError(t, opt(txSys))
 	}
+	return txSys
 }
 
-func (m *mockUnitState) Savepoint() int {
-	if m.SavepointFunc != nil {
-		return m.SavepointFunc()
-	}
-	return 0
+func defaultTestConfiguration(t *testing.T, modules []Module) *GenericTxSystem {
+	defaultFeeCheckFn := func(tx *types.TransactionOrder) error { return nil }
+	txSys, err := NewGenericTxSystem(mockTxSystemID, defaultFeeCheckFn, modules, observability.Default(t))
+	require.NoError(t, err)
+	return txSys
 }

@@ -13,39 +13,34 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) handleBurnFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.BurnFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateBurnFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
-		}
-		fee := m.feeCalculator()
-		unitID := tx.UnitID()
+func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := m.feeCalculator()
+	unitID := tx.UnitID()
 
-		// 1. SetOwner(ι, DC)
-		setOwnerFn := state.SetOwner(unitID, templates.AlwaysFalseBytes())
+	// 1. SetOwner(ι, DC)
+	setOwnerFn := state.SetOwner(unitID, templates.AlwaysFalseBytes())
 
-		// 2. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
-		updateUnitFn := state.UpdateUnitData(unitID,
-			func(data types.UnitData) (types.UnitData, error) {
-				ftData, ok := data.(*tokens.FungibleTokenData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
-				}
-				ftData.Value = 0
-				ftData.T = exeCtx.CurrentBlockNr
-				ftData.Counter += 1
-				return ftData, nil
-			},
-		)
+	// 2. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
+	updateUnitFn := state.UpdateUnitData(unitID,
+		func(data types.UnitData) (types.UnitData, error) {
+			ftData, ok := data.(*tokens.FungibleTokenData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
+			}
+			ftData.Value = 0
+			ftData.T = exeCtx.CurrentBlockNr
+			ftData.Counter += 1
+			return ftData, nil
+		},
+	)
 
-		if err := m.state.Apply(setOwnerFn, updateUnitFn); err != nil {
-			return nil, fmt.Errorf("burnFToken: failed to update state: %w", err)
-		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	if err := m.state.Apply(setOwnerFn, updateUnitFn); err != nil {
+		return nil, fmt.Errorf("burnFToken: failed to update state: %w", err)
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -63,7 +58,8 @@ func (m *FungibleTokensModule) validateBurnFungibleToken(tx *types.TransactionOr
 		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	err = m.execPredicate(bearer, tx.OwnerProof, tx)
+	if err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](

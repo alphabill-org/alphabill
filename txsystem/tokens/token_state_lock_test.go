@@ -39,10 +39,10 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
+		testtransaction.WithStateLock(&types.StateLock{
+			ExecutionPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey),
+			RollbackPredicate:  templates.NewP2pkh256BytesFromKey(w1PubKey)}),
 	)
-	transferTx.Payload.StateLock = &types.StateLock{
-		ExecutionPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey),
-	}
 	_, err := txs.Execute(transferTx)
 	require.NoError(t, err)
 
@@ -55,7 +55,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	d := u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, []byte{0xa}, d.Data)
-	require.Equal(t, uint64(1), d.Counter)
+	require.Equal(t, uint64(0), d.Counter)
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 
 	// try to update nft without state unlocking
@@ -72,12 +72,12 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(updateTx)
-	require.ErrorContains(t, err, "unit has a state lock, but tx does not have unlock proof")
+	require.ErrorContains(t, err, "unit state lock error: unlock proof error: invalid state unlock proof: empty")
 
 	// update nft with state unlock, it must be transferred to new bearer w1
 	attr := &tokens.UpdateNonFungibleTokenAttributes{
 		Data:                 []byte{42},
-		Counter:              2,
+		Counter:              1,
 		DataUpdateSignatures: [][]byte{nil, nil},
 	}
 	updateTx = testtransaction.NewTransactionOrder(
@@ -104,6 +104,6 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	d = u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.NftType)
 	require.Equal(t, attr.Data, d.Data)
-	require.Equal(t, uint64(3), d.Counter)
+	require.Equal(t, uint64(2), d.Counter)
 	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), u.Bearer())
 }

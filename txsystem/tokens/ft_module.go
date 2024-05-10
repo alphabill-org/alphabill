@@ -31,13 +31,13 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 	}, nil
 }
 
-func (m *FungibleTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		tokens.PayloadTypeCreateFungibleTokenType: m.handleCreateFungibleTokenTypeTx().ExecuteFunc(),
-		tokens.PayloadTypeMintFungibleToken:       m.handleMintFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeTransferFungibleToken:   m.handleTransferFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeSplitFungibleToken:      m.handleSplitFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeBurnFungibleToken:       m.handleBurnFungibleTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeJoinFungibleToken:       m.handleJoinFungibleTokenTx().ExecuteFunc(),
+func (m *FungibleTokensModule) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		tokens.PayloadTypeCreateFungibleTokenType: txsystem.NewTxHandler[tokens.CreateFungibleTokenTypeAttributes](m.validateCreateFTType, m.executeCreateFTType),
+		tokens.PayloadTypeMintFungibleToken:       txsystem.NewTxHandler[tokens.MintFungibleTokenAttributes](m.validateMintFT, m.executeMintFT),
+		tokens.PayloadTypeTransferFungibleToken:   txsystem.NewTxHandler[tokens.TransferFungibleTokenAttributes](m.validateTransferFT, m.executeTransferFT),
+		tokens.PayloadTypeSplitFungibleToken:      txsystem.NewTxHandler[tokens.SplitFungibleTokenAttributes](m.validateSplitFT, m.executeSplitFT),
+		tokens.PayloadTypeBurnFungibleToken:       txsystem.NewTxHandler[tokens.BurnFungibleTokenAttributes](m.validateBurnFT, m.executeBurnFT),
+		tokens.PayloadTypeJoinFungibleToken:       txsystem.NewTxHandler[tokens.JoinFungibleTokenAttributes](m.validateJoinFT, m.executeJoinFT),
 	}
 }

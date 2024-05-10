@@ -2,14 +2,11 @@ package money
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates"
-
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -20,128 +17,89 @@ type (
 		tx         *types.TransactionRecord
 		attributes *money.TransferDCAttributes
 	}
-	swapValidationContext struct {
-		tx            *types.TransactionOrder
-		attr          *money.SwapDCAttributes
-		state         stateProvider
-		systemID      types.SystemID
-		hashAlgorithm crypto.Hash
-		trustBase     types.RootTrustBase
-		execPredicate predicates.PredicateRunner
-	}
-	stateProvider interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
-	}
 )
 
-func (m *Module) handleSwapDCTx() txsystem.GenericExecuteFunc[money.SwapDCAttributes] {
-	return func(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		c := &swapValidationContext{
-			tx:            tx,
-			attr:          attr,
-			state:         m.state,
-			systemID:      m.systemID,
-			hashAlgorithm: m.hashAlgorithm,
-			trustBase:     m.trustBase,
-			execPredicate: m.execPredicate,
-		}
-		if err := c.validateSwapTx(exeCtx); err != nil {
-			return nil, fmt.Errorf("invalid swap transaction: %w", err)
-		}
-
-		// reduce dc-money supply by target value and update timeout and backlink
-		updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
-			func(data types.UnitData) (types.UnitData, error) {
-				bd, ok := data.(*money.BillData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
-				}
-				bd.V -= attr.TargetValue
-				bd.T = exeCtx.CurrentBlockNr
-				bd.Counter += 1
-				return bd, nil
-			},
-		)
-		// increase target unit value by swap amount
-		updateTargetUnitFn := state.UpdateUnitData(tx.UnitID(),
-			func(data types.UnitData) (types.UnitData, error) {
-				bd, ok := data.(*money.BillData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
-				}
-				bd.V += attr.TargetValue
-				bd.T = exeCtx.CurrentBlockNr
-				bd.Counter += 1
-				bd.Locked = 0
-				return bd, nil
-			})
-		if err := m.state.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
-			return nil, fmt.Errorf("unit update failed: %w", err)
-		}
-		return &types.ServerMetadata{
-			ActualFee:        m.feeCalculator(),
-			TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
-			SuccessIndicator: types.TxStatusSuccessful,
-		}, nil
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	// reduce dc-money supply by target value and update timeout and backlink
+	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
+		func(data types.UnitData) (types.UnitData, error) {
+			bd, ok := data.(*money.BillData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
+			}
+			bd.V -= attr.TargetValue
+			bd.T = exeCtx.CurrentBlockNr
+			bd.Counter += 1
+			return bd, nil
+		},
+	)
+	// increase target unit value by swap amount
+	updateTargetUnitFn := state.UpdateUnitData(tx.UnitID(),
+		func(data types.UnitData) (types.UnitData, error) {
+			bd, ok := data.(*money.BillData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
+			}
+			bd.V += attr.TargetValue
+			bd.T = exeCtx.CurrentBlockNr
+			bd.Counter += 1
+			bd.Locked = 0
+			return bd, nil
+		})
+	if err := m.state.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {
+		return nil, fmt.Errorf("unit update failed: %w", err)
 	}
+	return &types.ServerMetadata{
+		ActualFee:        m.feeCalculator(),
+		TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
+		SuccessIndicator: types.TxStatusSuccessful,
+	}, nil
 }
 
-func (c *swapValidationContext) validateSwapTx(exeCtx *txsystem.TxExecutionContext) error {
-	if err := c.isValid(); err != nil {
-		return fmt.Errorf("swap validation context invalid: %w", err)
-	}
+func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	// 2. there is sufficient DC-money supply
-	dcMoneySupply, err := c.state.GetUnit(DustCollectorMoneySupplyID, false)
+	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {
-		return err
-	}
-	if dcMoneySupply == nil {
-		return fmt.Errorf("DC-money supply unit not found: id=%X", DustCollectorMoneySupplyID)
+		return fmt.Errorf("DC-money supply unit error: %w", err)
 	}
 	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*money.BillData)
 	if !ok {
 		return errors.New("DC-money supply invalid data type")
 	}
-	if dcMoneySupplyBill.V < c.attr.TargetValue {
+	if dcMoneySupplyBill.V < attr.TargetValue {
 		return errors.New("insufficient DC-money supply")
 	}
-
 	// 3. tx unit id identifies an existing bill
-	unitData, err := c.state.GetUnit(c.tx.UnitID(), false)
+	unitData, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
-		return fmt.Errorf("target unit does not exist: %w", err)
+		return fmt.Errorf("target unit error: %w", err)
 	}
-	if unitData == nil {
-		return fmt.Errorf("target unit is nil id=%X", c.tx.UnitID())
-	}
-	if err := c.execPredicate(unitData.Bearer(), c.tx.OwnerProof, c.tx, exeCtx); err != nil {
-		return err
-	}
+	// if unit exists (get returns no error) it must not be nil, if unit data is nil then this type assertion will fail
 	billData, ok := unitData.Data().(*money.BillData)
 	if !ok {
 		return fmt.Errorf("target unit invalid data type")
 	}
-
 	// 5. bills were transferred to DC
-	dustTransfers, err := c.getDCTransfers()
+	dustTransfers, err := getDCTransfers(attr)
 	if err != nil {
 		return fmt.Errorf("failed to extract DC transfers: %w", err)
 	}
-
 	// 1. target value is the sum of the values of the transDC payments
-	sum := c.sumDcTransferValues(dustTransfers)
-	if c.attr.TargetValue != sum {
-		return fmt.Errorf("target value must be equal to the sum of dust transfer values: expected %d vs provided %d", sum, c.attr.TargetValue)
+	sum := sumDcTransferValues(dustTransfers)
+	if attr.TargetValue != sum {
+		return fmt.Errorf("target value must be equal to the sum of dust transfer values: expected %d vs provided %d", sum, attr.TargetValue)
 	}
-
-	if len(dustTransfers) != len(c.attr.DcTransferProofs) {
-		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(c.attr.DcTransferProofs))
+	if len(dustTransfers) != len(attr.DcTransferProofs) {
+		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
+	}
+	if err = m.execPredicate(unitData.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("swap tx predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {
 		// 4. transfers were in the money partition
-		if dcTx.tx.TransactionOrder.SystemID() != c.systemID {
+		if dcTx.tx.TransactionOrder.SystemID() != m.systemID {
 			return fmt.Errorf("dust transfer system id is not money partition system id: expected %s vs provided %s",
-				c.systemID, dcTx.tx.TransactionOrder.SystemID())
+				m.systemID, dcTx.tx.TransactionOrder.SystemID())
 		}
 		// 6. transfer orders are listed in strictly increasing order of bill identifiers
 		// (this ensures that no source bill can be included multiple times
@@ -149,7 +107,7 @@ func (c *swapValidationContext) validateSwapTx(exeCtx *txsystem.TxExecutionConte
 			return errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
 		}
 		// 7. bill transfer orders contain correct target unit ids
-		if !bytes.Equal(dcTx.attributes.TargetUnitID, c.tx.UnitID()) {
+		if !bytes.Equal(dcTx.attributes.TargetUnitID, tx.UnitID()) {
 			return errors.New("dust transfer order target unit id is not equal to swap tx unit id")
 		}
 		// 8. bill transfer orders contain correct target counter values
@@ -158,41 +116,19 @@ func (c *swapValidationContext) validateSwapTx(exeCtx *txsystem.TxExecutionConte
 				"expected %X vs provided %X", billData.Counter, dcTx.attributes.TargetUnitCounter)
 		}
 		// 9. transaction proofs of the bill transfer orders verify
-		if err := types.VerifyTxProof(c.attr.DcTransferProofs[i], dcTx.tx, c.trustBase, c.hashAlgorithm); err != nil {
+		if err = types.VerifyTxProof(attr.DcTransferProofs[i], dcTx.tx, m.trustBase, m.hashAlgorithm); err != nil {
 			return fmt.Errorf("proof is not valid: %w", err)
 		}
 	}
 	return nil
 }
 
-func (c *swapValidationContext) isValid() error {
-	if c == nil {
-		return errors.New("struct is nil")
-	}
-	if c.tx == nil {
-		return errors.New("tx is nil")
-	}
-	if c.attr == nil {
-		return errors.New("attr is nil")
-	}
-	if c.state == nil {
-		return errors.New("state is nil")
-	}
-	if c.systemID == 0 {
-		return errors.New("systemID is unassigned")
-	}
-	if c.trustBase == nil {
-		return errors.New("trust base is nil")
-	}
-	return nil
-}
-
-func (c *swapValidationContext) getDCTransfers() ([]*dustCollectorTransfer, error) {
-	if len(c.attr.DcTransfers) == 0 {
+func getDCTransfers(attr *money.SwapDCAttributes) ([]*dustCollectorTransfer, error) {
+	if len(attr.DcTransfers) == 0 {
 		return nil, errors.New("tx does not contain any dust transfers")
 	}
-	transfers := make([]*dustCollectorTransfer, len(c.attr.DcTransfers))
-	for i, t := range c.attr.DcTransfers {
+	transfers := make([]*dustCollectorTransfer, len(attr.DcTransfers))
+	for i, t := range attr.DcTransfers {
 		if t == nil {
 			return nil, fmt.Errorf("dc tx is nil: %d", i)
 		}
@@ -212,7 +148,7 @@ func (c *swapValidationContext) getDCTransfers() ([]*dustCollectorTransfer, erro
 	return transfers, nil
 }
 
-func (c *swapValidationContext) sumDcTransferValues(txs []*dustCollectorTransfer) uint64 {
+func sumDcTransferValues(txs []*dustCollectorTransfer) uint64 {
 	var sum uint64
 	for _, dcTx := range txs {
 		sum += dcTx.attributes.Value

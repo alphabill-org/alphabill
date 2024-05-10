@@ -16,48 +16,33 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func (m *Module) handleTransferTx() txsystem.GenericExecuteFunc[money.TransferAttributes] {
-	return func(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
-		isLocked := false
-		if !exeCtx.StateLockReleased {
-			if err = m.validateTransferTx(tx, attr, exeCtx); err != nil {
-				return nil, fmt.Errorf("invalid transfer tx: %w", err)
-			}
-
-			isLocked, err = txsystem.LockUnitState(tx, m.execPredicate, m.state, exeCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to lock unit state: %w", err)
-			}
-		}
-
-		// calculate actual tx fee cost
-		fee := m.feeCalculator()
-
-		if !isLocked {
-			// update state
-			updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
-			setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
-			if err := m.state.Apply(
-				setOwnerFunc,
-				updateDataFunc,
-			); err != nil {
-				return nil, fmt.Errorf("transfer: failed to update state: %w", err)
-			}
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	// calculate actual tx fee cost
+	fee := m.feeCalculator()
+	// update state
+	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
+	setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
+	if err := m.state.Apply(
+		setOwnerFunc,
+		updateDataFunc,
+	); err != nil {
+		return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
-		return err
+		return fmt.Errorf("transfer validation error: %w", err)
 	}
-	if err := m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
+	if err = validateTransfer(unit.Data(), attr); err != nil {
+		return fmt.Errorf("transfer validation error: %w", err)
+	}
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
-	return validateTransfer(unit.Data(), attr)
+	return nil
 }
 
 func validateTransfer(data types.UnitData, attr *money.TransferAttributes) error {

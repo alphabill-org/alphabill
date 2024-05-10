@@ -35,7 +35,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	roundNumber := uint64(10)
-	txo := createAddVarTx(t, signer, orchestration.AddVarAttributes{},
+	txo := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: roundNumber + 1}),
 	)

@@ -68,10 +68,10 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
-	if err := txs.executors.Add(evm.TxExecutors()); err != nil {
+	if err := txs.executors.Add(evm.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
-	if err := txs.executors.Add(fees.TxExecutors()); err != nil {
+	if err := txs.executors.Add(fees.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering fee executors: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.executors.Execute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
+	sm, err = m.executors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
 	if err != nil {
 		return nil, err
 	}

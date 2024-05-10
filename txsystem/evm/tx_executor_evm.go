@@ -29,20 +29,31 @@ func errorToStr(err error) string {
 	return ""
 }
 
-func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[evmsdk.TxAttributes] {
-	return func(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
-		from := common.BytesToAddress(attr.From)
-		stateDB := statedb.NewStateDB(opts.state, log)
-		if !stateDB.Exist(from) {
-			return nil, fmt.Errorf(" address %v does not exist", from)
-		}
-		defer func() {
-			if err == nil {
-				err = stateDB.Finalize()
-			}
-		}()
-		return Execute(exeCtx.CurrentBlockNr, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false, log)
+func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+	from := common.BytesToAddress(attr.From)
+	stateDB := statedb.NewStateDB(m.options.state, m.log)
+	if !stateDB.Exist(from) {
+		return nil, fmt.Errorf("address %v does not exist", from)
 	}
+	defer func() {
+		if retErr == nil {
+			retErr = stateDB.Finalize()
+		}
+	}()
+	return Execute(exeCtx.CurrentBlockNr, stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
+}
+
+func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ *txsystem.TxExecutionContext) error {
+	if attr.From == nil {
+		return fmt.Errorf("invalid evm tx, from addr is nil")
+	}
+	if attr.Value == nil {
+		return fmt.Errorf("invalid evm tx, value is nil")
+	}
+	if attr.Value.Sign() < 0 {
+		return fmt.Errorf("invalid evm tx, value is negative")
+	}
+	return nil
 }
 
 func calcGasPrice(gas uint64, gasPrice *big.Int) *uint256.Int {

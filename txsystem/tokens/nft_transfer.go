@@ -11,48 +11,28 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) handleTransferNonFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.TransferNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
-		isLocked := false
-		if !exeCtx.StateLockReleased {
-			if err = n.validateTransferNonFungibleToken(tx, attr, exeCtx); err != nil {
-				return nil, fmt.Errorf("invalid transfer non-fungible token tx: %w", err)
+func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := n.feeCalculator()
+	unitID := tx.UnitID()
+	// update owner, counter and last updated block number
+	if err := n.state.Apply(
+		state.SetOwner(unitID, attr.NewBearer),
+		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			d, ok := data.(*tokens.NonFungibleTokenData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
-			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state, exeCtx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to lock unit state: %w", err)
-			}
-		}
-		fee := n.feeCalculator()
-		unitID := tx.UnitID()
-
-		if !isLocked {
-			// update state
-			if err = n.state.Apply(state.SetOwner(unitID, attr.NewBearer)); err != nil {
-				return nil, err
-			}
-		}
-
-		// backlink must be updated regardless of whether the unit is locked or not
-		if err = n.state.Apply(
-			state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
-				d, ok := data.(*tokens.NonFungibleTokenData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
-				}
-				d.T = exeCtx.CurrentBlockNr
-				d.Counter += 1
-				return d, nil
-			}),
-		); err != nil {
-			return nil, err
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+			d.T = exeCtx.CurrentBlockNr
+			d.Counter += 1
+			return d, nil
+		}),
+	); err != nil {
+		return nil, err
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

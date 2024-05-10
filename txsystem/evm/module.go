@@ -39,12 +39,6 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 	}, nil
 }
 
-func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		evm.PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log).ExecuteFunc(),
-	}
-}
-
 func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
 		if ctx.Tx.SystemID() != ctx.SystemIdentifier {
@@ -73,5 +67,11 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 			*m.blockGasCounter = core.GasPool(blockGasLimit)
 			return nil
 		},
+	}
+}
+
+func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		evm.PayloadTypeEVMCall: txsystem.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
 	}
 }

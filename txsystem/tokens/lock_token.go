@@ -11,23 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *LockTokensModule) handleLockTokenTx() txsystem.GenericExecuteFunc[tokens.LockTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateLockTokenTx(tx, attr, exeCtx); err != nil {
-			return nil, fmt.Errorf("invalid lock token tx: %w", err)
-		}
-		updateFn := state.UpdateUnitData(tx.UnitID(),
-			func(data types.UnitData) (types.UnitData, error) {
-				return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentBlockNr)
-			},
-		)
-		if err := m.state.Apply(updateFn); err != nil {
-			return nil, fmt.Errorf("failed to update state: %w", err)
-		}
-		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
-	}
-}
-
 func (m *LockTokensModule) updateLockTokenData(data types.UnitData, tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, roundNumber uint64) (types.UnitData, error) {
 	if tx.UnitID().HasType(tokens.FungibleTokenUnitType) {
 		return updateLockFungibleTokenData(data, tx, attr, roundNumber)
@@ -58,6 +41,18 @@ func updateLockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder
 	d.Counter += 1
 	d.Locked = attr.LockStatus
 	return d, nil
+}
+
+func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	updateFn := state.UpdateUnitData(tx.UnitID(),
+		func(data types.UnitData) (types.UnitData, error) {
+			return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentBlockNr)
+		},
+	)
+	if err := m.state.Apply(updateFn); err != nil {
+		return nil, fmt.Errorf("failed to update state: %w", err)
+	}
+	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 }
 
 func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {

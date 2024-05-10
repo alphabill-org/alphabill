@@ -99,7 +99,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		}
 		return sm, nil
 	}
-	// TODO: rollback for a tx that creates new unit must clean up the unit from the state tree
+	// TODO: AB-1584 rollback for a tx that creates new unit must clean up the unit from the state tree
 	return nil, fmt.Errorf("rollaback not yet implemented")
 }
 

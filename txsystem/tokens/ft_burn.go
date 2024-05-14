@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := m.feeCalculator()
 	unitID := tx.UnitID()
 
@@ -28,7 +28,7 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 				return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 			}
 			ftData.Value = 0
-			ftData.T = exeCtx.CurrentBlockNr
+			ftData.T = exeCtx.CurrentRound()
 			ftData.Counter += 1
 			return ftData, nil
 		},
@@ -39,7 +39,7 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err

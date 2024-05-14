@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/txsystem"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateTransferTx(tx, attr, exeCtx))
 	})
 	t.Run("unit does not exist", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier)
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "transfer validation error: item 000000000000000000000000000000000000000000000000000000000000000200 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: value}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "transfer validation error: invalid data type")
 	})
 	t.Run("locked bill", func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{Locked: 1, V: value, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "transfer validation error: bill is locked")
 	})
 	t.Run("invalid amount", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value + 1, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "transfer validation error: transaction value must be equal to bill value")
 	})
 	t.Run("invalid counter - replay attack", func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr := createBillTransfer(t, unitID,
 			value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter - 1}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "transfer validation error: the transaction counter is not equal to the unit counter")
 	})
 	t.Run("owner error", func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: value, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateTransferTx(tx, attr, exeCtx), "executing bearer predicate: executing predicate: failed to decode P2PKH256 signature: EOF")
 	})
 }
@@ -86,7 +86,7 @@ func TestModule_executeTransferTx(t *testing.T) {
 	tx, attr := createBillTransfer(t, unitID,
 		value, templates.NewP2pkh256BytesFromKey(pubKey), counter)
 	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 6}
+	exeCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(6))
 	sm, err := module.executeTransferTx(tx, attr, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)

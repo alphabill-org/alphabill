@@ -13,7 +13,7 @@ import (
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
-func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	// lock the unit
 	unitID := tx.UnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -22,7 +22,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = attr.LockStatus
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		return newBillData, nil
 	})
@@ -32,7 +32,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {

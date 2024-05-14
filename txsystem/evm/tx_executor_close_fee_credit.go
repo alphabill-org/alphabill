@@ -11,7 +11,7 @@ import (
 	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
-func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 	if err != nil {
@@ -29,7 +29,7 @@ func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFe
 	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx txsystem.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

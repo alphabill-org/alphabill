@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/txsystem"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +25,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-50, // - Amount split
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateSplitTx(tx, attr, exeCtx))
 	})
 	t.Run("ok - 3-way split", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-10-10, // two additional bills with value 10 are created
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateSplitTx(tx, attr, exeCtx))
 	})
 	t.Run("err - bill not found", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-50,
 			counter)
 		module := newTestMoneyModule(t, verifier)
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "item 000000000000000000000000000000000000000000000000000000000000000200 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-50,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 6}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: invalid data type, unit is not of BillData type")
 	})
 	t.Run("err - bill locked", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-50,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{Locked: 1, V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: bill is locked")
 	})
 	t.Run("err - invalid counter", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-20,
 			counter+1)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: the transaction counter is not equal to the unit counter")
 	})
 	t.Run("err - target units empty", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: target units are empty")
 	})
 	t.Run("err - target unit is nil", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: target unit is nil at index 0")
 	})
 	t.Run("err - target unit amount is 0", func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: target unit amount is zero at index 0")
 	})
 	t.Run("err - target unit owner condition is empty", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue-1,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: target unit owner condition is empty at index 0")
 	})
 	t.Run("err - target unit amount overflow", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			billValue,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: failed to add target unit amounts: uint64 sum overflow: [18446744073709551615 1]")
 	})
 	t.Run("err - remaining value is zero", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			0,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), "split error: remaining value is zero")
 	})
 	t.Run("err - amount plus remaining value is less than bill value", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			79,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx),
 			"split error: the sum of the values to be transferred plus the remaining value must equal the value of the bill; sum=20 remainingValue=79 billValue=100")
 	})
@@ -170,7 +170,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			81,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx),
 			"split error: the sum of the values to be transferred plus the remaining value must equal the value of the bill; sum=20 remainingValue=81 billValue=100")
 	})
@@ -184,7 +184,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			80,
 			counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: billValue, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, exeCtx), `executing bearer predicate: predicate evaluated to "false"`)
 	})
 }
@@ -202,7 +202,7 @@ func TestModule_executeSplitTx(t *testing.T) {
 		billValue-10-10, // two additional bills with value 10 are created
 		counter)
 	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 6}
+	exeCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(6))
 	sm, err := module.executeSplitTx(tx, attr, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -224,7 +224,7 @@ func TestModule_executeSplitTx(t *testing.T) {
 		require.EqualValues(t, bill.V, targetUnit.Amount)
 		// newly created bill, so counter is 0
 		require.EqualValues(t, bill.Counter, 0)
-		require.EqualValues(t, bill.T, exeCtx.CurrentBlockNr)
+		require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 		require.EqualValues(t, bill.Locked, 0)
 		sum += bill.V
 	}
@@ -238,6 +238,6 @@ func TestModule_executeSplitTx(t *testing.T) {
 	require.EqualValues(t, bill.V, billValue-sum)
 	// newly created bill, so counter is 0
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNr)
+	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 	require.EqualValues(t, bill.Locked, 0)
 }

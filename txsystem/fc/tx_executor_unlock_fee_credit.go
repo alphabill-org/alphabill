@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	fee := f.feeCalculator()
 	txHash := tx.Hash(f.hashAlgorithm)
@@ -33,7 +33,7 @@ func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockF
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, _ *txsystem.TxExecutionContext) error {
+func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, _ txsystem.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

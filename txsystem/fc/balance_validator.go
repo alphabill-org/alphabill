@@ -13,7 +13,7 @@ import (
 CheckFeeCreditBalance implements the fee credit verification steps listed in the
 Yellowpaper "Valid Transaction Orders" chapter.
 */
-func (f *FeeCredit) CheckFeeCreditBalance(exeCtx *txsystem.TxExecutionContext, tx *types.TransactionOrder) error {
+func (f *FeeCredit) CheckFeeCreditBalance(exeCtx txsystem.ExecutionContext, tx *types.TransactionOrder) error {
 	if !fc.IsFeeCreditTx(tx) {
 		clientMetadata := tx.Payload.ClientMetadata
 

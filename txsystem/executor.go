@@ -4,36 +4,34 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/predicates"
 )
 
 type (
 	TxHandler[T any] struct {
-		Execute  func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
-		Validate func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) error
+		Execute  func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) (*types.ServerMetadata, error)
+		Validate func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) error
 	}
 
 	TxExecutor interface {
-		ValidateTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (any, error)
-		ExecuteTxWithAttr(tx *types.TransactionOrder, attributes any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
-		ExecuteTx(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
+		ValidateTx(tx *types.TransactionOrder, exeCtx ExecutionContext) (any, error)
+		ExecuteTxWithAttr(tx *types.TransactionOrder, attributes any, exeCtx ExecutionContext) (*types.ServerMetadata, error)
+		ExecuteTx(tx *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error)
 	}
 
 	TxExecutors map[string]TxExecutor
 
-	ExecuteFunc func(*types.TransactionOrder, *TxExecutionContext) (*types.ServerMetadata, error)
+	ExecuteFunc func(*types.TransactionOrder, ExecutionContext) (*types.ServerMetadata, error)
 
-	ValidateFunc func(*types.TransactionOrder, *TxExecutionContext) error
+	ValidateFunc func(*types.TransactionOrder, ExecutionContext) error
 
-	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) (*types.ServerMetadata, error)
+	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) (*types.ServerMetadata, error)
 
-	GenericValidateFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) error
+	GenericValidateFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) error
 
-	// we should be able to replace this struct with just passing TxSystem
-	// interface around (StateLockReleased must be handled separately)?
-	TxExecutionContext struct {
-		txs            *GenericTxSystem
-		CurrentBlockNr uint64 // could be red from txs!
+	// ExecutionContext - provides additional context and info for tx validation and execution
+	ExecutionContext interface {
+		predicates.TxContext
 	}
 )
 
@@ -41,7 +39,7 @@ func NewTxHandler[T any](v GenericValidateFunc[T], e GenericExecuteFunc[T]) *TxH
 	return &TxHandler[T]{Validate: v, Execute: e}
 }
 
-func (t *TxHandler[T]) ValidateTx(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (any, error) {
+func (t *TxHandler[T]) ValidateTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (any, error) {
 	attr := new(T)
 	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
@@ -52,7 +50,7 @@ func (t *TxHandler[T]) ValidateTx(txo *types.TransactionOrder, exeCtx *TxExecuti
 	return attr, nil
 }
 
-func (t *TxHandler[T]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (t *TxHandler[T]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	txAttr, ok := attr.(*T)
 	if !ok {
 		return nil, fmt.Errorf("incorrect attribute type: %T for tx order %s", attr, txo.PayloadType())
@@ -60,7 +58,7 @@ func (t *TxHandler[T]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, 
 	return t.Execute(txo, txAttr, exeCtx)
 }
 
-func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	attr := new(T)
 	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
@@ -68,7 +66,7 @@ func (t *TxHandler[T]) ExecuteTx(txo *types.TransactionOrder, exeCtx *TxExecutio
 	return t.Execute(txo, attr, exeCtx)
 }
 
-func (h TxExecutors) ValidateAndExecute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (h TxExecutors) ValidateAndExecute(txo *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
@@ -84,7 +82,7 @@ func (h TxExecutors) ValidateAndExecute(txo *types.TransactionOrder, exeCtx *TxE
 	return sm, nil
 }
 
-func (h TxExecutors) Validate(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (any, error) {
+func (h TxExecutors) Validate(txo *types.TransactionOrder, exeCtx ExecutionContext) (any, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
@@ -93,7 +91,7 @@ func (h TxExecutors) Validate(txo *types.TransactionOrder, exeCtx *TxExecutionCo
 	return handler.ValidateTx(txo, exeCtx)
 }
 
-func (h TxExecutors) ExecuteWithAttr(txo *types.TransactionOrder, attr any, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (h TxExecutors) ExecuteWithAttr(txo *types.TransactionOrder, attr any, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
@@ -102,7 +100,7 @@ func (h TxExecutors) ExecuteWithAttr(txo *types.TransactionOrder, attr any, exeC
 	return handler.ExecuteTxWithAttr(txo, attr, exeCtx)
 }
 
-func (h TxExecutors) Execute(txo *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (h TxExecutors) Execute(txo *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	handler, found := h[txo.PayloadType()]
 	if !found {
 		return nil, fmt.Errorf("unknown transaction type %s", txo.PayloadType())
@@ -129,19 +127,4 @@ func (h TxExecutors) Add(src TxExecutors) error {
 		h[name] = handler
 	}
 	return nil
-}
-
-func (ec TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	return ec.txs.state.GetUnit(id, committed)
-}
-
-func (ec TxExecutionContext) CurrentRound() uint64 { return ec.txs.currentBlockNumber }
-
-func (ec TxExecutionContext) TrustBase() (types.RootTrustBase, error) {
-	return ec.txs.trustBase, nil
-}
-
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (ec TxExecutionContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
 }

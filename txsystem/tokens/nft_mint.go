@@ -11,20 +11,20 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := n.feeCalculator()
 	typeID := tx.UnitID()
 	newTokenID := tokens.NewNonFungibleTokenID(typeID, HashForIDCalculation(tx, n.hashAlgorithm))
 
 	if err := n.state.Apply(
-		state.AddUnit(newTokenID, attr.Bearer, tokens.NewNonFungibleTokenData(typeID, attr, exeCtx.CurrentBlockNr, 0)),
+		state.AddUnit(newTokenID, attr.Bearer, tokens.NewNonFungibleTokenData(typeID, attr, exeCtx.CurrentRound(), 0)),
 	); err != nil {
 		return nil, err
 	}
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

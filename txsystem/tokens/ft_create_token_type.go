@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := m.feeCalculator()
 	unitID := tx.UnitID()
 
@@ -27,7 +27,7 @@ func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, a
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

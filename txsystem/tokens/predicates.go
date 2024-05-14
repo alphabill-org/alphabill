@@ -25,7 +25,7 @@ Parameters:
   - "getUnit": function which returns unit with given ID;
 */
 func runChainedPredicates[T types.UnitData](
-	env *txsystem.TxExecutionContext,
+	env txsystem.ExecutionContext,
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
 	args [][]byte,

@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 )
 
-func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
 	fee := f.feeCalculator()
@@ -44,7 +44,7 @@ func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCred
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txsystem.ExecutionContext) error {
 	// 10. P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -105,7 +105,7 @@ func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
 	tb := transferTxAttr.EarliestAdditionTime
 	te := transferTxAttr.LatestAdditionTime
-	t := exeCtx.CurrentBlockNr
+	t := exeCtx.CurrentRound()
 	if t < tb || t > te {
 		return fmt.Errorf("invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
 	}

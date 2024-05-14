@@ -21,26 +21,28 @@ import (
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
 
-type Module interface {
-	TxHandlers() map[string]TxExecutor
-}
+type (
+	Module interface {
+		TxHandlers() map[string]TxExecutor
+	}
 
-type GenericTxSystem struct {
-	systemIdentifier      types.SystemID
-	hashAlgorithm         crypto.Hash
-	state                 *state.State //*state.State
-	currentBlockNumber    uint64
-	handlers              TxExecutors
-	trustBase             types.RootTrustBase
-	checkFeeCreditBalance FeeCreditBalanceValidator
-	beginBlockFunctions   []func(blockNumber uint64) error
-	endBlockFunctions     []func(blockNumber uint64) error
-	roundCommitted        bool
-	log                   *slog.Logger
-	pr                    predicates.PredicateRunner
-}
+	GenericTxSystem struct {
+		systemIdentifier      types.SystemID
+		hashAlgorithm         crypto.Hash
+		state                 *state.State
+		currentRoundNumber    uint64
+		handlers              TxExecutors
+		trustBase             types.RootTrustBase
+		checkFeeCreditBalance FeeCreditBalanceValidator
+		beginBlockFunctions   []func(blockNumber uint64) error
+		endBlockFunctions     []func(blockNumber uint64) error
+		roundCommitted        bool
+		log                   *slog.Logger
+		pr                    predicates.PredicateRunner
+	}
+)
 
-type FeeCreditBalanceValidator func(env *TxExecutionContext, tx *types.TransactionOrder) error
+type FeeCreditBalanceValidator func(env ExecutionContext, tx *types.TransactionOrder) error
 
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
@@ -100,11 +102,11 @@ func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
-	m.currentBlockNumber = blockNr
+func (m *GenericTxSystem) BeginBlock(roundNr uint64) error {
+	m.currentRoundNumber = roundNr
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(blockNr); err != nil {
+		if err := function(roundNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}
@@ -118,10 +120,7 @@ func (m *GenericTxSystem) pruneState(blockNr uint64) error {
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
 	// Is the transaction credible and does the sender have fee credit?
 	// NB! this does not check the owner condition, this check is done in during tx specific checks
-	exeCtx := &TxExecutionContext{
-		txs:            m,
-		CurrentBlockNr: m.currentBlockNumber,
-	}
+	exeCtx := newExecutionContext(m, m.trustBase)
 	if err := m.validateGenericTransaction(exeCtx, tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
@@ -130,7 +129,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	return m.doExecute(tx, exeCtx)
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (sm *types.ServerMetadata, rErr error) {
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx ExecutionContext) (sm *types.ServerMetadata, rErr error) {
 	var unlockSm *types.ServerMetadata
 	savepointID := m.state.Savepoint()
 	defer func() {
@@ -191,7 +190,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 		return sm, err
 	}
 	// proceed with the transaction execution, if not state lock
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tx error: %w", err)
@@ -206,7 +205,7 @@ See Yellowpaper chapter 4.6 "Valid Transaction Orders".
 The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
 implemented by the tx handler.
 */
-func (m *GenericTxSystem) validateGenericTransaction(env *TxExecutionContext, tx *types.TransactionOrder) error {
+func (m *GenericTxSystem) validateGenericTransaction(env ExecutionContext, tx *types.TransactionOrder) error {
 	// 1. P.α = S.α – transaction is sent to this system
 	if m.systemIdentifier != tx.SystemID() {
 		return ErrInvalidSystemIdentifier
@@ -215,7 +214,7 @@ func (m *GenericTxSystem) validateGenericTransaction(env *TxExecutionContext, tx
 	// 2. fSH(P.ι)=S.σ–target unit is in this shard
 
 	// 3. n < T0 – transaction has not expired
-	if m.currentBlockNumber >= tx.Timeout() {
+	if m.currentRoundNumber >= tx.Timeout() {
 		return ErrTransactionExpired
 	}
 
@@ -240,7 +239,7 @@ func (m *GenericTxSystem) State() StateReader {
 
 func (m *GenericTxSystem) EndBlock() (StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
-		if err := function(m.currentBlockNumber); err != nil {
+		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
@@ -268,6 +267,14 @@ func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
 
 func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
 	return m.state.Serialize(writer, committed)
+}
+
+func (m *GenericTxSystem) CurrentRound() uint64 {
+	return m.currentRoundNumber
+}
+
+func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return m.state.GetUnit(id, committed)
 }
 
 func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {

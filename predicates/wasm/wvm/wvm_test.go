@@ -349,8 +349,10 @@ func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, err
 	return env.payloadBytes(txo)
 }
 
-func (env *mockTxContext) CurrentRound() uint64                    { return env.curRound() }
-func (env *mockTxContext) TrustBase() (types.RootTrustBase, error) { return env.trustBase() }
+func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }
+func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return env.trustBase()
+}
 
 type mockRootTrustBase struct {
 	verifyQuorumSignatures func(data []byte, signatures map[string][]byte) (error, []error)

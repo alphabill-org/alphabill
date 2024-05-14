@@ -22,7 +22,7 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 	return hasher.Sum(nil)
 }
 
-func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
@@ -35,7 +35,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			targetUnit.OwnerCondition,
 			&money.BillData{
 				V:       targetUnit.Amount,
-				T:       exeCtx.CurrentBlockNr,
+				T:       exeCtx.CurrentRound(),
 				Counter: 0,
 			}))
 	}
@@ -48,7 +48,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			}
 			return &money.BillData{
 				V:       attr.RemainingValue,
-				T:       exeCtx.CurrentBlockNr,
+				T:       exeCtx.CurrentRound(),
 				Counter: bd.Counter + 1,
 			}, nil
 		},
@@ -60,7 +60,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txsystem.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err

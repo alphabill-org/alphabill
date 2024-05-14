@@ -29,7 +29,7 @@ type (
 	GenericTxSystem struct {
 		systemIdentifier      types.SystemID
 		hashAlgorithm         crypto.Hash
-		state                 *state.State //*state.State
+		state                 *state.State
 		currentRoundNumber    uint64
 		handlers              TxExecutors
 		trustBase             types.RootTrustBase
@@ -271,6 +271,10 @@ func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error
 
 func (m *GenericTxSystem) CurrentRound() uint64 {
 	return m.currentRoundNumber
+}
+
+func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return m.state.GetUnit(id, committed)
 }
 
 func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {

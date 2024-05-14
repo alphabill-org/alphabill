@@ -587,9 +587,9 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	txExecutors := make(txsystem.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	var roundNr uint64 = 10
-	require.NoError(t, m.validateTransferFT(tx, transferAttributes, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr))))
-	sm, err := m.executeTransferFT(tx, transferAttributes, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr)))
+	var roundNo uint64 = 10
+	require.NoError(t, m.validateTransferFT(tx, transferAttributes, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo))))
+	sm, err := m.executeTransferFT(tx, transferAttributes, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -601,7 +601,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer()))
 	require.Equal(t, transferAttributes.Value, d.Value)
 	require.Equal(t, uint64(1), d.Counter)
-	require.Equal(t, roundNr, d.T)
+	require.Equal(t, roundNo, d.T)
 }
 
 func TestSplitFungibleToken_NotOk(t *testing.T) {
@@ -778,11 +778,11 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenUnitID
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeSplitFungibleToken, uID)
-	var roundNr uint64 = 10
+	var roundNo uint64 = 10
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	require.NoError(t, m.validateSplitFT(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr))))
-	sm, err := m.executeSplitFT(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr)))
+	require.NoError(t, m.validateSplitFT(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo))))
+	sm, err := m.executeSplitFT(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -794,7 +794,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Bearer()))
 	require.Equal(t, remainingBillValue, d.Value)
 	require.Equal(t, uint64(1), d.Counter)
-	require.Equal(t, roundNr, d.T)
+	require.Equal(t, roundNo, d.T)
 
 	newUnitID := tokens.NewFungibleTokenID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
 	newUnit, err := opts.state.GetUnit(newUnitID, false)
@@ -807,7 +807,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer()))
 	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.Value)
 	require.Equal(t, uint64(0), newUnitData.Counter)
-	require.Equal(t, roundNr, newUnitData.T)
+	require.Equal(t, roundNo, newUnitData.T)
 }
 
 func TestBurnFungibleToken_NotOk(t *testing.T) {
@@ -921,7 +921,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenUnitID
 	tx := createTransactionOrder(t, burnAttributes, tokens.PayloadTypeBurnFungibleToken, uID)
-	roundNr := uint64(10)
+	roundNo := uint64(10)
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
@@ -929,7 +929,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	// handle tx
-	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr)))
+	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -947,7 +947,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, existingTokenTypeUnitID, unitData.TokenType)
 	require.Equal(t, uint64(0), unitData.Value)
-	require.Equal(t, roundNr, unitData.T)
+	require.Equal(t, roundNo, unitData.T)
 	require.Equal(t, uint64(1), unitData.Counter)
 	require.Equal(t, uint64(0), unitData.Locked)
 }
@@ -970,8 +970,8 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
 	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
-	roundNr := uint64(10)
-	sm, err := txExecutors.ValidateAndExecute(burnTx.TransactionOrder, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr)))
+	roundNo := uint64(10)
+	sm, err := txExecutors.ValidateAndExecute(burnTx.TransactionOrder, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -984,7 +984,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	}
 	joinTx := createTx(t, existingLockedTokenUnitID, joinAttr, tokens.PayloadTypeJoinFungibleToken)
 
-	sm, err = txExecutors.ValidateAndExecute(joinTx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNr)))
+	sm, err = txExecutors.ValidateAndExecute(joinTx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 

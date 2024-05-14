@@ -104,18 +104,18 @@ func (m *TxSystem) getState() (txsystem.StateSummary, error) {
 	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *TxSystem) BeginBlock(roundNr uint64) error {
-	m.currentRoundNumber = roundNr
+func (m *TxSystem) BeginBlock(roundNo uint64) error {
+	m.currentRoundNumber = roundNo
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(roundNr); err != nil {
+		if err := function(roundNo); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}
 	return nil
 }
 
-func (m *TxSystem) pruneState(blockNr uint64) error {
+func (m *TxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 

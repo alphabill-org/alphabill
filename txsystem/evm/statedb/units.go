@@ -41,7 +41,7 @@ type Account struct {
 // AlphaBillLink links Account to AB FCR bill
 type AlphaBillLink struct {
 	_       struct{} `cbor:",toarray"`
-	TxHash  []byte
+	Counter uint64
 	Timeout uint64
 }
 
@@ -80,7 +80,7 @@ func (f *AlphaBillLink) Copy() *AlphaBillLink {
 		return nil
 	}
 	return &AlphaBillLink{
-		TxHash:  bytes.Clone(f.TxHash),
+		Counter: f.Counter,
 		Timeout: f.Timeout,
 	}
 }
@@ -88,6 +88,13 @@ func (f *AlphaBillLink) Copy() *AlphaBillLink {
 func (f *AlphaBillLink) GetTimeout() uint64 {
 	if f != nil {
 		return f.Timeout
+	}
+	return 0
+}
+
+func (f *AlphaBillLink) GetCounter() uint64 {
+	if f != nil {
+		return f.Counter
 	}
 	return 0
 }

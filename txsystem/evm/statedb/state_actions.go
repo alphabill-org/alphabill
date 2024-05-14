@@ -10,7 +10,7 @@ import (
 )
 
 // CreateAccountAndAddCredit - creates EMV account from add fee credit
-func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *uint256.Int, timeout uint64, transactionRecordHash []byte) state.Action {
+func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *uint256.Int, timeout uint64) state.Action {
 	id := addr.Bytes()
 	stateObj := &StateObject{
 		Address: addr,
@@ -20,7 +20,7 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 			CodeHash: emptyCodeHash},
 		Storage: map[common.Hash]common.Hash{},
 		AlphaBill: &AlphaBillLink{
-			TxHash:  transactionRecordHash,
+			Counter: 0,
 			Timeout: timeout,
 		},
 	}
@@ -28,7 +28,7 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 }
 
 // UpdateEthAccountAddCredit - increments the balance and updates fee credit link
-func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64, transactionRecordHash []byte) state.Action {
+func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
@@ -37,7 +37,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint
 		newBalance := new(uint256.Int).Add(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
-			TxHash:  transactionRecordHash,
+			Counter: stateObj.AlphaBill.Counter + 1,
 			Timeout: max(stateObj.AlphaBill.GetTimeout(), timeout),
 		}
 		return stateObj, nil
@@ -46,7 +46,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint
 }
 
 // UpdateEthAccountCloseCredit - decrements the balance and updates fee credit link
-func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int, txHash []byte) state.Action {
+func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
@@ -55,7 +55,7 @@ func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int, txHash []b
 		newBalance := new(uint256.Int).Sub(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
-			TxHash:  txHash,
+			Counter: stateObj.AlphaBill.Counter + 1,
 			Timeout: stateObj.AlphaBill.GetTimeout(),
 		}
 		return stateObj, nil

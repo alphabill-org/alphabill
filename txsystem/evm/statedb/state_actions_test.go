@@ -17,9 +17,8 @@ func TestCreateAccountAndAddCredit(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
 	balance := uint256.NewInt(123)
-	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3))
 	require.NoError(t, err)
 	// verify result
 	unitID := address.Bytes()
@@ -31,36 +30,33 @@ func TestCreateAccountAndAddCredit(t *testing.T) {
 	require.Equal(t, balance, stateDB.GetBalance(address))
 	abLink := stateDB.GetAlphaBillData(address)
 	require.EqualValues(t, 3, abLink.Timeout)
-	require.Equal(t, txHash, abLink.TxHash)
+	require.EqualValues(t, 0, abLink.Counter)
 }
 
 func TestUpdateEthAccountAddCredit(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
 	balance := uint256.NewInt(100)
-	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3))
 	require.NoError(t, err)
 	// update
 	unitID := address.Bytes()
-	txHashUpdate := test.RandomBytes(32)
-	err = tr.Apply(UpdateEthAccountAddCredit(unitID, balance, 2, txHashUpdate))
+	err = tr.Apply(UpdateEthAccountAddCredit(unitID, balance, 2))
 	require.NoError(t, err)
 	stateDB := NewStateDB(tr, logger.New(t))
 	require.Equal(t, uint256.NewInt(200), stateDB.GetBalance(address))
 	abLink := stateDB.GetAlphaBillData(address)
 	require.EqualValues(t, 3, abLink.Timeout)
-	require.Equal(t, txHashUpdate, abLink.TxHash)
+	require.EqualValues(t, 1, abLink.Counter)
 }
 
 func TestSetAccountBalance(t *testing.T) {
 	tr := state.NewEmptyState()
 	address := common.BytesToAddress(test.RandomBytes(20))
 	balance := uint256.NewInt(100)
-	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3))
 	require.NoError(t, err)
 	// update
 	unitID := address.Bytes()

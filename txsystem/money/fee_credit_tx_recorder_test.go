@@ -18,10 +18,10 @@ func TestTxRecording(t *testing.T) {
 
 	transferFCAmount := uint64(10)
 	transferFCFee := uint64(1)
-	attr := testutils.NewTransferFCAttr(testutils.WithAmount(transferFCAmount))
+	attr := testutils.NewTransferFCAttr(t, signer, testutils.WithAmount(transferFCAmount))
 	f.recordTransferFC(
 		&transferFeeCreditTx{
-			tx: testutils.NewTransferFC(t,
+			tx: testutils.NewTransferFC(t, signer,
 				attr,
 				testtransaction.WithSystemID(moneySystemID),
 			),
@@ -37,7 +37,7 @@ func TestTxRecording(t *testing.T) {
 	closeFCAttr := testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(closeFCAmount))
 	closureTx := testutils.WithReclaimFCClosureTx(
 		&types.TransactionRecord{
-			TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+			TransactionOrder: testutils.NewCloseFC(t, signer, closeFCAttr),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: closeFCFee},
 		},
 	)

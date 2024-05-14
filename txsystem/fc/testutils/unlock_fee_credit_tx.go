@@ -3,6 +3,7 @@ package testutils
 import (
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -12,12 +13,12 @@ import (
 
 type UnlockFeeCreditOption func(Attributes *fc.UnlockFeeCreditAttributes)
 
-func NewUnlockFC(t *testing.T, attr *fc.UnlockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewUnlockFC(t *testing.T, signer abcrypto.Signer, attr *fc.UnlockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewUnlockFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeUnlockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -34,7 +35,7 @@ func NewUnlockFC(t *testing.T, attr *fc.UnlockFeeCreditAttributes, opts ...testt
 
 func NewDefaultUnlockFCAttr() *fc.UnlockFeeCreditAttributes {
 	return &fc.UnlockFeeCreditAttributes{
-		Backlink: backlink,
+		Counter: counter,
 	}
 }
 
@@ -46,8 +47,8 @@ func NewUnlockFCAttr(opts ...UnlockFeeCreditOption) *fc.UnlockFeeCreditAttribute
 	return defaultTx
 }
 
-func WithUnlockFCBacklink(backlink []byte) UnlockFeeCreditOption {
+func WithUnlockFCCounter(counter uint64) UnlockFeeCreditOption {
 	return func(attr *fc.UnlockFeeCreditAttributes) {
-		attr.Backlink = backlink
+		attr.Counter = counter
 	}
 }

@@ -13,9 +13,6 @@ import (
 )
 
 var (
-	ErrTxNil                       = errors.New("tx is nil")
-	ErrTxAttrNil                   = errors.New("tx attributes is nil")
-	ErrBillNil                     = errors.New("bill is nil")
 	ErrBillLocked                  = errors.New("bill is locked")
 	ErrTargetSystemIdentifierEmpty = errors.New("TargetSystemIdentifier is empty")
 	ErrTargetRecordIDEmpty         = errors.New("TargetRecordID is empty")
@@ -77,7 +74,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if uint64(attr.Amount) > billData.V {
+	if attr.Amount > billData.V {
 		return ErrInvalidFCValue
 	}
 	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {

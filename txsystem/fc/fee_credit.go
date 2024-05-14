@@ -21,19 +21,21 @@ var (
 	ErrMoneySystemIdentifierMissing = errors.New("money transaction system identifier is missing")
 	ErrStateIsNil                   = errors.New("state is nil")
 	ErrTrustBaseIsNil               = errors.New("trust base is nil")
+	ErrUnitIDLenIsZero              = errors.New("unit id length is zero")
 )
 
 type (
 	// FeeCredit contains fee credit related functionality.
 	FeeCredit struct {
-		systemIdentifier        types.SystemID
-		moneySystemIdentifier   types.SystemID
-		state                   *state.State
-		hashAlgorithm           crypto.Hash
-		trustBase               types.RootTrustBase
-		feeCalculator           FeeCalculator
-		execPredicate           func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
-		feeCreditRecordUnitType []byte
+		systemIdentifier         types.SystemID
+		moneySystemIdentifier    types.SystemID
+		state                    *state.State
+		hashAlgorithm            crypto.Hash
+		trustBase                types.RootTrustBase
+		feeCalculator            FeeCalculator
+		execPredicate            func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		feeCreditRecordUnitType  []byte
+		feeCreditRecordUnitIDLen int
 	}
 
 	FeeCalculator func() uint64
@@ -47,8 +49,9 @@ func FixedFee(fee uint64) FeeCalculator {
 
 func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	m := &FeeCredit{
-		hashAlgorithm: crypto.SHA256,
-		feeCalculator: FixedFee(1),
+		hashAlgorithm:            crypto.SHA256,
+		feeCalculator:            FixedFee(1),
+		feeCreditRecordUnitIDLen: 33,
 	}
 	for _, o := range opts {
 		o(m)
@@ -87,6 +90,9 @@ func validConfiguration(m *FeeCredit) error {
 	}
 	if m.trustBase == nil {
 		return ErrTrustBaseIsNil
+	}
+	if m.feeCreditRecordUnitIDLen == 0 {
+		return ErrUnitIDLenIsZero
 	}
 	return nil
 }

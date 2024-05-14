@@ -29,7 +29,7 @@ func TestStateObject_Write(t *testing.T) {
 		},
 		Storage: state.Storage{key2: value2, key1: value1},
 		AlphaBill: &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
+			Counter: 10,
 			Timeout: 10,
 		},
 		Suicided: false,
@@ -56,7 +56,7 @@ func TestAlphaBillLink_GetTimeout(t *testing.T) {
 	})
 	t.Run("timeout set", func(t *testing.T) {
 		abLink := &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
+			Counter: 10,
 			Timeout: 10,
 		}
 		require.EqualValues(t, 10, abLink.GetTimeout())

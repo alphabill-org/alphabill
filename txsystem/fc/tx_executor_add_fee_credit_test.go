@@ -1,13 +1,13 @@
 package fc
 
 import (
-	"crypto"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -34,13 +34,15 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
 		require.NoError(t, err)
 		require.NotNil(t, sm)
-		// replay attack - have to use error contains since backlink hash changes
+		// replay attack
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}),
-			"invalid transferFC target unit backlink: transferFC.targetUnitBacklink= unit.backlink=")
+			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
 	})
 	t.Run("transferFC tx record is nil", func(t *testing.T) {
-		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
-			&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}))
+		tx := testtransaction.NewTransactionOrder(t,
+			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
+		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
 		var attr fc.AddFeeCreditAttributes
@@ -77,9 +79,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("actual target unit backlink")))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
 						ServerMetadata:   nil,
 					},
 				),
@@ -95,7 +97,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("transferFC type not valid", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewAddFC(t, signer, nil),
 						ServerMetadata:   &types.ServerMetadata{},
@@ -113,7 +115,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewAddFC(t, signer, nil,
 							testtransaction.WithPayloadType(fc.PayloadTypeTransferFeeCredit)),
@@ -141,15 +143,20 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer, nil,
-			testtransaction.WithUnitID([]byte{1}),
+		tx := testfc.NewAddFC(t, signer,
+			testfc.NewAddFCAttr(t, signer,
+				testfc.WithTransferFCRecord(&types.TransactionRecord{
+					TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte{1}))),
+					ServerMetadata:   &types.ServerMetadata{},
+				}),
+			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC target record id: transferFC.TargetRecordId=0000000000000000000000000000000000000000000000000000000000000001FF tx.UnitId=01")
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+			"invalid transferFC target record id")
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil, testtransaction.WithUnitID([]byte{1}))
@@ -158,7 +165,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"get frc error: invalid unit identifier: type is not fee credit record")
+			"get fcr error: invalid unit identifier: type is not fee credit record")
 	})
 	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -175,9 +182,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("invalid system id", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
+						TransactionOrder: testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
@@ -193,9 +200,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("Invalid target systemID", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID(0xFFFFFFFF))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
@@ -211,9 +218,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("Invalid target recordID", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
@@ -223,15 +230,15 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC target record id: transferFC.TargetRecordId=6E6F7420657175616C20746F207472616E73616374696F6E2E756E69744964 tx.UnitId=0000000000000000000000000000000000000000000000000000000000000001FF")
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+			"invalid transferFC target record id")
 	})
-	t.Run("Invalid target unit backlink (fee credit record does not exist)", func(t *testing.T) {
+	t.Run("invalid target unit counter (fee credit record does not exist, counter must be nil)", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("non-empty target unit backlink")))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -242,40 +249,21 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC target unit backlink: transferFC.targetUnitBacklink=6E6F6E2D656D7074792074617267657420756E6974206261636B6C696E6B unit.backlink=")
+			"invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 	})
-	t.Run("Invalid target unit backlink (tx target unit backlink equals to fee credit record state hash and NOT backlink)", func(t *testing.T) {
+	t.Run("ok target unit counter (tx target unit counter equals fee credit record counter)", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("sent target unit backlink")))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Backlink: []byte("actual target unit backlink")}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
-		var attr fc.AddFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC target unit backlink: transferFC.targetUnitBacklink=73656E742074617267657420756E6974206261636B6C696E6B unit.backlink=61637475616C2074617267657420756E6974206261636B6C696E6B")
-	})
-	t.Run("ok target unit backlink (tx target unit backlink equals fee credit record)", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
-					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("actual target unit backlink")))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-					},
-				),
-			),
-		)
-		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Backlink: []byte("actual target unit backlink")}))
+			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 10}))
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -284,13 +272,14 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("EarliestAdditionTime in the future NOK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(11))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithEarliestAdditionTime(11))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
 			),
+			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
@@ -298,12 +287,12 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx), "invalid transferFC timeout: earliest=11 latest=10 current=10")
 	})
-	t.Run("EarliestAdditionTime next block OK", func(t *testing.T) {
+	t.Run("EarliestAdditionTime same block OK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(10))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithEarliestAdditionTime(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -318,9 +307,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(9))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(9))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
@@ -336,14 +325,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
 			),
-			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 90}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
@@ -354,9 +342,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("Invalid tx fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCTx(
+				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithAmount(100))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -401,19 +389,30 @@ func TestAddFC_ExecuteAddNewFeeCredit(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 49, fcr.Balance)                      // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
-	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash
-	require.EqualValues(t, 11, fcr.Timeout)                      // transferFC.latestAdditionTime + 1
-	require.EqualValues(t, 0, fcr.Locked)                        // new unit is created in unlocked status
+	require.EqualValues(t, 49, fcr.Balance) // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
+	require.EqualValues(t, 0, fcr.Counter)  // new unit counter starts from 0
+	require.EqualValues(t, 10, fcr.Timeout) // transferFC.latestAdditionTime
+	require.EqualValues(t, 0, fcr.Locked)   // new unit is created in unlocked status
 
 }
 
 func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	attr := testfc.NewAddFCAttr(t, signer)
+	attr := testfc.NewAddFCAttr(t, signer,
+		testfc.WithTransferFCRecord(
+			&types.TransactionRecord{
+				TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
+					testfc.WithAmount(50),
+					testfc.WithTargetUnitCounter(test.Uint64Ptr(4)),
+					testfc.WithTargetRecordID(testfc.NewFeeCreditRecordID(t, signer)),
+				)),
+				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+			},
+		),
+	)
 	tx := testfc.NewAddFC(t, signer, attr)
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1}
 	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, existingFCR))
 
 	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
@@ -425,10 +424,10 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 59, fcr.Balance)                      // existing (10) + transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
-	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash
-	require.EqualValues(t, 11, fcr.Timeout)                      // transferFC.latestAdditionTime + 1
-	require.EqualValues(t, 0, fcr.Locked)                        // unit is unlocked
+	require.EqualValues(t, 58, fcr.Balance) // existing (10) + transferFC.amount (50) - transferFC.fee (1) - addFC.fee (1)
+	require.EqualValues(t, 5, fcr.Counter)  // counter is incremented
+	require.EqualValues(t, 10, fcr.Timeout) // transferFC.latestAdditionTime
+	require.EqualValues(t, 0, fcr.Locked)   // unit is unlocked
 }
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {

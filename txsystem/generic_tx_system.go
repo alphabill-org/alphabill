@@ -102,11 +102,11 @@ func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
-	m.currentRoundNumber = blockNr
+func (m *GenericTxSystem) BeginBlock(roundNr uint64) error {
+	m.currentRoundNumber = roundNr
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(blockNr); err != nil {
+		if err := function(roundNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}

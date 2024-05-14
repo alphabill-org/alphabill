@@ -10,20 +10,20 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := m.feeCalculator()
 	typeID := tx.UnitID()
 	newTokenID := tokens.NewFungibleTokenID(typeID, HashForIDCalculation(tx, m.hashAlgorithm))
 
 	if err := m.state.Apply(
-		state.AddUnit(newTokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentBlockNr, 0, tx.Timeout())),
+		state.AddUnit(newTokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentRound(), 0, tx.Timeout())),
 	); err != nil {
 		return nil, err
 	}
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

@@ -19,7 +19,7 @@ type (
 	}
 )
 
-func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	// reduce dc-money supply by target value and update timeout and backlink
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
@@ -28,7 +28,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 			}
 			bd.V -= attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			return bd, nil
 		},
@@ -41,7 +41,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
 			}
 			bd.V += attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			bd.Locked = 0
 			return bd, nil
@@ -56,7 +56,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 	}, nil
 }
 
-func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txsystem.ExecutionContext) error {
 	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {

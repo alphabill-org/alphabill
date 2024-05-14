@@ -26,7 +26,7 @@ type TxSystem struct {
 	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
-	currentBlockNumber  uint64
+	currentRoundNumber  uint64
 	executors           txsystem.TxExecutors
 	genericTxValidators []genericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
@@ -79,7 +79,7 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 }
 
 func (m *TxSystem) CurrentBlockNumber() uint64 {
-	return m.currentBlockNumber
+	return m.currentRoundNumber
 }
 
 func (m *TxSystem) State() txsystem.StateReader {
@@ -104,11 +104,11 @@ func (m *TxSystem) getState() (txsystem.StateSummary, error) {
 	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *TxSystem) BeginBlock(blockNr uint64) error {
-	m.currentBlockNumber = blockNr
+func (m *TxSystem) BeginBlock(roundNr uint64) error {
+	m.currentRoundNumber = roundNr
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(blockNr); err != nil {
+		if err := function(roundNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}
@@ -125,7 +125,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		Tx:               tx,
 		Unit:             u,
 		SystemIdentifier: m.systemIdentifier,
-		BlockNumber:      m.currentBlockNumber,
+		BlockNumber:      m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
 		if err = validator(ctx); err != nil {
@@ -157,8 +157,8 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: m.currentBlockNumber})
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	sm, err = m.executors.ValidateAndExecute(tx, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 
 func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
-		if err := function(m.currentBlockNumber); err != nil {
+		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
@@ -200,7 +200,7 @@ func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.
 
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
 
-func (vc *TxValidationContext) TrustBase() (types.RootTrustBase, error) {
+func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
 }
 

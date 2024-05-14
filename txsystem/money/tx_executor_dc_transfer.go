@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// 1. SetOwner(ι, DC)
 	setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
@@ -35,7 +35,7 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.V = 0
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			return bd, nil
 		})
@@ -57,7 +57,7 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 	}, nil
 }
 
-func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txsystem.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err

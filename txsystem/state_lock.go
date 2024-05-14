@@ -26,7 +26,7 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx *TxExecutionContext) error {
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx ExecutionContext) error {
 	if stateLock == nil {
 		return fmt.Errorf("StateLock is nil")
 	}
@@ -56,7 +56,7 @@ func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, erro
 
 // handleUnlockUnitState - tries to unlock a state locked unit.
 // Returns error if unit is locked and could not be unlocked (either predicate fails or none input is provided).
-func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	// todo: handle multiple target units
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
@@ -104,7 +104,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 }
 
 // executeLockUnitState - validates lock predicate and locks the state of a unit
-func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ ExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
 	if err := tx.Payload.StateLock.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid state lock parameter: %w", err)
@@ -121,7 +121,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *Tx
 		if err = m.state.Apply(state.SetStateLock(targetUnit, txBytes)); err != nil {
 			return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
 		}
-		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.currentBlockNumber))
+		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.CurrentRound()))
 	}
 	return &types.ServerMetadata{ActualFee: 1, TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

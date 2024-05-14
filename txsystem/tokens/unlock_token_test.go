@@ -7,10 +7,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedTokenUnitID)
 	roundNo := uint64(11)
-	sm, err := txExecutors.ValidateAndExecute(unlockTx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(unlockTx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
@@ -106,7 +106,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateUnlockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateUnlockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -125,7 +125,7 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
-	sm, err := txExecutors.ValidateAndExecute(unlockTx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(unlockTx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
@@ -228,7 +228,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateUnlockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateUnlockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}

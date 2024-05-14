@@ -8,8 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
@@ -23,8 +23,8 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	tx := testfc.NewCloseFC(t, attr)
 	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 	// execute closeFC transaction
-	require.NoError(t, feeCreditModule.validateCloseFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
-	sm, err := feeCreditModule.executeCloseFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	require.NoError(t, feeCreditModule.validateCloseFC(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))))
+	sm, err := feeCreditModule.executeCloseFC(tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	// verify closeFC updated the FCR.Backlink
@@ -44,7 +44,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.NoError(t, feeModule.validateCloseFC(tx, &attr, execCtx))
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
 	})
@@ -66,7 +66,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"fee credit error: invalid unit identifier: type is not fee credit record")
 	})
@@ -76,7 +76,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"invalid fee credit transaction: fee tx cannot contain fee authorization proof")
 	})
@@ -85,7 +85,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &testData{}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"fee credit error: invalid unit type: unit is not fee credit record")
 	})
@@ -94,7 +94,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
 	})
@@ -103,7 +103,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
@@ -112,7 +112,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
@@ -122,7 +122,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"not enough funds: max fee cannot exceed fee credit record balance: tx.maxFee=51 fcr.Balance=50")
 	})
@@ -131,7 +131,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: fee credit record is locked")
 	})

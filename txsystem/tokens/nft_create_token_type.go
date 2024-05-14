@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := n.feeCalculator()
 
 	// update state
@@ -25,7 +25,7 @@ func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrde
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)

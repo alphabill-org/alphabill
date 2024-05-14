@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 )
 
-func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	decrCreditFn := unit.DecrCredit(tx.UnitID(), attr.Amount)
 	updateDataFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
@@ -28,7 +28,7 @@ func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFee
 	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) error {
+func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

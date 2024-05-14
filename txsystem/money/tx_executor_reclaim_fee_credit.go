@@ -19,7 +19,7 @@ var (
 	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
-func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
 	fee := m.feeCalculator()
@@ -36,7 +36,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.V += v
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		newBillData.Locked = 0
 		return newBillData, nil
@@ -58,7 +58,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, execCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, execCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {

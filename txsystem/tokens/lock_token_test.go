@@ -11,6 +11,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func TestLockFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenUnitID)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenUnitID, false)
@@ -127,7 +128,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateLockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateLockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -147,7 +148,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -236,7 +237,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateLockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateLockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}

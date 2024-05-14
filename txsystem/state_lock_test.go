@@ -82,8 +82,8 @@ func Test_proof_check_with_nil(t *testing.T) {
 func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 	t.Run("ok - unit not found", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil)
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		txSys := NewTestGenericTxSystem(t, nil)
+		execCtx := newExecutionContext(txSys, nil)
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -97,8 +97,8 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 	})
 	t.Run("ok - unit is already unlocked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
+		execCtx := newExecutionContext(txSys, nil)
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -112,8 +112,8 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 	})
 	t.Run("ok - unit is already unlocked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
+		execCtx := newExecutionContext(txSys, nil)
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -130,12 +130,12 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			basetemplates.AlwaysTrueBytes(),
 			&money.BillData{V: 1, Counter: 1},
 			createLockTransaction(t, unitID, pubKey1)))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		// try to transfer without unlocking
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -153,12 +153,12 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			basetemplates.AlwaysTrueBytes(),
 			&money.BillData{V: 1, Counter: 1},
 			createLockTransaction(t, unitID, pubKey1)))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		// add unlock
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(
@@ -178,12 +178,12 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			basetemplates.AlwaysTrueBytes(),
 			&money.BillData{V: 1, Counter: 1},
 			createLockTransaction(t, unitID, pubKey1)))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		// add unlock
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(
@@ -203,12 +203,12 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			basetemplates.AlwaysTrueBytes(),
 			&money.BillData{V: 1, Counter: 1},
 			createLockTransaction(t, unitID, pubKey1)))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		// add unlock
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(
@@ -228,12 +228,12 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			basetemplates.AlwaysTrueBytes(),
 			&money.BillData{V: 1, Counter: 1},
 			createLockTransaction(t, unitID, pubKey1)))
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		// add unlock
 		require.NoError(t, err)
 		tx := testtransaction.NewTransactionOrder(
@@ -258,7 +258,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 	t.Run("err - invalid state lock", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -267,14 +267,14 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{}),
 		)
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing execution predicate")
 		require.Nil(t, sm)
 	})
 	t.Run("err - invalid state lock, missing rollback", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -283,14 +283,14 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
 		)
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.Nil(t, sm)
 	})
 	t.Run("ok", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		txSys := newTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, basetemplates.AlwaysTrueBytes(), &money.BillData{V: 1, Counter: 1}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
 			testtransaction.WithPayloadType(money.PayloadTypeTransfer),
@@ -302,7 +302,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
 			}),
 		)
-		execCtx := &TxExecutionContext{CurrentBlockNr: 6}
+		execCtx := newExecutionContext(txSys, nil)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.NoError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.NotNil(t, sm)

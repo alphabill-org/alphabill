@@ -43,11 +43,11 @@ func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrd
 	return d, nil
 }
 
-func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *tokens.UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *tokens.UnlockTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	// update lock status, round number and counter
 	updateFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
-			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNr)
+			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentRound())
 		})
 	if err := m.state.Apply(updateFn); err != nil {
 		return nil, fmt.Errorf("failed to update state: %w", err)
@@ -55,7 +55,7 @@ func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *t
 	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 }
 
-func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	// unit id identifies an existing fungible or non-fungible token
 	u, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
@@ -74,7 +74,7 @@ func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, att
 	}
 }
 
-func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
+func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, u *state.Unit, exeCtx txsystem.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
@@ -103,7 +103,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	return nil
 }
 
-func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, u *state.Unit, exeCtx *txsystem.TxExecutionContext) error {
+func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, u *state.Unit, exeCtx txsystem.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())

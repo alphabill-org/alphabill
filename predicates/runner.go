@@ -33,7 +33,7 @@ type (
 	TxContext interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
-		TrustBase() (types.RootTrustBase, error)
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		// until AB-1012 gets resolved we need this hack to get correct payload bytes.
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 	}

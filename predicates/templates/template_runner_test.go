@@ -356,6 +356,6 @@ func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, err
 
 func (env *mockTxContext) CurrentRound() uint64 { return 0 }
 
-func (env *mockTxContext) TrustBase() (types.RootTrustBase, error) {
+func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("mockTxContext.TrustBase is not implemented")
 }

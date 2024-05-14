@@ -70,7 +70,7 @@ type (
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
-		TrustBase() (types.RootTrustBase, error)
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
 	}
 
 	// translates AB types to WASM consumable representation

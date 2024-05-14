@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	// try to update unit
 	err := m.state.Apply(state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
@@ -42,7 +42,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	}, nil
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx txsystem.ExecutionContext) error {
 	if !tx.UnitID().HasType(orchestration.VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}

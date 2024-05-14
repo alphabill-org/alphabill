@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := n.feeCalculator()
 	unitID := tx.UnitID()
 	// update state
@@ -21,7 +21,7 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
 			d.Data = attr.Data
-			d.T = exeCtx.CurrentBlockNr
+			d.T = exeCtx.CurrentRound()
 			d.Counter += 1
 			return d, nil
 		})); err != nil {
@@ -30,7 +30,7 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}

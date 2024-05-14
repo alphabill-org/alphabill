@@ -15,9 +15,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/holiman/uint256"
 
@@ -83,7 +83,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))))
 	})
 	t.Run("err - replay will not pass validation", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
@@ -100,12 +100,12 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
-		sm, err := feeCreditModule.executeAddFC(tx, &attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))))
+		sm, err := feeCreditModule.executeAddFC(tx, &attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 		// replay attack - have to use error contains since backlink hash changes
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}),
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))),
 			"invalid transferFC target unit backlink: transferFC.targetUnitBacklink= unit.backlink=")
 	})
 	t.Run("transferFC tx record is nil", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			&fcsdk.AddFeeCreditAttributes{FeeCreditTransfer: nil}))
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -124,7 +124,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			&fcsdk.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}}))
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -141,7 +141,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		))
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -160,7 +160,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -180,7 +180,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -192,7 +192,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -212,7 +212,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -230,7 +230,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				testfc.WithFCOwnerCondition([]byte("wrong bearer")),
 			))
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -249,7 +249,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -268,7 +268,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -290,7 +290,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -311,7 +311,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -339,7 +339,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				Account:   &statedb.Account{Balance: uint256.NewInt(100)},
 				AlphaBill: &statedb.AlphaBillLink{TxHash: []byte("actual target unit backlink")},
 			}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -367,7 +367,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				Account:   &statedb.Account{Balance: uint256.NewInt(100)},
 				AlphaBill: &statedb.AlphaBillLink{TxHash: []byte("actual target unit backlink")},
 			}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -387,7 +387,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx), "invalid transferFC timeout: earliest=11 latest=10 current=10")
@@ -407,7 +407,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -427,7 +427,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -449,7 +449,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -470,7 +470,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -492,7 +492,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -532,8 +532,8 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	attr := new(fcsdk.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 
-	require.NoError(t, feeCreditModule.validateAddFC(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5}))
-	metaData, err := feeCreditModule.executeAddFC(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
+	require.NoError(t, feeCreditModule.validateAddFC(addFeeOrder, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))))
+	metaData, err := feeCreditModule.executeAddFC(addFeeOrder, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5)))
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
 	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
@@ -569,8 +569,8 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 				})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	require.NoError(t, feeCreditModule.validateAddFC(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5}))
-	metaData, err = feeCreditModule.executeAddFC(addFeeOrder, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 5})
+	require.NoError(t, feeCreditModule.validateAddFC(addFeeOrder, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))))
+	metaData, err = feeCreditModule.executeAddFC(addFeeOrder, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5)))
 	require.NoError(t, err)
 	require.NotNil(t, metaData)
 	remainingCredit = new(uint256.Int).Add(remainingCredit, alphaToWei(10))

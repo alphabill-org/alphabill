@@ -16,11 +16,11 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	// calculate actual tx fee cost
 	fee := m.feeCalculator()
 	// update state
-	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
+	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentRound())
 	setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 	if err := m.state.Apply(
 		setOwnerFunc,
@@ -31,7 +31,7 @@ func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.Trans
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx txsystem.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return fmt.Errorf("transfer validation error: %w", err)

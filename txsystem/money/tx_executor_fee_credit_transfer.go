@@ -27,7 +27,7 @@ var (
 	ErrInvalidCounter              = errors.New("the transaction counter is not equal to the unit counter")
 )
 
-func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// remove value from source unit, zero value bills get removed later
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -36,7 +36,7 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.V -= attr.Amount
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		return newBillData, nil
 	})
@@ -55,7 +55,7 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, exeCtx txsystem.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {

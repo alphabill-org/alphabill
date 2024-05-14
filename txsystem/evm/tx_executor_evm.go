@@ -29,7 +29,7 @@ func errorToStr(err error) string {
 	return ""
 }
 
-func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx txsystem.ExecutionContext) (sm *types.ServerMetadata, retErr error) {
 	from := common.BytesToAddress(attr.From)
 	stateDB := statedb.NewStateDB(m.options.state, m.log)
 	if !stateDB.Exist(from) {
@@ -40,10 +40,10 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 			retErr = stateDB.Finalize()
 		}
 	}()
-	return Execute(exeCtx.CurrentBlockNr, stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
+	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
-func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ *txsystem.TxExecutionContext) error {
+func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ txsystem.ExecutionContext) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}

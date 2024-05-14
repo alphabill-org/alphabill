@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -31,7 +31,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 			&tokens.FungibleTokenData{
 				TokenType: ftData.TokenType,
 				Value:     attr.TargetValue,
-				T:         exeCtx.CurrentBlockNr,
+				T:         exeCtx.CurrentRound(),
 				Counter:   0,
 				T1:        0,
 				Locked:    0,
@@ -45,7 +45,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 				return &tokens.FungibleTokenData{
 					TokenType: d.TokenType,
 					Value:     d.Value - attr.TargetValue,
-					T:         exeCtx.CurrentBlockNr,
+					T:         exeCtx.CurrentRound(),
 					Counter:   d.Counter + 1,
 					T1:        d.T1,
 					Locked:    d.Locked,
@@ -65,7 +65,7 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err

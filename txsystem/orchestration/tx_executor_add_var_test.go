@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 
@@ -46,7 +47,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	attr := &orchestration.AddVarAttributes{}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 11}
+	exeCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(11))
 
 	require.NoError(t, module.validateAddVarTx(txo, attr, exeCtx))
 	serverMetadata, err := module.executeAddVarTx(txo, attr, exeCtx)
@@ -94,9 +95,9 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	// exec addVar tx
 	attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 1}}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 11}
+	execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(11))
 	require.NoError(t, module.validateAddVarTx(txo, attr, execCtx))
-	sm, err := module.executeAddVarTx(txo, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	sm, err := module.executeAddVarTx(txo, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(11)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -133,7 +134,7 @@ func TestAddVar_NOK(t *testing.T) {
 		testtransaction.WithPayloadType(orchestration.PayloadTypeAddVAR),
 		testtransaction.WithAttributes(orchestration.AddVarAttributes{}),
 	)
-	serverMetadata, err := txExecutors.ValidateAndExecute(txo, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	serverMetadata, err := txExecutors.ValidateAndExecute(txo, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(11)))
 	require.ErrorContains(t, err, "'addVar' validation failed: invalid owner proof: executing predicate: failed to decode P2PKH256 signature: EOF")
 	require.Nil(t, serverMetadata)
 }
@@ -149,7 +150,7 @@ func TestAddVar_Validation(t *testing.T) {
 		attr := &orchestration.AddVarAttributes{}
 		tx := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
 		module := newTestVarModule(t, ownerPredicate)
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateAddVarTx(tx, attr, exeCtx))
 	})
 	t.Run("InvalidUnitIdType", func(t *testing.T) {
@@ -157,7 +158,7 @@ func TestAddVar_Validation(t *testing.T) {
 		attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 1}}
 		tx := createAddVarTx(t, signer, attr, testtransaction.WithUnitID([]byte{}))
 		module := newTestVarModule(t, ownerPredicate, withStateUnit(unitID, templates.AlwaysTrueBytes(), &TestData{}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateAddVarTx(tx, attr, exeCtx), "invalid unit identifier: type is not VAR type")
 	})
 	t.Run("InvalidUnitDataType", func(t *testing.T) {
@@ -165,7 +166,7 @@ func TestAddVar_Validation(t *testing.T) {
 		attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 1}}
 		tx := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
 		module := newTestVarModule(t, ownerPredicate, withStateUnit(unitID, templates.AlwaysTrueBytes(), &TestData{}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateAddVarTx(tx, attr, exeCtx), "invalid unit data type")
 	})
 	t.Run("InvalidEpochNumber_ExistingUnit", func(t *testing.T) {
@@ -173,14 +174,14 @@ func TestAddVar_Validation(t *testing.T) {
 		attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 5}}
 		tx := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
 		module := newTestVarModule(t, ownerPredicate, withStateUnit(unitID, templates.AlwaysTrueBytes(), &orchestration.VarData{EpochNumber: 5}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateAddVarTx(tx, attr, exeCtx), "invalid epoch number, must increment by 1, got 5 expected 6")
 	})
 	t.Run("InvalidEpochNumber_NewUnit", func(t *testing.T) {
 		unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 		attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 1}}
 		tx := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		module := newTestVarModule(t, ownerPredicate)
 		require.EqualError(t, module.validateAddVarTx(tx, attr, exeCtx), "invalid epoch number, must be 0 for new units, got 1")
 	})
@@ -194,7 +195,7 @@ func TestAddVar_Validation(t *testing.T) {
 			testtransaction.WithAttributes(attr),
 			testtransaction.WithOwnerProof([]byte{1}),
 		)
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testtx.NewMockExecutionContext(t)
 		module := newTestVarModule(t, ownerPredicate, withStateUnit(unitID, templates.AlwaysTrueBytes(), &orchestration.VarData{EpochNumber: 1}))
 		require.EqualError(t, module.validateAddVarTx(tx, attr, exeCtx),
 			"invalid owner proof: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature")

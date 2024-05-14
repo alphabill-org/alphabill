@@ -38,6 +38,7 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("tx record: %w", err)
 	}
+	// todo: add epoch number to UC Seal
 	tb, err := vec.curPrg.env.TrustBase(0)
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)
@@ -81,7 +82,7 @@ func amountTransferred(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
-
+	// todo: add epoch number to UC Seal
 	tb, err := vec.curPrg.env.TrustBase(0)
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)

@@ -14,10 +14,8 @@ import (
 )
 
 var (
-	unitID                              = types.NewUnitID(33, nil, []byte{1}, []byte{0xff}) // TODO: should be a parameter from a partition
 	systemID             types.SystemID = 1
 	targetUnitCounter                   = uint64(3)
-	backlink                            = []byte{4}
 	targetCounter                       = uint64(4)
 	counter                             = uint64(4)
 	amount                              = uint64(50)
@@ -31,7 +29,7 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttribu
 		attr = NewAddFCAttr(t, signer)
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeAddFeeCredit),
 	)
@@ -44,20 +42,23 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttribu
 type AddFeeCreditOption func(*fc.AddFeeCreditAttributes) AddFeeCreditOption
 
 func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOption) *fc.AddFeeCreditAttributes {
-	defaultFCTx := &fc.AddFeeCreditAttributes{}
+	attr := &fc.AddFeeCreditAttributes{}
 	for _, opt := range opts {
-		opt(defaultFCTx)
+		opt(attr)
 	}
-	if defaultFCTx.FeeCreditTransfer == nil {
-		defaultFCTx.FeeCreditTransfer = &types.TransactionRecord{
-			TransactionOrder: NewTransferFC(t, nil),
+	if attr.FeeCreditTransfer == nil {
+		attr.FeeCreditTransfer = &types.TransactionRecord{
+			TransactionOrder: NewTransferFC(t, signer, nil),
 			ServerMetadata:   &types.ServerMetadata{},
 		}
 	}
-	if defaultFCTx.FeeCreditTransferProof == nil {
-		defaultFCTx.FeeCreditTransferProof = testblock.CreateProof(t, defaultFCTx.FeeCreditTransfer, signer)
+	if attr.FeeCreditTransferProof == nil {
+		attr.FeeCreditTransferProof = testblock.CreateProof(t, attr.FeeCreditTransfer, signer)
 	}
-	return defaultFCTx
+	if attr.FeeCreditOwnerCondition == nil {
+		attr.FeeCreditOwnerCondition = NewP2pkhPredicate(t, signer)
+	}
+	return attr
 }
 
 func WithFCOwnerCondition(ownerCondition []byte) AddFeeCreditOption {
@@ -74,7 +75,7 @@ func WithTransferFCProof(proof *types.TxProof) AddFeeCreditOption {
 	}
 }
 
-func WithTransferFCTx(ttx *types.TransactionRecord) AddFeeCreditOption {
+func WithTransferFCRecord(ttx *types.TransactionRecord) AddFeeCreditOption {
 	return func(tx *fc.AddFeeCreditAttributes) AddFeeCreditOption {
 		tx.FeeCreditTransfer = ttx
 		return nil

@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	gocrypto "crypto"
 	"fmt"
 	"hash"
 	"testing"
@@ -1336,8 +1335,9 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// lock fee credit record
-	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCBacklink(make([]byte, 32)))
-	lockFC := testutils.NewLockFC(t, lockFCAttr,
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(10))
+	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
 		testtransaction.WithUnitID(feeCreditID),
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
@@ -1354,8 +1354,8 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	require.True(t, fcr.IsLocked())
 
 	// unlock fee credit record
-	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCBacklink(lockFC.Hash(gocrypto.SHA256)))
-	unlockFC := testutils.NewUnlockFC(t, unlockFCAttr,
+	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(11))
+	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr,
 		testtransaction.WithUnitID(feeCreditID),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 	)
@@ -1461,9 +1461,9 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance:  100,
-		Backlink: make([]byte, 32),
-		Timeout:  1000,
+		Balance: 100,
+		Counter: 10,
+		Timeout: 1000,
 	})))
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)

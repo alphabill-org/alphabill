@@ -1,7 +1,6 @@
 package fc
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -12,10 +11,9 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	fee := f.feeCalculator()
-	txHash := tx.Hash(f.hashAlgorithm)
 	updateFunc := state.UpdateUnitData(unitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -23,7 +21,7 @@ func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockF
 				return nil, fmt.Errorf("unit %v does not contain fee credit record", unitID)
 			}
 			fcr.Balance -= fee
-			fcr.Backlink = txHash
+			fcr.Counter += 1
 			fcr.Locked = 0
 			return fcr, nil
 		})
@@ -44,9 +42,9 @@ func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.Unlock
 		return fmt.Errorf("get unit error: %w", err)
 	}
 	// the transaction follows the previous valid transaction with the record,
-	if !bytes.Equal(attr.Backlink, fcr.GetBacklink()) {
-		return fmt.Errorf("the transaction backlink does not match with fee credit record backlink: "+
-			"got %x expected %x", attr.Backlink, fcr.GetBacklink())
+	if attr.Counter != fcr.GetCounter() {
+		return fmt.Errorf("the transaction counter does not equal with the fee credit record counter: "+
+			"got %d expected %d", attr.Counter, fcr.GetCounter())
 	}
 	// the transaction fee can’t exceed the record balance
 	if err = VerifyMaxTxFeeDoesNotExceedFRCBalance(tx, fcr.Balance); err != nil {

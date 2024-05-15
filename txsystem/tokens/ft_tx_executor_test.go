@@ -1217,9 +1217,9 @@ func initState(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance:  100,
-		Backlink: make([]byte, 32),
-		Timeout:  100,
+		Balance: 100,
+		Counter: 10,
+		Timeout: 100,
 	}))
 	require.NoError(t, err)
 	return s

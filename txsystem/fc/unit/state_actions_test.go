@@ -6,7 +6,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +16,11 @@ var (
 )
 
 func TestAddCredit_OK(t *testing.T) {
-	hash := test.RandomBytes(32)
+	counter := uint64(10)
 	fcr := &fc.FeeCreditRecord{
-		Balance:  1,
-		Backlink: hash,
-		Timeout:  2,
+		Balance: 1,
+		Counter: counter,
+		Timeout: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -33,15 +32,15 @@ func TestAddCredit_OK(t *testing.T) {
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
 	require.Equal(t, owner, unit.Bearer())
-	require.Equal(t, hash, unit.Data().(*fc.FeeCreditRecord).Backlink)
+	require.Equal(t, counter, unit.Data().(*fc.FeeCreditRecord).Counter)
 	require.Equal(t, fcr, unit.Data())
 }
 
 func TestDelCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
-		Balance:  1,
-		Backlink: test.RandomBytes(32),
-		Timeout:  2,
+		Balance: 1,
+		Counter: 10,
+		Timeout: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -59,11 +58,11 @@ func TestDelCredit_OK(t *testing.T) {
 }
 
 func TestIncrCredit_OK(t *testing.T) {
-	h := test.RandomBytes(32)
+	counter := uint64(10)
 	fcr := &fc.FeeCreditRecord{
-		Balance:  1,
-		Backlink: test.RandomBytes(32),
-		Timeout:  2,
+		Balance: 1,
+		Counter: counter,
+		Timeout: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -72,7 +71,7 @@ func TestIncrCredit_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// increment credit balance
-	err = tr.Apply(IncrCredit(id, 99, 200, h))
+	err = tr.Apply(IncrCredit(id, 99, 200))
 	require.NoError(t, err)
 
 	// verify balance is incremented
@@ -81,15 +80,15 @@ func TestIncrCredit_OK(t *testing.T) {
 	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, 100, unitFCR.Balance)
 	require.EqualValues(t, 200, unitFCR.Timeout)
-	require.Equal(t, h, unitFCR.Backlink)
+	require.Equal(t, counter+1, unitFCR.Counter)
 	require.Equal(t, owner, unit.Bearer())
 }
 
 func TestDecrCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
-		Balance:  1,
-		Backlink: test.RandomBytes(32),
-		Timeout:  2,
+		Balance: 1,
+		Counter: 10,
+		Timeout: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -107,7 +106,8 @@ func TestDecrCredit_OK(t *testing.T) {
 	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, -100, unitFCR.Balance) // fcr and go negative
 
-	// and timeout and hash are not changed
+	// and timeout, counter and locked values are not changed
 	require.Equal(t, fcr.Timeout, unitFCR.Timeout)
-	require.Equal(t, fcr.Backlink, unitFCR.Backlink)
+	require.Equal(t, fcr.Counter, unitFCR.Counter)
+	require.Equal(t, fcr.Locked, unitFCR.Locked)
 }

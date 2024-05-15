@@ -28,7 +28,7 @@ func Test_isFeeCreditTx(t *testing.T) {
 	}{
 		{
 			name: "close fee credit - true",
-			args: args{testutils.NewCloseFC(t, testutils.NewCloseFCAttr())},
+			args: args{testutils.NewCloseFC(t, signer, testutils.NewCloseFCAttr())},
 			want: true,
 		},
 		{

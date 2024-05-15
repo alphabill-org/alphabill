@@ -441,9 +441,9 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
 		unit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-			Balance:  100,
-			Backlink: make([]byte, 32),
-			Timeout:  1000,
+			Balance: 100,
+			Counter: 10,
+			Timeout: 1000,
 		}),
 	))
 	_, _, err := s.CalculateRoot()

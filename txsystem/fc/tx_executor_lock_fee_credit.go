@@ -1,7 +1,6 @@
 package fc
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -15,7 +14,6 @@ import (
 func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	fee := f.feeCalculator()
-	txHash := tx.Hash(f.hashAlgorithm)
 	if err := f.state.Apply(state.UpdateUnitData(unitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -23,7 +21,7 @@ func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCr
 				return nil, fmt.Errorf("unit %v does not contain fee credit record", unitID)
 			}
 			fcr.Balance -= fee
-			fcr.Backlink = txHash
+			fcr.Counter += 1
 			fcr.Locked = attr.LockStatus
 			return fcr, nil
 		})); err != nil {
@@ -42,10 +40,10 @@ func (f *FeeCredit) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeC
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}
-	// the transaction follows the previous valid transaction with the record,
-	if !bytes.Equal(attr.Backlink, fcr.GetBacklink()) {
-		return fmt.Errorf("the transaction backlink does not match with fee credit record backlink: "+
-			"got %x expected %x", attr.Backlink, fcr.GetBacklink())
+	// the transaction follows the previous valid transaction with the record
+	if attr.Counter != fcr.GetCounter() {
+		return fmt.Errorf("the transaction counter does not equal with the fee credit record counter: "+
+			"got %d expected %d", attr.Counter, fcr.GetCounter())
 	}
 	if err = VerifyMaxTxFeeDoesNotExceedFRCBalance(tx, fcr.Balance); err != nil {
 		return fmt.Errorf("not enough funds: %w", err)

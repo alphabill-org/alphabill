@@ -3,6 +3,7 @@ package testutils
 import (
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
@@ -12,12 +13,12 @@ import (
 
 type LockFeeCreditOption func(Attributes *fc.LockFeeCreditAttributes)
 
-func NewLockFC(t *testing.T, attr *fc.LockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewLockFC(t *testing.T, signer abcrypto.Signer, attr *fc.LockFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewLockFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeLockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -34,7 +35,7 @@ func NewLockFC(t *testing.T, attr *fc.LockFeeCreditAttributes, opts ...testtrans
 func NewDefaultLockFCAttr() *fc.LockFeeCreditAttributes {
 	return &fc.LockFeeCreditAttributes{
 		LockStatus: 1,
-		Backlink:   backlink,
+		Counter:    counter,
 	}
 }
 
@@ -46,9 +47,9 @@ func NewLockFCAttr(opts ...LockFeeCreditOption) *fc.LockFeeCreditAttributes {
 	return defaultTx
 }
 
-func WithLockFCBacklink(backlink []byte) LockFeeCreditOption {
+func WithLockFCCounter(counter uint64) LockFeeCreditOption {
 	return func(attr *fc.LockFeeCreditAttributes) {
-		attr.Backlink = backlink
+		attr.Counter = counter
 	}
 }
 

@@ -39,7 +39,7 @@ var invalidAPIWasm []byte
 //go:embed testdata/p2pkh_v1/p2pkh.wasm
 var p2pkhV1Wasm []byte
 
-//go:embed testdata/tickets.wasm
+//go:embed testdata/conference_tickets/v1/conf_tickets.wasm
 var ticketsWasm []byte
 
 func Test_conference_tickets(t *testing.T) {

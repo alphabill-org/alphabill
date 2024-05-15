@@ -13,7 +13,6 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
@@ -154,7 +153,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(4)))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(4))),
 						ServerMetadata:   nil,
 					},
 				),
@@ -305,7 +304,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithTargetUnitCounter(test.Uint64Ptr(4)))),
+							testfc.WithTargetUnitCounter(4))),
 						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -326,7 +325,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithTargetUnitCounter(test.Uint64Ptr(4)))),
+							testfc.WithTargetUnitCounter(4))),
 						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -348,7 +347,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithTargetUnitCounter(test.Uint64Ptr(4))),
+							testfc.WithTargetUnitCounter(4)),
 							testtransaction.WithUnitID(fcrID),
 						),
 						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
@@ -564,7 +563,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 						testfc.NewTransferFCAttr(t, signer, testfc.WithAmount(10),
 							testfc.WithTargetRecordID(privKeyHash),
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithTargetUnitCounter(test.Uint64Ptr(abData.Counter))),
+							testfc.WithTargetUnitCounter(abData.Counter)),
 						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),

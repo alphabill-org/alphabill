@@ -50,9 +50,3 @@ func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
 		f.feeCreditRecordUnitType = feeCreditRecordUnitType
 	}
 }
-
-func WithFeeCreditRecordUnitIDLength(unitIDLen int) Option {
-	return func(f *FeeCredit) {
-		f.feeCreditRecordUnitIDLen = unitIDLen
-	}
-}

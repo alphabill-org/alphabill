@@ -30,7 +30,6 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithMoneySystemIdentifier(options.systemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
-		fc.WithFeeCreditRecordUnitIDLength(money.UnitIDLength),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)

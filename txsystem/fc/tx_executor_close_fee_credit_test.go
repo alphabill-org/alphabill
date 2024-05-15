@@ -165,8 +165,7 @@ func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOptio
 		execPredicate: func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error {
 			return nil
 		},
-		feeCreditRecordUnitType:  money.FeeCreditRecordUnitType,
-		feeCreditRecordUnitIDLen: money.UnitIDLength,
+		feeCreditRecordUnitType: money.FeeCreditRecordUnitType,
 	}
 	for _, o := range opts {
 		require.NoError(t, o(m))

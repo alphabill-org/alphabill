@@ -113,11 +113,14 @@ func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	// 9. (S.N[P.ι] = ⊥ ∧ P′.A.c′ = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P′.A.c′ = S.N[P.ι].c) – bill transfer order contains correct target unit counter value
 	if fcr == nil {
 		if transferTxAttr.TargetUnitCounter != nil {
-			return fmt.Errorf("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
+			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 		}
 	} else {
 		if transferTxAttr.TargetUnitCounter == nil {
-			return fmt.Errorf("invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
+			return errors.New("invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
+		}
+		if fcr.GetCounter() != *transferTxAttr.TargetUnitCounter {
+			return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transferTxAttr.TargetUnitCounter, fcr.GetCounter())
 		}
 	}
 
@@ -152,5 +155,6 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fc.Transf
 
 func (f *FeeCredit) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte) types.UnitID {
 	unitPart := hash.Sum256(ownerPredicate)
-	return types.NewUnitID(f.feeCreditRecordUnitIDLen, unitID, unitPart, f.feeCreditRecordUnitType)
+	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
+	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType)
 }

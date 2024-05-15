@@ -1,13 +1,13 @@
 package fc
 
 import (
+	"fmt"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -81,7 +81,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   nil,
 					},
 				),
@@ -238,7 +238,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -251,12 +251,50 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
 			"invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 	})
+	t.Run("invalid target unit counter (fee credit record exist, counter must be non-nil)", func(t *testing.T) {
+		tx := testfc.NewAddFC(t, signer,
+			testfc.NewAddFCAttr(t, signer,
+				testfc.WithTransferFCRecord(
+					&types.TransactionRecord{
+						TransactionOrder: testfc.NewTransferFC(t, signer, nil), // default counter is nil
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+					},
+				),
+			),
+		)
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11}))
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		var attr fc.AddFeeCreditAttributes
+		require.NoError(t, tx.UnmarshalAttributes(&attr))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
+	})
+	t.Run("invalid target unit counter (both exist but are not equal)", func(t *testing.T) {
+		tx := testfc.NewAddFC(t, signer,
+			testfc.NewAddFCAttr(t, signer,
+				testfc.WithTransferFCRecord(
+					&types.TransactionRecord{
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+					},
+				),
+			),
+		)
+		feeCreditModule := newTestFeeModule(t, trustBase,
+			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11}))
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		var attr fc.AddFeeCreditAttributes
+		require.NoError(t, tx.UnmarshalAttributes(&attr))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+			fmt.Sprintf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", 10, 11))
+
+	})
 	t.Run("ok target unit counter (tx target unit counter equals fee credit record counter)", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(test.Uint64Ptr(10)))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
 				),
@@ -404,7 +442,7 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 					testfc.WithAmount(50),
-					testfc.WithTargetUnitCounter(test.Uint64Ptr(4)),
+					testfc.WithTargetUnitCounter(4),
 					testfc.WithTargetRecordID(testfc.NewFeeCreditRecordID(t, signer)),
 				)),
 				ServerMetadata: &types.ServerMetadata{ActualFee: 1},

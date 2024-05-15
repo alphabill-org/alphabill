@@ -83,9 +83,9 @@ func WithTargetRecordID(recordID []byte) TransferFeeCreditOption {
 	}
 }
 
-func WithTargetUnitCounter(targetUnitCounter *uint64) TransferFeeCreditOption {
+func WithTargetUnitCounter(targetUnitCounter uint64) TransferFeeCreditOption {
 	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.TargetUnitCounter = targetUnitCounter
+		tx.TargetUnitCounter = &targetUnitCounter
 		return nil
 	}
 }

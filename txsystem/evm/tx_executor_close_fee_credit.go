@@ -21,9 +21,8 @@ func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFe
 	if err != nil {
 		return nil, fmt.Errorf("execution failed to extract address from public key bytes: %w", err)
 	}
-	txHash := tx.Hash(f.hashAlgorithm)
-	// decrement credit and update AB FCR bill backlink
-	if err := f.state.Apply(statedb.UpdateEthAccountCloseCredit(unitID, alphaToWei(attr.Amount), txHash)); err != nil {
+	// decrement credit and update AB FCR counter
+	if err := f.state.Apply(statedb.UpdateEthAccountCloseCredit(unitID, alphaToWei(attr.Amount))); err != nil {
 		return nil, fmt.Errorf("closeFC state update failed: %w", err)
 	}
 	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
@@ -45,7 +44,6 @@ func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseF
 	if err != nil {
 		return fmt.Errorf("failed to extract address from public key bytes: %w", err)
 	}
-	txHash := tx.Hash(f.hashAlgorithm)
 	unitID := addr.Bytes()
 	u, err := f.state.GetUnit(unitID, false)
 	if u == nil || err != nil {
@@ -56,9 +54,9 @@ func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseF
 		return fmt.Errorf("invalid unit type: not evm object")
 	}
 	fcr := &fc.FeeCreditRecord{
-		Balance:  weiToAlpha(stateObj.Account.Balance),
-		Backlink: txHash,
-		Timeout:  stateObj.AlphaBill.Timeout,
+		Balance: weiToAlpha(stateObj.Account.Balance),
+		Counter: stateObj.AlphaBill.Counter + 1,
+		Timeout: stateObj.AlphaBill.Timeout,
 	}
 	// verify the fee credit record is not locked
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record

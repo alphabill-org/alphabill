@@ -3,6 +3,7 @@ package testutils
 import (
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
@@ -16,12 +17,12 @@ var (
 
 type TransferFeeCreditOption func(Attributes *fc.TransferFeeCreditAttributes) TransferFeeCreditOption
 
-func NewTransferFC(t *testing.T, attr *fc.TransferFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewTransferFC(t *testing.T, signer abcrypto.Signer, attr *fc.TransferFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
-		attr = NewTransferFCAttr()
+		attr = NewTransferFCAttr(t, signer)
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(DefaultMoneyUnitID()),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeTransferFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -35,19 +36,19 @@ func NewTransferFC(t *testing.T, attr *fc.TransferFeeCreditAttributes, opts ...t
 	return tx
 }
 
-func NewDefaultTransferFCAttr() *fc.TransferFeeCreditAttributes {
+func NewDefaultTransferFCAttr(t *testing.T, signer abcrypto.Signer) *fc.TransferFeeCreditAttributes {
 	return &fc.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: systemID,
-		TargetRecordID:         unitID,
+		TargetRecordID:         NewFeeCreditRecordID(t, signer),
 		EarliestAdditionTime:   earliestAdditionTime,
 		LatestAdditionTime:     latestAdditionTime,
 		Counter:                counter,
 	}
 }
 
-func NewTransferFCAttr(opts ...TransferFeeCreditOption) *fc.TransferFeeCreditAttributes {
-	defaultTx := NewDefaultTransferFCAttr()
+func NewTransferFCAttr(t *testing.T, signer abcrypto.Signer, opts ...TransferFeeCreditOption) *fc.TransferFeeCreditAttributes {
+	defaultTx := NewDefaultTransferFCAttr(t, signer)
 	for _, opt := range opts {
 		opt(defaultTx)
 	}
@@ -82,9 +83,9 @@ func WithTargetRecordID(recordID []byte) TransferFeeCreditOption {
 	}
 }
 
-func WithTargetUnitBacklink(targetUnitBacklink []byte) TransferFeeCreditOption {
+func WithTargetUnitCounter(targetUnitCounter uint64) TransferFeeCreditOption {
 	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.TargetUnitBacklink = targetUnitBacklink
+		tx.TargetUnitCounter = &targetUnitCounter
 		return nil
 	}
 }

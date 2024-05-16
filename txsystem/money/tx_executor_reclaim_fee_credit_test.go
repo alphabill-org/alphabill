@@ -38,7 +38,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testtx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx),
-			"get unit error: item 0000000000000000000000000000000000000000000000000000000000000001FF does not exist: not found")
+			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000000 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
@@ -83,7 +83,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 			testutils.NewReclaimFCAttr(t, signer,
 				testutils.WithReclaimFCClosureTx(
 					&types.TransactionRecord{
-						TransactionOrder: testutils.NewCloseFC(t,
+						TransactionOrder: testutils.NewCloseFC(t, signer,
 							testutils.NewCloseFCAttr(
 								testutils.WithCloseFCAmount(2),
 								testutils.WithCloseFCTargetUnitCounter(counter),

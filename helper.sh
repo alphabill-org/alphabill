@@ -218,6 +218,7 @@ function start_non_validator_partition_nodes() {
   partition=$1
   count=$2
   home="testab/$partition-non-validator"
+  trust_base_file="testab/root-trust-base.json"
 
   echo "starting $count non-validator $partition nodes"
 
@@ -266,6 +267,7 @@ function start_non_validator_partition_nodes() {
       --tx-db ${home}$i/$partition/tx.db \
       --key-file ${home}$i/$partition/keys.json \
       --genesis $partitionGenesis \
+      --trust-base-file $trust_base_file \
       --state ${home}$i/$partition/node-genesis-state.cbor \
       --address "/ip4/127.0.0.1/tcp/$p2pPort" \
       --bootnodes="$bootNodes" \

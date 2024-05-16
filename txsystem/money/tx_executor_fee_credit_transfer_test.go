@@ -16,10 +16,10 @@ import (
 
 func TestModule_validateTransferFCTx(t *testing.T) {
 	const counter = uint64(4)
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 	t.Run("Ok", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil)
+		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -28,7 +28,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.NoError(t, module.validateTransferFCTx(tx, attr, exeCtx))
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil)
+		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -37,7 +37,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "invalid unit type")
 	})
 	t.Run("err - locked bill", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil)
+		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -46,15 +46,15 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "bill is locked")
 	})
 	t.Run("err - bill not found", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil)
+		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testtx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "unit not found 0000000000000000000000000000000000000000000000000000000000000001FF")
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000000")
 	})
 	t.Run("err - TargetSystemIdentifier is zero", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetSystemID(0)))
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetSystemID(0)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -63,7 +63,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "TargetSystemIdentifier is empty")
 	})
 	t.Run("err - TargetRecordID is nil", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithTargetRecordID(nil)))
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetRecordID(nil)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -72,7 +72,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "TargetRecordID is empty")
 	})
 	t.Run("err - AdditionTime invalid", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer,
 			testutils.WithEarliestAdditionTime(2),
 			testutils.WithLatestAdditionTime(1)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
@@ -83,7 +83,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "EarliestAdditionTime is greater than LatestAdditionTime")
 	})
 	t.Run("err - invalid amount", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(102)))
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithAmount(102)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -92,7 +92,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "the amount to transfer cannot exceed the value of the bill")
 	})
 	t.Run("err - invalid fee", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithAmount(1)))
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithAmount(1)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -101,7 +101,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "the transaction max fee cannot exceed the transferred amount")
 	})
 	t.Run("err - invalid counter", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, testutils.NewTransferFCAttr(testutils.WithCounter(counter+10)))
+		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithCounter(counter+10)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -110,7 +110,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
 	t.Run("err - FCR ID is set", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil,
+		tx := testutils.NewTransferFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{0}}))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
@@ -120,7 +120,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "fee tx cannot contain fee credit reference")
 	})
 	t.Run("err - fee proof exists", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil,
+		tx := testutils.NewTransferFC(t, signer, nil,
 			testtransaction.WithFeeProof([]byte{0, 0, 0, 0}))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
@@ -130,7 +130,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "fee tx cannot contain fee authorization proof")
 	})
 	t.Run("err - bearer predicate error", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, nil)
+		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
@@ -143,8 +143,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 func TestModule_executeTransferFCTx(t *testing.T) {
 	const counter = uint64(4)
 	const value = uint64(101)
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	tx := testutils.NewTransferFC(t, nil)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	tx := testutils.NewTransferFC(t, signer, nil)
 	attr := &fcsdk.TransferFeeCreditAttributes{Amount: 10}
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 	module := newTestMoneyModule(t, verifier,

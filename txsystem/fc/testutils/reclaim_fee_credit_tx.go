@@ -17,7 +17,7 @@ func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *fc.Reclai
 		reclaimFCAttr = NewReclaimFCAttr(t, signer)
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(DefaultMoneyUnitID()),
 		testtransaction.WithAttributes(reclaimFCAttr),
 		testtransaction.WithPayloadType(fc.PayloadTypeReclaimFeeCredit),
 	)
@@ -75,11 +75,11 @@ func WithReclaimFCClosureTx(closeFCTx *types.TransactionRecord) ReclaimFCOption 
 func newCloseFC(t *testing.T) *types.TransactionOrder {
 	attr := &fc.CloseFeeCreditAttributes{
 		Amount:            amount,
-		TargetUnitID:      unitID,
+		TargetUnitID:      DefaultMoneyUnitID(),
 		TargetUnitCounter: targetCounter,
 	}
 	return testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(DefaultMoneyUnitID()),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeCloseFeeCredit),
 	)

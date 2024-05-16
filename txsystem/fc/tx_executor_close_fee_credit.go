@@ -8,21 +8,20 @@ import (
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 )
 
-func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
-	decrCreditFn := unit.DecrCredit(tx.UnitID(), attr.Amount)
+func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	updateDataFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain fee credit record", tx.UnitID())
 			}
-			fcr.Backlink = tx.Hash(f.hashAlgorithm)
+			fcr.Balance = 0
+			fcr.Counter += 1
 			return fcr, nil
 		})
-	if err := f.state.Apply(decrCreditFn, updateDataFn); err != nil {
+	if err := f.state.Apply(updateDataFn); err != nil {
 		return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 	}
 	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil

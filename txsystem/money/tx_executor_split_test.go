@@ -11,16 +11,18 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestModule_validateSplitTx(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 	const counter = uint64(6)
 	const billValue = uint64(100)
 	t.Run("ok - 2-way split", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue-50, // - Amount split
 			counter)
@@ -30,7 +32,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("ok - 3-way split", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
@@ -43,7 +45,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - bill not found", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue-50,
 			counter)
@@ -53,7 +55,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue-50,
 			counter)
@@ -63,7 +65,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - bill locked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue-50,
 			counter)
@@ -73,7 +75,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - invalid counter", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 20, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue-20,
 			counter+1)
@@ -83,7 +85,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - target units empty", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{},
 			billValue,
 			counter)
@@ -93,7 +95,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - target unit is nil", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{nil},
 			billValue,
 			counter)
@@ -103,7 +105,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - target unit amount is 0", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 0, OwnerCondition: templates.AlwaysTrueBytes()}},
 			billValue,
 			counter)
@@ -113,7 +115,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - target unit owner condition is empty", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{{Amount: 1, OwnerCondition: []byte{}}},
 			billValue-1,
 			counter)
@@ -123,7 +125,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - target unit amount overflow", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: math.MaxUint64, OwnerCondition: templates.AlwaysTrueBytes()},
 				{Amount: 1, OwnerCondition: templates.AlwaysTrueBytes()},
@@ -136,7 +138,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - remaining value is zero", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 			},
@@ -148,7 +150,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - amount plus remaining value is less than bill value", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
@@ -162,7 +164,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("err - amount plus remaining value is less than bill value", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
@@ -176,7 +178,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	})
 	t.Run("owner predicate error", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
-		tx, attr := createSplit(t, unitID,
+		tx, attr := createSplit(t, unitID, fcrID,
 			[]*money.TargetUnit{
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
@@ -190,11 +192,12 @@ func TestModule_validateSplitTx(t *testing.T) {
 }
 
 func TestModule_executeSplitTx(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 	const counter = uint64(6)
 	const billValue = uint64(100)
 	unitID := money.NewBillID(nil, []byte{2})
-	tx, attr := createSplit(t, unitID,
+	tx, attr := createSplit(t, unitID, fcrID,
 		[]*money.TargetUnit{
 			{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 			{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},

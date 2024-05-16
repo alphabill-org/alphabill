@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -48,13 +49,13 @@ func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 
 	// if unit exists update balance and alphabill fee credit link data
 	addCredit := []state.Action{
-		statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(f.hashAlgorithm)),
+		statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime),
 		state.SetOwner(unitID, attr.FeeCreditOwnerCondition),
 	}
 	err = f.state.Apply(addCredit...)
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
-		err = f.state.Apply(statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(f.hashAlgorithm)))
+		err = f.state.Apply(statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("addFC state update failed: %w", err)
@@ -82,13 +83,13 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get frc error: %w", err)
 	}
-	var backlink []byte
+	var counter *uint64
 	if u != nil {
 		stateObj, ok := u.Data().(*statedb.StateObject)
 		if !ok || stateObj.AlphaBill == nil {
 			return fmt.Errorf("invalid fcr data")
 		}
-		backlink = stateObj.AlphaBill.TxHash
+		counter = &(stateObj.AlphaBill.Counter)
 		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
 		if !bytes.Equal(u.Bearer(), attr.FeeCreditOwnerCondition) {
 			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", u.Bearer(), attr.FeeCreditOwnerCondition)
@@ -133,9 +134,9 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 		return fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%X tx.UnitId=%s", transferTxAttr.TargetRecordID, tx.UnitID())
 	}
 
-	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit backlink
-	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, backlink) {
-		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, backlink)
+	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit counter
+	if !intPtrsEqual(transferTxAttr.TargetUnitCounter, counter) {
+		return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%v unit.counter=%v", fromPtrOr(transferTxAttr.TargetUnitCounter, "<nil>"), fromPtrOr(counter, "<nil>"))
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -157,4 +158,21 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 		return fmt.Errorf("proof is not valid: %w", err)
 	}
 	return nil
+}
+
+func fromPtrOr(x *uint64, fallback string) string {
+	if x == nil {
+		return fallback
+	}
+	return strconv.FormatUint(*x, 10)
+}
+
+func intPtrsEqual(x, y *uint64) bool {
+	if x == nil && y == nil {
+		return true
+	}
+	if x == nil || y == nil {
+		return false
+	}
+	return *x == *y
 }

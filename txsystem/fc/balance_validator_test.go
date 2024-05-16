@@ -19,7 +19,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	sharedState := state.NewEmptyState()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1}
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
 	fcModule, err := NewFeeCreditModule(

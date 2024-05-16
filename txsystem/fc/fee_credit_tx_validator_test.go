@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
@@ -133,9 +132,9 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		s := state.NewEmptyState()
 		fcr := &fc.FeeCreditRecord{
-			Balance:  1,
-			Backlink: test.RandomBytes(32),
-			Timeout:  2,
+			Balance: 1,
+			Counter: 10,
+			Timeout: 2,
 		}
 		unitPart := []byte{1}
 		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)

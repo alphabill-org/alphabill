@@ -77,7 +77,7 @@ func (a *API) callContract(clonedState *state.State, call *evmsdk.TxAttributes) 
 	var err error
 	balance := uint256.MustFromBig(math.MaxBig256)
 	if u == nil {
-		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), balance, 0, nil))
+		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), balance, 0))
 	} else {
 		err = clonedState.Apply(statedb.SetBalance(call.From, balance))
 	}

@@ -2,6 +2,7 @@ package abdrc
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -454,7 +455,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		pacemaker.Reset(context.Background(), 4, nil, nil)
 		defer pacemaker.Stop()
 
-		var timeoutCnt, matureCnt, otherCnt int
+		var timeoutCnt, matureCnt, otherCnt atomic.Uint32
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -468,11 +469,11 @@ func TestPacemaker_startNewRound(t *testing.T) {
 				case e := <-pacemaker.StatusEvents():
 					switch e {
 					case pmsRoundMatured:
-						matureCnt++
+						matureCnt.Add(1)
 					case pmsRoundTimeout:
-						timeoutCnt++
+						timeoutCnt.Add(1)
 					default:
-						otherCnt++
+						otherCnt.Add(1)
 					}
 				}
 			}
@@ -484,9 +485,9 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		case <-done:
 		}
 
-		require.Zero(t, otherCnt, `expected the number of "other" events to be zero`)
-		require.EqualValues(t, 1, matureCnt, "number of %s events", pmsRoundMatured)
-		require.EqualValues(t, TOcycles, timeoutCnt, "number of %s events", pmsRoundTimeout)
+		require.Zero(t, otherCnt.Load(), `expected the number of "other" events to be zero`)
+		require.EqualValues(t, 1, matureCnt.Load(), "number of %s events", pmsRoundMatured)
+		require.EqualValues(t, TOcycles, timeoutCnt.Load(), "number of %s events", pmsRoundTimeout)
 	})
 
 	t.Run("timeout vote causes timeout status", func(t *testing.T) {

@@ -40,7 +40,7 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 			retErr = stateDB.Finalize()
 		}
 	}()
-	return Execute(exeCtx.CurrentBlockNr, stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
+	return Execute(exeCtx.CurrentBlockNumber, stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
 func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ *txsystem.TxExecutionContext) error {

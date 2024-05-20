@@ -24,7 +24,7 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 			return nil, fmt.Errorf("unlock tx: unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = 0
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentBlockNumber
 		newBillData.Counter += 1
 		return newBillData, nil
 	})

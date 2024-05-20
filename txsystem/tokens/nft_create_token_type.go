@@ -61,7 +61,7 @@ func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrd
 		attr.SubTypeCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.SubTypeCreationPredicate
+			return d.ParentTypeID, d.SubTypeCreationPredicate
 		},
 		n.state.GetUnit,
 	)

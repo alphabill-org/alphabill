@@ -28,7 +28,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 			}
 			bd.V -= attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentBlockNumber
 			bd.Counter += 1
 			return bd, nil
 		},
@@ -41,7 +41,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
 			}
 			bd.V += attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentBlockNumber
 			bd.Counter += 1
 			bd.Locked = 0
 			return bd, nil

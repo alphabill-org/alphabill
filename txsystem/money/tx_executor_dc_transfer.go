@@ -35,7 +35,7 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.V = 0
-			bd.T = exeCtx.CurrentBlockNr
+			bd.T = exeCtx.CurrentBlockNumber
 			bd.Counter += 1
 			return bd, nil
 		})

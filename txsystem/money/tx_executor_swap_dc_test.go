@@ -136,7 +136,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: targetBillValue, T: 0, Counter: 0}),
 		withStateUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &money.BillData{V: dustAmount, T: 0, Counter: 0}))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 6}
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 6}
 	sm, err := module.executeSwapTx(swapTx, swapAttr, exeCtx)
 	require.NoError(t, err)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
@@ -149,7 +149,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.EqualValues(t, bill.V, targetBillValue+swapAttr.TargetValue)
 	// counter was 0,
 	require.EqualValues(t, bill.Counter, 1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNr)
+	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNumber)
 	require.EqualValues(t, bill.Locked, 0)
 	// check dust bill as well
 	d, err := module.state.GetUnit(DustCollectorMoneySupplyID, false)
@@ -160,7 +160,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.EqualValues(t, dustBill.V, dustAmount-swapAttr.TargetValue)
 	// counter was 0,
 	require.EqualValues(t, dustBill.Counter, 1)
-	require.EqualValues(t, dustBill.T, exeCtx.CurrentBlockNr)
+	require.EqualValues(t, dustBill.T, exeCtx.CurrentBlockNumber)
 	require.EqualValues(t, dustBill.Locked, 0)
 }
 

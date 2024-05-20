@@ -46,7 +46,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	attr := &orchestration.AddVarAttributes{}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 11}
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 11}
 
 	require.NoError(t, module.validateAddVarTx(txo, attr, exeCtx))
 	serverMetadata, err := module.executeAddVarTx(txo, attr, exeCtx)
@@ -94,9 +94,9 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	// exec addVar tx
 	attr := &orchestration.AddVarAttributes{Var: orchestration.ValidatorAssignmentRecord{EpochNumber: 1}}
 	txo := createAddVarTx(t, signer, attr, testtransaction.WithUnitID(unitID))
-	execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 11}
+	execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 11}
 	require.NoError(t, module.validateAddVarTx(txo, attr, execCtx))
-	sm, err := module.executeAddVarTx(txo, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	sm, err := module.executeAddVarTx(txo, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 11})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -133,7 +133,7 @@ func TestAddVar_NOK(t *testing.T) {
 		testtransaction.WithPayloadType(orchestration.PayloadTypeAddVAR),
 		testtransaction.WithAttributes(orchestration.AddVarAttributes{}),
 	)
-	serverMetadata, err := txExecutors.ValidateAndExecute(txo, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	serverMetadata, err := txExecutors.ValidateAndExecute(txo, &txsystem.TxExecutionContext{CurrentBlockNumber: 11})
 	require.ErrorContains(t, err, "'addVar' validation failed: invalid owner proof: executing predicate: failed to decode P2PKH256 signature: EOF")
 	require.Nil(t, serverMetadata)
 }

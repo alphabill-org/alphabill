@@ -22,7 +22,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = attr.LockStatus
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentBlockNumber
 		newBillData.Counter += 1
 		return newBillData, nil
 	})

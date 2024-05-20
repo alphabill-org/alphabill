@@ -20,7 +20,7 @@ func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.Trans
 	// calculate actual tx fee cost
 	fee := m.feeCalculator()
 	// update state
-	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNr)
+	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNumber)
 	setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 	if err := m.state.Apply(
 		setOwnerFunc,

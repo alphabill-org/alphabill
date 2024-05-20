@@ -72,7 +72,6 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		hashAlgorithm       = gocrypto.SHA256
 		states              []*state.State
 		fungibleTokenTypeID        = tokens.NewFungibleTokenTypeID(nil, []byte{1})
-		fungibleTokenID1           = tokens.NewFungibleTokenID(nil, []byte{2})
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
@@ -139,11 +138,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// mint token
 	mintTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
-		testtransaction.WithUnitID(fungibleTokenTypeID),
 		testtransaction.WithPayloadType(tokens.PayloadTypeMintFungibleToken),
 		testtransaction.WithAttributes(
 			&tokens.MintFungibleTokenAttributes{
 				Bearer:                           templates.AlwaysTrueBytes(),
+				TypeID:                           fungibleTokenTypeID,
 				Value:                            totalValue,
 				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
@@ -151,10 +150,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
+	mintedTokenID := newFungibleTokenID(t, mintTx)
+	mintTx.Payload.UnitID = mintedTokenID
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
 	require.NoError(t, err, "token mint tx failed")
-	mintedTokenID := mintTxRecord.ServerMetadata.TargetUnits[0]
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
@@ -199,7 +199,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	require.NoError(t, types.VerifyTxProof(split1TxProof, split1TxRecord, trustBase, hashAlgorithm))
 
-	sUnitID1 := tokens.NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx1, hashAlgorithm))
+	sUnitID1 := tokens.NewFungibleTokenID(nil, splitTx1.HashForNewUnitID(hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -240,7 +240,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := tokens.NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx2, hashAlgorithm))
+	sUnitID2 := tokens.NewFungibleTokenID(nil, splitTx2.HashForNewUnitID(hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,
@@ -420,7 +420,7 @@ func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleToken
 	require.Equal(t, e.name, d.Name)
 	require.Equal(t, e.icon.Type, d.Icon.Type)
 	require.Equal(t, e.icon.Data, d.Icon.Data)
-	require.Equal(t, types.UnitID(e.parentID), d.ParentTypeId)
+	require.Equal(t, types.UnitID(e.parentID), d.ParentTypeID)
 	require.Equal(t, e.decimalPlaces, d.DecimalPlaces)
 }
 
@@ -449,4 +449,22 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	return s
+}
+
+func newFungibleTokenID(t *testing.T, tx *types.TransactionOrder) types.UnitID {
+	attr := &tokens.MintFungibleTokenAttributes{}
+	require.NoError(t, tx.Payload.UnmarshalAttributes(attr))
+
+	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, gocrypto.SHA256)
+	require.NoError(t, err)
+	return tokens.NewFungibleTokenID(nil, unitPart)
+}
+
+func newNonFungibleTokenID(t *testing.T, tx *types.TransactionOrder) types.UnitID {
+	attr := &tokens.MintNonFungibleTokenAttributes{}
+	require.NoError(t, tx.Payload.UnmarshalAttributes(attr))
+
+	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, gocrypto.SHA256)
+	require.NoError(t, err)
+	return tokens.NewNonFungibleTokenID(nil, unitPart)
 }

@@ -82,7 +82,7 @@ func TestModule_executeTransferTx(t *testing.T) {
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 	tx, attr := createBillTransfer(t, unitID, fcrID, value, templates.NewP2pkh256BytesFromKey(pubKey), counter)
 	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 6}
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 6}
 	sm, err := module.executeTransferTx(tx, attr, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)

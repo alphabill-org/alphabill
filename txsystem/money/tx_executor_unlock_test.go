@@ -82,6 +82,6 @@ func TestModule_executeUnlockTx(t *testing.T) {
 	require.EqualValues(t, bill.V, value)
 	// counter is incremented
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNr)
+	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNumber)
 	require.EqualValues(t, bill.Locked, 0)
 }

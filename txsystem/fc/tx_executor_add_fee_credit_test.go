@@ -24,18 +24,18 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
 		tx := testfc.NewAddFC(t, signer, attr)
-		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10}))
 	})
 	t.Run("err - replay will not pass validation", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
 		tx := testfc.NewAddFC(t, signer, attr)
-		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
-		sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10}))
+		sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 		// replay attack
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}),
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10}),
 			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
 	})
 	t.Run("transferFC tx record is nil", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -54,7 +54,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
 			&fc.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}}))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -70,7 +70,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			},
 		))
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -88,7 +88,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -106,7 +106,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -125,7 +125,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -136,7 +136,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -152,7 +152,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -161,7 +161,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil, testtransaction.WithUnitID([]byte{1}))
 		feeCreditModule := newTestFeeModule(t, trustBase, withFeeCreditType([]byte{0xff}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -173,7 +173,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				testfc.WithFCOwnerCondition([]byte("wrong bearer")),
 			))
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -191,7 +191,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -209,7 +209,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -227,7 +227,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -245,7 +245,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -263,7 +263,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -282,7 +282,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -302,7 +302,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 10}))
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -320,7 +320,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx), "invalid transferFC timeout: earliest=11 latest=10 current=10")
@@ -337,7 +337,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -354,7 +354,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -372,7 +372,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 10}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
@@ -390,7 +390,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -403,7 +403,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 5}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 5}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
@@ -418,8 +418,8 @@ func TestAddFC_ExecuteAddNewFeeCredit(t *testing.T) {
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
 
-	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
-	sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10}))
+	sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -453,8 +453,8 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1}
 	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, existingFCR))
 
-	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10}))
-	sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10}))
+	sm, err := feeCreditModule.executeAddFC(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 

@@ -24,7 +24,7 @@ func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, att
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
-				d.T = exeCtx.CurrentBlockNr
+				d.T = exeCtx.CurrentBlockNumber
 				d.Counter += 1
 				return d, nil
 			}),
@@ -66,7 +66,7 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -88,9 +88,9 @@ func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateB
 		}
 		return nil, nil, err
 	}
-	d, ok := u.Data().(*tokens.FungibleTokenData)
+	tokenData, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
-	return u.Bearer(), d, nil
+	return u.Bearer(), tokenData, nil
 }

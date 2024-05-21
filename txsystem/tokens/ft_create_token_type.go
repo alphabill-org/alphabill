@@ -79,7 +79,7 @@ func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, 
 		attr.SubTypeCreationPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.SubTypeCreationPredicate
+			return d.ParentTypeID, d.SubTypeCreationPredicate
 		},
 		m.state.GetUnit,
 	)

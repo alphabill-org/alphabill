@@ -33,7 +33,7 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.V -= attr.Amount
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentBlockNumber
 		newBillData.Counter += 1
 		return newBillData, nil
 	})

@@ -122,7 +122,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	}
 	// todo: add gas handling here (buy and perhaps discount/refund)
 	exeCtx := &TxExecutionContext{
-		CurrentBlockNr: m.currentBlockNumber,
+		CurrentBlockNumber: m.currentBlockNumber,
 	}
 	return m.doExecute(tx, exeCtx)
 }

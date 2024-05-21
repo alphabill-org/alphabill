@@ -22,7 +22,7 @@ func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrde
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
-			d.T = exeCtx.CurrentBlockNr
+			d.T = exeCtx.CurrentBlockNumber
 			d.Counter += 1
 			return d, nil
 		}),
@@ -51,9 +51,9 @@ func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrd
 	if data.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", data.Counter, attr.Counter)
 	}
-	tokenTypeID := data.NftType
-	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.NFTTypeID)
+	tokenTypeID := data.TypeID
+	if !bytes.Equal(attr.TypeID, tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.TypeID)
 	}
 
 	if err = n.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
@@ -61,11 +61,11 @@ func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrd
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		data.NftType,
+		data.TypeID,
 		attr.InvariantPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		n.state.GetUnit,
 	)

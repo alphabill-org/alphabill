@@ -1,7 +1,6 @@
 package money
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,29 +12,20 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint32, hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	hasher.Write(idBytes)
-	hasher.Write(attr)
-	hasher.Write(util.Uint64ToBytes(timeout))
-	hasher.Write(util.Uint32ToBytes(idx))
-	return hasher.Sum(nil)
-}
-
 func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
 	var actions []state.Action
 	for i, targetUnit := range attr.TargetUnits {
-		newUnitID := money.NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
+		newUnitID := money.NewBillID(unitID, tx.HashForNewUnitID(m.hashAlgorithm, util.Uint32ToBytes(uint32(i))))
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		actions = append(actions, state.AddUnit(
 			newUnitID,
 			targetUnit.OwnerCondition,
 			&money.BillData{
 				V:       targetUnit.Amount,
-				T:       exeCtx.CurrentBlockNr,
+				T:       exeCtx.CurrentBlockNumber,
 				Counter: 0,
 			}))
 	}
@@ -48,7 +38,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			}
 			return &money.BillData{
 				V:       attr.RemainingValue,
-				T:       exeCtx.CurrentBlockNr,
+				T:       exeCtx.CurrentBlockNumber,
 				Counter: bd.Counter + 1,
 			}, nil
 		},

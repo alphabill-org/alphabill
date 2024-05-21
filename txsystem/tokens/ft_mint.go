@@ -7,44 +7,82 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	tokenID := tx.UnitID()
+	typeID := attr.TypeID
 	fee := m.feeCalculator()
-	typeID := tx.UnitID()
-	newTokenID := tokens.NewFungibleTokenID(typeID, HashForIDCalculation(tx, m.hashAlgorithm))
 
 	if err := m.state.Apply(
-		state.AddUnit(newTokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentBlockNr, 0, tx.Timeout())),
+		state.AddUnit(tokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentBlockNumber, 0, tx.Timeout())),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
-	unitID := tx.UnitID()
-	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
-		return fmt.Errorf(ErrStrInvalidUnitID)
+	tokenID := tx.UnitID()
+	tokenTypeID := attr.TypeID
+
+	// verify tx.unitID (new token id) has correct embedded type
+	if !tokenID.HasType(tokens.FungibleTokenUnitType) {
+		return errors.New(ErrStrInvalidUnitID)
 	}
-	_, err := m.state.GetUnit(unitID, false)
-	if err != nil {
+
+	// verify token type has correct embedded type
+	if !tokenTypeID.HasType(tokens.FungibleTokenTypeUnitType) {
+		return errors.New(ErrStrInvalidTokenTypeID)
+	}
+
+	// verify token does not exist yet
+	token, err := m.state.GetUnit(tokenID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
+		return fmt.Errorf("faild to load token: %w", err)
+	}
+	if token != nil {
+		return fmt.Errorf("token already exists: %s", tokenID)
+	}
+
+	// verify token type does exist
+	tokenType, err := m.state.GetUnit(tokenTypeID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
+	if tokenType == nil {
+		return fmt.Errorf("token type does not exist: %s", tokenTypeID)
+	}
+
+	// verify new token has non-zero value
 	if attr.Value == 0 {
 		return errors.New("token must have value greater than zero")
 	}
-	if err = runChainedPredicates[*tokens.FungibleTokenTypeData](
+
+	// verify token id is correctly generated
+	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, m.hashAlgorithm)
+	if err != nil {
+		return err
+	}
+	newTokenID := tokens.NewFungibleTokenID(tokenTypeID, unitPart)
+	if !newTokenID.Eq(tokenID) {
+		return errors.New("invalid token id")
+	}
+
+	// verify predicate inheritance chain
+	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		tx,
-		tx.UnitID(),
+		tokenTypeID,
 		attr.TokenCreationPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.TokenCreationPredicate
+			return d.ParentTypeID, d.TokenCreationPredicate
 		},
 		m.state.GetUnit,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("evaluating TokenCreationPredicate: %w", err)
 	}
 	return nil

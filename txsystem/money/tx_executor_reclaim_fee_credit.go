@@ -36,7 +36,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.V += v
-		newBillData.T = exeCtx.CurrentBlockNr
+		newBillData.T = exeCtx.CurrentBlockNumber
 		newBillData.Counter += 1
 		newBillData.Locked = 0
 		return newBillData, nil

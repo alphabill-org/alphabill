@@ -85,7 +85,7 @@ func TestModule_executeTransferDCTx(t *testing.T) {
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &money.BillData{V: 1000, T: 0, Counter: 0}),
 		withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
-	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNr: 6}
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 6}
 	// get dust bill value before
 	d, err := module.state.GetUnit(DustCollectorMoneySupplyID, false)
 	require.NoError(t, err)

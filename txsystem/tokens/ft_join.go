@@ -36,7 +36,7 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, attr *t
 				return &tokens.FungibleTokenData{
 					TokenType: d.TokenType,
 					Value:     d.Value + sum,
-					T:         exeCtx.CurrentBlockNr,
+					T:         exeCtx.CurrentBlockNumber,
 					Counter:   d.Counter + 1,
 					Locked:    0,
 				}, nil
@@ -101,7 +101,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)

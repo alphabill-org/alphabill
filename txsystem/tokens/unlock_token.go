@@ -48,7 +48,7 @@ func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *t
 	// update lock status, round number and counter
 	updateFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
-			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNr)
+			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNumber)
 		})
 	if err := m.state.Apply(updateFn); err != nil {
 		return nil, fmt.Errorf("failed to update state: %w", err)
@@ -89,11 +89,11 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	}
 	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		d.NftType,
+		d.TypeID,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -121,7 +121,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -131,7 +131,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	return validateUnlockToken(attr, d)
 }
 
-func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d tokenData) error {
+func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d unitData) error {
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")

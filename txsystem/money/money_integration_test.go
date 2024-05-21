@@ -270,7 +270,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, nofDustToSwap)
 	for i := 0; i < nofDustToSwap; i++ {
-		dcBillIds[i] = money.NewBillID(nil, unitIDFromTransaction(splitTx, util.Uint32ToBytes(uint32(i))))
+		dcBillIds[i] = money.NewBillID(nil, splitTx.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(i))))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {

@@ -29,7 +29,7 @@ type (
 	GenericValidateFunc[T any] func(tx *types.TransactionOrder, attributes *T, exeCtx *TxExecutionContext) error
 
 	TxExecutionContext struct {
-		CurrentBlockNr uint64
+		CurrentBlockNumber uint64
 	}
 )
 

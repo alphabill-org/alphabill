@@ -21,7 +21,7 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
 			d.Data = attr.Data
-			d.T = exeCtx.CurrentBlockNr
+			d.T = exeCtx.CurrentBlockNumber
 			d.Counter += 1
 			return d, nil
 		})); err != nil {
@@ -62,11 +62,11 @@ func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		data.NftType,
+		data.TypeID,
 		attr.DataUpdateSignatures[1:],
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.DataUpdatePredicate
+			return d.ParentTypeID, d.DataUpdatePredicate
 		},
 		n.state.GetUnit,
 	)

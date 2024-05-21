@@ -71,17 +71,6 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		exeCtx := &txsystem.TxExecutionContext{}
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "TargetRecordID is empty")
 	})
-	t.Run("err - AdditionTime invalid", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer,
-			testutils.WithEarliestAdditionTime(2),
-			testutils.WithLatestAdditionTime(1)))
-		attr := &fcsdk.TransferFeeCreditAttributes{}
-		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, exeCtx), "EarliestAdditionTime is greater than LatestAdditionTime")
-	})
 	t.Run("err - invalid amount", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithAmount(102)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}

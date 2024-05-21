@@ -369,46 +369,6 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
 	})
-	t.Run("EarliestAdditionTime in the future NOK", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCRecord(
-					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
-							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithEarliestAdditionTime(11))),
-						ServerMetadata: &types.ServerMetadata{},
-					},
-				),
-			),
-		)
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
-		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
-		var attr fcsdk.AddFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx), "invalid transferFC timeout: earliest=11 latest=10 current=10")
-	})
-	t.Run("EarliestAdditionTime next block OK", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCRecord(
-					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
-							testfc.WithTargetSystemID(evm.DefaultSystemID),
-							testfc.WithEarliestAdditionTime(10))),
-						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-					},
-				),
-			),
-		)
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
-		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
-		var attr fcsdk.AddFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
-	})
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
@@ -428,7 +388,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC timeout: earliest=0 latest=9 current=10")
+			"invalid transferFC timeout: latestAdditionTime=9 currentRoundNumber=10")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,

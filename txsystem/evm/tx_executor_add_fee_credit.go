@@ -140,11 +140,8 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
-	tb := transferTxAttr.EarliestAdditionTime
-	te := transferTxAttr.LatestAdditionTime
-	t := exeCtx.CurrentBlockNumber
-	if t < tb || t > te {
-		return fmt.Errorf("invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
+	if exeCtx.CurrentBlockNumber > transferTxAttr.LatestAdditionTime {
+		return fmt.Errorf("invalid transferFC timeout: latestAdditionTime=%d currentRoundNumber=%d", transferTxAttr.LatestAdditionTime, exeCtx.CurrentBlockNumber)
 	}
 
 	// 9. P.MC.fa + P.MC.fm ≤ P.A.P.A.v – the transaction fees can’t exceed the transferred value

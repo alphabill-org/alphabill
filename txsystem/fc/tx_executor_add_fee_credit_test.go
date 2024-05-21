@@ -312,18 +312,18 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(9))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer)),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 11}
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC timeout: latestAdditionTime=9 currentRoundNumber=10")
+			"invalid transferFC timeout: latestAdditionTime=10 currentRoundNumber=11")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,

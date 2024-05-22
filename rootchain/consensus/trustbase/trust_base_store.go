@@ -1,4 +1,4 @@
-package storage
+package trustbase
 
 import (
 	"errors"
@@ -13,24 +13,24 @@ import (
 var trustBasePrefix = []byte("trust_base_") // append version and epoch number bytes
 
 type (
-	TrustBaseStore struct {
+	Store struct {
 		storage keyvaluedb.KeyValueDB
 	}
 )
 
-func NewTrustBaseStore(db keyvaluedb.KeyValueDB) (*TrustBaseStore, error) {
+func NewStore(db keyvaluedb.KeyValueDB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
-	return &TrustBaseStore{storage: db}, nil
+	return &Store{storage: db}, nil
 }
 
-func (x *TrustBaseStore) GetDB() keyvaluedb.KeyValueDB {
+func (x *Store) GetDB() keyvaluedb.KeyValueDB {
 	return x.storage
 }
 
 // LoadTrustBase returns trust base for the given epoch number, with the cached verifiers.
-func (x *TrustBaseStore) LoadTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
+func (x *Store) LoadTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	version := x.GetVersionNumber(epochNumber)
 	trustBaseKey := getTrustBaseStoreKey(version, epochNumber)
 	if version == 0 {
@@ -60,7 +60,7 @@ func (x *TrustBaseStore) LoadTrustBase(epochNumber uint64) (types.RootTrustBase,
 }
 
 // StoreTrustBase saves to given trust base to disk indexed by the epoch number, in cbor encoding.
-func (x *TrustBaseStore) StoreTrustBase(epochNumber uint64, tb types.RootTrustBase) error {
+func (x *Store) StoreTrustBase(epochNumber uint64, tb types.RootTrustBase) error {
 	version := x.GetVersionNumber(epochNumber)
 	trustBaseKey := getTrustBaseStoreKey(version, epochNumber)
 	if err := x.storage.Write(trustBaseKey, tb); err != nil {
@@ -70,7 +70,7 @@ func (x *TrustBaseStore) StoreTrustBase(epochNumber uint64, tb types.RootTrustBa
 }
 
 // GetVersionNumber returns trust base version number based on epoch number
-func (x *TrustBaseStore) GetVersionNumber(epochNumber uint64) uint64 {
+func (x *Store) GetVersionNumber(epochNumber uint64) uint64 {
 	return 0
 }
 

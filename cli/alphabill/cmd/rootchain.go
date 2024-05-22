@@ -13,6 +13,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -22,6 +23,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
@@ -33,6 +35,7 @@ import (
 
 const (
 	boltRootChainStoreFileName = "rootchain.db"
+	boltTrustBaseStoreFileName = "trustbase.db"
 	rootBootStrapNodesCmdFlag  = "bootnodes"
 	defaultNetworkTimeout      = 300 * time.Millisecond
 )
@@ -102,7 +105,7 @@ func (c *rootNodeConfig) getRootTrustBaseFilePath() string {
 	return filepath.Join(c.Base.HomeDir, rootTrustBaseFileName)
 }
 
-func (c *rootNodeConfig) getStoragePath() string {
+func (c *rootNodeConfig) getStorageDir() string {
 	if c.StoragePath != "" {
 		return c.StoragePath
 	}
@@ -148,6 +151,13 @@ func initRootStore(dbPath string) (*boltdb.BoltDB, error) {
 	return nil, fmt.Errorf("persistent storage path not set")
 }
 
+func initTrustBaseStore(dbPath string) (*boltdb.BoltDB, error) {
+	if dbPath != "" {
+		return boltdb.New(filepath.Join(dbPath, boltTrustBaseStoreFileName))
+	}
+	return nil, fmt.Errorf("persistent storage path not set")
+}
+
 func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
@@ -163,11 +173,6 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	}
 	log := config.Base.observe.Logger().With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(config.Base.observe, log)
-	// load trust base
-	trustBase, err := types.NewTrustBaseFromFile(config.getRootTrustBaseFilePath())
-	if err != nil {
-		return fmt.Errorf("loading root trust base file %s: %w", config.getRootTrustBaseFilePath(), err)
-	}
 	// check if genesis file is valid and exit early if is not
 	if err = rootGenesis.Verify(); err != nil {
 		return fmt.Errorf("root genesis verification failed: %w", err)
@@ -194,9 +199,19 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("failed to extract partition info from genesis file %s: %w", config.getGenesisFilePath(), err)
 	}
 	// Initiate root storage
-	store, err := initRootStore(config.getStoragePath())
+	rootStore, err := initRootStore(config.getStorageDir())
 	if err != nil {
 		return fmt.Errorf("root store init failed: %w", err)
+	}
+	// init trust base store
+	trustBaseStore, err := initTrustBaseStore(config.getStorageDir())
+	if err != nil {
+		return fmt.Errorf("trust base store init failed: %w", err)
+	}
+	// load or create trust base
+	trustBase, err := initTrustBase(trustBaseStore, config.getRootTrustBaseFilePath())
+	if err != nil {
+		return fmt.Errorf("root trust base init failed: %w", err)
 	}
 	var cm rootchain.ConsensusManager
 	if len(rootGenesis.Root.RootValidators) == 1 {
@@ -208,7 +223,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 			partitionCfg,
 			keys.SigningPrivateKey,
 			log,
-			consensus.WithStorage(store),
+			consensus.WithStorage(rootStore),
 		)
 		if err != nil {
 			return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
@@ -227,7 +242,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 			rootNet,
 			keys.SigningPrivateKey,
 			obs,
-			consensus.WithStorage(store),
+			consensus.WithStorage(rootStore),
 		)
 		if err != nil {
 			return fmt.Errorf("failed initiate distributed consensus manager: %w", err)
@@ -304,4 +319,29 @@ func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord
 		return fmt.Errorf("signing key not found in genesis file")
 	}
 	return nil
+}
+
+// initTrustBase returns the stored trust base if it exists, if it does not exist then
+// verifies that the genesis trust base file is provided, stores it, and returns it.
+func initTrustBase(store keyvaluedb.KeyValueDB, trustBaseFile string) (types.RootTrustBase, error) {
+	trustBaseStore, err := trustbase.NewStore(store)
+	if err != nil {
+		return nil, fmt.Errorf("consensus trust base storage init failed: %w", err)
+	}
+	// TODO latest epoch number must be provided externally or stored internally
+	trustBase, err := trustBaseStore.LoadTrustBase(0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load trust base: %w", err)
+	}
+	if trustBase != nil {
+		return trustBase, nil
+	}
+	trustBase, err = types.NewTrustBaseFromFile(trustBaseFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trust base: %w", err)
+	}
+	if err := trustBaseStore.StoreTrustBase(0, trustBase); err != nil {
+		return nil, fmt.Errorf("failed to store trust base: %w", err)
+	}
+	return trustBase, nil
 }

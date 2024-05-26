@@ -142,7 +142,8 @@ func Test_conference_tickets(t *testing.T) {
 				}
 				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
 			},
-			curRound: func() uint64 { return earlyBirdDate },
+			curRound:     func() uint64 { return earlyBirdDate },
+			GasRemaining: 30000,
 		}
 
 		// "current transaction" for the predicate must be "transfer NFT"
@@ -170,6 +171,7 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
+		require.EqualValues(t, 17171, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// hackish way to change current round past D1 so now should eval to "false"
@@ -179,6 +181,7 @@ func Test_conference_tickets(t *testing.T) {
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
+		require.EqualValues(t, 4367, env.GasRemaining)
 	})
 
 	t.Run("mint_token", func(t *testing.T) {
@@ -199,8 +202,9 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
 		env := &mockTxContext{
-			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:  func() uint64 { return earlyBirdDate },
+			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
+			curRound:     func() uint64 { return earlyBirdDate },
+			GasRemaining: 30000,
 		}
 		conf := wasm.PredicateParams{Entrypoint: "mint_token", Args: predArg}
 
@@ -212,13 +216,51 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
+		require.EqualValues(t, 16419, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		require.NoError(t, err)
+		require.EqualValues(t, 2867, env.GasRemaining)
 		require.EqualValues(t, 0x01, res)
+	})
+
+	t.Run("mint_token - error out of gas", func(t *testing.T) {
+		// org mints token (ticket) to the attendee
+		txNFTMint := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: tokens.DefaultSystemID,
+				Type:     tokens.PayloadTypeMintNFT,
+				UnitID:   tokenID,
+			},
+			FeeProof: []byte{1, 2, 3, 4},
+		}
+		require.NoError(t, txNFTMint.Payload.SetAttributes(
+			tokens.MintNonFungibleTokenAttributes{
+				Bearer: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
+				Data:   []byte("early-bird"),
+			}))
+		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+
+		env := &mockTxContext{
+			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
+			curRound:     func() uint64 { return earlyBirdDate },
+			GasRemaining: 100,
+		}
+		conf := wasm.PredicateParams{Entrypoint: "mint_token", Args: predArg}
+
+		wvm, err := New(context.Background(), enc, observability.Default(t))
+		require.NoError(t, err)
+
+		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
+		start := time.Now()
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
+		t.Logf("took %s", time.Since(start))
+		require.ErrorContains(t, err, "out of gas")
+		require.EqualValues(t, 0, env.GasRemaining)
+		require.EqualValues(t, 0x0, res)
 	})
 
 	t.Run("update_data", func(t *testing.T) {
@@ -249,8 +291,9 @@ func Test_conference_tickets(t *testing.T) {
 						NftType: nftTypeID,
 					}), nil
 			},
-			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:  func() uint64 { return regularDate },
+			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
+			curRound:     func() uint64 { return regularDate },
+			GasRemaining: 30000,
 		}
 		conf := wasm.PredicateParams{Entrypoint: "update_data", Args: predArg}
 
@@ -263,6 +306,7 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
+		require.EqualValues(t, 8786, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 	})
 }
@@ -339,6 +383,7 @@ type mockTxContext struct {
 	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
 	curRound     func() uint64
 	trustBase    func() (types.RootTrustBase, error)
+	GasRemaining uint64
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
@@ -352,6 +397,17 @@ func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, err
 func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }
 func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return env.trustBase()
+}
+func (env *mockTxContext) GetGasRemaining() uint64 {
+	return env.GasRemaining
+}
+func (env *mockTxContext) SpendGas(gas uint64) error {
+	if gas > env.GasRemaining {
+		env.GasRemaining = 0
+		return fmt.Errorf("out of gas")
+	}
+	env.GasRemaining -= gas
+	return nil
 }
 
 type mockRootTrustBase struct {

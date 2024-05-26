@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
+	"math"
 
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
@@ -71,6 +72,8 @@ type (
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
+		GetGasRemaining() uint64
+		SpendGas(gas uint64) error
 	}
 
 	// translates AB types to WASM consumable representation
@@ -208,7 +211,11 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
-	m, err := vm.runtime.Instantiate(ctx, predicate)
+	instrPredicate, err := instrument.MeterGasAndStack(predicate, 0)
+	if err != nil {
+		return 0, fmt.Errorf("instrumenting predicate error: %w", err)
+	}
+	m, err := vm.runtime.Instantiate(ctx, instrPredicate)
 	if err != nil {
 		return 0, fmt.Errorf("failed to instantiate predicate code: %w", err)
 	}
@@ -218,7 +225,12 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	if global == nil {
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
-
+	gas, ok := m.ExportedGlobal(instrument.GasCounter).(api.MutableGlobal)
+	if !ok {
+		return 0, fmt.Errorf("instrumentation failed, gas counter not found")
+	}
+	initialGas := env.GetGasRemaining()
+	gas.Set(initialGas)
 	// do we need to create new mem manager for each predicate?
 	hb := api.DecodeU32(global.Get())
 	vm.ctx.MemMngr = allocator.NewBumpAllocator(hb, m.Memory().Definition())
@@ -235,14 +247,22 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 		return 0, fmt.Errorf("module doesn't export function %q", conf.Entrypoint)
 	}
 
-	// all programs must complete in 100 ms, this will later be replaced with gas cost
-	// for now just set a hard limit to make sure programs do not run forever
-	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
 	res, err := fn.Call(context.WithValue(ctx, runtimeContextKey, vm.ctx))
+	gasRemaining := gas.Get()
+	// out of gas during wasm predicate execution, in case of out of gas the Call will also return unreachable error, but
+	// we will instead return gas calculation error
+	if err != nil && (gasRemaining == math.MaxUint64 || gasRemaining > initialGas) {
+		// force error, spend whole budget
+		return 0, errors.Join(err, env.SpendGas(math.MaxUint64))
+	}
 	if err != nil {
 		return 0, fmt.Errorf("calling %s returned error: %w", conf.Entrypoint, err)
 	}
+	// spend gas according to how much was used
+	if err = env.SpendGas(initialGas - gasRemaining); err != nil {
+		return 0, fmt.Errorf("unexpedted gas calculation error: %w", err)
+	}
+
 	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), conf.Entrypoint, res))
 	if len(res) != 1 {
 		return 0, fmt.Errorf("unexpected return value length %v", len(res))

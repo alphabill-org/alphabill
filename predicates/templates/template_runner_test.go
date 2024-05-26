@@ -67,14 +67,20 @@ func TestTemplateRunner(t *testing.T) {
 
 	t.Run("always false", func(t *testing.T) {
 		af := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysFalseID}}
-		res, err := runner.Execute(context.Background(), af, nil, nil, nil)
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
+		res, err := runner.Execute(context.Background(), af, nil, nil, execEnv)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
 
 	t.Run("always true", func(t *testing.T) {
 		at := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysTrueID}}
-		res, err := runner.Execute(context.Background(), at, nil, nil, nil)
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
+		res, err := runner.Execute(context.Background(), at, nil, nil, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
@@ -83,6 +89,7 @@ func TestTemplateRunner(t *testing.T) {
 		// easier to check for known error here
 		expErr := errors.New("attempt to extract payload bytes")
 		execEnv := &mockTxContext{
+			spendGas:     func(gas uint64) error { return nil },
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
 		}
 		pred := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.P2pkh256ID}}
@@ -112,9 +119,11 @@ func TestAlwaysTrue(t *testing.T) {
 			{params: cborNull, args: []byte{}},
 			{params: []byte{}, args: cborNull},
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysTrue_Execute(tc.params, tc.args)
+			res, err := alwaysTrue_Execute(tc.params, tc.args, execEnv)
 			if err != nil {
 				t.Errorf("unexpected error with arguments (%#v , %#v): %v", tc.params, tc.args, err)
 			}
@@ -122,6 +131,15 @@ func TestAlwaysTrue(t *testing.T) {
 				t.Errorf("unexpectedly got 'false' for (%#v , %#v)", tc.params, tc.args)
 			}
 		}
+	})
+
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := alwaysTrue_Execute(nil, nil, execEnv)
+		require.EqualError(t, err, "out of gas")
+		require.False(t, res)
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
@@ -134,9 +152,11 @@ func TestAlwaysTrue(t *testing.T) {
 			{params: []byte{0}, args: []byte{0}},
 			{params: nil, args: []byte{0xf6, 0}}, // CBOR null with extra byte!
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysTrue_Execute(tc.params, tc.args)
+			res, err := alwaysTrue_Execute(tc.params, tc.args, execEnv)
 			if err == nil {
 				t.Errorf("expected error with arguments (%#v , %#v)", tc.params, tc.args)
 			} else if err.Error() != `"always true" predicate arguments must be empty` {
@@ -169,9 +189,11 @@ func TestAlwaysFalse(t *testing.T) {
 			{params: cborNull, args: []byte{}},
 			{params: []byte{}, args: cborNull},
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysFalse_Execute(tc.params, tc.args)
+			res, err := alwaysFalse_Execute(tc.params, tc.args, execEnv)
 			if err != nil {
 				t.Errorf("unexpected error with arguments (%#v , %#v): %v", tc.params, tc.args, err)
 			}
@@ -179,6 +201,14 @@ func TestAlwaysFalse(t *testing.T) {
 				t.Errorf("unexpectedly got 'true' for (%#v , %#v)", tc.params, tc.args)
 			}
 		}
+	})
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := alwaysFalse_Execute(nil, nil, execEnv)
+		require.EqualError(t, err, "out of gas")
+		require.False(t, res)
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
@@ -191,9 +221,11 @@ func TestAlwaysFalse(t *testing.T) {
 			{params: []byte{0}, args: []byte{0}},
 			{params: nil, args: []byte{0xf6, 0}}, // CBOR null with extra byte!
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysFalse_Execute(tc.params, tc.args)
+			res, err := alwaysFalse_Execute(tc.params, tc.args, execEnv)
 			if err == nil {
 				t.Errorf("expected error with arguments (%#v , %#v)", tc.params, tc.args)
 			} else if err.Error() != `"always false" predicate arguments must be empty` {
@@ -229,6 +261,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	execEnv := &mockTxContext{
 		payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
+		spendGas:     func(gas uint64) error { return nil },
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -241,6 +274,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		expErr := errors.New("nope")
 		execEnv := &mockTxContext{
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
+			spendGas:     func(gas uint64) error { return nil },
 		}
 		res, err := p2pkh256_Execute(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
 		require.ErrorIs(t, err, expErr)
@@ -312,6 +346,15 @@ func TestP2pkh256_Execute(t *testing.T) {
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
 		require.False(t, res)
 	})
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
+			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := p2pkh256_Execute(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+		require.EqualError(t, err, "out of gas")
+		require.False(t, res)
+	})
 }
 
 func Benchmark_P2pkh256Execute(b *testing.B) {
@@ -343,8 +386,18 @@ func Benchmark_P2pkh256Execute(b *testing.B) {
 }
 
 type mockTxContext struct {
+	gasRemaining uint64
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
 	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
+	spendGas     func(gas uint64) error
+}
+
+func (env *mockTxContext) GetGasRemaining() uint64 {
+	return env.gasRemaining
+}
+
+func (env *mockTxContext) SpendGas(gas uint64) error {
+	return env.spendGas(gas)
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {

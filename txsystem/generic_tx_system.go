@@ -27,18 +27,18 @@ type (
 	}
 
 	GenericTxSystem struct {
-		systemIdentifier      types.SystemID
-		hashAlgorithm         crypto.Hash
-		state                 *state.State
-		currentRoundNumber    uint64
-		handlers              TxExecutors
-		trustBase             types.RootTrustBase
-		checkFeeCreditBalance FeeCreditBalanceValidator
-		beginBlockFunctions   []func(blockNumber uint64) error
-		endBlockFunctions     []func(blockNumber uint64) error
-		roundCommitted        bool
-		log                   *slog.Logger
-		pr                    predicates.PredicateRunner
+		systemIdentifier    types.SystemID
+		hashAlgorithm       crypto.Hash
+		state               *state.State
+		currentRoundNumber  uint64
+		handlers            TxExecutors
+		trustBase           types.RootTrustBase
+		isCredible          FeeCreditBalanceValidator
+		beginBlockFunctions []func(roundNumber uint64) error
+		endBlockFunctions   []func(roundNumber uint64) error
+		roundCommitted      bool
+		log                 *slog.Logger
+		pr                  predicates.PredicateRunner
 	}
 )
 
@@ -58,16 +58,16 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		option(options)
 	}
 	txs := &GenericTxSystem{
-		systemIdentifier:      systemID,
-		hashAlgorithm:         options.hashAlgorithm,
-		state:                 options.state,
-		trustBase:             trustBase,
-		beginBlockFunctions:   options.beginBlockFunctions,
-		endBlockFunctions:     options.endBlockFunctions,
-		handlers:              make(TxExecutors),
-		checkFeeCreditBalance: feeChecker,
-		log:                   observe.Logger(),
-		pr:                    options.predicateRunner,
+		systemIdentifier:    systemID,
+		hashAlgorithm:       options.hashAlgorithm,
+		state:               options.state,
+		trustBase:           trustBase,
+		beginBlockFunctions: options.beginBlockFunctions,
+		endBlockFunctions:   options.endBlockFunctions,
+		handlers:            make(TxExecutors),
+		isCredible:          feeChecker,
+		log:                 observe.Logger(),
+		pr:                  options.predicateRunner,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 
@@ -102,18 +102,18 @@ func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(roundNr uint64) error {
-	m.currentRoundNumber = roundNr
+func (m *GenericTxSystem) BeginBlock(roundNo uint64) error {
+	m.currentRoundNumber = roundNo
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(roundNr); err != nil {
+		if err := function(roundNo); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}
 	return nil
 }
 
-func (m *GenericTxSystem) pruneState(blockNr uint64) error {
+func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
@@ -121,10 +121,21 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// Is the transaction credible and does the sender have fee credit?
 	// NB! this does not check the owner condition, this check is done in during tx specific checks
 	exeCtx := newExecutionContext(m, m.trustBase)
+	// buy gas according to the maximum tx fee allowed by client
+	exeCtx.BuyGas(tx.GetClientMaxTxFee())
 	if err := m.validateGenericTransaction(exeCtx, tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	// todo: add gas handling here (buy and perhaps discount/refund)
+	if !fc.IsFeeCreditTx(tx) {
+		if err := m.isCredible(exeCtx, tx); err != nil {
+			// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
+			return nil, fmt.Errorf("error tx not credible: %w", err)
+		}
+		// credible means, fee credit authorization is good, so we can continue and charge the amount from caller
+	} else {
+		// fee credit transaction
+
+	}
 
 	return m.doExecute(tx, exeCtx)
 }
@@ -146,7 +157,9 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx Execution
 		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
-		if sm.ActualFee > 0 && !fc.IsFeeCreditTx(tx) {
+		if !fc.IsFeeCreditTx(tx) {
+			// charge user according to gas used
+
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				m.state.RollbackToSavepoint(savepointID)
@@ -223,13 +236,6 @@ func (m *GenericTxSystem) validateGenericTransaction(env ExecutionContext, tx *t
 	// knowledge about whether it's ok that the unit is not part of current
 	// state - ie create token type or mint token transactions. So we do the
 	// owner proof verification in the tx handler.
-
-	// the checkFeeCreditBalance must verify the conditions 5 to 9 listed in the
-	// Yellowpaper "Valid Transaction Orders" chapter.
-	if err := m.checkFeeCreditBalance(env, tx); err != nil {
-		return fmt.Errorf("fee credit balance check: %w", err)
-	}
-
 	return nil
 }
 

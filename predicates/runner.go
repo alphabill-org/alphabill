@@ -27,10 +27,16 @@ type (
 
 	PredicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error
 
+	GasMeter interface {
+		GetGasRemaining() uint64
+		SpendGas(gas uint64) error
+	}
+
 	// environment where predicate runs (AKA transaction execution context)
 	// This is meant to provide the predicate engine with access to the
 	// tx system which processes the transaction.
 	TxContext interface {
+		GasMeter
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)

@@ -61,8 +61,8 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, mockTxSystemID, txSys.systemIdentifier)
 		require.NotNil(t, txSys.log)
-		require.NotNil(t, txSys.checkFeeCreditBalance)
-		require.EqualError(t, txSys.checkFeeCreditBalance(nil, nil), "FCC")
+		require.NotNil(t, txSys.isCredible)
+		require.EqualError(t, txSys.isCredible(nil, nil), "FCC")
 	})
 }
 
@@ -169,8 +169,11 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := []byte{1, 2, 3}
+		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]Module{m},
+			withStateUnit(fcrID,
+				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil),
 			withStateUnit(unitID,
 				templates.AlwaysTrueBytes(),
 				&MockData{Value: 1}, newMockLockTx(t,
@@ -193,7 +196,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				FeeCreditRecordID: fcrID,
+				MaxTransactionFee: 10,
 			}),
 			transaction.WithUnlockProof([]byte{byte(StateUnlockExecute)}),
 		)
@@ -270,13 +275,18 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
-		txSys := NewTestGenericTxSystem(t, []Module{m})
+		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		txSys := NewTestGenericTxSystem(t, []Module{m},
+			withStateUnit(fcrID,
+				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil))
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				FeeCreditRecordID: fcrID,
+				MaxTransactionFee: 1,
 			}),
 		)
 		md, err := txSys.Execute(txo)
@@ -324,14 +334,6 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
 		txSys.currentRoundNumber = math.MaxUint64
 		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
-	})
-
-	t.Run("fee credit balance is checked", func(t *testing.T) {
-		expErr := errors.New("nope!")
-		txSys := NewTestGenericTxSystem(t, nil)
-		txSys.checkFeeCreditBalance = func(env ExecutionContext, tx *types.TransactionOrder) error { return expErr }
-		txo := createTxOrder(txSys)
-		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), expErr)
 	})
 }
 
@@ -382,7 +384,7 @@ func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitDa
 
 func withFeeCreditValidator(v func(env ExecutionContext, tx *types.TransactionOrder) error) txSystemTestOption {
 	return func(m *GenericTxSystem) error {
-		m.checkFeeCreditBalance = v
+		m.isCredible = v
 		return nil
 	}
 }

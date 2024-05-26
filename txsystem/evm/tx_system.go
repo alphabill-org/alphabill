@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -207,4 +208,12 @@ func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, err
 // until AB-1012 gets resolved we need this hack to get correct payload bytes.
 func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	return txo.PayloadBytes()
+}
+
+func (vc *TxValidationContext) GetGasRemaining() uint64 {
+	return math.MaxUint64
+}
+
+func (vc *TxValidationContext) SpendGas(gas uint64) error {
+	return nil
 }

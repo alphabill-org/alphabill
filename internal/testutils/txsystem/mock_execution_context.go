@@ -14,6 +14,7 @@ type MockExecContext struct {
 	Unit          *state.Unit
 	RootTrustBase types.RootTrustBase
 	RoundNumber   uint64
+	GasRemaining  uint64
 	mockErr       error
 }
 
@@ -45,6 +46,14 @@ func WithCurrentRound(round uint64) TestOption {
 		m.RoundNumber = round
 		return nil
 	}
+}
+
+func (m *MockExecContext) GetGasRemaining() uint64 {
+	return m.GasRemaining
+}
+
+func (m *MockExecContext) SpendGas(gas uint64) error {
+	return m.mockErr
 }
 
 func NewMockExecutionContext(t *testing.T, options ...TestOption) txsystem.ExecutionContext {

@@ -41,7 +41,6 @@ func NewDefaultTransferFCAttr(t *testing.T, signer abcrypto.Signer) *fc.Transfer
 		Amount:                 amount,
 		TargetSystemIdentifier: systemID,
 		TargetRecordID:         NewFeeCreditRecordID(t, signer),
-		EarliestAdditionTime:   earliestAdditionTime,
 		LatestAdditionTime:     latestAdditionTime,
 		Counter:                counter,
 	}
@@ -86,13 +85,6 @@ func WithTargetRecordID(recordID []byte) TransferFeeCreditOption {
 func WithTargetUnitCounter(targetUnitCounter uint64) TransferFeeCreditOption {
 	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
 		tx.TargetUnitCounter = &targetUnitCounter
-		return nil
-	}
-}
-
-func WithEarliestAdditionTime(earliestAdditionTime uint64) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.EarliestAdditionTime = earliestAdditionTime
 		return nil
 	}
 }

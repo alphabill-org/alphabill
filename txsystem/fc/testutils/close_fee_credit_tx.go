@@ -51,6 +51,13 @@ func WithCloseFCAmount(amount uint64) CloseFCOption {
 	}
 }
 
+func WithCloseFCCounter(counter uint64) CloseFCOption {
+	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
+		tx.Counter = counter
+		return nil
+	}
+}
+
 func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
 	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
 		tx.TargetUnitID = targetUnitID

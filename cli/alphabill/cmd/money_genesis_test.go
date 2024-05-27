@@ -16,6 +16,7 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
 )
 
@@ -165,7 +166,8 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, 2, sdrFile)
+	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --initial-bill-owner-predicate %s" +
+		" --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, ownerPredicate, 2, sdrFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -174,6 +176,13 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)
+
+	stateFile, err := os.Open(filepath.Join(homeDir, moneyPartitionDir, moneyGenesisStateFileName))
+	require.NoError(t, err)
+	s, err := state.NewRecoveredState(stateFile, moneysdk.NewUnitData)
+	require.NoError(t, err)
+	unit, err := s.GetUnit(defaultInitialBillID, false)
+	require.Equal(t, fmt.Sprintf("%X", unit.Bearer()), ownerPredicate)
 
 	params := &genesis.MoneyPartitionParams{}
 	err = types.Cbor.Unmarshal(pg.Params, params)

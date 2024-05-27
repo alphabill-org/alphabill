@@ -99,6 +99,15 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
 	})
+	t.Run("Invalid counter", func(t *testing.T) {
+		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(50), testfc.WithCloseFCCounter(10)))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
+		var attr fc.CloseFeeCreditAttributes
+		require.NoError(t, tx.UnmarshalAttributes(&attr))
+		execCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+			"validation error: invalid counter: counter=10 fcr.Counter=11")
+	})
 	t.Run("Nil target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil)))
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))

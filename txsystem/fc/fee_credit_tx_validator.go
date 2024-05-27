@@ -44,6 +44,9 @@ func ValidateCloseFC(attr *fc.CloseFeeCreditAttributes, fcr *fc.FeeCreditRecord)
 	if attr.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", attr.Amount, fcr.Balance)
 	}
+	if attr.Counter != fcr.Counter {
+		return fmt.Errorf("invalid counter: counter=%d fcr.Counter=%d", attr.Counter, fcr.Counter)
+	}
 	if len(attr.TargetUnitID) == 0 {
 		return errors.New("TargetUnitID is empty")
 	}

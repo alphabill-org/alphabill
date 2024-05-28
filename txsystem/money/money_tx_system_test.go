@@ -731,7 +731,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(lockTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	remainingValue -= 1
+	remainingValue -= sm.ActualFee
 
 	// verify target got locked
 	ib, err = rmaTree.GetUnit(initialBill.ID, false)
@@ -756,6 +756,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(closeFC)
 	require.NoError(t, err)
 	require.Equal(t, txFee, sm.ActualFee)
+	remainingValue -= sm.ActualFee
 
 	// verify user fee credit is closed (balance 0, unit will be deleted on round completion)
 	fcrUnit, err = rmaTree.GetUnit(fcrID, false)
@@ -783,12 +784,14 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
 	require.Equal(t, txFee, sm.ActualFee)
+	remainingValue -= sm.ActualFee
 
+	totalFeeCost := txAmount - remainingValue
 	// verify reclaimed fee is added back to initial bill (original value minus 5x txfee)
 	ib, err = rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.EqualValues(t, initialBill.Value-5*uint64(txFee), ib.Data().SummaryValueInput())
+	require.EqualValues(t, initialBill.Value-totalFeeCost, ib.Data().SummaryValueInput())
 
 	// and initial bill got unlocked
 	bd, ok = ib.Data().(*money.BillData)

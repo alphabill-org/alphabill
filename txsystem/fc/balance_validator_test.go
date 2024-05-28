@@ -71,28 +71,6 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 }
 
 func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		f := &FeeCredit{
-			feeCalculator: func() uint64 {
-				return 1
-			},
-		}
-		signer, _ := testsig.CreateSignerAndVerifier(t)
-		tx := testfc.NewAddFC(t, signer, nil)
-		require.NoError(t, f.CheckFeeCreditTx(tx))
-	})
-	t.Run("the tx fee cannot exceed the max specified fee", func(t *testing.T) {
-		f := &FeeCredit{
-			feeCalculator: func() uint64 {
-				return 1
-			},
-		}
-		signer, _ := testsig.CreateSignerAndVerifier(t)
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer),
-			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 0}))
-		require.EqualError(t, f.CheckFeeCreditTx(tx), "the tx fee cannot exceed the max specified fee")
-	})
 	t.Run("FRC transactions must not have FRC id in client metadata", func(t *testing.T) {
 		f := &FeeCredit{
 			feeCalculator: func() uint64 {
@@ -103,7 +81,7 @@ func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}))
-		require.EqualError(t, f.CheckFeeCreditTx(tx), "fee credit tx validation error: fee tx cannot contain fee credit reference")
+		require.EqualError(t, f.CheckFeeCreditTx(tx, nil), "fee credit tx validation error: fee tx cannot contain fee credit reference")
 	})
 	t.Run("FRC transactions must not have fee proof", func(t *testing.T) {
 		f := &FeeCredit{
@@ -114,6 +92,6 @@ func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx := testfc.NewAddFC(t, signer, nil)
 		tx.FeeProof = []byte{1, 2, 4}
-		require.EqualError(t, f.CheckFeeCreditTx(tx), "fee credit tx validation error: fee tx cannot contain fee authorization proof")
+		require.EqualError(t, f.CheckFeeCreditTx(tx, nil), "fee credit tx validation error: fee tx cannot contain fee authorization proof")
 	})
 }

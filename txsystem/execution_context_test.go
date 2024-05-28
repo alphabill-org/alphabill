@@ -14,7 +14,7 @@ func Test_newExecutionContext(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
 		tb := testtb.NewTrustBase(t, verifier)
 		txSys := NewTestGenericTxSystem(t, []Module{}, withCurrentRound(5))
-		execCtx := newExecutionContext(txSys, tb)
+		execCtx := newExecutionContext(txSys, tb, 10)
 		require.NotNil(t, execCtx)
 		require.EqualValues(t, 5, execCtx.CurrentRound())
 		tb, err := execCtx.TrustBase(0)

@@ -117,13 +117,17 @@ func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
+func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt ExecutionContext) error {
+	return execCxt.SpendGas(GeneralTxCostGasUnits)
+}
+
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
-	// Is the transaction credible and does the sender have fee credit?
-	// NB! this does not check the owner condition, this check is done in during tx specific checks
-	exeCtx := newExecutionContext(m, m.trustBase)
-	// buy gas according to the maximum tx fee allowed by client
-	exeCtx.BuyGas(tx.GetClientMaxTxFee())
-	if err := m.validateGenericTransaction(exeCtx, tx); err != nil {
+	// First, check transaction credible and that there are enough fee credits on the FRC?
+	// buy gas according to the maximum tx fee allowed by client -
+	// if fee proof check fails, function will exit tx and tx will not be added to block
+	exeCtx := newExecutionContext(m, m.trustBase, tx.GetClientMaxTxFee())
+	// NB! This does not check the owner condition - owner check is done in during tx specific checks
+	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	if !fc.IsFeeCreditTx(tx) {
@@ -132,15 +136,17 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 			return nil, fmt.Errorf("error tx not credible: %w", err)
 		}
 		// credible means, fee credit authorization is good, so we can continue and charge the amount from caller
-	} else {
-		// fee credit transaction
-
+		// !!HUGE HACK!! To support orchestration which does not have fees presently, must be removed ASAP
+		if tx.GetClientFeeCreditRecordID() != nil {
+			if err := m.snFees(tx, exeCtx); err != nil {
+				return nil, fmt.Errorf("error tx snFees: %w", err)
+			}
+		}
 	}
-
 	return m.doExecute(tx, exeCtx)
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx ExecutionContext) (sm *types.ServerMetadata, rErr error) {
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (sm *types.ServerMetadata, rErr error) {
 	var unlockSm *types.ServerMetadata
 	savepointID := m.state.Savepoint()
 	defer func() {
@@ -159,14 +165,18 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx Execution
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		if !fc.IsFeeCreditTx(tx) {
 			// charge user according to gas used
-
-			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
-			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
-				m.state.RollbackToSavepoint(savepointID)
-				rErr = errors.Join(rErr, fmt.Errorf("handling tx fee: %w", err))
-				return
+			if cost := exeCtx.CalculateCost(); cost > 0 {
+				sm.ActualFee = cost
+				// credit the cost from
+				feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+				if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
+					m.state.RollbackToSavepoint(savepointID)
+					rErr = errors.Join(rErr, fmt.Errorf("handling tx fee: %w", err))
+					return
+				}
+				// add fee credit record unit log
+				sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
 			}
-			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
 		}
 		trx := &types.TransactionRecord{
 			TransactionOrder: tx,
@@ -218,7 +228,7 @@ See Yellowpaper chapter 4.6 "Valid Transaction Orders".
 The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
 implemented by the tx handler.
 */
-func (m *GenericTxSystem) validateGenericTransaction(env ExecutionContext, tx *types.TransactionOrder) error {
+func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// 1. P.α = S.α – transaction is sent to this system
 	if m.systemIdentifier != tx.SystemID() {
 		return ErrInvalidSystemIdentifier

@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	GasUnitsPerTema = 1000
+	GeneralTxCostGasUnits = 500
+	GasUnitsPerTema       = 1000
 )
 
 type (
@@ -26,11 +27,8 @@ type (
 	}
 )
 
-func newExecutionContext(txSys StateInfo, ts types.RootTrustBase) *TxExecutionContext {
-	return &TxExecutionContext{
-		txs:        txSys,
-		trustStore: ts,
-	}
+func CalculateGasUnitsFromMaxCost(maxCost uint64) {
+	return
 }
 
 func (ec *TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
@@ -61,12 +59,17 @@ func (ec *TxExecutionContext) SpendGas(gas uint64) error {
 	return nil
 }
 
-func (ec *TxExecutionContext) BuyGas(maxCost uint64) {
-	gasUnits := maxCost * GasUnitsPerTema
-	ec.initialGas, ec.remainingGas = gasUnits, gasUnits
-}
-
 func (ec *TxExecutionContext) CalculateCost() uint64 {
 	gasUsed := ec.initialGas - ec.remainingGas
 	return (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+}
+
+func newExecutionContext(txSys StateInfo, ts types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+	gasUnits := maxCost * GasUnitsPerTema
+	return &TxExecutionContext{
+		txs:          txSys,
+		trustStore:   ts,
+		initialGas:   gasUnits,
+		remainingGas: gasUnits,
+	}
 }

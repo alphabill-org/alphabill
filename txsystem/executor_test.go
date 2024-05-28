@@ -16,20 +16,20 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(errors.New("unexpected call"))
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: "bar"}}
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		// try calling validate
 		require.EqualError(t, err, `unknown transaction type bar`)
 		require.Nil(t, attr)
 		// try calling execute with attr
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.Nil(t, sm)
 		require.EqualError(t, err, `unknown transaction type bar`)
 		// try to execute
-		sm, err = exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err = exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "unknown transaction type bar")
 		require.Nil(t, sm)
 		// try calling validate and execute
-		sm, err = exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err = exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "unknown transaction type bar")
 		require.Nil(t, sm)
 	})
@@ -40,11 +40,11 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: mockTxType}}
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)
 		// try to execute anyway
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.Nil(t, sm)
 		require.EqualError(t, err, "incorrect attribute type: <nil> for tx order mockTx-type")
 	})
@@ -55,11 +55,11 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: mockTxType}}
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)
 		// try to execute anyway
-		sm, err := exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.Nil(t, sm)
 		require.EqualError(t, err, "tx order execution failed: failed to unmarshal payload: EOF")
 	})
@@ -73,7 +73,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, attr)
 	})
@@ -88,7 +88,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.ErrorIs(t, err, validateErr)
 		require.Nil(t, attr)
 	})
@@ -101,7 +101,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.ErrorIs(t, err, execErr)
 		require.Nil(t, attr)
 	})
@@ -117,7 +117,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(TestData{Data: []byte{1, 4}}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: cbor: cannot unmarshal byte string into Go struct field txsystem.MockTxAttributes.Value of type uint64")
 		require.Nil(t, attr)
 	})
@@ -131,10 +131,10 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, attr)
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.EqualError(t, err, "incorrect attribute type: <nil> for tx order mockTx-type")
 		require.Nil(t, sm)
 	})
@@ -146,7 +146,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
 	})
@@ -158,10 +158,10 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
-		sm, err := exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.Execute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
@@ -173,10 +173,10 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		attr, err := exec.Validate(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.ExecuteWithAttr(txOrder, attr, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
@@ -188,7 +188,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txOrder := transaction.NewTransactionOrder(t,
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		sm, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil))
+		sm, err := exec.ValidateAndExecute(txOrder, newExecutionContext(NewTestGenericTxSystem(t, []Module{mock}, withCurrentRound(5)), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})

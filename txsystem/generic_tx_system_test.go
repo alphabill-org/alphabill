@@ -85,7 +85,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 		)
 		// no modules, no tx handlers
@@ -104,7 +105,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 		)
 		md, err := txSys.Execute(txo)
@@ -121,7 +123,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 		)
 		md, err := txSys.Execute(txo)
@@ -133,8 +136,11 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := []byte{1, 2, 3}
+		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]Module{m},
+			withStateUnit(fcrID,
+				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil),
 			withStateUnit(unitID,
 				templates.AlwaysTrueBytes(),
 				&MockData{Value: 1}, newMockLockTx(t,
@@ -142,7 +148,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 					transaction.WithPayloadType(mockTxType),
 					transaction.WithAttributes(MockTxAttributes{}),
 					transaction.WithClientMetadata(&types.ClientMetadata{
-						Timeout: 1000000,
+						Timeout:           1000000,
+						MaxTransactionFee: 1,
 					}),
 					transaction.WithStateLock(&types.StateLock{
 						ExecutionPredicate: templates.AlwaysTrueBytes(),
@@ -157,7 +164,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 		)
 		md, err := txSys.Execute(txo)
@@ -217,7 +225,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 			transaction.WithStateLock(&types.StateLock{
 				ExecutionPredicate: templates.AlwaysTrueBytes(),
@@ -236,7 +245,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
-				Timeout: txSys.currentRoundNumber + 1,
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
 			}),
 			transaction.WithStateLock(&types.StateLock{}),
 		)
@@ -263,6 +273,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
 				FeeCreditRecordID: fcrID,
+				MaxTransactionFee: 1,
 			}),
 			transaction.WithStateLock(&types.StateLock{
 				ExecutionPredicate: templates.AlwaysTrueBytes(),
@@ -314,14 +325,14 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		// tx system and tx order combination (other tests depend on that)
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
-		require.NoError(t, txSys.validateGenericTransaction(nil, txo))
+		require.NoError(t, txSys.validateGenericTransaction(txo))
 	})
 
 	t.Run("system ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		txo.Payload.SystemID = txSys.systemIdentifier + 1
-		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrInvalidSystemIdentifier)
+		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
 	})
 
 	t.Run("timeout is checked", func(t *testing.T) {
@@ -329,11 +340,11 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		txo := createTxOrder(txSys)
 
 		txSys.currentRoundNumber = txo.Timeout()
-		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
 		txSys.currentRoundNumber = txo.Timeout() + 1
-		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
 		txSys.currentRoundNumber = math.MaxUint64
-		require.ErrorIs(t, txSys.validateGenericTransaction(nil, txo), ErrTransactionExpired)
+		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
 	})
 }
 

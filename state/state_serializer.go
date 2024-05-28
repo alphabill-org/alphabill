@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const CBORChecksumLength = 5
@@ -31,15 +30,15 @@ type (
 	}
 
 	stateSerializer struct {
-		encoder       *cbor.Encoder
+		encode        func(any) error
 		hashAlgorithm crypto.Hash
 		err           error
 	}
 )
 
-func newStateSerializer(encoder *cbor.Encoder, hashAlgorithm crypto.Hash) *stateSerializer {
+func newStateSerializer(encoder func(any) error, hashAlgorithm crypto.Hash) *stateSerializer {
 	return &stateSerializer{
-		encoder:       encoder,
+		encode:        encoder,
 		hashAlgorithm: hashAlgorithm,
 	}
 }
@@ -88,7 +87,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 		HasLeft:            n.Left() != nil,
 		HasRight:           n.Right() != nil,
 	}
-	if err = s.encoder.Encode(nr); err != nil {
+	if err = s.encode(nr); err != nil {
 		s.err = fmt.Errorf("unable to encode node record: %w", err)
 		return
 	}

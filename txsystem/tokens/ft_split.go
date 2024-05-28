@@ -21,7 +21,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	ftData := u.Data().(*tokens.FungibleTokenData)
 
 	// add new token unit
-	newTokenID := tokens.NewFungibleTokenID(unitID, HashForIDCalculation(tx, m.hashAlgorithm))
+	newTokenID := tokens.NewFungibleTokenID(unitID, tx.HashForNewUnitID(m.hashAlgorithm))
 	fee := m.feeCalculator()
 
 	// update state
@@ -66,11 +66,11 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 }
 
 func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
+	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
-	if d.Locked != 0 {
+	if tokenData.Locked != 0 {
 		return errors.New("token is locked")
 	}
 	if attr.TargetValue == 0 {
@@ -80,18 +80,19 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return errors.New("when splitting a token the remaining value of the token must be greater than zero")
 	}
 
-	if d.Value < attr.TargetValue {
-		return fmt.Errorf("invalid token value: max allowed %v, got %v", d.Value, attr.TargetValue)
+	if tokenData.Value < attr.TargetValue {
+		return fmt.Errorf("invalid token value: max allowed %d, got %d", tokenData.Value, attr.TargetValue)
 	}
-	if rm := d.Value - attr.TargetValue; attr.RemainingValue != rm {
+	remainingValue := tokenData.Value - attr.TargetValue
+	if remainingValue != attr.RemainingValue {
 		return errors.New("remaining value must equal to the original value minus target value")
 	}
 
-	if d.Counter != attr.Counter {
-		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
+	if tokenData.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
-	if !bytes.Equal(attr.TypeID, d.TokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, tokenData.TokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
 	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
@@ -100,11 +101,11 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,
-		d.TokenType,
+		tokenData.TokenType,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)

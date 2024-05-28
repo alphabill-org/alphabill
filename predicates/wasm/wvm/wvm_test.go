@@ -156,7 +156,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txNFTTransfer.Payload.SetAttributes(
 			tokens.TransferNonFungibleTokenAttributes{
 				NewBearer: []byte{5, 5, 5},
-				NFTTypeID: nftTypeID,
+				TypeID:    nftTypeID,
 			}))
 
 		obs := observability.Default(t)
@@ -243,10 +243,10 @@ func Test_conference_tickets(t *testing.T) {
 				return state.NewUnit(
 					[]byte{1},
 					&tokens.NonFungibleTokenData{
-						Name:    "Ticket 001",
-						T:       42,
-						Data:    []byte("early-bird"),
-						NftType: nftTypeID,
+						Name:   "Ticket 001",
+						T:      42,
+						Data:   []byte("early-bird"),
+						TypeID: nftTypeID,
 					}), nil
 			},
 			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },

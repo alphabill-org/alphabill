@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -307,58 +307,23 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
 	})
-	t.Run("EarliestAdditionTime in the future NOK", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCRecord(
-					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithEarliestAdditionTime(11))),
-						ServerMetadata:   &types.ServerMetadata{},
-					},
-				),
-			),
-			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
-		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
-		var attr fc.AddFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx), "invalid transferFC timeout: earliest=11 latest=10 current=10")
-	})
-	t.Run("EarliestAdditionTime same block OK", func(t *testing.T) {
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer,
-				testfc.WithTransferFCRecord(
-					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithEarliestAdditionTime(10))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-					},
-				),
-			),
-		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
-		var attr fc.AddFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
-	})
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(9))),
+						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(10))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 				),
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
-		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(11))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
-			"invalid transferFC timeout: earliest=0 latest=9 current=10")
+			"invalid transferFC timeout: latestAdditionTime=10 currentRoundNumber=11")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,

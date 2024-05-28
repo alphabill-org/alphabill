@@ -8,27 +8,35 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
 	fee := n.feeCalculator()
-	typeID := tx.UnitID()
-	newTokenID := tokens.NewNonFungibleTokenID(typeID, HashForIDCalculation(tx, n.hashAlgorithm))
 
 	if err := n.state.Apply(
-		state.AddUnit(newTokenID, attr.Bearer, tokens.NewNonFungibleTokenData(typeID, attr, exeCtx.CurrentRound(), 0)),
+		state.AddUnit(tx.UnitID(), attr.Bearer, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
-	unitID := tx.UnitID()
-	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
+	tokenID := tx.UnitID()
+	tokenTypeID := attr.TypeID
+
+	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
+
+	// verify token type has correct embedded type
+	if !tokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidTokenTypeID)
+	}
+
+	// verify max allowed sizes
 	if len(attr.Name) > maxNameLength {
 		return errors.New(ErrStrInvalidNameLength)
 	}
@@ -44,19 +52,44 @@ func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, 
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	_, err := n.state.GetUnit(unitID, false)
+
+	// verify token does not exist yet
+	token, err := n.state.GetUnit(tokenID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
+		return err
+	}
+	if token != nil {
+		return fmt.Errorf("token already exists: %s", tokenID)
+	}
+
+	// verify token type does exist
+	tokenType, err := n.state.GetUnit(tokenTypeID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
+		return err
+	}
+	if tokenType == nil {
+		return fmt.Errorf("nft type does not exist: %s", tokenTypeID)
+	}
+
+	// verify token id is correctly generated
+	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, n.hashAlgorithm)
 	if err != nil {
 		return err
 	}
+	newTokenID := tokens.NewNonFungibleTokenID(tokenTypeID, unitPart)
+	if !newTokenID.Eq(tokenID) {
+		return errors.New("invalid token id")
+	}
 
+	// verify predicate inheritance chain
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
-		unitID,
+		tokenTypeID,
 		attr.TokenCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.TokenCreationPredicate
+			return d.ParentTypeID, d.TokenCreationPredicate
 		},
 		n.state.GetUnit,
 	)

@@ -40,21 +40,21 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
+	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
-	if d.Locked != 0 {
+	if tokenData.Locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(d.TokenType, attr.TypeID) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.TokenType, attr.TypeID)
+	if !bytes.Equal(tokenData.TokenType, attr.TypeID) {
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", tokenData.TokenType, attr.TypeID)
 	}
-	if attr.Value != d.Value {
-		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
+	if attr.Value != tokenData.Value {
+		return fmt.Errorf("invalid token value: expected %v, got %v", tokenData.Value, attr.Value)
 	}
-	if d.Counter != attr.Counter {
-		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
+	if tokenData.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
 
 	err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx)
@@ -64,11 +64,11 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,
-		d.TokenType,
+		tokenData.TokenType,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)

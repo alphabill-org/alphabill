@@ -56,7 +56,7 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint
 		return nil, fmt.Errorf("reading tx attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
-	buf.EncodeTagged(1, attr.NFTTypeID)
+	buf.EncodeTagged(1, attr.TypeID)
 	buf.EncodeTagged(2, attr.Nonce)
 	buf.EncodeTagged(3, attr.Counter)
 	return buf.Bytes()

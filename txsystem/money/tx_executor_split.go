@@ -28,7 +28,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	// add new units
 	var actions []state.Action
 	for i, targetUnit := range attr.TargetUnits {
-		newUnitID := money.NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), m.hashAlgorithm))
+		newUnitID := money.NewBillID(unitID, tx.HashForNewUnitID(m.hashAlgorithm, util.Uint32ToBytes(uint32(i))))
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		actions = append(actions, state.AddUnit(
 			newUnitID,

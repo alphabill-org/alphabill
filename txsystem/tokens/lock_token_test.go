@@ -34,12 +34,12 @@ func TestLockFT_Ok(t *testing.T) {
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
-	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenUnitID)
+	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenID)
 	var roundNo uint64 = 10
 	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := opts.state.GetUnit(existingTokenUnitID, false)
+	u, err := opts.state.GetUnit(existingTokenID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
@@ -48,7 +48,7 @@ func TestLockFT_Ok(t *testing.T) {
 	// verify lock status, counter and round number is updated
 	// verify value and type id is not updated
 	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
-	require.Equal(t, existingTokenTypeUnitID, d.TokenType)
+	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
 	require.Equal(t, roundNo, d.T)
 	require.Equal(t, uint64(1), d.Counter)
@@ -76,7 +76,7 @@ func TestLockFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeID),
 			attr:       &tokens.LockTokenAttributes{},
 			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
 		},
@@ -88,7 +88,7 @@ func TestLockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "token is already locked",
-			tx: createTx(t, existingLockedTokenUnitID, &tokens.LockTokenAttributes{
+			tx: createTx(t, existingLockedTokenID, &tokens.LockTokenAttributes{
 				LockStatus:                   1,
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
@@ -97,7 +97,7 @@ func TestLockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "lock status zero",
-			tx: createTx(t, existingTokenUnitID, &tokens.LockTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
 				LockStatus:                   0,
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
@@ -106,7 +106,7 @@ func TestLockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx: createTx(t, existingTokenUnitID, &tokens.LockTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
 				LockStatus:                   1,
 				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
@@ -115,7 +115,7 @@ func TestLockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx: createTx(t, existingTokenUnitID, &tokens.LockTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
 				LockStatus:                   1,
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{{8, 4, 0}},
@@ -185,7 +185,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeID),
 			attr:       &tokens.LockTokenAttributes{},
 			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
 		},
@@ -254,11 +254,11 @@ func defaultLockOpts(t *testing.T) *Options {
 func initStateForLockTxTests(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 
-	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err := s.Apply(state.AddUnit(existingTokenTypeID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		ParentTypeId:             nil,
+		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
 		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
@@ -266,16 +266,16 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeUnitID,
+	err = s.Apply(state.AddUnit(existingTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
+		TokenType: existingTokenTypeID,
 		Value:     existingTokenValue,
 		T:         0,
 		Counter:   0,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeUnitID,
+	err = s.Apply(state.AddUnit(existingLockedTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
+		TokenType: existingTokenTypeID,
 		Value:     existingTokenValue,
 		T:         0,
 		Counter:   0,
@@ -295,7 +295,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	require.NoError(t, err)
 
 	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
-		NftType:             existingNFTTypeUnitID,
+		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
@@ -303,7 +303,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	require.NoError(t, err)
 
 	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
-		NftType:             existingNFTTypeUnitID,
+		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),

@@ -125,7 +125,6 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	// todo: add gas handling here (buy and perhaps discount/refund)
-
 	return m.doExecute(tx, exeCtx)
 }
 

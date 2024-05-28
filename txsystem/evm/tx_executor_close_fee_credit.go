@@ -55,7 +55,7 @@ func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseF
 	}
 	fcr := &fc.FeeCreditRecord{
 		Balance: weiToAlpha(stateObj.Account.Balance),
-		Counter: stateObj.AlphaBill.Counter + 1,
+		Counter: stateObj.AlphaBill.Counter,
 		Timeout: stateObj.AlphaBill.Timeout,
 	}
 	// verify the fee credit record is not locked

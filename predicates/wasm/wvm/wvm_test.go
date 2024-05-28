@@ -328,7 +328,8 @@ func TestNew(t *testing.T) {
 
 func TestReadHeapBase(t *testing.T) {
 	env := &mockTxContext{
-		curRound: func() uint64 { return 1709683000 },
+		curRound:     func() uint64 { return 1709683000 },
+		GasRemaining: 100000,
 	}
 	enc := encoder.TXSystemEncoder{}
 	conf := wasm.PredicateParams{Entrypoint: "bearer_invariant"}

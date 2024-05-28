@@ -3,11 +3,11 @@ package testutils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/stretchr/testify/require"
-
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
@@ -15,7 +15,7 @@ var (
 	timeout = uint64(10)
 )
 
-type TransferFeeCreditOption func(Attributes *fc.TransferFeeCreditAttributes) TransferFeeCreditOption
+type TransferFeeCreditOption func(Attributes *fc.TransferFeeCreditAttributes)
 
 func NewTransferFC(t *testing.T, signer abcrypto.Signer, attr *fc.TransferFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
@@ -55,43 +55,37 @@ func NewTransferFCAttr(t *testing.T, signer abcrypto.Signer, opts ...TransferFee
 }
 
 func WithAmount(amount uint64) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.Amount = amount
-		return nil
 	}
 }
 
 func WithCounter(counter uint64) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.Counter = counter
-		return nil
 	}
 }
 
 func WithTargetSystemID(systemID types.SystemID) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.TargetSystemIdentifier = systemID
-		return nil
 	}
 }
 
 func WithTargetRecordID(recordID []byte) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.TargetRecordID = recordID
-		return nil
 	}
 }
 
 func WithTargetUnitCounter(targetUnitCounter uint64) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.TargetUnitCounter = &targetUnitCounter
-		return nil
 	}
 }
 
 func WithLatestAdditionTime(latestAdditionTime uint64) TransferFeeCreditOption {
-	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
+	return func(tx *fc.TransferFeeCreditAttributes) {
 		tx.LatestAdditionTime = latestAdditionTime
-		return nil
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/predicates"
@@ -99,6 +99,15 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
+	})
+	t.Run("Invalid counter", func(t *testing.T) {
+		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(50), testfc.WithCloseFCCounter(10)))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
+		var attr fc.CloseFeeCreditAttributes
+		require.NoError(t, tx.UnmarshalAttributes(&attr))
+		execCtx := testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10))
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+			"validation error: invalid counter: counter=10 fcr.Counter=11")
 	})
 	t.Run("Nil target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil)))

@@ -100,7 +100,7 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -125,11 +125,11 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
-		d.NftType,
+		d.TypeID,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -139,14 +139,14 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	return nil
 }
 
-type tokenData interface {
+type unitData interface {
 	GetCounter() uint64
 	IsLocked() uint64
 }
 
-func (m *LockTokensModule) validateTokenLock(attr *tokens.LockTokenAttributes, d tokenData) error {
+func (m *LockTokensModule) validateTokenLock(attr *tokens.LockTokenAttributes, tokenData unitData) error {
 	// token is not locked
-	if d.IsLocked() != 0 {
+	if tokenData.IsLocked() != 0 {
 		return errors.New("token is already locked")
 	}
 	// the new status is a "locked" one
@@ -154,9 +154,9 @@ func (m *LockTokensModule) validateTokenLock(attr *tokens.LockTokenAttributes, d
 		return errors.New("lock status cannot be zero-value")
 	}
 	// the current transaction follows the previous valid transaction with the token
-	if attr.Counter != d.GetCounter() {
+	if attr.Counter != tokenData.GetCounter() {
 		return fmt.Errorf("the transaction counter is not equal to the token counter: tx.counter='%d' token.counter='%d'",
-			attr.Counter, d.GetCounter())
+			attr.Counter, tokenData.GetCounter())
 	}
 	return nil
 }

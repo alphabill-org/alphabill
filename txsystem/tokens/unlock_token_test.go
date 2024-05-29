@@ -27,12 +27,12 @@ func TestUnlockFT_Ok(t *testing.T) {
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
-	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedTokenUnitID)
+	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedTokenID)
 	roundNo := uint64(11)
 	sm, err := txExecutors.ValidateAndExecute(unlockTx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
+	u, err := opts.state.GetUnit(existingLockedTokenID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
@@ -65,7 +65,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeUnlockToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeUnlockToken, existingTokenTypeID),
 			attr:       &tokens.UnlockTokenAttributes{},
 			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
 		},
@@ -77,7 +77,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "token is already unlocked",
-			tx: createTx(t, existingTokenUnitID, &tokens.UnlockTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.UnlockTokenAttributes{
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
@@ -85,7 +85,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx: createTx(t, existingLockedTokenUnitID, &tokens.UnlockTokenAttributes{
+			tx: createTx(t, existingLockedTokenID, &tokens.UnlockTokenAttributes{
 				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{},
 			}, tokens.PayloadTypeUnlockToken),
@@ -93,7 +93,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx: createTx(t, existingLockedTokenUnitID, &tokens.UnlockTokenAttributes{
+			tx: createTx(t, existingLockedTokenID, &tokens.UnlockTokenAttributes{
 				Counter:                      0,
 				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, tokens.PayloadTypeUnlockToken),
@@ -156,14 +156,14 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 	}))
 	require.NoError(t, err)
 	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
-		NftType:             existingNFTTypeUnitID,
+		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
-		NftType:             existingNFTTypeUnitID,
+		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
@@ -185,7 +185,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeUnlockToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeUnlockToken, existingTokenTypeID),
 			attr:       &tokens.UnlockTokenAttributes{},
 			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
 		},

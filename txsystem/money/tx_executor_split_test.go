@@ -9,6 +9,7 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -214,7 +215,7 @@ func TestModule_executeSplitTx(t *testing.T) {
 	// 3 way split, so 3 targets
 	sum := uint64(0)
 	for i, targetUnit := range attr.TargetUnits {
-		newUnitID := money.NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), uint32(i), gocrypto.SHA256))
+		newUnitID := money.NewBillID(unitID, tx.HashForNewUnitID(gocrypto.SHA256, util.Uint32ToBytes(uint32(i))))
 		targets = append(targets, newUnitID)
 		// verify that the amount is correct
 		u, err := module.state.GetUnit(newUnitID, false)

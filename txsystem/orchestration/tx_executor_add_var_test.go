@@ -231,6 +231,7 @@ func newTestVarModule(t *testing.T, ownerPredicate []byte, opts ...varModuleOpti
 	options.ownerPredicate = ownerPredicate
 	options.state = state.NewEmptyState()
 	module, err := NewModule(options)
+	require.NoError(t, err)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}

@@ -63,11 +63,11 @@ func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
-		data.NftType,
+		data.TypeID,
 		attr.DataUpdateSignatures[1:],
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.DataUpdatePredicate
+			return d.ParentTypeID, d.DataUpdatePredicate
 		},
 		n.state.GetUnit,
 	)

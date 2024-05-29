@@ -89,11 +89,11 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
-		d.NftType,
+		d.TypeID,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -122,7 +122,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -132,7 +132,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	return validateUnlockToken(attr, d)
 }
 
-func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d tokenData) error {
+func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d unitData) error {
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")

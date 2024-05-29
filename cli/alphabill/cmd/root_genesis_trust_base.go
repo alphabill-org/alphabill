@@ -74,7 +74,7 @@ func genTrustBaseRunFunc(config *genTrustBaseConfig) error {
 	// create trust base from each root genesis file, and verify they match
 	var trustBase *types.RootTrustBaseV0
 	for _, rg := range rgs {
-		tb, err := rg.GenerateTrustBase()
+		tb, err := rg.GenerateTrustBase(types.WithQuorumThreshold(config.QuorumThreshold))
 		if err != nil {
 			return fmt.Errorf("failed to generate trust base from root genesis: %w", err)
 		}

@@ -157,7 +157,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txNFTTransfer.Payload.SetAttributes(
 			tokens.TransferNonFungibleTokenAttributes{
 				NewBearer: []byte{5, 5, 5},
-				NFTTypeID: nftTypeID,
+				TypeID:    nftTypeID,
 			}))
 
 		obs := observability.Default(t)
@@ -197,6 +197,7 @@ func Test_conference_tickets(t *testing.T) {
 		require.NoError(t, txNFTMint.Payload.SetAttributes(
 			tokens.MintNonFungibleTokenAttributes{
 				Bearer: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
+				TypeID: nftTypeID,
 				Data:   []byte("early-bird"),
 			}))
 		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
@@ -204,26 +205,26 @@ func Test_conference_tickets(t *testing.T) {
 		env := &mockTxContext{
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
 			curRound:     func() uint64 { return earlyBirdDate },
-			GasRemaining: 30000,
+			GasRemaining: 40000,
 		}
 		conf := wasm.PredicateParams{Entrypoint: "mint_token", Args: predArg}
 
 		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
+		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, 16419, env.GasRemaining)
+		require.EqualValues(t, 23639, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		require.NoError(t, err)
-		require.EqualValues(t, 2867, env.GasRemaining)
+		require.EqualValues(t, 7307, env.GasRemaining)
 		require.EqualValues(t, 0x01, res)
 	})
 
@@ -285,10 +286,10 @@ func Test_conference_tickets(t *testing.T) {
 				return state.NewUnit(
 					[]byte{1},
 					&tokens.NonFungibleTokenData{
-						Name:    "Ticket 001",
-						T:       42,
-						Data:    []byte("early-bird"),
-						NftType: nftTypeID,
+						Name:   "Ticket 001",
+						T:      42,
+						Data:   []byte("early-bird"),
+						TypeID: nftTypeID,
 					}), nil
 			},
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
@@ -306,7 +307,7 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, 8786, env.GasRemaining)
+		require.EqualValues(t, 8782, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 	})
 }

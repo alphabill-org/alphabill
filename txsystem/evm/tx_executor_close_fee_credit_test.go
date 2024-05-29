@@ -36,7 +36,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Ok", func(t *testing.T) {
-		tx := testfc.NewCloseFC(t, signer, nil)
+		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10)))
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
@@ -108,7 +108,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
 	})
 	t.Run("Nil target unit id", func(t *testing.T) {
-		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil)))
+		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10), testfc.WithCloseFCTargetUnitID(nil)))
 		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
@@ -129,7 +129,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
 				Account:   &statedb.Account{Balance: alphaToWei(50)},
-				AlphaBill: &statedb.AlphaBillLink{Counter: 10},
+				AlphaBill: &statedb.AlphaBillLink{},
 			}))
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -145,7 +145,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
 				Account:   &statedb.Account{Balance: alphaToWei(50)},
-				AlphaBill: &statedb.AlphaBillLink{Counter: 10},
+				AlphaBill: &statedb.AlphaBillLink{},
 			}))
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -164,7 +164,7 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	require.NoError(t, err)
 
 	// create existing fee credit record for closeFC
-	attr := testfc.NewCloseFCAttr()
+	attr := testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10))
 	tx := testfc.NewCloseFC(t, signer, attr, testtransaction.WithUnitID(address.Bytes()))
 	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 	feeModule := newTestFeeModule(t, trustBase,

@@ -42,7 +42,7 @@ func TestRootValidator_DefaultDBPath(t *testing.T) {
 		StoragePath: "",
 	}
 	// if not set it will return a default path
-	require.Contains(t, conf.getStoragePath(), filepath.Join(conf.Base.HomeDir, "rootchain"))
+	require.Contains(t, conf.getStorageDir(), filepath.Join(conf.Base.HomeDir, "rootchain"))
 }
 
 func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {

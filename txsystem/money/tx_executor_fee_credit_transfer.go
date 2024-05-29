@@ -16,7 +16,6 @@ var (
 	ErrBillLocked                  = errors.New("bill is locked")
 	ErrTargetSystemIdentifierEmpty = errors.New("TargetSystemIdentifier is empty")
 	ErrTargetRecordIDEmpty         = errors.New("TargetRecordID is empty")
-	ErrAdditionTimeInvalid         = errors.New("EarliestAdditionTime is greater than LatestAdditionTime")
 	ErrRecordIDExists              = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists              = errors.New("fee tx cannot contain fee authorization proof")
 	ErrInvalidFCValue              = errors.New("the amount to transfer cannot exceed the value of the bill")
@@ -70,9 +69,6 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	}
 	if billData.IsLocked() {
 		return ErrBillLocked
-	}
-	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
-		return ErrAdditionTimeInvalid
 	}
 	if attr.Amount > billData.V {
 		return ErrInvalidFCValue

@@ -211,7 +211,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	// counter was incremented
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
-	expectedNewUnitID := money.NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
+	expectedNewUnitID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 	newBill, bd := getBill(t, rmaTree, expectedNewUnitID)
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
@@ -266,7 +266,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
 	for i := range targetUnits {
-		expectedNewUnitId := money.NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(i))))
+		expectedNewUnitId := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(i))))
 		newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
 		require.NotNil(t, newBill)
 		require.NotNil(t, bd)
@@ -290,7 +290,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	billID := money.NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
+	billID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _ := createDCTransfer(t, billID, fcrID, splitBillData.V, splitBillData.Counter, test.RandomBytes(32), 0)
@@ -326,7 +326,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitBillID := money.NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
+	splitBillID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 
 	// execute lock transaction to verify swap unlocks locked unit
 	counter += 1
@@ -488,7 +488,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		require.NoError(t, err)
 		_, err = txSystem.Execute(splitOk)
 		require.NoError(t, err)
-		splitBillIDs[i] = money.NewBillID(splitOk.UnitID(), unitIDFromTransaction(splitOk))
+		splitBillIDs[i] = money.NewBillID(splitOk.UnitID(), splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
 		counter = data.Counter
@@ -840,17 +840,6 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	fcr, ok = fcrUnit.Data().(*fcsdk.FeeCreditRecord)
 	require.True(t, ok)
 	require.False(t, fcr.IsLocked())
-}
-
-func unitIDFromTransaction(tx *types.TransactionOrder, extra ...[]byte) []byte {
-	hasher := crypto.SHA256.New()
-	hasher.Write(tx.UnitID())
-	hasher.Write(tx.Payload.Attributes)
-	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
-	for _, b := range extra {
-		hasher.Write(b)
-	}
-	return hasher.Sum(nil)
 }
 
 func getBill(t *testing.T, s *state.State, billID types.UnitID) (*state.Unit, *money.BillData) {

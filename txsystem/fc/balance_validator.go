@@ -53,24 +53,22 @@ func (f *FeeCredit) CheckFeeCreditTx(tx *types.TransactionOrder, exeCtx txsystem
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("state read error: %w", err)
 	}
-	// special case for 1st addFC
-	if errors.Is(err, avl.ErrNotFound) {
+	if unit != nil {
+		if err = f.execPredicate(unit.Bearer(), tx.FeeProof, tx, exeCtx); err != nil {
+			return fmt.Errorf("evaluating fee proof: %w", err)
+		}
+	} else {
+		// special case for 1st addFC
 		// if not adding first fee credit
 		if tx.PayloadType() != fc.PayloadTypeAddFeeCredit {
-			return fmt.Errorf("no fee credit unit found")
+			return fmt.Errorf("fee credit unit not found")
 		}
 		attr := &fc.AddFeeCreditAttributes{}
 		if err = tx.UnmarshalAttributes(attr); err != nil {
 			return fmt.Errorf("failed to unmarshal add fee credit payload: %w", err)
 		}
-		// S.N[P.ι] == ⊥ ∧ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
-		if err = f.execPredicate(attr.FeeCreditOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
-			return fmt.Errorf("executing fee credit predicate: %w", err)
-		}
-	} else {
-		// check owner condition
-		if err = f.execPredicate(unit.Bearer(), tx.FeeProof, tx, exeCtx); err != nil {
-			return fmt.Errorf("evaluating fee proof: %w", err)
+		if err = f.validateAddFC(tx, attr, exeCtx); err != nil {
+			return fmt.Errorf("add fee credit tx validation error: %w", err)
 		}
 	}
 	return nil

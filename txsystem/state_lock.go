@@ -6,8 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -79,7 +77,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
 	txOnHold := &types.TransactionOrder{}
-	if err = cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
+	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload
@@ -112,7 +110,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *Tx
 	// todo: add support for multiple targets
 	targetUnits := []types.UnitID{tx.UnitID()}
 	// ignore 'err' as we are only interested if the predicate evaluates to true or not
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	if err != nil {
 		return nil, fmt.Errorf("state lock: failed to marshal tx: %w", err)
 	}

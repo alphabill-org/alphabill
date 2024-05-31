@@ -7,11 +7,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
-	fee := n.feeCalculator()
+func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// update state
 	if err := n.state.Apply(
@@ -27,10 +26,10 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 		})); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}

@@ -7,14 +7,14 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 /*
-CheckFeeCreditBalance implements the fee credit verification steps listed in the
+IsCredible implements the fee credit verification steps listed in the
 Yellowpaper "Valid Transaction Orders" chapter. and fee credit is missing
 */
-func (f *FeeCredit) CheckFeeCreditBalance(exeCtx txsystem.ExecutionContext, tx *types.TransactionOrder) error {
+func (f *FeeCredit) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	clientMetadata := tx.Payload.ClientMetadata
 
 	// 1. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
@@ -45,31 +45,35 @@ func (f *FeeCredit) CheckFeeCreditBalance(exeCtx txsystem.ExecutionContext, tx *
 	return nil
 }
 
-func (f *FeeCredit) CheckFeeCreditTx(tx *types.TransactionOrder, exeCtx txsystem.ExecutionContext) error {
-	if err := ValidateGenericFeeCreditTx(tx); err != nil {
-		return fmt.Errorf("fee credit tx validation error: %w", err)
-	}
+func (f *FeeCredit) IsCredibleFC(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	unit, err := f.state.GetUnit(tx.UnitID(), false)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("state read error: %w", err)
 	}
 	if unit != nil {
-		if err = f.execPredicate(unit.Bearer(), tx.FeeProof, tx, exeCtx); err != nil {
+		if err = f.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 			return fmt.Errorf("evaluating fee proof: %w", err)
 		}
-	} else {
-		// special case for 1st addFC
-		// if not adding first fee credit
-		if tx.PayloadType() != fc.PayloadTypeAddFeeCredit {
-			return fmt.Errorf("fee credit unit not found")
+		// if the unit is FCR, make sure the FCR account balance has enough funds
+		if fcr, ok := unit.Data().(*fc.FeeCreditRecord); ok {
+			// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
+			if err = VerifyMaxTxFeeDoesNotExceedFRCBalance(tx, fcr.Balance); err != nil {
+				return fmt.Errorf("not enough funds: %w", err)
+			}
 		}
-		attr := &fc.AddFeeCreditAttributes{}
-		if err = tx.UnmarshalAttributes(attr); err != nil {
-			return fmt.Errorf("failed to unmarshal add fee credit payload: %w", err)
-		}
-		if err = f.validateAddFC(tx, attr, exeCtx); err != nil {
-			return fmt.Errorf("add fee credit tx validation error: %w", err)
-		}
+		return nil
+	}
+	// special case for 1st addFC
+	// if not adding first fee credit
+	if tx.PayloadType() != fc.PayloadTypeAddFeeCredit {
+		return fmt.Errorf("fee credit unit not found")
+	}
+	attr := &fc.AddFeeCreditAttributes{}
+	if err = tx.UnmarshalAttributes(attr); err != nil {
+		return fmt.Errorf("failed to unmarshal add fee credit payload: %w", err)
+	}
+	if err = f.validateCreateFC(tx, attr, exeCtx); err != nil {
+		return fmt.Errorf("add fee credit tx validation error: %w", err)
 	}
 	return nil
 }

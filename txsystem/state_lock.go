@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/predicates"
@@ -26,7 +27,7 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx ExecutionContext) error {
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx txtypes.ExecutionContext) error {
 	if stateLock == nil {
 		return fmt.Errorf("StateLock is nil")
 	}
@@ -56,7 +57,7 @@ func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, erro
 
 // handleUnlockUnitState - tries to unlock a state locked unit.
 // Returns error if unit is locked and could not be unlocked (either predicate fails or none input is provided).
-func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// todo: handle multiple target units
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
@@ -104,7 +105,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 }
 
 // executeLockUnitState - validates lock predicate and locks the state of a unit
-func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ ExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
 	if err := tx.Payload.StateLock.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid state lock parameter: %w", err)

@@ -1,11 +1,11 @@
-package testtxsystem
+package exec_context
 
 import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +56,12 @@ func (m *MockExecContext) SpendGas(gas uint64) error {
 	return m.mockErr
 }
 
-func NewMockExecutionContext(t *testing.T, options ...TestOption) txsystem.ExecutionContext {
+func (m *MockExecContext) CalculateCost() uint64 {
+	//gasUsed := ec.initialGas - ec.remainingGas
+	return 1 // (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+}
+
+func NewMockExecutionContext(t *testing.T, options ...TestOption) txtypes.ExecutionContext {
 	execCtx := &MockExecContext{}
 	for _, o := range options {
 		require.NoError(t, o(execCtx))

@@ -6,16 +6,16 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 var (
 	ErrBillUnlocked = errors.New("bill is already unlocked")
 )
 
-func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// unlock the unit
 	unitID := tx.UnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -31,10 +31,10 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 	if err := m.state.Apply(action); err != nil {
 		return nil, fmt.Errorf("unlock tx: failed to update state: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, _ txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -49,9 +49,6 @@ func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.Unlock
 	}
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
-	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return err
 	}
 	return nil
 }

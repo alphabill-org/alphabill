@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type (
@@ -19,7 +19,7 @@ type (
 	}
 )
 
-func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// reduce dc-money supply by target value and update timeout and backlink
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
@@ -50,13 +50,12 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 		return nil, fmt.Errorf("unit update failed: %w", err)
 	}
 	return &types.ServerMetadata{
-		ActualFee:        m.feeCalculator(),
 		TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }
 
-func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) error {
 	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {

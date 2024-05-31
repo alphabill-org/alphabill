@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
 type (
@@ -20,7 +19,6 @@ type (
 		hashAlgorithm            crypto.Hash
 		trustBase                types.RootTrustBase
 		systemDescriptionRecords []*types.SystemDescriptionRecord
-		feeCalculator            fc.FeeCalculator
 		exec                     predicates.PredicateExecutor
 	}
 
@@ -36,7 +34,6 @@ func defaultOptions() (*Options, error) {
 	return &Options{
 		systemIdentifier: money.DefaultSystemID,
 		hashAlgorithm:    crypto.SHA256,
-		feeCalculator:    fc.FixedFee(1),
 		exec:             predEng.Execute,
 	}, nil
 }
@@ -68,12 +65,6 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 func WithSystemDescriptionRecords(records []*types.SystemDescriptionRecord) Option {
 	return func(g *Options) {
 		g.systemDescriptionRecords = records
-	}
-}
-
-func WithFeeCalculator(calc fc.FeeCalculator) Option {
-	return func(g *Options) {
-		g.feeCalculator = calc
 	}
 }
 

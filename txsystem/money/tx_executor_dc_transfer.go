@@ -5,12 +5,12 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// 1. SetOwner(ι, DC)
 	setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
@@ -51,13 +51,12 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 	// record dust bills for later deletion TODO AB-1133
 	// dustCollector.AddDustBill(unitID, currentBlockNumber)
 	return &types.ServerMetadata{
-		ActualFee:        m.feeCalculator(),
 		TargetUnits:      []types.UnitID{unitID, DustCollectorMoneySupplyID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }
 
-func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err

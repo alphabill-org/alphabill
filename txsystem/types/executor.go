@@ -1,4 +1,4 @@
-package txsystem
+package types
 
 import (
 	"fmt"
@@ -8,6 +8,10 @@ import (
 )
 
 type (
+	Module interface {
+		TxHandlers() map[string]TxExecutor
+	}
+
 	TxHandler[T any] struct {
 		Execute  func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) (*types.ServerMetadata, error)
 		Validate func(tx *types.TransactionOrder, attributes *T, exeCtx ExecutionContext) error

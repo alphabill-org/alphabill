@@ -9,10 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -22,7 +22,6 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 
 	// add new token unit
 	newTokenID := tokens.NewFungibleTokenID(unitID, tx.HashForNewUnitID(m.hashAlgorithm))
-	fee := m.feeCalculator()
 
 	// update state
 	if err = m.state.Apply(
@@ -54,7 +53,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
@@ -65,7 +64,7 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err

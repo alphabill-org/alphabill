@@ -6,14 +6,14 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
-	fee := f.feeCalculator()
+	fee := execCtx.CalculateCost()
 	updateFunc := state.UpdateUnitData(unitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -31,7 +31,7 @@ func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeC
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, _ txsystem.ExecutionContext) error {
+func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, _ txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

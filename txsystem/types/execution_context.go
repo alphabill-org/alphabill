@@ -1,4 +1,4 @@
-package txsystem
+package types
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	GeneralTxCostGasUnits = 500
+	GeneralTxCostGasUnits = 400
 	GasUnitsPerTema       = 1000
 )
 
@@ -64,7 +64,7 @@ func (ec *TxExecutionContext) CalculateCost() uint64 {
 	return (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
 }
 
-func newExecutionContext(txSys StateInfo, ts types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+func NewExecutionContext(txSys StateInfo, ts types.RootTrustBase, maxCost uint64) *TxExecutionContext {
 	gasUnits := maxCost * GasUnitsPerTema
 	return &TxExecutionContext{
 		txs:          txSys,

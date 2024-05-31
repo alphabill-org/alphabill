@@ -60,7 +60,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := fcModule.CheckFeeCreditBalance(nil, test.tx)
+			err := fcModule.IsCredible(nil, test.tx)
 			if test.expectedError != "" {
 				assert.ErrorContains(t, err, test.expectedError, "unexpected error")
 			} else {
@@ -72,26 +72,18 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 
 func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
 	t.Run("FRC transactions must not have FRC id in client metadata", func(t *testing.T) {
-		f := &FeeCredit{
-			feeCalculator: func() uint64 {
-				return 1
-			},
-		}
+		f := &FeeCredit{state: state.NewEmptyState()}
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}))
-		require.EqualError(t, f.CheckFeeCreditTx(tx, nil), "fee credit tx validation error: fee tx cannot contain fee credit reference")
+		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee credit reference")
 	})
 	t.Run("FRC transactions must not have fee proof", func(t *testing.T) {
-		f := &FeeCredit{
-			feeCalculator: func() uint64 {
-				return 1
-			},
-		}
+		f := &FeeCredit{state: state.NewEmptyState()}
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx := testfc.NewAddFC(t, signer, nil)
 		tx.FeeProof = []byte{1, 2, 4}
-		require.EqualError(t, f.CheckFeeCreditTx(tx, nil), "fee credit tx validation error: fee tx cannot contain fee authorization proof")
+		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee authorization proof")
 	})
 }

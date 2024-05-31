@@ -16,24 +16,22 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
+	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 type (
-	Module interface {
-		TxHandlers() map[string]TxExecutor
-	}
-
 	GenericTxSystem struct {
 		systemIdentifier    types.SystemID
 		hashAlgorithm       crypto.Hash
 		state               *state.State
 		currentRoundNumber  uint64
-		handlers            TxExecutors
+		handlers            txtypes.TxExecutors
 		trustBase           types.RootTrustBase
-		isCredible          FeeCreditBalanceValidator
+		fees                *abfc.FeeCredit
 		beginBlockFunctions []func(roundNumber uint64) error
 		endBlockFunctions   []func(roundNumber uint64) error
 		roundCommitted      bool
@@ -42,16 +40,19 @@ type (
 	}
 )
 
-type FeeCreditBalanceValidator func(env ExecutionContext, tx *types.TransactionOrder) error
+type IsCredible func(env txtypes.ExecutionContext, tx *types.TransactionOrder) error
 
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 	Logger() *slog.Logger
 }
 
-func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceValidator, trustBase types.RootTrustBase, modules []Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if systemID == 0 {
 		return nil, errors.New("system ID must be assigned")
+	}
+	if observe == nil {
+		return nil, errors.New("observe must not be nil")
 	}
 	options := DefaultOptions()
 	for _, option := range opts {
@@ -64,10 +65,10 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 		trustBase:           trustBase,
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
-		handlers:            make(TxExecutors),
-		isCredible:          feeChecker,
+		handlers:            make(txtypes.TxExecutors),
 		log:                 observe.Logger(),
 		pr:                  options.predicateRunner,
+		fees:                options.feeCredit,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 
@@ -76,7 +77,13 @@ func NewGenericTxSystem(systemID types.SystemID, feeChecker FeeCreditBalanceVali
 			return nil, fmt.Errorf("registering tx handler: %w", err)
 		}
 	}
+	// if fees are collected, then register fee tx handlers
+	if options.feeCredit != nil {
+		if err := txs.handlers.Add(options.feeCredit.TxHandlers()); err != nil {
+			return nil, fmt.Errorf("registering tx handler: %w", err)
+		}
 
+	}
 	if err := txs.initMetrics(observe.Meter("txsystem")); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
@@ -117,36 +124,38 @@ func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
-func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt ExecutionContext) error {
-	return execCxt.SpendGas(GeneralTxCostGasUnits)
+func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.ExecutionContext) error {
+	return execCxt.SpendGas(txtypes.GeneralTxCostGasUnits)
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
 	// First, check transaction credible and that there are enough fee credits on the FRC?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := newExecutionContext(m, m.trustBase, tx.GetClientMaxTxFee())
+	exeCtx := txtypes.NewExecutionContext(m, m.trustBase, tx.GetClientMaxTxFee())
 	// NB! This does not check the owner condition - owner check is done in during tx specific checks
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	if !fc.IsFeeCreditTx(tx) {
-		if err := m.isCredible(exeCtx, tx); err != nil {
-			// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
-			return nil, fmt.Errorf("error tx not credible: %w", err)
+	if m.fees != nil {
+		if err := m.snFees(tx, exeCtx); err != nil {
+			return nil, fmt.Errorf("error tx snFees: %w", err)
 		}
-		// credible means, fee credit authorization is good, so we can continue and charge the amount from caller
-		// !!HUGE HACK!! To support orchestration which does not have fees presently, must be removed ASAP
-		if tx.GetClientFeeCreditRecordID() != nil {
-			if err := m.snFees(tx, exeCtx); err != nil {
-				return nil, fmt.Errorf("error tx snFees: %w", err)
+		if !fc.IsFeeCreditTx(tx) {
+			if err := m.fees.IsCredible(exeCtx, tx); err != nil {
+				// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
+				return nil, fmt.Errorf("error tx not credible: %w", err)
+			}
+		} else {
+			if err := m.fees.IsCredibleFC(exeCtx, tx); err != nil {
+				return nil, fmt.Errorf("error not credible FC tx: %w", err)
 			}
 		}
 	}
 	return m.doExecute(tx, exeCtx)
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (sm *types.ServerMetadata, rErr error) {
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata, rErr error) {
 	var unlockSm *types.ServerMetadata
 	savepointID := m.state.Savepoint()
 	defer func() {
@@ -164,8 +173,13 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *TxExecut
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		if !fc.IsFeeCreditTx(tx) {
-			// charge user according to gas used
-			if cost := exeCtx.CalculateCost(); cost > 0 {
+			if m.fees != nil {
+				// charge user according to gas used
+				cost := exeCtx.CalculateCost()
+				if cost == 0 {
+					// every transaction must cost at least 1 tema
+					cost = 1
+				}
 				sm.ActualFee = cost
 				// credit the cost from
 				feeCreditRecordID := tx.GetClientFeeCreditRecordID()

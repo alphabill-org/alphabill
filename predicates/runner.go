@@ -30,6 +30,7 @@ type (
 	GasMeter interface {
 		GetGasRemaining() uint64
 		SpendGas(gas uint64) error
+		CalculateCost() uint64
 	}
 
 	// environment where predicate runs (AKA transaction execution context)

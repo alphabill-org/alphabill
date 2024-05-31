@@ -22,7 +22,6 @@ import (
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -669,7 +668,6 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 // Test Transfer->Add->Lock->Close->Reclaim sequence OK
 func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
-	txFee := fc.FixedFee(1)()
 	initialBillID := initialBill.ID
 	txAmount := uint64(20)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
@@ -690,12 +688,14 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.EqualValues(t, 1, sm.ActualFee)
+	remainingValue := txAmount - sm.ActualFee
 
 	// verify unit value is reduced by 20
 	ib, err := rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, initialBill.Value-txAmount, ib.Data().SummaryValueInput())
-	require.EqualValues(t, txFee, sm.ActualFee)
+	require.EqualValues(t, 1, sm.ActualFee)
 
 	// send addFC
 	transferFCTransactionRecord := &types.TransactionRecord{
@@ -714,15 +714,15 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(addFC)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.EqualValues(t, 1, sm.ActualFee)
 
 	// verify user fee credit is 18 (transfer 20 minus fee 2 * fee)
-	remainingValue := txAmount - (2 * uint64(txFee)) // 18
+	remainingValue -= sm.ActualFee // 18
 	fcrUnit, err := rmaTree.GetUnit(fcrID, false)
 	require.NoError(t, err)
 	fcrUnitData, ok := fcrUnit.Data().(*fcsdk.FeeCreditRecord)
 	require.True(t, ok)
 	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
-	require.Equal(t, txFee, sm.ActualFee)
 
 	// lock target unit
 	lockTx, _ := createLockTx(t, initialBillID, fcrID, 1)
@@ -731,6 +731,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(lockTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.EqualValues(t, 1, sm.ActualFee)
 	remainingValue -= sm.ActualFee
 
 	// verify target got locked
@@ -751,11 +752,11 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testutils.WithCloseFCTargetUnitCounter(2),
 		),
 		testtransaction.WithUnitID(fcrID),
-		testtransaction.WithOwnerProof(nil),
 	)
+	closeFC.OwnerProof = signTx(t, signer, closeFC)
 	sm, err = txSystem.Execute(closeFC)
 	require.NoError(t, err)
-	require.Equal(t, txFee, sm.ActualFee)
+	require.EqualValues(t, 1, sm.ActualFee)
 	remainingValue -= sm.ActualFee
 
 	// verify user fee credit is closed (balance 0, unit will be deleted on round completion)
@@ -783,7 +784,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	)
 	sm, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
-	require.Equal(t, txFee, sm.ActualFee)
+	require.EqualValues(t, 1, sm.ActualFee)
 	remainingValue -= sm.ActualFee
 
 	totalFeeCost := txAmount - remainingValue

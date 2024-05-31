@@ -6,7 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 /*
@@ -25,7 +25,7 @@ Parameters:
   - "getUnit": function which returns unit with given ID;
 */
 func runChainedPredicates[T types.UnitData](
-	env txsystem.ExecutionContext,
+	env txtypes.ExecutionContext,
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
 	args [][]byte,

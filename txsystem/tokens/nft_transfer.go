@@ -8,11 +8,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
-	fee := n.feeCalculator()
+func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// update owner, counter and last updated block number
 	if err := n.state.Apply(
@@ -29,10 +28,10 @@ func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrde
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

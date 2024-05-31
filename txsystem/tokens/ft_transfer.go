@@ -9,11 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
-	fee := m.feeCalculator()
+func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	fee := exeCtx.CalculateCost()
 	unitID := tx.UnitID()
 
 	if err := m.state.Apply(
@@ -35,7 +35,7 @@ func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, att
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err

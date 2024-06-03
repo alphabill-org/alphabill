@@ -15,8 +15,8 @@ import (
 
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 )
 
@@ -166,7 +166,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New(testobserve.NewFactory(t))
-	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --initial-bill-owner-predicate %s" +
+	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --initial-bill-owner-predicate %s"+
 		" --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, ownerPredicate, 2, sdrFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.Execute(context.Background())
@@ -182,12 +182,11 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	s, err := state.NewRecoveredState(stateFile, moneysdk.NewUnitData)
 	require.NoError(t, err)
 	unit, err := s.GetUnit(defaultInitialBillID, false)
+	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("%X", unit.Bearer()), ownerPredicate)
 
 	params := &genesis.MoneyPartitionParams{}
-	err = types.Cbor.Unmarshal(pg.Params, params)
-	require.NoError(t, err)
-
+	require.NoError(t, types.Cbor.Unmarshal(pg.Params, params))
 	require.Equal(t, sdr, params.SystemDescriptionRecords[0])
 }
 

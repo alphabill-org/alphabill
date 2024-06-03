@@ -1,7 +1,7 @@
 package instrument
 
 /*
-#cgo linux,amd64 LDFLAGS: -Wl,--no-as-needed ${SRCDIR}/wasm-instrument-rust/lib/x86_64-unknown-linux-gnu/libwasm_instrument.a
+#cgo linux,amd64 LDFLAGS: -Wl,--no-as-needed -ldl ${SRCDIR}/wasm-instrument-rust/lib/x86_64-unknown-linux-gnu/libwasm_instrument.a
 #cgo darwin,arm64 LDFLAGS: ${SRCDIR}/wasm-instrument-rust/lib/aarch64-apple-darwin/libwasm_instrument.a
 #cgo darwin,amd64 LDFLAGS: ${SRCDIR}/wasm-instrument-rust/lib/x86_64-apple-darwin/libwasm_instrument.a
 #include "./wasm-instrument-rust/include/instrument_wasm.h"

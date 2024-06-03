@@ -386,7 +386,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
-			wantErrStr: fmt.Sprintf("token type does not exist"),
+			wantErrStr: "token type does not exist",
 		},
 		{
 			name: "invalid value - zero",

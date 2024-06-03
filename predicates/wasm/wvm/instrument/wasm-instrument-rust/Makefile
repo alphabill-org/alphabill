@@ -33,6 +33,10 @@ build: install-targets download-sdk
 		CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=rust-lld \
 		cargo build --release --target aarch64-apple-darwin
         endif
+        ifeq ($(UNAME_S),Darwin)
+		cargo build --release --target x86_64-apple-darwin
+		cargo build --release --target aarch64-apple-darwin
+        endif
 copy:
 	cp -f target/x86_64-unknown-linux-gnu/release/libwasm_instrument.a lib/x86_64-unknown-linux-gnu/
 	cp -f target/x86_64-pc-windows-gnu/release/libwasm_instrument.a lib/x86_64-pc-windows-gnu/

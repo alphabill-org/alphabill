@@ -24,7 +24,6 @@ install-targets:
 
 build: install-targets download-sdk
 	cargo build --release --target x86_64-unknown-linux-gnu
-	cargo build --release --target x86_64-pc-windows-gnu
         ifeq ($(UNAME_S),Linux)
 		SDKROOT=/home/kristjan/Work/alphabillNew/predicates/wasm/wvm/instrument/wasm-instrument-rust/MacOSX14.0.sdk/ \
 		CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=rust-lld \
@@ -39,7 +38,6 @@ build: install-targets download-sdk
         endif
 copy:
 	cp -f target/x86_64-unknown-linux-gnu/release/libwasm_instrument.a lib/x86_64-unknown-linux-gnu/
-	cp -f target/x86_64-pc-windows-gnu/release/libwasm_instrument.a lib/x86_64-pc-windows-gnu/
 	cp -f target/x86_64-apple-darwin/release/libwasm_instrument.a lib/x86_64-apple-darwin/
 	cp -f target/aarch64-apple-darwin/release/libwasm_instrument.a lib/aarch64-apple-darwin/
 

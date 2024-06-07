@@ -53,7 +53,9 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	serverMetadata, err := module.executeAddVarTx(txo, attr, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
-
+	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
+	require.Equal(t, []types.UnitID{txo.UnitID()}, serverMetadata.TargetUnits)
+	require.True(t, serverMetadata.ActualFee == 0)
 	// verify state is updated
 	u, err := opts.state.GetUnit(txo.UnitID(), false)
 	require.NoError(t, err)
@@ -100,6 +102,9 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	sm, err := module.executeAddVarTx(txo, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(11)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{txo.UnitID()}, sm.TargetUnits)
+	require.True(t, sm.ActualFee == 0)
 
 	// verify state is updated
 	u, err := opts.state.GetUnit(txo.UnitID(), false)

@@ -91,8 +91,8 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 	return txs, nil
 }
 
-// FeeModuleConfigured - if fee module is configured then fees will be collected
-func (m *GenericTxSystem) FeeModuleConfigured() bool {
+// FeesEnabled - if fee module is configured then fees will be collected
+func (m *GenericTxSystem) FeesEnabled() bool {
 	return m.fees != nil
 }
 
@@ -143,7 +143,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	// only handle fees if there is a fee module
-	if m.FeeModuleConfigured() {
+	if m.FeesEnabled() {
 		if err := m.snFees(tx, exeCtx); err != nil {
 			return nil, fmt.Errorf("error tx snFees: %w", err)
 		}
@@ -167,16 +167,16 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		m.state.RollbackToSavepoint(savepointID)
 	}
 	// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
-	// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
+	// and the "lock fee credit", "ubuf.EncodeTagged(3, value.Name)nlock fee credit", "add fee credit" and "close fee credit" transactions in all
 	// application partitions are special cases: fees are handled intrinsically in those transactions.
-	if !fc.IsFeeCreditTx(tx) && m.FeeModuleConfigured() {
+	if m.FeesEnabled() && !fc.IsFeeCreditTx(tx) {
 		// charge user according to gas used
 		sm.ActualFee = exeCtx.CalculateCost()
 		// credit the cost from
 		feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 		if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
-			// This is special, FCR could not be credited, hence the Tx cannot be added to block
-			// otherwise it would be for free and there are no funds taken to pay out validators
+			// Tx must not be added to block - FCR could not be credited.
+			// Otherwise, Tx would be for free, and there are no funds taken to pay validators
 			m.state.RollbackToSavepoint(savepointID)
 			return nil, errors.Join(err, fmt.Errorf("handling tx fee: %w", err))
 		}
@@ -191,7 +191,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	for _, targetID := range sm.TargetUnits {
 		// add log for each target unit
 		if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
-			// If the unit log update fails, the Tx is not added to block. There is no way to provide full ledger.
+			// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 			// an attack vector.
 			m.state.RollbackToSavepoint(savepointID)

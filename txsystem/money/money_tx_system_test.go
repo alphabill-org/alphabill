@@ -104,8 +104,13 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 		testtransaction.WithUnitID(initialBill.ID),
 		testtransaction.WithOwnerProof(nil),
 	)
-	_, err = originalTxs.Execute(transFC)
+	sm, err := originalTxs.Execute(transFC)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{transFC.UnitID()}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+
 	originalSummaryRound1, err := originalTxs.EndBlock()
 	require.NoError(t, err)
 
@@ -157,6 +162,10 @@ func TestExecute_TransferOk(t *testing.T) {
 	require.NoError(t, err)
 	serverMetadata, err := txSystem.Execute(transferOk)
 	require.NoError(t, err)
+	require.NotNil(t, serverMetadata)
+	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
+	require.Equal(t, []types.UnitID{transferOk.UnitID(), fcrID}, serverMetadata.TargetUnits)
+	require.True(t, serverMetadata.ActualFee > 0)
 
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
@@ -185,6 +194,10 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	expectedNewUnitID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
+	require.Equal(t, []types.UnitID{splitOk.UnitID(), expectedNewUnitID, fcrID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
 	err = txSystem.Commit(createUC(stateSummary, 1))
@@ -210,7 +223,6 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	// counter was incremented
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
-	expectedNewUnitID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 	newBill, bd := getBill(t, rmaTree, expectedNewUnitID)
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
@@ -242,6 +254,11 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Len(t, sm.TargetUnits, 1+10+1)                // target, new bills and fcr
+	require.Contains(t, sm.TargetUnits, splitOk.UnitID()) // target id
+	require.Contains(t, sm.TargetUnits, fcrID)            // fee credit id
+	require.True(t, sm.ActualFee > 0)
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
 	err = txSystem.Commit(createUC(stateSummary, 1))
@@ -266,6 +283,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 
 	for i := range targetUnits {
 		expectedNewUnitId := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(i))))
+		require.Contains(t, sm.TargetUnits, expectedNewUnitId) // target, new bills and fcr
 		newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
 		require.NotNil(t, newBill)
 		require.NotNil(t, bd)
@@ -289,6 +307,8 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.True(t, sm.ActualFee > 0)
 	billID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
@@ -298,6 +318,9 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	sm, err = txSystem.Execute(transferDCOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{transferDCOk.UnitID(), DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
 	require.EqualValues(t, DustCollectorPredicate, transferDCBill.Bearer())
@@ -324,6 +347,8 @@ func TestExecute_SwapOk(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.True(t, sm.ActualFee > 0)
 
 	splitBillID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
 

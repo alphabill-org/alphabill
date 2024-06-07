@@ -1608,7 +1608,6 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
-	
 	return tx.Payload.UnitID
 }
 

@@ -38,6 +38,16 @@ if any happened during encoding. Buffer is not reset!
 */
 func (enc *TVEnc) Bytes() ([]byte, error) { return enc.buf, enc.err }
 
+/*
+setErr stores the first non-nil error sent as argument and returns it when
+Bytes() is called - this allows code where each individual Encode() call
+doesn't have to be checked for error, we do the error check when reading
+the result of whole encoding operation.
+
+It also returns the argument so the method can be used like
+
+	return enc.setErr(fmt.Errorf(...))
+*/
 func (enc *TVEnc) setErr(err error) error {
 	if enc.err == nil {
 		enc.err = err

@@ -119,6 +119,26 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		require.Nil(t, err)
 	})
 
+	t.Run("tx validate returns out of gas", func(t *testing.T) {
+		expErr := txtypes.ErrOutOfGas
+		m := NewMockTxModule(nil)
+		m.ValidateError = expErr
+		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithSystemID(mockTxSystemID),
+			transaction.WithPayloadType(mockTxType),
+			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1,
+			}),
+		)
+		md, err := txSys.Execute(txo)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxErrOutOfGas, md.SuccessIndicator)
+		require.Nil(t, err)
+	})
+
 	t.Run("tx execute returns error", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)

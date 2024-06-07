@@ -1,7 +1,7 @@
 package types
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -11,6 +11,8 @@ const (
 	GeneralTxCostGasUnits = 400
 	GasUnitsPerTema       = 1000
 )
+
+var ErrOutOfGas = errors.New("out of gas")
 
 type (
 	StateInfo interface {
@@ -53,7 +55,7 @@ func (ec *TxExecutionContext) GetGasRemaining() uint64 {
 func (ec *TxExecutionContext) SpendGas(gas uint64) error {
 	if gas > ec.remainingGas {
 		ec.remainingGas = 0
-		return fmt.Errorf("out of gas")
+		return ErrOutOfGas
 	}
 	ec.remainingGas -= gas
 	return nil

@@ -152,87 +152,107 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 			}
 		}
 	}
-	return m.doExecute(tx, exeCtx)
+	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	savepointID := m.state.Savepoint()
+	sm := m.doExecute(tx, exeCtx)
+	if sm.SuccessIndicator != types.TxStatusSuccessful {
+		// transaction execution failed. revert every change made by the transaction order
+		m.state.RollbackToSavepoint(savepointID)
+	}
+	// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
+	// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
+	// application partitions are special cases: fees are handled intrinsically in those transactions.
+	if !fc.IsFeeCreditTx(tx) {
+		if m.fees != nil {
+			// charge user according to gas used
+			cost := exeCtx.CalculateCost()
+			if cost == 0 {
+				// every transaction must cost at least 1 tema
+				cost = 1
+			}
+			sm.ActualFee = cost
+			// credit the cost from
+			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, cost)); err != nil {
+				// This is special, FCR could not be credited, hence the Tx cannot be added to block
+				// otherwise it would be for free and there are no funds taken to pay out validators
+				m.state.RollbackToSavepoint(savepointID)
+				return nil, errors.Join(err, fmt.Errorf("handling tx fee: %w", err))
+			}
+			// add fee credit record unit log
+			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+		}
+	}
+	trx := &types.TransactionRecord{
+		TransactionOrder: tx,
+		ServerMetadata:   sm,
+	}
+	// update unit log's
+	for _, targetID := range sm.TargetUnits {
+		// add log for each target unit
+		if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+			// If the unit log update fails, the Tx is not added to block. There is no way to provide full ledger.
+			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
+			// an attack vector.
+			m.state.RollbackToSavepoint(savepointID)
+			return nil, errors.Join(err, fmt.Errorf("adding unit log: %w", err))
+		}
+	}
+	// transaction execution succeeded
+	m.state.ReleaseToSavepoint(savepointID)
+	return sm, nil
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata, rErr error) {
-	var unlockSm *types.ServerMetadata
-	savepointID := m.state.Savepoint()
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata) {
+	var resErr error
+	result := &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}
 	defer func() {
-		if rErr != nil {
-			// transaction execution failed. revert every change made by the transaction order
-			m.state.RollbackToSavepoint(savepointID)
-			return
-		}
-		// first handle unlock result
-		if unlockSm != nil {
-			// we do not take fees for unlocking at this point, add modified units to append unit log
-			sm.TargetUnits = append(sm.TargetUnits, unlockSm.TargetUnits...)
-		}
-		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
-		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
-		// application partitions are special cases: fees are handled intrinsically in those transactions.
-		if !fc.IsFeeCreditTx(tx) {
-			if m.fees != nil {
-				// charge user according to gas used
-				cost := exeCtx.CalculateCost()
-				if cost == 0 {
-					// every transaction must cost at least 1 tema
-					cost = 1
-				}
-				sm.ActualFee = cost
-				// credit the cost from
-				feeCreditRecordID := tx.GetClientFeeCreditRecordID()
-				if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
-					m.state.RollbackToSavepoint(savepointID)
-					rErr = errors.Join(rErr, fmt.Errorf("handling tx fee: %w", err))
-					return
-				}
-				// add fee credit record unit log
-				sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+		// set the correct success indicator
+		if resErr != nil {
+			m.log.Debug("tx execute failed", logger.Error(resErr))
+			if errors.Is(resErr, txtypes.ErrOutOfGas) {
+				result.SuccessIndicator = types.TxErrOutOfGas
+			} else {
+				result.SuccessIndicator = types.TxStatusFailed
 			}
+			result.SetErrorDetail(resErr)
+			// cleanup updated target units too, Tx is atomic either everything succeeds or nothing is changed
+			sm.TargetUnits = []types.UnitID{}
 		}
-		trx := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		for _, targetID := range sm.TargetUnits {
-			// add log for each target unit
-			if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
-				m.state.RollbackToSavepoint(savepointID)
-				rErr = errors.Join(rErr, fmt.Errorf("adding unit log: %w", err))
-				return
-			}
-		}
-		// transaction execution succeeded
-		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// check conditional state unlock and release it, either roll back or execute the pending Tx
 	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
+	result = appendServerMetadata(result, unlockSm)
 	if err != nil {
-		return nil, fmt.Errorf("unit state lock error: %w", err)
+		resErr = fmt.Errorf("unit state lock error: %w", err)
+		return result
 	}
 	// perform transaction-system-specific validation and owner condition check
 	attr, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
-		return nil, fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
+		resErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
+		return result
 	}
-	// handle state locking
+	// either state lock or execute Tx
 	if tx.Payload.HasStateLock() {
 		// handle conditional lock of units
 		sm, err = m.executeLockUnitState(tx, exeCtx)
+		result = appendServerMetadata(result, sm)
 		if err != nil {
-			return nil, fmt.Errorf("unit state lock error: %w", err)
+			resErr = fmt.Errorf("unit state lock error: %w", err)
+			return result
 		}
-		return sm, err
+		return result
 	}
 	// proceed with the transaction execution, if not state lock
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	result = appendServerMetadata(result, sm)
 	if err != nil {
-		return nil, fmt.Errorf("tx error: %w", err)
+		resErr = fmt.Errorf("execute error: %w", err)
+		return result
 	}
-	return sm, nil
+	return result
 }
 
 /*
@@ -323,4 +343,28 @@ func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
 	}
 
 	return nil
+}
+
+func appendServerMetadata(sm, smNew *types.ServerMetadata) *types.ServerMetadata {
+	if sm == nil {
+		return smNew
+	}
+	if smNew == nil {
+		return sm
+	}
+	sm.ActualFee += smNew.ActualFee
+	m := make(map[string]struct{})
+	// put slice values into map
+	for _, u := range sm.TargetUnits {
+		m[string(u)] = struct{}{}
+	}
+	// append unique unit id's
+	for _, u := range smNew.TargetUnits {
+		if _, ok := m[string(u)]; !ok {
+			m[string(u)] = struct{}{}
+			sm.TargetUnits = append(sm.TargetUnits, u)
+		}
+	}
+	sm.ProcessingDetails = smNew.ProcessingDetails
+	return sm
 }

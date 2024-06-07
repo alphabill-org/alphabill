@@ -94,8 +94,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		)
 		// no modules, no tx handlers
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, `tx 'mockTx-type' validation error: unknown transaction type mockTx-type`)
-		require.Nil(t, md)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.Nil(t, err)
 	})
 
 	t.Run("tx validate returns error", func(t *testing.T) {
@@ -113,8 +114,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
-		require.ErrorIs(t, err, expErr)
-		require.Nil(t, md)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.Nil(t, err)
 	})
 
 	t.Run("tx execute returns error", func(t *testing.T) {
@@ -131,8 +133,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
-		require.ErrorIs(t, err, expErr)
-		require.Nil(t, md)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.Nil(t, err)
 	})
 
 	t.Run("locked unit - unlock fails", func(t *testing.T) {
@@ -172,8 +175,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, "unit state lock error: unlock proof error: invalid state unlock proof: empty")
-		require.Nil(t, md)
+		require.NoError(t, err)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
 	})
 
 	t.Run("locked unit - unlocked, but execution fails", func(t *testing.T) {
@@ -214,8 +218,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithUnlockProof([]byte{byte(StateUnlockExecute)}),
 		)
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, "unit state lock error: failed to execute tx that was on hold: tx order execution failed: nope!")
-		require.Nil(t, md)
+		require.NoError(t, err)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
 	})
 
 	t.Run("lock fails - validate fails", func(t *testing.T) {
@@ -236,8 +241,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				RollbackPredicate:  templates.AlwaysTrueBytes()}),
 		)
 		md, err := txSys.Execute(txo)
-		require.ErrorIs(t, err, expErr)
-		require.Nil(t, md)
+		require.NoError(t, err)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
 	})
 
 	t.Run("lock fails - state lock invalid", func(t *testing.T) {
@@ -254,8 +260,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithStateLock(&types.StateLock{}),
 		)
 		md, err := txSys.Execute(txo)
-		require.EqualError(t, err, "unit state lock error: invalid state lock parameter: missing execution predicate")
-		require.Nil(t, md)
+		require.NoError(t, err)
+		require.NotNil(t, md)
+		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
 	})
 
 	t.Run("lock success", func(t *testing.T) {
@@ -377,7 +384,7 @@ func (mm MockModule) mockValidateTx(tx *types.TransactionOrder, _ *MockTxAttribu
 }
 func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if mm.Result != nil {
-		return nil, mm.Result
+		return &types.ServerMetadata{SuccessIndicator: types.TxStatusFailed}, mm.Result
 	}
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

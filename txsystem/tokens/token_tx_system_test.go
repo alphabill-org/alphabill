@@ -80,6 +80,8 @@ func TestExecuteCreateNFTType_WithoutParentID(t *testing.T) {
 	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
 	u, err := txs.State().GetUnit(nftTypeID1, false)
 	require.NoError(t, err)
 	require.IsType(t, &tokens.NonFungibleTokenTypeData{}, u.Data())
@@ -111,6 +113,9 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 	sm, err := txs.Execute(createParentTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{createParentTx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 
 	tx := testtransaction.NewTransactionOrder(
 		t,
@@ -131,6 +136,9 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 	sm, err = txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 }
 
 func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) {
@@ -163,7 +171,9 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	sm, err := txs.Execute(createParent1Tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{createParent1Tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 	// create parent2 type
 	unsignedCreateParent2Tx := testtransaction.NewTransactionOrder(
 		t,
@@ -202,7 +212,9 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	sm, err = txs.Execute(signedCreateParent2Tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{signedCreateParent2Tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 	// create child subtype
 	unsignedChildTxAttributes := &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                   symbol,
@@ -249,6 +261,9 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	sm, err = txs.Execute(createChildTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{createChildTx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 }
 
 func TestExecuteCreateNFTType_UnitIDIsNil(t *testing.T) {
@@ -263,8 +278,12 @@ func TestExecuteCreateNFTType_UnitIDIsNil(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidUnitID)
-	require.Nil(t, sm)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 }
 
 func TestExecuteCreateNFTType_UnitIDHasWrongType(t *testing.T) {
@@ -279,8 +298,12 @@ func TestExecuteCreateNFTType_UnitIDHasWrongType(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidUnitID)
-	require.Nil(t, sm)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
 }
 
 func TestExecuteCreateNFTType_ParentTypeIDHasWrongType(t *testing.T) {
@@ -295,8 +318,12 @@ func TestExecuteCreateNFTType_ParentTypeIDHasWrongType(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidParentTypeID)
-	require.Nil(t, sm)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidParentTypeID)
 }
 
 func TestExecuteCreateNFTType_UnitIDExists(t *testing.T) {
@@ -317,10 +344,17 @@ func TestExecuteCreateNFTType_UnitIDExists(t *testing.T) {
 	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 
 	sm, err = txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("unit %s exists", nftTypeID1))
-	require.Nil(t, sm)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), fmt.Sprintf("unit %s exists", nftTypeID1))
 }
 
 func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
@@ -340,8 +374,12 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", parent1Identifier))
-	require.Nil(t, sm)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), fmt.Sprintf("item %s does not exist", parent1Identifier))
 }
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
@@ -361,8 +399,13 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.EqualError(t, err, fmt.Sprintf("tx 'createNType' validation error: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.EqualError(t, sm.ErrDetail(), fmt.Sprintf("tx 'createNType' validation error: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
@@ -374,8 +417,9 @@ func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
 		testtransaction.WithSystemID(0),
 		testtransaction.WithAttributes(&tokens.CreateNonFungibleTokenTypeAttributes{}),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid system identifier")
+	sm, err := txs.Execute(tx)
+	require.EqualError(t, err, "invalid transaction: error invalid system identifier")
+	require.Nil(t, sm)
 }
 
 func TestExecuteCreateNFTType_InvalidTxType(t *testing.T) {
@@ -388,8 +432,13 @@ func TestExecuteCreateNFTType_InvalidTxType(t *testing.T) {
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "unknown transaction type")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), "unknown transaction type")
 }
 
 func TestRevertTransaction_Ok(t *testing.T) {
@@ -403,8 +452,13 @@ func TestRevertTransaction_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.NoError(t, sm.ErrDetail())
 	txs.Revert()
 
 	_, err = txs.State().GetUnit(nftTypeID1, false)
@@ -425,8 +479,13 @@ func TestExecuteCreateNFTType_InvalidSymbolLength(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidSymbolLength)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidSymbolLength)
 }
 
 func TestExecuteCreateNFTType_InvalidNameLength(t *testing.T) {
@@ -444,8 +503,13 @@ func TestExecuteCreateNFTType_InvalidNameLength(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidNameLength)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidNameLength)
 }
 
 func TestExecuteCreateNFTType_InvalidIconTypeLength(t *testing.T) {
@@ -462,8 +526,13 @@ func TestExecuteCreateNFTType_InvalidIconTypeLength(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidIconTypeLength)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidIconTypeLength)
 }
 
 func TestExecuteCreateNFTType_InvalidIconDataLength(t *testing.T) {
@@ -480,8 +549,12 @@ func TestExecuteCreateNFTType_InvalidIconDataLength(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidIconDataLength)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidIconDataLength)
 }
 
 func TestMintNFT_Ok(t *testing.T) {
@@ -503,8 +576,13 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+
 	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(tokens.PayloadTypeMintNFT),
@@ -524,8 +602,12 @@ func TestMintNFT_Ok(t *testing.T) {
 	newTokenID := newNonFungibleTokenID(t, tx)
 	tx.Payload.UnitID = newTokenID
 
-	_, err = txs.Execute(tx)
+	sm, err = txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 
 	u, err := txs.State().GetUnit(newTokenID, false)
 	require.NoError(t, err)
@@ -556,8 +638,11 @@ func TestMintNFT_UnitIDIsNil(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidUnitID)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
 }
 
 func TestMintNFT_UnitIDHasWrongType(t *testing.T) {
@@ -571,8 +656,11 @@ func TestMintNFT_UnitIDHasWrongType(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidUnitID)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
 }
 
 func TestMintNFT_AlreadyExists(t *testing.T) {
@@ -593,8 +681,11 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.NoError(t, sm.ErrDetail())
 
 	tx = testtransaction.NewTransactionOrder(
 		t,
@@ -617,8 +708,11 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 	err = s.Apply(state.AddUnit(tokenID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenData(nftTypeID2, &tokens.MintNonFungibleTokenAttributes{}, 0, 0)))
 	require.NoError(t, err)
 
-	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "token already exists")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "token already exists")
 }
 
 func TestMintNFT_NameLengthIsInvalid(t *testing.T) {
@@ -635,8 +729,11 @@ func TestMintNFT_NameLengthIsInvalid(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, ErrStrInvalidNameLength)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidNameLength)
 }
 
 func TestMintNFT_URILengthIsInvalid(t *testing.T) {
@@ -653,8 +750,11 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "URI exceeds the maximum allowed size of 4096 KB")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "URI exceeds the maximum allowed size of 4096 KB")
 }
 
 func TestMintNFT_URIFormatIsInvalid(t *testing.T) {
@@ -671,8 +771,11 @@ func TestMintNFT_URIFormatIsInvalid(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "URI invalid_uri is invalid")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "URI invalid_uri is invalid")
 }
 
 func TestMintNFT_DataLengthIsInvalid(t *testing.T) {
@@ -691,8 +794,11 @@ func TestMintNFT_DataLengthIsInvalid(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "data exceeds the maximum allowed size of 65536 KB")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "data exceeds the maximum allowed size of 65536 KB")
 }
 
 func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
@@ -713,8 +819,11 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "nft type does not exist")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "nft type does not exist")
 }
 
 func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
@@ -735,8 +844,11 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", nonExistingUnitID))
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), fmt.Sprintf("item %s does not exist", nonExistingUnitID))
 }
 
 func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
@@ -757,8 +869,10 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 
 	tx = testtransaction.NewTransactionOrder(
 		t,
@@ -774,8 +888,11 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid unit ID")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "invalid unit ID")
 }
 
 func TestTransferNFT_InvalidCounter(t *testing.T) {
@@ -797,8 +914,11 @@ func TestTransferNFT_InvalidCounter(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid counter")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "invalid counter")
 }
 
 func TestTransferNFT_InvalidTypeID(t *testing.T) {
@@ -821,8 +941,11 @@ func TestTransferNFT_InvalidTypeID(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid type identifier")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "invalid type identifier")
 }
 
 func TestTransferNFT_EmptyTypeID(t *testing.T) {
@@ -844,8 +967,10 @@ func TestTransferNFT_EmptyTypeID(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid type identifier")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
 }
 
 func createClientMetadata() *types.ClientMetadata {
@@ -876,8 +1001,10 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 
 	tx = testtransaction.NewTransactionOrder(
 		t,
@@ -894,8 +1021,11 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
 	)
-	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "tx 'transNToken' validation error: executing bearer predicate: decoding predicate:")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "tx 'transNToken' validation error: executing bearer predicate: decoding predicate:")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -922,8 +1052,11 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
 		testtransaction.WithOwnerProof(test.RandomBytes(12)),
 	)
-	_, err := txs.Execute(tx)
-	require.EqualError(t, err, `tx 'transNToken' validation error: executing bearer predicate: executing predicate: "always true" predicate arguments must be empty`)
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.EqualError(t, sm.ErrDetail(), `tx 'transNToken' validation error: executing bearer predicate: executing predicate: "always true" predicate arguments must be empty`)
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -947,8 +1080,11 @@ func TestTransferNFT_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+
 	u, err := txs.State().GetUnit(nftID, false)
 	require.NoError(t, err)
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
@@ -985,8 +1121,11 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+
 	u, err := txs.State().GetUnit(nftID, false)
 	require.NoError(t, err)
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
@@ -1009,8 +1148,11 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "executing bearer predicate: predicate evaluated to false")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "executing bearer predicate: predicate evaluated to false")
 }
 
 func TestTransferNFT_LockedToken(t *testing.T) {
@@ -1035,8 +1177,10 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		}),
 		testtransaction.WithOwnerProof(nil),
 	)
-	_, err := txs.Execute(lockTx)
+	sm, err := txs.Execute(lockTx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 
 	// verify unit was locked
 	u, err := txs.State().GetUnit(nftID, false)
@@ -1060,10 +1204,11 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-
-	// verify token was locked
-	require.ErrorContains(t, err, "token is locked")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "token is locked")
 }
 
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
@@ -1082,8 +1227,11 @@ func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "data exceeds the maximum allowed size of 65536 KB")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "data exceeds the maximum allowed size of 65536 KB")
 }
 
 func TestUpdateNFT_UnitDoesNotExist(t *testing.T) {
@@ -1101,8 +1249,11 @@ func TestUpdateNFT_UnitDoesNotExist(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", nftUnitID))
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), fmt.Sprintf("item %s does not exist", nftUnitID))
 }
 
 func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
@@ -1123,8 +1274,10 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 
 	tx = testtransaction.NewTransactionOrder(
 		t,
@@ -1138,8 +1291,11 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid unit ID")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "invalid unit ID")
 }
 
 func TestUpdateNFT_LockedToken(t *testing.T) {
@@ -1164,8 +1320,11 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 		}),
 		testtransaction.WithOwnerProof(nil),
 	)
-	_, err := txs.Execute(lockTx)
+	sm, err := txs.Execute(lockTx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{lockTx.UnitID(), feeCreditID}, sm.TargetUnits)
 
 	// verify unit was locked
 	u, err := txs.State().GetUnit(nftID, false)
@@ -1186,10 +1345,12 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-
-	// verify token was locked
-	require.ErrorContains(t, err, "token is locked")
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.ErrorContains(t, sm.ErrDetail(), "token is locked")
 }
 
 func TestUpdateNFT_InvalidCounter(t *testing.T) {
@@ -1208,8 +1369,12 @@ func TestUpdateNFT_InvalidCounter(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid counter")
+	sm, err := txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.ErrorContains(t, sm.ErrDetail(), "invalid counter")
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
 }
 
 func TestUpdateNFT_InvalidSignature(t *testing.T) {
@@ -1237,8 +1402,12 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.NoError(t, sm.ErrDetail())
 
 	// mint NFT
 	tx = testtransaction.NewTransactionOrder(
@@ -1264,8 +1433,12 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	nftID := newNonFungibleTokenID(t, tx)
 	tx.Payload.UnitID = nftID
 
-	_, err = txs.Execute(tx)
+	sm, err = txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.NoError(t, sm.ErrDetail())
+	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
 
 	tx = testtransaction.NewTransactionOrder(
 		t,
@@ -1282,8 +1455,12 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err = txs.Execute(tx)
-	require.EqualError(t, err, `tx 'updateNToken' validation error: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
+	sm, err = txs.Execute(tx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
+	require.EqualError(t, sm.ErrDetail(), `tx 'updateNToken' validation error: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {
@@ -1304,8 +1481,12 @@ func TestUpdateNFT_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{nftID, feeCreditID}, sm.TargetUnits)
+
 	u, err := txs.State().GetUnit(nftID, false)
 	require.NoError(t, err)
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
@@ -1339,6 +1520,8 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	sm, err := txs.Execute(lockFC)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{lockFC.UnitID()}, sm.TargetUnits)
 
 	// verify unit was locked
 	u, err := txs.State().GetUnit(feeCreditID, false)
@@ -1356,6 +1539,8 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	sm, err = txs.Execute(unlockFC)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{unlockFC.UnitID()}, sm.TargetUnits)
 
 	// verify unit was unlocked
 	fcrUnit, err := txs.State().GetUnit(feeCreditID, false)
@@ -1388,8 +1573,12 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 		testtransaction.WithFeeProof(nil),
 	)
 
-	_, err := txs.Execute(tx)
+	sm, err := txs.Execute(tx)
 	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
 
 	// mint NFT
 	tx = testtransaction.NewTransactionOrder(
@@ -1413,9 +1602,13 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 		testtransaction.WithFeeProof(nil),
 	)
 	tx.Payload.UnitID = newNonFungibleTokenID(t, tx)
-	_, err = txs.Execute(tx)
+	sm, err = txs.Execute(tx)
 	require.NoError(t, err)
-
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.Equal(t, []types.UnitID{tx.UnitID(), feeCreditID}, sm.TargetUnits)
+	require.True(t, sm.ActualFee > 0)
+	
 	return tx.Payload.UnitID
 }
 

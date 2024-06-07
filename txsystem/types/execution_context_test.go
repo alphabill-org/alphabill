@@ -66,11 +66,11 @@ func TestTxExecutionContext_CalculateCost(t *testing.T) {
 		},
 		{
 			fields: fields{initialGas: GasUnitsPerTema, remainingGas: GasUnitsPerTema},
-			want:   0,
+			want:   1,
 		},
 		{
 			fields: fields{initialGas: GasUnitsPerTema, remainingGas: GasUnitsPerTema/2 + 1},
-			want:   0,
+			want:   1,
 		},
 	}
 	t.Run("test conversion", func(t *testing.T) {

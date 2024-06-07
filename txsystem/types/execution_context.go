@@ -63,7 +63,11 @@ func (ec *TxExecutionContext) SpendGas(gas uint64) error {
 
 func (ec *TxExecutionContext) CalculateCost() uint64 {
 	gasUsed := ec.initialGas - ec.remainingGas
-	return (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+	cost := (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+	if cost == 0 {
+		cost = 1
+	}
+	return cost
 }
 
 func NewExecutionContext(txSys StateInfo, ts types.RootTrustBase, maxCost uint64) *TxExecutionContext {

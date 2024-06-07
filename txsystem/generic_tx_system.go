@@ -91,6 +91,11 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 	return txs, nil
 }
 
+// FeeModuleConfigured - if fee module is configured then fees will be collected
+func (m *GenericTxSystem) FeeModuleConfigured() bool {
+	return m.fees != nil
+}
+
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, ErrStateContainsUncommittedChanges
@@ -137,7 +142,8 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	if m.fees != nil {
+	// only handle fees if there is a fee module
+	if m.FeeModuleConfigured() {
 		if err := m.snFees(tx, exeCtx); err != nil {
 			return nil, fmt.Errorf("error tx snFees: %w", err)
 		}
@@ -163,26 +169,19 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
 	// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 	// application partitions are special cases: fees are handled intrinsically in those transactions.
-	if !fc.IsFeeCreditTx(tx) {
-		if m.fees != nil {
-			// charge user according to gas used
-			cost := exeCtx.CalculateCost()
-			if cost == 0 {
-				// every transaction must cost at least 1 tema
-				cost = 1
-			}
-			sm.ActualFee = cost
-			// credit the cost from
-			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
-			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, cost)); err != nil {
-				// This is special, FCR could not be credited, hence the Tx cannot be added to block
-				// otherwise it would be for free and there are no funds taken to pay out validators
-				m.state.RollbackToSavepoint(savepointID)
-				return nil, errors.Join(err, fmt.Errorf("handling tx fee: %w", err))
-			}
-			// add fee credit record unit log
-			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+	if !fc.IsFeeCreditTx(tx) && m.FeeModuleConfigured() {
+		// charge user according to gas used
+		sm.ActualFee = exeCtx.CalculateCost()
+		// credit the cost from
+		feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+		if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
+			// This is special, FCR could not be credited, hence the Tx cannot be added to block
+			// otherwise it would be for free and there are no funds taken to pay out validators
+			m.state.RollbackToSavepoint(savepointID)
+			return nil, errors.Join(err, fmt.Errorf("handling tx fee: %w", err))
 		}
+		// add fee credit record unit log
+		sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
 	}
 	trx := &types.TransactionRecord{
 		TransactionOrder: tx,

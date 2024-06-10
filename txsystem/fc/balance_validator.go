@@ -11,8 +11,7 @@ import (
 )
 
 /*
-IsCredible implements the fee credit verification steps listed in the
-Yellowpaper "Valid Transaction Orders" chapter. and fee credit is missing
+IsCredible implements the fee credit verification for ordinary transactions (everything else except fee credit txs)
 */
 func (f *FeeCredit) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	clientMetadata := tx.Payload.ClientMetadata

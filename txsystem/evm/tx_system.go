@@ -211,7 +211,7 @@ func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte
 	return txo.PayloadBytes()
 }
 
-func (vc *TxValidationContext) GetGasRemaining() uint64 {
+func (vc *TxValidationContext) GasAvailable() uint64 {
 	return math.MaxUint64
 }
 

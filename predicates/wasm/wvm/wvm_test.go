@@ -400,7 +400,7 @@ func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }
 func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return env.trustBase()
 }
-func (env *mockTxContext) GetGasRemaining() uint64 {
+func (env *mockTxContext) GasAvailable() uint64 {
 	return env.GasRemaining
 }
 func (env *mockTxContext) SpendGas(gas uint64) error {

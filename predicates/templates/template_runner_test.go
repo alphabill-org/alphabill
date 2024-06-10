@@ -392,7 +392,7 @@ type mockTxContext struct {
 	spendGas     func(gas uint64) error
 }
 
-func (env *mockTxContext) GetGasRemaining() uint64 {
+func (env *mockTxContext) GasAvailable() uint64 {
 	return env.gasRemaining
 }
 

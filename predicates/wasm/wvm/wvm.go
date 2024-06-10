@@ -72,7 +72,7 @@ type (
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
-		GetGasRemaining() uint64
+		GasAvailable() uint64
 		SpendGas(gas uint64) error
 	}
 
@@ -229,7 +229,7 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	if !ok {
 		return 0, fmt.Errorf("instrumentation failed, gas counter not found")
 	}
-	initialGas := env.GetGasRemaining()
+	initialGas := env.GasAvailable()
 	gas.Set(initialGas)
 	// do we need to create new mem manager for each predicate?
 	hb := api.DecodeU32(global.Get())

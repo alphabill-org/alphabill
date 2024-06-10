@@ -19,7 +19,7 @@ type OrchestrationCtx struct {
 	predicates.TxContext
 }
 
-func (o *OrchestrationCtx) GetGasRemaining() uint64   { return math.MaxUint64 }
+func (o *OrchestrationCtx) GasAvailable() uint64      { return math.MaxUint64 }
 func (o *OrchestrationCtx) SpendGas(gas uint64) error { return nil }
 
 func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {

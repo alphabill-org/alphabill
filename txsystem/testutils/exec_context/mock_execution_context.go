@@ -48,7 +48,7 @@ func WithCurrentRound(round uint64) TestOption {
 	}
 }
 
-func (m *MockExecContext) GetGasRemaining() uint64 {
+func (m *MockExecContext) GasAvailable() uint64 {
 	return m.GasRemaining
 }
 

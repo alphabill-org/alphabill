@@ -28,7 +28,7 @@ type (
 	PredicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error
 
 	GasMeter interface {
-		GetGasRemaining() uint64
+		GasAvailable() uint64
 		SpendGas(gas uint64) error
 		CalculateCost() uint64
 	}

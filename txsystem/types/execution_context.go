@@ -48,7 +48,7 @@ func (ec *TxExecutionContext) PayloadBytes(txo *types.TransactionOrder) ([]byte,
 	return txo.PayloadBytes()
 }
 
-func (ec *TxExecutionContext) GetGasRemaining() uint64 {
+func (ec *TxExecutionContext) GasAvailable() uint64 {
 	return ec.remainingGas
 }
 

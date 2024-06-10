@@ -12,7 +12,7 @@ import (
 	"unsafe"
 )
 
-const GasCounter string = "gas_count"
+const GasCounterName string = "gas_count"
 
 // MeterGasAndStack - adds gas and stack instrumentation.
 // gas instrumentation uses global counter "gas_count", the variable is inserted by rust library during instrumentation.

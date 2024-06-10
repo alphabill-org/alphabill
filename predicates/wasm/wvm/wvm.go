@@ -225,7 +225,7 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	if global == nil {
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
-	gas, ok := m.ExportedGlobal(instrument.GasCounter).(api.MutableGlobal)
+	gas, ok := m.ExportedGlobal(instrument.GasCounterName).(api.MutableGlobal)
 	if !ok {
 		return 0, fmt.Errorf("instrumentation failed, gas counter not found")
 	}

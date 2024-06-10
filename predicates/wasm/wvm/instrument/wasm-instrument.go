@@ -19,8 +19,9 @@ import (
 const GasCounter string = "gas_count"
 
 // MeterGasAndStack - adds gas and stack instrumentation.
-// gas instrumentation uses global counter "gas_count"
-// stack metering is based on input, if 0 then no stack metering is inserted
+// gas instrumentation uses global counter "gas_count", the variable is inserted by rust library during instrumentation.
+// stackHeight - if 0 then no stack metering is inserted, otherwise if wasm stack grows over user defined height program
+// execution aborted.
 func MeterGasAndStack(wasm []byte, stackHeight uint32) ([]byte, error) {
 	var wasmBytes C.MemoryBuffer
 	wasmLen := len(wasm)

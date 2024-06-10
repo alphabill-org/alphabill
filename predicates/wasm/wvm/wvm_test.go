@@ -255,7 +255,7 @@ func Test_conference_tickets(t *testing.T) {
 		wvm, err := New(context.Background(), enc, observability.Default(t))
 		require.NoError(t, err)
 
-		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(append([]byte{1}, txNFTMint.Payload.UnitID...)))
+		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))

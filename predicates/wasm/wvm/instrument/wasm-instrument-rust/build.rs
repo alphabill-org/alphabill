@@ -1,6 +1,6 @@
 use::std::env;
 
-// Example custom build script.
+// Custom build script to auto generate c header
 fn main() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut config: cbindgen::Config = Default::default();

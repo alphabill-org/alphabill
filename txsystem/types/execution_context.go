@@ -29,10 +29,6 @@ type (
 	}
 )
 
-func CalculateGasUnitsFromMaxCost(maxCost uint64) {
-	return
-}
-
 func (ec *TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return ec.txs.GetUnit(id, committed)
 }

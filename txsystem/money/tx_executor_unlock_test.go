@@ -52,13 +52,6 @@ func TestModule_validateUnlockTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
-	/*	t.Run("bearer predicate error", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: 10, Locked: 1, Counter: 0}))
-		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), `predicate evaluated to "false"`)
-	})*/
 }
 
 func TestModule_executeUnlockTx(t *testing.T) {

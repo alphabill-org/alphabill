@@ -112,7 +112,7 @@ func (l *Log) Hash(algorithm crypto.Hash) []byte {
 		// todo: change Hash interface to allow errors
 		_ = l.NewUnitData.Write(hasher)
 	}
-	// @todo: add delete round "nd"
+	// @todo: AB-1609 add delete round "nd"
 	if l.NewStateLockTx != nil {
 		hasher.Write(l.NewStateLockTx)
 	}

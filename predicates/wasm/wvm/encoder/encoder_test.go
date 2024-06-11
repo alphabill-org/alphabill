@@ -41,26 +41,24 @@ func Test_TVEnc_error(t *testing.T) {
 	t.Run("Encode", func(t *testing.T) {
 		// Encode is the only method which can set the error
 		enc := &TVEnc{}
-		err := enc.Encode(struct{ foo string }{"anon"})
-		require.EqualError(t, err, `unsupported type: struct { foo string }`)
+		enc.Encode(struct{ foo string }{"anon"})
+		require.EqualError(t, enc.err, `unsupported type: struct { foo string }`)
 
 		// successful Encode call doesn't reset the error
-		require.NoError(t, enc.Encode("foobar"))
-
-		_, err = enc.Bytes()
+		enc.Encode("foobar")
+		_, err := enc.Bytes()
 		require.EqualError(t, err, `unsupported type: struct { foo string }`)
 	})
 
 	t.Run("Encode array", func(t *testing.T) {
 		// Encode is the only method which can set the error, array encoding is recursive
 		enc := &TVEnc{}
-		err := enc.Encode([]any{struct{ foo string }{"anon"}})
-		require.EqualError(t, err, `encoding array item: unsupported type: struct { foo string }`)
+		enc.Encode([]any{struct{ foo string }{"anon"}})
+		require.EqualError(t, enc.err, `unsupported type: struct { foo string }`)
 
 		// successful Encode call doesn't reset the error
-		require.NoError(t, enc.Encode("foobar"))
-
-		_, err = enc.Bytes()
+		enc.Encode("foobar")
+		_, err := enc.Bytes()
 		require.EqualError(t, err, `unsupported type: struct { foo string }`)
 	})
 }

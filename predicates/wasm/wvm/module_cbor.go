@@ -39,11 +39,11 @@ func cbor_parse(vec *VmContext, mod api.Module, stack []uint64) error {
 	}
 
 	var enc encoder.TVEnc
-	if err := enc.Encode(items); err != nil {
+	enc.Encode(items)
+	buf, err := enc.Bytes()
+	if err != nil {
 		return fmt.Errorf("encoding data to type-value: %w", err)
 	}
-	// we handled the error on Encode call, should be nil here
-	buf, _ := enc.Bytes()
 
 	addr, err := vec.writeToMemory(mod, buf)
 	if err != nil {

@@ -81,15 +81,13 @@ func (enc *TVEnc) WriteUInt32(value uint32) {
 	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, value)
 }
 
-func (enc *TVEnc) Encode(item any) error {
+func (enc *TVEnc) Encode(item any) {
 	switch it := item.(type) {
 	case []any:
 		enc.writeTypeTag(type_id_array)
 		enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(it)))
 		for _, v := range it {
-			if err := enc.Encode(v); err != nil {
-				return enc.setErr(fmt.Errorf("encoding array item: %w", err))
-			}
+			enc.Encode(v)
 		}
 	case []byte:
 		enc.WriteBytes(it)
@@ -102,14 +100,13 @@ func (enc *TVEnc) Encode(item any) error {
 	case uint64:
 		enc.WriteUInt64(it)
 	default:
-		return enc.setErr(fmt.Errorf("unsupported type: %T", it))
+		_ = enc.setErr(fmt.Errorf("unsupported type: %T", it))
 	}
-	return nil
 }
 
 type Tag = uint8
 
-func (enc *TVEnc) EncodeTagged(tag Tag, item any) error {
+func (enc *TVEnc) EncodeTagged(tag Tag, item any) {
 	enc.buf = append(enc.buf, tag)
-	return enc.Encode(item)
+	enc.Encode(item)
 }

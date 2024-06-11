@@ -58,9 +58,6 @@ func Test_conference_tickets(t *testing.T) {
 	require.NoError(t, err)
 	pubKeyAttendee, err := verifierAttendee.MarshalPublicKey()
 	require.NoError(t, err)
-	// not ideal but we use org and attendee also for trustbase
-	// the testblock.CreateProof takes single signer as trustbase and used id "test" for it
-	//trustbase := map[string]abcrypto.Verifier{"test": verifierAttendee, "attendee": verifierAttendee, "org": verifierOrg}
 	// need VerifyQuorumSignatures for verifing tx proofs
 	trustbase := &mockRootTrustBase{
 		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },

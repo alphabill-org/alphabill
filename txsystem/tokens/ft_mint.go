@@ -72,7 +72,6 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify predicate inheritance chain
-	//err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,

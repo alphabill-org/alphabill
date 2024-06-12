@@ -5,7 +5,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
@@ -17,7 +16,7 @@ import (
 
 func TestCheckFeeCreditBalance(t *testing.T) {
 	sharedState := state.NewEmptyState()
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1}
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
@@ -35,18 +34,6 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 		tx            *types.TransactionOrder
 		expectedError string
 	}{
-		{
-			name:          "valid fee credit tx",
-			tx:            testfc.NewAddFC(t, signer, nil),
-			expectedError: "",
-		},
-		{
-			name: "the tx fee cannot exceed the max specified fee",
-			tx: testfc.NewAddFC(t, signer,
-				testfc.NewAddFCAttr(t, signer),
-				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 0})),
-			expectedError: "the tx fee cannot exceed the max specified fee",
-		},
 		{
 			name:          "fee credit record missing",
 			tx:            testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("trans")),
@@ -73,7 +60,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := fcModule.CheckFeeCreditBalance(nil, test.tx)
+			err := fcModule.IsCredible(nil, test.tx)
 			if test.expectedError != "" {
 				assert.ErrorContains(t, err, test.expectedError, "unexpected error")
 			} else {
@@ -81,4 +68,22 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
+	t.Run("FRC transactions must not have FRC id in client metadata", func(t *testing.T) {
+		f := &FeeCredit{state: state.NewEmptyState()}
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		tx := testfc.NewAddFC(t, signer,
+			testfc.NewAddFCAttr(t, signer),
+			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}))
+		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee credit reference")
+	})
+	t.Run("FRC transactions must not have fee proof", func(t *testing.T) {
+		f := &FeeCredit{state: state.NewEmptyState()}
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		tx := testfc.NewAddFC(t, signer, nil)
+		tx.FeeProof = []byte{1, 2, 4}
+		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee authorization proof")
+	})
 }

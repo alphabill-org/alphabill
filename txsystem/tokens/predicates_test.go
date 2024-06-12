@@ -7,9 +7,9 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,7 +177,7 @@ func Test_runChainedPredicates(t *testing.T) {
 		d := &tokens.NonFungibleTokenTypeData{}
 		unit := state.NewUnit([]byte{7, 7, 7}, d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
-			testtx.NewMockExecutionContext(t),
+			testctx.NewMockExecutionContext(t),
 			txo,
 			[]byte{0, 0, 1},
 			[][]byte{{5}},

@@ -7,14 +7,13 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
-	fee := m.feeCalculator()
+func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 
 	// update state
@@ -24,10 +23,10 @@ func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, a
 		return nil, err
 	}
 
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)

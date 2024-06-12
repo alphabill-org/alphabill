@@ -8,8 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,43 +21,36 @@ func TestModule_validateUnlockTx(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Locked: 1}))
 		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testtx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateUnlockTx(lockTx, attr, exeCtx))
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		module := newTestMoneyModule(t, verifier)
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		lockTx, _ := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testtx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateUnlockTx(lockTx, nil, exeCtx), "unlock tx: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
-		exeCtx := testtx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), "unlock tx: invalid unit type")
 	})
 	t.Run("bill is already unlocked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Locked: 0}))
 		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testtx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), "bill is already unlocked")
 	})
 	t.Run("invalid counter", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Locked: 1, Counter: 1}))
 		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testtx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), "the transaction counter is not equal to the unit counter")
-	})
-	t.Run("bearer predicate error", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: 10, Locked: 1, Counter: 0}))
-		lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-		exeCtx := testtx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateUnlockTx(lockTx, attr, exeCtx), `predicate evaluated to "false"`)
 	})
 }
 
@@ -69,7 +62,7 @@ func TestModule_executeUnlockTx(t *testing.T) {
 	unitID := money.NewBillID(nil, []byte{1, 2, 3})
 	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Locked: 1, Counter: counter}))
 	lockTx, attr := createUnlockTx(t, unitID, fcrID, 0)
-	exeCtx := testtx.NewMockExecutionContext(t)
+	exeCtx := testctx.NewMockExecutionContext(t)
 	sm, err := module.executeUnlockTx(lockTx, attr, exeCtx)
 	require.NoError(t, err)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)

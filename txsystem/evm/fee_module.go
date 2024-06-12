@@ -9,13 +9,13 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*FeeAccount)(nil)
+var _ txtypes.Module = (*FeeAccount)(nil)
 
 type (
 	FeeAccount struct {
@@ -56,10 +56,10 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 	return m, nil
 }
 
-func (f *FeeAccount) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:   txsystem.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit: txsystem.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+func (f *FeeAccount) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		fc.PayloadTypeAddFeeCredit:   txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit: txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
 	}
 }
 

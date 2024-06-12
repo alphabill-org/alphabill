@@ -7,14 +7,14 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*FeeCredit)(nil)
+var _ txtypes.Module = (*FeeCredit)(nil)
 
 var (
 	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
@@ -31,24 +31,14 @@ type (
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
-		feeCalculator           FeeCalculator
 		execPredicate           predicates.PredicateRunner
 		feeCreditRecordUnitType []byte
 	}
-
-	FeeCalculator func() uint64
 )
-
-func FixedFee(fee uint64) FeeCalculator {
-	return func() uint64 {
-		return fee
-	}
-}
 
 func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	m := &FeeCredit{
 		hashAlgorithm: crypto.SHA256,
-		feeCalculator: FixedFee(1),
 	}
 	for _, o := range opts {
 		o(m)
@@ -66,12 +56,12 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	return m, nil
 }
 
-func (f *FeeCredit) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:    txsystem.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit:  txsystem.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
-		fc.PayloadTypeLockFeeCredit:   txsystem.NewTxHandler[fc.LockFeeCreditAttributes](f.validateLockFC, f.executeLockFC),
-		fc.PayloadTypeUnlockFeeCredit: txsystem.NewTxHandler[fc.UnlockFeeCreditAttributes](f.validateUnlockFC, f.executeUnlockFC),
+func (f *FeeCredit) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		fc.PayloadTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+		fc.PayloadTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes](f.validateLockFC, f.executeLockFC),
+		fc.PayloadTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes](f.validateUnlockFC, f.executeUnlockFC),
 	}
 }
 

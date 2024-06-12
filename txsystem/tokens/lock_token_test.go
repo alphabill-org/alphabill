@@ -11,9 +11,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	testtx "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ func TestLockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
-	txExecutors := make(txsystem.TxExecutors)
+	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	attr := &tokens.LockTokenAttributes{
 		LockStatus:                   1,
@@ -36,7 +36,7 @@ func TestLockFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenID)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenID, false)
@@ -128,7 +128,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateLockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
+			err := m.validateLockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -138,7 +138,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
-	txExecutors := make(txsystem.TxExecutors)
+	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	attr := &tokens.LockTokenAttributes{
@@ -148,7 +148,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	}
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -237,7 +237,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateLockTokenTx(tt.tx, attr, testtx.NewMockExecutionContext(t, testtx.WithCurrentRound(10)))
+			err := m.validateLockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}

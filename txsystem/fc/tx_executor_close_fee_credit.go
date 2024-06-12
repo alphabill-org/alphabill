@@ -5,12 +5,12 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateDataFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -24,10 +24,10 @@ func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCre
 	if err := f.state.Apply(updateDataFn); err != nil {
 		return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{ActualFee: execCtx.CalculateCost(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txsystem.ExecutionContext) error {
+func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

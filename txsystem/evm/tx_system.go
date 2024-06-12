@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type genericTransactionValidator func(ctx *TxValidationContext) error
@@ -27,7 +29,7 @@ type TxSystem struct {
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentRoundNumber  uint64
-	executors           txsystem.TxExecutors
+	executors           txtypes.TxExecutors
 	genericTxValidators []genericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
@@ -63,7 +65,7 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
-		executors:           make(txsystem.TxExecutors),
+		executors:           make(txtypes.TxExecutors),
 		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
 		log:                 log,
 	}
@@ -208,3 +210,13 @@ func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, err
 func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	return txo.PayloadBytes()
 }
+
+func (vc *TxValidationContext) GasAvailable() uint64 {
+	return math.MaxUint64
+}
+
+func (vc *TxValidationContext) SpendGas(gas uint64) error {
+	return nil
+}
+
+func (vc *TxValidationContext) CalculateCost() uint64 { return 0 }

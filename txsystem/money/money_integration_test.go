@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
@@ -57,7 +56,6 @@ func TestPartition_Ok(t *testing.T) {
 			WithHashAlgorithm(crypto.SHA256),
 			WithSystemDescriptionRecords(sdrs),
 			WithTrustBase(tb),
-			WithFeeCalculator(fc.FixedFee(1)),
 		)
 		require.NoError(t, err)
 		return system
@@ -186,7 +184,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			WithSystemDescriptionRecords(sdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
-			WithFeeCalculator(fc.FixedFee(1)),
 		)
 		require.NoError(t, err)
 		return system

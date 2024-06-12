@@ -9,10 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/tree/avl"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
 )
@@ -28,7 +28,7 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fc.Transf
 	return transferPayload, nil
 }
 
-func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
@@ -63,7 +63,7 @@ func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txsystem.ExecutionContext) error {
+func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	// 10. P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -112,7 +112,7 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	transferTx := attr.FeeCreditTransfer.TransactionOrder
 	// dirty hack
 	if transferTx.SystemID() != f.moneySystemID {
-		return fmt.Errorf("addFC: invalid transferFC money system identifier %s (expected %s)", transferTx.SystemID(), f.moneySystemID)
+		return fmt.Errorf("invalid transferFC money system identifier %s (expected %s)", transferTx.SystemID(), f.moneySystemID)
 	}
 
 	if transferTx.PayloadType() != fc.PayloadTypeTransferFeeCredit {

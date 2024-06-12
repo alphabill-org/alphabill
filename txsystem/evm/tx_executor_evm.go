@@ -9,6 +9,7 @@ import (
 	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 )
 
@@ -29,7 +29,7 @@ func errorToStr(err error) string {
 	return ""
 }
 
-func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx txsystem.ExecutionContext) (sm *types.ServerMetadata, retErr error) {
+func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx txtypes.ExecutionContext) (sm *types.ServerMetadata, retErr error) {
 	from := common.BytesToAddress(attr.From)
 	stateDB := statedb.NewStateDB(m.options.state, m.log)
 	if !stateDB.Exist(from) {
@@ -43,7 +43,7 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
-func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ txsystem.ExecutionContext) error {
+func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ txtypes.ExecutionContext) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}

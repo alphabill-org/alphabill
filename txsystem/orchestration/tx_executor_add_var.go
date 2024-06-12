@@ -3,16 +3,26 @@ package orchestration
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/predicates"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txsystem.ExecutionContext) (*types.ServerMetadata, error) {
+// orchestration is defined currently with no fee handling, every tx cost is 0
+type OrchestrationCtx struct {
+	predicates.TxContext
+}
+
+func (o *OrchestrationCtx) GasAvailable() uint64      { return math.MaxUint64 }
+func (o *OrchestrationCtx) SpendGas(gas uint64) error { return nil }
+
+func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// try to update unit
 	err := m.state.Apply(state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
@@ -42,7 +52,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	}, nil
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx txsystem.ExecutionContext) error {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx txtypes.ExecutionContext) error {
 	if !tx.UnitID().HasType(orchestration.VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}
@@ -65,7 +75,8 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestratio
 		}
 	}
 	// Always check owner predicate, do it as a last step because it is the most expensive check
-	if err = m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx, exeCtx); err != nil {
+	orchCtx := &OrchestrationCtx{exeCtx}
+	if err = m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx, orchCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

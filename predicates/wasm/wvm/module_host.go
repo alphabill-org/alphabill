@@ -16,12 +16,12 @@ The host module provides "utility APIs" for the runtime, ie memory manager and l
 */
 func addHostModule(ctx context.Context, rt wazero.Runtime, observe Observability) error {
 	_, err := rt.NewHostModuleBuilder("host").
-		NewFunctionBuilder().WithFunc(dump).Export("dump").
 		NewFunctionBuilder().WithFunc(logMsg).Export("log_msg").
 		NewFunctionBuilder().WithGoModuleFunction(extMalloc(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("ext_malloc").
 		NewFunctionBuilder().WithGoModuleFunction(extFree(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{}).Export("ext_free").
-		NewFunctionBuilder().WithFunc(storageReadV1).Export("storage_read").
-		NewFunctionBuilder().WithFunc(storageWriteV1).Export("storage_write").
+		// do not expose storage API, need to decide do we want to support it, fees etc...
+		//NewFunctionBuilder().WithFunc(storageReadV1).Export("storage_read").
+		//NewFunctionBuilder().WithFunc(storageWriteV1).Export("storage_write").
 		Instantiate(ctx)
 	return err
 }
@@ -93,12 +93,6 @@ func storageWriteV1(ctx context.Context, m api.Module, fileID uint32, value uint
 		return -1
 	}
 	return 0
-}
-
-func dump(ctx context.Context, m api.Module, msgData uint64) {
-	rtCtx := vmContext(ctx)
-	msg := read(m, msgData)
-	rtCtx.log.InfoContext(ctx, fmt.Sprintf("DUMP(%d): %#v", msgData, msg))
 }
 
 func logMsg(ctx context.Context, m api.Module, level uint32, msgData uint64) {

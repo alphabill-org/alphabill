@@ -1,12 +1,9 @@
 package wvm
 
 import (
-	"context"
-
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
 )
 
 type (
@@ -15,8 +12,7 @@ type (
 		storage keyvaluedb.KeyValueDB
 	}
 
-	Option       func(*Options)
-	HostModuleFn func(context.Context, wazero.Runtime) (api.Module, error)
+	Option func(*Options)
 )
 
 func defaultOptions() *Options {

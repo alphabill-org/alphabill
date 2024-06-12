@@ -133,8 +133,8 @@ Arguments:
 unknown / invalid transactions are ignored (not error)?
 */
 func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecord, txProof *types.TxProof, receiverPKH []byte, refNo []byte) (uint64, error) {
-	if txRec == nil || txProof == nil || txRec.TransactionOrder == nil {
-		return 0, errors.New("invalid input: either proof, tx record or tx order is unassigned")
+	if txRec == nil || txProof == nil || txRec.TransactionOrder == nil || trustBase == nil {
+		return 0, errors.New("invalid input: either trustbase, tx proof, tx record or tx order is unassigned")
 	}
 
 	txo := txRec.TransactionOrder
@@ -171,7 +171,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 				return 0, fmt.Errorf("extracting owner pkh: %w", err)
 			}
 			if !bytes.Equal(ownerPKH, receiverPKH) {
-				return 0, nil
+				continue
 			}
 			sum += v.Amount
 		}

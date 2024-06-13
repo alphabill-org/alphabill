@@ -14,6 +14,75 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 )
 
+func Test_amountTransferredSum(t *testing.T) {
+	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
+	trustBaseOK := &mockRootTrustBase{
+		// need VerifyQuorumSignatures for verifying tx proofs
+		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+	}
+	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	// public key hashes
+	pkhA := []byte{3, 8, 0, 1, 2, 4, 5}
+	pkhB := []byte{3, 8, 0, 1, 2, 4, 0}
+	// create mix of tx types
+	// add an invalid proof record - just tx record, proof is missing
+	proofs := []types.TxRecordProof{{TxRecord: &types.TransactionRecord{}, TxProof: nil}}
+	// valid money transfer
+	txPayment := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID: money.DefaultSystemID,
+			Type:     money.PayloadTypeTransfer,
+		},
+	}
+	txPayment.Payload.SetAttributes(money.TransferAttributes{
+		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pkhA),
+		TargetValue: 100,
+	})
+
+	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+	proofs = append(proofs, types.TxRecordProof{
+		TxRecord: txRec,
+		TxProof:  testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID)),
+	})
+
+	// money transfer by split tx
+	txPayment = &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID: money.DefaultSystemID,
+			Type:     money.PayloadTypeSplit,
+		},
+	}
+	txPayment.Payload.SetAttributes(money.SplitAttributes{
+		TargetUnits: []*money.TargetUnit{
+			{Amount: 10, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
+			{Amount: 50, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhB)},
+			{Amount: 90, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
+		},
+		RemainingValue: 2000,
+	})
+
+	txRec = &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+	proofs = append(proofs, types.TxRecordProof{
+		TxRecord: txRec,
+		TxProof:  testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID)),
+	})
+
+	// because of invalid proof record we expect error but pkhA should receive
+	// total of 200 (transfer=100 + split=10+90)
+	sum, err := amountTransferredSum(trustBaseOK, proofs, pkhA, nil)
+	require.EqualError(t, err, `record[0]: invalid input: either trustbase, tx proof, tx record or tx order is unassigned`)
+	require.EqualValues(t, 200, sum)
+	// pkhB should get 50 from split
+	sum, err = amountTransferredSum(trustBaseOK, proofs, pkhB, nil)
+	require.EqualError(t, err, `record[0]: invalid input: either trustbase, tx proof, tx record or tx order is unassigned`)
+	require.EqualValues(t, 50, sum)
+	// nil as pkh
+	sum, err = amountTransferredSum(trustBaseOK, proofs[1:], nil, nil)
+	require.NoError(t, err)
+	require.Zero(t, sum)
+}
+
 func Test_transferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
@@ -93,7 +162,27 @@ func Test_transferredSum(t *testing.T) {
 		}
 	})
 
-	signerAttendee, err := abcrypto.NewInMemorySecp256K1Signer()
+	t.Run("txType and attributes do not match", func(t *testing.T) {
+		txPayment := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: money.DefaultSystemID,
+				Type:     money.PayloadTypeSplit,
+			},
+		}
+		pkHash := []byte{3, 8, 0, 1, 2, 4, 5}
+		// txType is Split but use Transfer attributes!
+		txPayment.Payload.SetAttributes(money.TransferAttributes{
+			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pkHash),
+			TargetValue: 100,
+		})
+		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+
+		sum, err := transferredSum(&mockRootTrustBase{}, txRec, &types.TxProof{}, nil, nil)
+		require.EqualError(t, err, `decoding split attributes: cbor: cannot unmarshal byte string into Go struct field money.SplitAttributes.TargetUnits of type []*money.TargetUnit`)
+		require.Zero(t, sum)
+	})
+
+	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	t.Run("transfer tx", func(t *testing.T) {
@@ -114,7 +203,7 @@ func Test_transferredSum(t *testing.T) {
 		})
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
-		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
+		proof := testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRec, proof, pkHash, nil)
@@ -165,7 +254,7 @@ func Test_transferredSum(t *testing.T) {
 		})
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
-		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
+		proof := testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRec, proof, pkHash, nil)

@@ -108,17 +108,17 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecordProof, receiverPK []byte, refNo []byte) (uint64, error) {
+func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
-		sum, err := transferredSum(trustBase, v.TxRecord, v.TxProof, receiverPK, refNo)
+		sum, err := transferredSum(trustBase, v.TxRecord, v.TxProof, receiverPKH, refNo)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
 		}
 		total += sum
 	}
-	return total, nil
+	return total, rErr
 }
 
 /*

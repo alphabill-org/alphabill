@@ -6,17 +6,18 @@ evm_nodes=3
 orchestration_nodes=3
 root_nodes=3
 reset_db_only=false
+initial_bill_owner_predicate=null
 # exit on error
 set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes] [-o number of orchestration nodes]  [-r number of root nodes] [-c reset all DB files]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate]"
   exit 0
 }
 # handle arguments
 # NB! add check to make parameter is numeric
-while getopts "chd:m:t:r:e:o:" o; do
+while getopts "chd:m:t:r:e:o:i:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -35,6 +36,9 @@ while getopts "chd:m:t:r:e:o:" o; do
     ;;
   o)
     orchestration_nodes=${OPTARG}
+    ;;
+  i)
+    initial_bill_owner_predicate=${OPTARG}
     ;;
   h | *) # help.
     usage
@@ -80,7 +84,11 @@ if [ "$money_nodes" -ne 0 ]; then
   moneySdr='{"system_identifier": 1, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$moneySdr" >testab/money-sdr.json
   moneySdrFlags+=" -c testab/money-sdr.json"
-  generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"
+  customCliArgs=$moneySdrFlags
+  if [ "$initial_bill_owner_predicate" != null ]; then
+    customCliArgs+=" --initial-bill-owner-predicate $initial_bill_owner_predicate"
+  fi
+  generate_partition_node_genesis "money" "$money_nodes" "$customCliArgs"
 fi
 # Generate orchestration nodes genesis files.
 if [ "$orchestration_nodes" -ne 0 ]; then

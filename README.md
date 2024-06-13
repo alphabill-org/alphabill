@@ -10,37 +10,38 @@ Run `make build` to build the application. Executable will be built to `build/al
 # Money Partition
 
 1. Run script `./setup-testab.sh -m 3 -t 0 -e 0` to generate configuration for a root chain and 3 money partition nodes.
-    The script generates rootchain and partition node keys, genesis files.
+    The script generates root chain and partition node keys, genesis files.
     Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money` to start rootchain and 3 money partition nodes
-
+2. Run script `./start.sh -r -p money` to start root chain and 3 money partition nodes
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
    
    Alternatively, use `stop.sh` to stop any partition or root and `start.sh` to resume. See command help for more details. 
 
 # User Token Partition
+
 Typical set-up would run money and user token partition as fee credits need to be added to the user token partition
 in order to pay for transactions.
 Theoretically it is also possible run only the user token partition on its own, but it would not make much sense.
 1. Run script `./setup-testab.sh -m 3 -t 3 -e 0` to generate configuration for a root chain and 3 money and token partition nodes.
-   The script generates rootchain and partition node keys, genesis files.
+   The script generates root chain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money -p tokens` to start rootchain and 3 partition nodes (money and token)
+2. Run script `./start.sh -r -p money -p tokens` to start root chain and 3 partition nodes (money and token)
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
-# Evm Partition
-Typical set-up would run money and evm partition as fee credits need to be added to the evm partition
+# EVM Partition
+
+Typical set-up would run money and EVM partition as fee credits need to be added to the EVM partition
 in order to create an account and pay for transactions.
-Theoretically it is also possible run only the evm partition on its own, but it would not make much sense.
-1. Run script `./setup-testab.sh -m 3 -t 0 -e 3` to generate configuration for a root chain and 3 money and evm partition nodes.
-   The script generates rootchain and partition node keys, genesis files.
+Theoretically it is also possible run only the EVM partition on its own, but it would not make much sense.
+1. Run script `./setup-testab.sh -m 3 -t 0 -e 3` to generate configuration for a root chain and 3 money and EVM partition nodes.
+   The script generates root chain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p money -p evm` to start rootchain, partition nodes (evm, money)
+2. Run script `./start.sh -r -p money -p evm` to start root chain, partition nodes (EVM, money)
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
-
 
 # Start all partitions at once
-1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, tokens and evm nodes.
+
+1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, tokens and EVM nodes.
 2. Run `start.sh -r -p money -p tokens -p evm` to start everything
 3. Run `stop.sh -a` to stop everything
 
@@ -59,7 +60,7 @@ The default `$AB_HOME` is `$HOME/.alphabill`
 
 ## Logging configuration
 
-Logging can be configured through a yaml configuration file. See `cli/alphabill/config/logger-config.yaml` for example.
+Logging can be configured through a yaml configuration file. See [logger-config.yaml](cli/alphabill/config/logger-config.yaml) for example.
 
 Default location of the logger configuration file is `$AB_HOME/logger-config.yaml`
 
@@ -103,7 +104,6 @@ some parameters are already "hardcoded":
 - the `otlptracehttp` exporter is created with "insecure client transport"
   (`OTEL_EXPORTER_OTLP_INSECURE`);
 
-
 # Set up autocompletion
 
 To use autocompletion (supported with `bash`, `fish`, `powershell` and `zsh`), run the following commands after
@@ -114,6 +114,6 @@ building (this is `bash` example):
 
 # CI setup
 
-See gitlab-ci.yml for details.
+See [gitlab-ci.yml](.gitlab-ci.yml) for details.
 
 GitLab runs the CI job inside docker container defined in `alphabill/gitlab-ci-image`.

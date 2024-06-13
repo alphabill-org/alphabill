@@ -16,7 +16,7 @@ CBOR support APIs
 */
 func addCBORModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("cbor").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(cbor_parse), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("parse").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(cborParse), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("parse").
 		// not used by the demo anymore so do we want to have such API?
 		//NewFunctionBuilder().WithGoModuleFunction(hostAPI(cbor_parse_array_raw), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("cbor_parse_array").
 		Instantiate(ctx)
@@ -27,7 +27,7 @@ func addCBORModule(ctx context.Context, rt wazero.Runtime, _ Observability) erro
 encodes plain old data types only!
 - 0: handle of var
 */
-func cbor_parse(vec *VmContext, mod api.Module, stack []uint64) error {
+func cborParse(vec *VmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
@@ -54,10 +54,10 @@ func cbor_parse(vec *VmContext, mod api.Module, stack []uint64) error {
 }
 
 /*
-cbor_parse_array_raw, given handle of an raw CBOR buffer (stack[0]) parses it as
+cborParseArrayRaw, given handle of an raw CBOR buffer (stack[0]) parses it as
 array of raw CBOR items. Returns list of (item) handles.
 */
-func cbor_parse_array_raw(vec *VmContext, mod api.Module, stack []uint64) error {
+func cborParseArrayRaw(vec *VmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)

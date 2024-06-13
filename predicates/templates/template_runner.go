@@ -42,17 +42,17 @@ func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, a
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return p2pkh256_Execute(p.Params, args, txo, env)
+		return executeP2PKH256(p.Params, args, txo, env)
 	case templates.AlwaysTrueID:
-		return alwaysTrue_Execute(p.Params, args, env)
+		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
-		return alwaysFalse_Execute(p.Params, args, env)
+		return executeAlwaysFalse(p.Params, args, env)
 	default:
 		return false, fmt.Errorf("unknown predicate template with id %d", p.Code[0])
 	}
 }
 
-func alwaysTrue_Execute(params, args []byte, env predicates.TxContext) (bool, error) {
+func executeAlwaysTrue(params, args []byte, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(AlwaysTrueGasCost); err != nil {
 		return false, err
 	}
@@ -64,7 +64,7 @@ func alwaysTrue_Execute(params, args []byte, env predicates.TxContext) (bool, er
 	return false, fmt.Errorf(`"always true" predicate arguments must be empty`)
 }
 
-func alwaysFalse_Execute(params, args []byte, env predicates.TxContext) (bool, error) {
+func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(AlwaysFalseGasCost); err != nil {
 		return false, err
 	}
@@ -76,7 +76,7 @@ func alwaysFalse_Execute(params, args []byte, env predicates.TxContext) (bool, e
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func p2pkh256_Execute(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(P2PKHGasCost); err != nil {
 		return false, err
 	}

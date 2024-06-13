@@ -18,8 +18,8 @@ ie current transaction, predicate arguments, round number etc.
 func addContextModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("context").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expCurrentRound), nil, []api.ValueType{api.ValueTypeI64}).Export("current_round").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(create_obj_h), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_h").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(create_obj_mem), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_m").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(createObjH), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_h").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(createObjMem), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_m").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expSerialize), []api.ValueType{api.ValueTypeI64, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("serialize_obj").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expTxAttributes), []api.ValueType{api.ValueTypeI64, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("tx_attributes").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expUnitData), []api.ValueType{api.ValueTypeI64, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("unit_data").
@@ -28,18 +28,18 @@ func addContextModule(ctx context.Context, rt wazero.Runtime, _ Observability) e
 }
 
 /*
-create_obj_mem creates obj from data pointed by (shared) memory address.
+createObjMem creates obj from data pointed by (shared) memory address.
 Parameters (stack):
   - 0: type id (uint32)
   - 1: address (uint64)
 
 Returns handle of the object.
 */
-func create_obj_mem(vec *VmContext, mod api.Module, stack []uint64) error {
+func createObjMem(vec *VmContext, mod api.Module, stack []uint64) error {
 	// obj type, address of the data. version must be part of the raw (CBOR) data or we need param!?
 	data := read(mod, stack[1])
 	typeID := api.DecodeU32(stack[0])
-	obj, err := vec.factory.create_obj(typeID, data)
+	obj, err := vec.factory.createObj(typeID, data)
 	if err != nil {
 		return fmt.Errorf("decoding object: %w", err)
 	}
@@ -48,21 +48,21 @@ func create_obj_mem(vec *VmContext, mod api.Module, stack []uint64) error {
 }
 
 /*
-create_obj_h creates obj denoted by handle.
+createObjH creates obj denoted by handle.
 Parameters (stack):
   - 0: type id (uint32)
   - 1: handle (uint64)
 
 Returns handle of the object.
 */
-func create_obj_h(vec *VmContext, mod api.Module, stack []uint64) error {
+func createObjH(vec *VmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[1])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}
 
 	typeID := api.DecodeU32(stack[0])
-	obj, err := vec.factory.create_obj(typeID, data)
+	obj, err := vec.factory.createObj(typeID, data)
 	if err != nil {
 		return fmt.Errorf("decoding object: %w", err)
 	}

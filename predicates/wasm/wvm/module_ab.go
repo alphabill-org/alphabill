@@ -21,7 +21,7 @@ AB functions to verify objects etc
 */
 func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("ab").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digest_sha256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digestSHA256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
 		Instantiate(ctx)
@@ -52,7 +52,7 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 	return nil
 }
 
-func digest_sha256(vec *VmContext, mod api.Module, stack []uint64) error {
+func digestSHA256(vec *VmContext, mod api.Module, stack []uint64) error {
 	data := read(mod, stack[0])
 	addr, err := vec.writeToMemory(mod, hash.Sum256(data))
 	if err != nil {
@@ -90,12 +90,12 @@ func amountTransferred(vec *VmContext, mod api.Module, stack []uint64) error {
 
 	pkh := read(mod, stack[1])
 
-	var ref_no []byte
+	var refNo []byte
 	if addrRefNo := stack[2]; addrRefNo != 0 {
-		ref_no = read(mod, addrRefNo)
+		refNo = read(mod, addrRefNo)
 	}
 
-	sum, err := amountTransferredSum(tb, txs, pkh, ref_no)
+	sum, err := amountTransferredSum(tb, txs, pkh, refNo)
 	if err != nil {
 		vec.log.Debug(fmt.Sprintf("AmountTransferredSum(%d) returned %d and some error(s): %v", len(txs), sum, err))
 	}

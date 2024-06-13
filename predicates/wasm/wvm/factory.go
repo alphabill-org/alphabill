@@ -13,7 +13,7 @@ type ABTypesFactory struct{}
 // or we only support generic types here?
 // either the "data" (CBOR!) must have version id or version must come in as param?
 // the data (CBOR) could also encode the type?
-func (ABTypesFactory) create_obj(typID uint32, data []byte) (any, error) {
+func (ABTypesFactory) createObj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {
 	case type_id_tx_order:

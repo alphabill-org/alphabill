@@ -19,7 +19,7 @@ func Test_cbor_parse(t *testing.T) {
 				vars: map[uint64]any{},
 			},
 		}
-		err := cbor_parse(ctx, nil, []uint64{handle_predicate_conf})
+		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
 		require.EqualError(t, err, `reading variable: variable with handle 3 not found`)
 	})
 
@@ -30,7 +30,7 @@ func Test_cbor_parse(t *testing.T) {
 				vars: map[uint64]any{handle_predicate_conf: 42},
 			},
 		}
-		err := cbor_parse(ctx, nil, []uint64{handle_predicate_conf})
+		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
 		require.EqualError(t, err, `reading variable: can't handle var of type int`)
 	})
 
@@ -40,7 +40,7 @@ func Test_cbor_parse(t *testing.T) {
 				vars: map[uint64]any{handle_predicate_conf: []byte{}},
 			},
 		}
-		err := cbor_parse(ctx, nil, []uint64{handle_predicate_conf})
+		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
 		require.EqualError(t, err, `decoding as CBOR: EOF`)
 	})
 
@@ -62,7 +62,7 @@ func Test_cbor_parse(t *testing.T) {
 			},
 		}
 		mod := &mockApiMod{memory: func() api.Memory { return mem }}
-		require.NoError(t, cbor_parse(ctx, mod, []uint64{handle_predicate_conf}))
+		require.NoError(t, cborParse(ctx, mod, []uint64{handle_predicate_conf}))
 	})
 }
 
@@ -94,7 +94,7 @@ func Test_cbor_parse_array_raw(t *testing.T) {
 	mod := &mockApiMod{memory: func() api.Memory { return mem }}
 
 	// outer container, handle points to array with single item
-	require.NoError(t, cbor_parse_array_raw(vm, mod, []uint64{handle_current_args}))
+	require.NoError(t, cborParseArrayRaw(vm, mod, []uint64{handle_current_args}))
 	require.NotZero(t, handle)
 
 	// the item we extracted must be itself an array of two items
@@ -106,7 +106,7 @@ func Test_cbor_parse_array_raw(t *testing.T) {
 		handle2 = binary.LittleEndian.Uint64(v[15:])
 		return true
 	}
-	require.NoError(t, cbor_parse_array_raw(vm, mod, []uint64{handle}))
+	require.NoError(t, cborParseArrayRaw(vm, mod, []uint64{handle}))
 	// handle and handle2 should now point to raw CBOR of txRecord and txProof respectively
 	buf, err := getVar[types.RawCBOR](vm.curPrg.vars, handle)
 	require.NoError(t, err)

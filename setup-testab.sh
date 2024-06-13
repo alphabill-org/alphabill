@@ -16,8 +16,7 @@ usage() {
   exit 0
 }
 # handle arguments
-# NB! add check to make parameter is numeric
-while getopts "chd:m:t:r:e:o:i:" o; do
+while getopts "c:h:m:t:r:e:o:i:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -52,16 +51,13 @@ if [ "$reset_db_only" == true ]; then
   exit 0
 fi
 
-#make clean will remove "testab" directory with all of the content
-echo "clearing 'testab' directory and building alphabill"
+# make clean will remove "testab" directory with all of the content
+echo "clearing 'testab' directory and building Alphabill"
 make clean build
 mkdir testab
 
 # get common functions
 source helper.sh
-
-# Generate all genesis files
-echo "generating genesis files"
 
 moneySdrFlags=""
 
@@ -72,7 +68,7 @@ tokensSdr='{"system_identifier": 2, "t2timeout": 2500, "fee_credit_bill": {"unit
   moneySdrFlags+=" -c testab/tokens-sdr.json"
   generate_partition_node_genesis "tokens" "$token_nodes"
 fi
-# Generate evm nodes genesis files.
+# Generate EVM nodes genesis files.
 if [ "$evm_nodes" -ne 0 ]; then
   evmSdr='{"system_identifier": 3, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$evmSdr" >testab/evm-sdr.json

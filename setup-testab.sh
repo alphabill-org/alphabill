@@ -16,7 +16,7 @@ usage() {
   exit 0
 }
 # handle arguments
-while getopts "c:h:m:t:r:e:o:i:" o; do
+while getopts "chm:t:r:e:o:i:" o; do
   case "${o}" in
   c)
     reset_db_only=true

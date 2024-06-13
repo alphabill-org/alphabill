@@ -12,6 +12,7 @@ Run `make build` to build the application. Executable will be built to `build/al
 1. Run script `./setup-testab.sh -m 3 -t 0 -e 0` to generate configuration for a root chain and 3 money partition nodes.
     The script generates root chain and partition node keys, genesis files.
     Node configuration files are located in `testab` directory.
+   * Initial bill owner predicate can be specified with flag `-i predicate-in-hex`.
 2. Run script `./start.sh -r -p money` to start root chain and 3 money partition nodes
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
    

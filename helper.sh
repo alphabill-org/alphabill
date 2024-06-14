@@ -45,10 +45,10 @@ function generate_boot_node() {
 }
 
 # generates genesis files
-# expects two arguments
-# $1 alphabill partition type ('money', 'tokens') or root as string
+# first two arguments are mandatory, third is optional
+# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration') as string
 # $2 nof genesis files to generate
-# $3 custom cli args
+# $3 custom CLI args
 function generate_partition_node_genesis() {
 local cmd=""
 local home=""
@@ -75,9 +75,10 @@ case $1 in
     ;;
 esac
 # execute cmd to generate genesis files
+echo "generating $2 genesis files for $1 partition"
 for i in $(seq 1 "$2")
 do
-  # "-g" flags also generates keys
+  # "-g" flag generates keys
   build/alphabill "$cmd" --home "${home}$i" -g $3
 done
 }
@@ -98,6 +99,7 @@ function generate_root_genesis() {
     node_genesis_files="$node_genesis_files -p $file"
   done
   # generate individual root node genesis files
+  echo "generating $1 genesis files for root node"
   for i in $(seq 1 "$1")
   do
     build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=400 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files

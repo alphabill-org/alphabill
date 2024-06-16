@@ -1,18 +1,9 @@
 package types
 
 import (
-	"errors"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
-
-const (
-	GeneralTxCostGasUnits = 400
-	GasUnitsPerTema       = 1000
-)
-
-var ErrOutOfGas = errors.New("out of gas")
 
 type (
 	StateInfo interface {
@@ -20,9 +11,15 @@ type (
 		CurrentRound() uint64
 	}
 
+	FeeCalculation interface {
+		BuyGas(tema uint64) uint64
+		CalculateCost(spentGas uint64) uint64
+	}
+
 	// TxExecutionContext - implementation of ExecutionContext interface for generic tx handler
 	TxExecutionContext struct {
 		txs          StateInfo
+		fee          FeeCalculation
 		trustStore   types.RootTrustBase
 		initialGas   uint64
 		remainingGas uint64
@@ -51,7 +48,7 @@ func (ec *TxExecutionContext) GasAvailable() uint64 {
 func (ec *TxExecutionContext) SpendGas(gas uint64) error {
 	if gas > ec.remainingGas {
 		ec.remainingGas = 0
-		return ErrOutOfGas
+		return types.ErrOutOfGas
 	}
 	ec.remainingGas -= gas
 	return nil
@@ -59,18 +56,16 @@ func (ec *TxExecutionContext) SpendGas(gas uint64) error {
 
 func (ec *TxExecutionContext) CalculateCost() uint64 {
 	gasUsed := ec.initialGas - ec.remainingGas
-	cost := (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
-	if cost == 0 {
-		cost = 1
-	}
+	cost := ec.fee.CalculateCost(gasUsed)
 	return cost
 }
 
-func NewExecutionContext(txSys StateInfo, ts types.RootTrustBase, maxCost uint64) *TxExecutionContext {
-	gasUnits := maxCost * GasUnitsPerTema
+func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+	gasUnits := f.BuyGas(maxCost)
 	return &TxExecutionContext{
 		txs:          txSys,
-		trustStore:   ts,
+		fee:          f,
+		trustStore:   tb,
 		initialGas:   gasUnits,
 		remainingGas: gasUnits,
 	}

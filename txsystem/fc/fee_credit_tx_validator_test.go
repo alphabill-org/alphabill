@@ -147,6 +147,7 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 	t.Run("unit id is not fee credit type", func(t *testing.T) {
 		s := state.NewEmptyState()
 		unitID := []byte{1}
+		require.NoError(t, s.Apply(state.AddUnit(unitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{})))
 		unitData, bearer, err := parseFeeCreditRecord(unitID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit identifier: type is not fee credit record")
 		require.Nil(t, bearer)

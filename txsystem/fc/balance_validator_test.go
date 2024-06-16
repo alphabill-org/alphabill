@@ -8,7 +8,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
-	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,22 +67,4 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFeeCredit_CheckFeeCreditTx(t *testing.T) {
-	t.Run("FRC transactions must not have FRC id in client metadata", func(t *testing.T) {
-		f := &FeeCredit{state: state.NewEmptyState()}
-		signer, _ := testsig.CreateSignerAndVerifier(t)
-		tx := testfc.NewAddFC(t, signer,
-			testfc.NewAddFCAttr(t, signer),
-			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}))
-		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee credit reference")
-	})
-	t.Run("FRC transactions must not have fee proof", func(t *testing.T) {
-		f := &FeeCredit{state: state.NewEmptyState()}
-		signer, _ := testsig.CreateSignerAndVerifier(t)
-		tx := testfc.NewAddFC(t, signer, nil)
-		tx.FeeProof = []byte{1, 2, 4}
-		require.EqualError(t, f.IsCredibleFC(nil, tx), "add fee credit tx validation error: invalid fee credit transaction: fee tx cannot contain fee authorization proof")
-	})
 }

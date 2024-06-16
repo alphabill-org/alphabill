@@ -66,3 +66,22 @@ func TestFC_Validation(t *testing.T) {
 	})
 
 }
+
+func TestFC_CalculateCost(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	fcModule, err := NewFeeCreditModule(WithSystemIdentifier(10), WithMoneySystemIdentifier(1),
+		WithState(state.NewEmptyState()), WithTrustBase(trustBase))
+	require.NoError(t, err)
+	require.NotNil(t, fcModule)
+	gas := fcModule.BuyGas(10)
+	require.EqualValues(t, 10*GasUnitsPerTema, gas)
+	require.EqualValues(t, 9, fcModule.CalculateCost(9*GasUnitsPerTema))
+	// is rounded up
+	require.EqualValues(t, 10, fcModule.CalculateCost(9*GasUnitsPerTema+GasUnitsPerTema/2))
+	// is rounded down
+	require.EqualValues(t, 9, fcModule.CalculateCost(9*GasUnitsPerTema+1))
+	// returns always the cost of at least 1 tema
+	require.EqualValues(t, 1, fcModule.CalculateCost(0))
+	require.EqualValues(t, 1, fcModule.CalculateCost(100))
+}

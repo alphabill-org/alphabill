@@ -42,40 +42,6 @@ func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCred
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateCreateFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
-	// 1. P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
-	if err := ValidateGenericFeeCreditTx(tx); err != nil {
-		return fmt.Errorf("invalid fee credit transaction: %w", err)
-	}
-	transTxr, transAttr, err := f.checkTransferFc(tx, attr, exeCtx)
-	if err != nil {
-		return fmt.Errorf("create FCR with addFC validation failed: %w", err)
-	}
-	// 3. S.N[P.ι] != ⊥ ∨ ExtrUnit(P.ι) = PrndSh(ExtrUnit(P.ι), P.A.φ|P′.A.t′) – if the target does not exist, the identifier must agree with the owner predicate
-	fcrID := f.NewFeeCreditRecordID(tx.UnitID(), attr.FeeCreditOwnerCondition, transAttr.LatestAdditionTime)
-	if !fcrID.Eq(tx.UnitID()) {
-		return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID(), fcrID)
-	}
-	if transAttr.TargetUnitCounter != nil {
-		return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
-	}
-	// todo: make sure predicate is P2PKH - probably a lot of tests need to be refactored if this is done
-	// 4. S.N[P.ι] != ⊥ ∨ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
-	if err = f.execPredicate(attr.FeeCreditOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("executing fee credit predicate: %w", err)
-	}
-	// 5. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, transTxr, f.trustBase, f.hashAlgorithm); err != nil {
-		return fmt.Errorf("proof is not valid: %w", err)
-	}
-	// make sure the added FC amount is at least equal to the cost of transfer and add FC
-	addCreditCost := attr.FeeCreditTransfer.ServerMetadata.ActualFee + exeCtx.CalculateCost()
-	if transAttr.Amount < attr.FeeCreditTransfer.ServerMetadata.ActualFee+addCreditCost {
-		return fmt.Errorf("add fee credit costs more %v than amount transfered %v", addCreditCost, transAttr.Amount)
-	}
-	return nil
-}
-
 func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("fee credit tx validation error: %w", err)
@@ -85,24 +51,41 @@ func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
-	// optimization - in case of first add, full check is already done in IsCredibleFC
-	if errors.Is(err, avl.ErrNotFound) {
-		return nil
-	}
+	createFC := errors.Is(err, avl.ErrNotFound)
 	transTxr, transAttr, err := f.checkTransferFc(tx, attr, exeCtx)
 	if err != nil {
 		return fmt.Errorf("add fee credit validation failed: %w", err)
 	}
-	// (S.N[P.ι] != ⊥ ∧ P′.A.c′ = S.N[P.ι].c) – bill transfer order contains correct target unit counter value
-	if transAttr.TargetUnitCounter == nil {
-		return errors.New("invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
-	}
-	if fcr.GetCounter() != *transAttr.TargetUnitCounter {
-		return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
-	}
-	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-	if !bytes.Equal(bearer, attr.FeeCreditOwnerCondition) {
-		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", bearer, attr.FeeCreditOwnerCondition)
+	// either create fee credit or add to existing
+	if createFC {
+		// try to create free credit
+		// 3. S.N[P.ι] != ⊥ ∨ ExtrUnit(P.ι) = PrndSh(ExtrUnit(P.ι), P.A.φ|P′.A.t′) – if the target does not exist, the identifier must agree with the owner predicate
+		fcrID := f.NewFeeCreditRecordID(tx.UnitID(), attr.FeeCreditOwnerCondition, transAttr.LatestAdditionTime)
+		if !fcrID.Eq(tx.UnitID()) {
+			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID(), fcrID)
+		}
+		// on first create the transfer counter must not be present
+		if transAttr.TargetUnitCounter != nil {
+			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
+		}
+		// 4. S.N[P.ι] != ⊥ ∨ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
+		if err = f.execPredicate(attr.FeeCreditOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
+			return fmt.Errorf("executing fee credit predicate: %w", err)
+		}
+	} else {
+		// add to existing fee credit
+		// (S.N[P.ι] != ⊥ ∧ P′.A.c′ = S.N[P.ι].c) – bill transfer order contains correct target unit counter value
+		if transAttr.TargetUnitCounter == nil {
+			return errors.New("invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
+		}
+		// FCR counter must match transfer counter
+		if fcr.GetCounter() != *transAttr.TargetUnitCounter {
+			return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
+		}
+		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+		if !bytes.Equal(bearer, attr.FeeCreditOwnerCondition) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", bearer, attr.FeeCreditOwnerCondition)
+		}
 	}
 	// 5. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
 	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, transTxr, f.trustBase, f.hashAlgorithm); err != nil {

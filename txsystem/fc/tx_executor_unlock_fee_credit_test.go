@@ -40,7 +40,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, testutils.NewUnlockFCAttr(), testtransaction.WithUnitID(
 			types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
 		)
-		feeModule := newTestFeeModule(t, trustBase, withFeeCreditType([]byte{0xff}))
+		feeModule := newTestFeeModule(t, trustBase, withFeeCreditType([]byte{0xff}), withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50, Counter: 4}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))

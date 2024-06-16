@@ -16,7 +16,7 @@ type Options struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	predicateRunner     predicates.PredicateRunner
-	feeCredit           *abfc.FeeCredit
+	feeCredit           FeeCreditModule
 }
 
 type Option func(*Options)
@@ -25,6 +25,7 @@ func DefaultOptions() *Options {
 	return (&Options{
 		hashAlgorithm: crypto.SHA256,
 		state:         state.NewEmptyState(),
+		feeCredit:     abfc.NewNoFeeCreditModule(),
 	}).initPredicateRunner()
 }
 
@@ -54,7 +55,7 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithFeeCredits(f *abfc.FeeCredit) Option {
+func WithFeeCredits(f FeeCreditModule) Option {
 	return func(g *Options) {
 		g.feeCredit = f
 	}

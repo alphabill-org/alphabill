@@ -14,6 +14,11 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
+const (
+	GeneralTxCostGasUnits = 400
+	GasUnitsPerTema       = 1000
+)
+
 var _ txtypes.Module = (*FeeCredit)(nil)
 
 var (
@@ -54,6 +59,19 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
 	}
 	return m, nil
+}
+
+func (f *FeeCredit) CalculateCost(gasUsed uint64) uint64 {
+	cost := (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+	// all transactions cost at least 1 tema - to be refined
+	if cost == 0 {
+		cost = 1
+	}
+	return cost
+}
+
+func (f *FeeCredit) BuyGas(maxTxCost uint64) uint64 {
+	return maxTxCost * GasUnitsPerTema
 }
 
 func (f *FeeCredit) TxHandlers() map[string]txtypes.TxExecutor {

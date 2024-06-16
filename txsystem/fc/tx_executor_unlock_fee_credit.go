@@ -31,13 +31,13 @@ func (f *FeeCredit) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeC
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, _ txtypes.ExecutionContext) error {
+func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// ι identifies an existing fee credit record
-	fcr, _, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
+	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}
@@ -54,6 +54,9 @@ func (f *FeeCredit) validateUnlockFC(tx *types.TransactionOrder, attr *fc.Unlock
 	if !fcr.IsLocked() {
 		return errors.New("fee credit record is already unlocked")
 	}
-
+	// validate owner
+	if err = f.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("executing fee credit predicate: %w", err)
+	}
 	return nil
 }

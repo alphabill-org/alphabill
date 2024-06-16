@@ -64,8 +64,9 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, mockTxSystemID, txSys.systemIdentifier)
 		require.NotNil(t, txSys.log)
-		// no fees
-		require.Nil(t, txSys.fees)
+		require.NotNil(t, txSys.fees)
+		// default is no fee handling, which will give you a huge gas budget
+		require.True(t, txSys.fees.BuyGas(1) == math.MaxUint64)
 	})
 }
 
@@ -120,7 +121,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	})
 
 	t.Run("tx validate returns out of gas", func(t *testing.T) {
-		expErr := txtypes.ErrOutOfGas
+		expErr := types.ErrOutOfGas
 		m := NewMockTxModule(nil)
 		m.ValidateError = expErr
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})

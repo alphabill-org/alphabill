@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -17,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
@@ -31,7 +31,7 @@ type (
 		currentRoundNumber  uint64
 		handlers            txtypes.TxExecutors
 		trustBase           types.RootTrustBase
-		fees                *abfc.FeeCredit
+		fees                FeeCreditModule
 		beginBlockFunctions []func(roundNumber uint64) error
 		endBlockFunctions   []func(roundNumber uint64) error
 		roundCommitted      bool
@@ -40,11 +40,15 @@ type (
 	}
 )
 
-type IsCredible func(env txtypes.ExecutionContext, tx *types.TransactionOrder) error
-
 type Observability interface {
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 	Logger() *slog.Logger
+}
+
+type FeeCreditModule interface {
+	txtypes.Module
+	txtypes.FeeCalculation
+	IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
 }
 
 func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
@@ -130,58 +134,154 @@ func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 }
 
 func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.ExecutionContext) error {
-	return execCxt.SpendGas(txtypes.GeneralTxCostGasUnits)
+	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
 	// First, check transaction credible and that there are enough fee credits on the FRC?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(m, m.trustBase, tx.GetClientMaxTxFee())
-	// NB! This does not check the owner condition - owner check is done in during tx specific checks
+	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.GetClientMaxTxFee())
+	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
+	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	// only handle fees if there is a fee module
-	if m.FeesEnabled() {
-		if err := m.snFees(tx, exeCtx); err != nil {
-			return nil, fmt.Errorf("error tx snFees: %w", err)
-		}
-		if !fc.IsFeeCreditTx(tx) {
-			if err := m.fees.IsCredible(exeCtx, tx); err != nil {
-				// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
-				return nil, fmt.Errorf("error tx not credible: %w", err)
-			}
-		} else {
-			if err := m.fees.IsCredibleFC(exeCtx, tx); err != nil {
-				return nil, fmt.Errorf("error not credible FC tx: %w", err)
-			}
-		}
+	if err := m.snFees(tx, exeCtx); err != nil {
+		return nil, fmt.Errorf("error tx snFees: %w", err)
 	}
 	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	savepointID := m.state.Savepoint()
-	sm := m.doExecute(tx, exeCtx)
-	if sm.SuccessIndicator != types.TxStatusSuccessful {
-		// transaction execution failed. revert every change made by the transaction order
-		m.state.RollbackToSavepoint(savepointID)
+	// execute fee credit transactions
+	if fc.IsFeeCreditTx(tx) {
+		sm, err := m.executeFc(tx, exeCtx)
+		if err != nil {
+			return nil, fmt.Errorf("execute fc error: %w", err)
+		}
+		return sm, nil
 	}
-	// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
-	// and the "lock fee credit", "ubuf.EncodeTagged(3, value.Name)nlock fee credit", "add fee credit" and "close fee credit" transactions in all
-	// application partitions are special cases: fees are handled intrinsically in those transactions.
-	if m.FeesEnabled() && !fc.IsFeeCreditTx(tx) {
+	// execute rest ordinary transactions
+	if err := m.fees.IsCredible(exeCtx, tx); err != nil {
+		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
+		return nil, fmt.Errorf("error tx not credible: %w", err)
+	}
+	sm, err := m.doExecute(tx, exeCtx)
+	if err != nil {
+		return nil, fmt.Errorf("execute fc error: %w", err)
+	}
+	return sm, nil
+}
+
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+	var txExecErr error
+	result := &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}
+	savepointID := m.state.Savepoint()
+	defer func() {
+		// set the correct success indicator
+		if txExecErr != nil {
+			m.log.Debug("tx execute failed", logger.Error(txExecErr))
+			// will set correct error status and clean up target units
+			result.SetError(txExecErr)
+			// transaction execution failed. revert every change made by the transaction order
+			m.state.RollbackToSavepoint(savepointID)
+		}
+		// Handle fees! NB! The "transfer to fee credit" and "reclaim fee credit" transactions in the money partition
+		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
+		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		// charge user according to gas used
 		sm.ActualFee = exeCtx.CalculateCost()
-		// credit the cost from
-		feeCreditRecordID := tx.GetClientFeeCreditRecordID()
-		if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
-			// Tx must not be added to block - FCR could not be credited.
-			// Otherwise, Tx would be for free, and there are no funds taken to pay validators
-			m.state.RollbackToSavepoint(savepointID)
-			return nil, errors.Join(err, fmt.Errorf("handling tx fee: %w", err))
+		if sm.ActualFee > 0 {
+			// credit the cost from
+			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
+				// Tx must not be added to block - FCR could not be credited.
+				// Otherwise, Tx would be for free, and there are no funds taken to pay validators
+				m.state.RollbackToSavepoint(savepointID)
+				// clear metadata
+				sm = nil
+				retErr = fmt.Errorf("handling tx fee: %w", err)
+			}
+			// add fee credit record unit log
+			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
 		}
-		// add fee credit record unit log
-		sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+		trx := &types.TransactionRecord{
+			TransactionOrder: tx,
+			ServerMetadata:   sm,
+		}
+		// update unit log's
+		for _, targetID := range sm.TargetUnits {
+			// add log for each target unit
+			if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+				// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
+				// The problem is that a lot of work has been done. If this can be triggered externally, it will become
+				// an attack vector.
+				m.state.RollbackToSavepoint(savepointID)
+				// clear metadata
+				sm = nil
+				retErr = fmt.Errorf("adding unit log: %w", err)
+				return
+			}
+		}
+		// transaction execution succeeded
+		m.state.ReleaseToSavepoint(savepointID)
+	}()
+	// check conditional state unlock and release it, either roll back or execute the pending Tx
+	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
+	result = appendServerMetadata(result, unlockSm)
+	if err != nil {
+		txExecErr = fmt.Errorf("unit state lock error: %w", err)
+		return result, nil
+	}
+	// perform transaction-system-specific validation and owner condition check
+	attr, err := m.handlers.Validate(tx, exeCtx)
+	if err != nil {
+		txExecErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
+		return result, nil
+	}
+	// either state lock or execute Tx
+	if tx.Payload.HasStateLock() {
+		// handle conditional lock of units
+		sm, err = m.executeLockUnitState(tx, exeCtx)
+		result = appendServerMetadata(result, sm)
+		if err != nil {
+			txExecErr = fmt.Errorf("unit state lock error: %w", err)
+		}
+		return result, nil
+	}
+	// proceed with the transaction execution, if not state lock
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	result = appendServerMetadata(result, sm)
+	if err != nil {
+		txExecErr = fmt.Errorf("execute error: %w", err)
+	}
+	return result, nil
+}
+
+func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
+	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
+	if tx.Payload.StateLock != nil {
+		return nil, fmt.Errorf("error fc tx contains state lock")
+	}
+	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
+	// if we do no handle state locking and unlocking then lock state must be impossible state
+	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
+	// 7. If not VerifyPsi(S, P; &MS)
+	// perform transaction-system-specific validation and owner condition check
+	attr, err := m.handlers.Validate(tx, exeCtx)
+	if err != nil {
+		return nil, err
+	}
+	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
+	// 9. TakeSnapshot
+	savepointID := m.state.Savepoint()
+	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
+	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
+	// proceed with the transaction execution
+	sm, err := m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	if err != nil {
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("execute error: %w", err)
 	}
 	trx := &types.TransactionRecord{
 		TransactionOrder: tx,
@@ -190,7 +290,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// update unit log's
 	for _, targetID := range sm.TargetUnits {
 		// add log for each target unit
-		if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+		if err = m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
 			// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 			// an attack vector.
@@ -201,57 +301,6 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// transaction execution succeeded
 	m.state.ReleaseToSavepoint(savepointID)
 	return sm, nil
-}
-
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata) {
-	var resErr error
-	result := &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}
-	defer func() {
-		// set the correct success indicator
-		if resErr != nil {
-			m.log.Debug("tx execute failed", logger.Error(resErr))
-			if errors.Is(resErr, txtypes.ErrOutOfGas) {
-				result.SuccessIndicator = types.TxErrOutOfGas
-			} else {
-				result.SuccessIndicator = types.TxStatusFailed
-			}
-			result.SetErrorDetail(resErr)
-			// cleanup updated target units too, Tx is atomic either everything succeeds or nothing is changed
-			sm.TargetUnits = []types.UnitID{}
-		}
-	}()
-	// check conditional state unlock and release it, either roll back or execute the pending Tx
-	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
-	result = appendServerMetadata(result, unlockSm)
-	if err != nil {
-		resErr = fmt.Errorf("unit state lock error: %w", err)
-		return result
-	}
-	// perform transaction-system-specific validation and owner condition check
-	attr, err := m.handlers.Validate(tx, exeCtx)
-	if err != nil {
-		resErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
-		return result
-	}
-	// either state lock or execute Tx
-	if tx.Payload.HasStateLock() {
-		// handle conditional lock of units
-		sm, err = m.executeLockUnitState(tx, exeCtx)
-		result = appendServerMetadata(result, sm)
-		if err != nil {
-			resErr = fmt.Errorf("unit state lock error: %w", err)
-			return result
-		}
-		return result
-	}
-	// proceed with the transaction execution, if not state lock
-	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
-	result = appendServerMetadata(result, sm)
-	if err != nil {
-		resErr = fmt.Errorf("execute error: %w", err)
-		return result
-	}
-	return result
 }
 
 /*

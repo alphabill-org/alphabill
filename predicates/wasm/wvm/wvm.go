@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
 )
 

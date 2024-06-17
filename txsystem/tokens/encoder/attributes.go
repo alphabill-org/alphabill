@@ -33,7 +33,9 @@ func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver ui
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Symbol)
 	buf.EncodeTagged(2, attr.Name)
-	buf.EncodeTagged(3, attr.ParentTypeID)
+	if len(attr.ParentTypeID) != 0 {
+		buf.EncodeTagged(3, attr.ParentTypeID)
+	}
 	return buf.Bytes()
 }
 
@@ -44,8 +46,12 @@ func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) 
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Name)
-	buf.EncodeTagged(2, attr.URI)
-	buf.EncodeTagged(3, attr.Data)
+	if attr.URI != "" {
+		buf.EncodeTagged(2, attr.URI)
+	}
+	if len(attr.Data) != 0 {
+		buf.EncodeTagged(3, attr.Data)
+	}
 	buf.EncodeTagged(4, attr.Nonce)
 	buf.EncodeTagged(5, attr.TypeID)
 	return buf.Bytes()
@@ -58,7 +64,9 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
-	buf.EncodeTagged(2, attr.Nonce)
+	if len(attr.Nonce) != 0 {
+		buf.EncodeTagged(2, attr.Nonce)
+	}
 	buf.EncodeTagged(3, attr.Counter)
 	return buf.Bytes()
 }

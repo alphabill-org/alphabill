@@ -168,7 +168,7 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, 17171, env.GasRemaining)
+		require.EqualValues(t, 18307, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// hackish way to change current round past D1 so now should eval to "false"
@@ -178,7 +178,7 @@ func Test_conference_tickets(t *testing.T) {
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
-		require.EqualValues(t, 4367, env.GasRemaining)
+		require.EqualValues(t, 6639, env.GasRemaining)
 	})
 
 	t.Run("mint_token", func(t *testing.T) {
@@ -214,14 +214,14 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, 23639, env.GasRemaining)
+		require.EqualValues(t, 24077, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		require.NoError(t, err)
-		require.EqualValues(t, 7307, env.GasRemaining)
+		require.EqualValues(t, 8183, env.GasRemaining)
 		require.EqualValues(t, 0x01, res)
 	})
 
@@ -304,7 +304,7 @@ func Test_conference_tickets(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, 8782, env.GasRemaining)
+		require.EqualValues(t, 9389, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 	})
 }

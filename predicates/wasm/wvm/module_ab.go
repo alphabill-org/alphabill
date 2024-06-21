@@ -24,8 +24,40 @@ func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability)
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digestSHA256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
+		NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
 		Instantiate(ctx)
 	return err
+}
+
+/*
+txSignedByPKH attempts to verify transaction's OwnerProof (stack[0] is handle
+of txOrder) against P2PKH predicate (address of the pkh is stack[1]).
+Returns bool (ie was/was not signed by given PubKey hash).
+
+When the OwnerProof is NOT data structure expected by the P2PKH predicate
+"false" is returned (ie instead of error/stopping the predicate). This API
+should allow to check has the tx been signed by given PubKey and if not
+then carry on with some other logic.
+*/
+func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
+	vec := vmContext(ctx)
+
+	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
+	if err != nil {
+		vec.log.DebugContext(ctx, fmt.Sprintf("invalid tx order parameter: %v", err))
+		stack[0] = 1
+		return
+	}
+	pkh := read(mod, stack[1])
+
+	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
+	ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
+	if err != nil || !ok {
+		vec.log.DebugContext(ctx, "p2pkh evaluated to false or returned error", "error", err)
+		stack[0] = 1
+		return
+	}
+	stack[0] = 0
 }
 
 func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {

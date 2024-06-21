@@ -130,12 +130,14 @@ func (m *mockApiMod) Memory() api.Memory { return m.memory() }
 type mockMemory struct {
 	size  func() uint32
 	write func(offset uint32, v []byte) bool
+	read  func(offset, byteCount uint32) ([]byte, bool)
 	// to "implement" everything we haven't mocked
 	api.Memory
 }
 
-func (m *mockMemory) Size() uint32                       { return m.size() }
-func (m *mockMemory) Write(offset uint32, v []byte) bool { return m.write(offset, v) }
+func (m *mockMemory) Size() uint32                                 { return m.size() }
+func (m *mockMemory) Write(offset uint32, v []byte) bool           { return m.write(offset, v) }
+func (m *mockMemory) Read(offset, byteCount uint32) ([]byte, bool) { return m.read(offset, byteCount) }
 
 type maxMem uint32
 

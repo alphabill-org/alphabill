@@ -1,18 +1,134 @@
 package wvm
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero/api"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 )
+
+func Test_txSignedByPKH(t *testing.T) {
+
+	buildContext := func(t *testing.T) (context.Context, *VmContext, *mockApiMod) {
+		obs := observability.Default(t)
+		vm := &VmContext{
+			curPrg: &EvalContext{
+				vars: map[uint64]any{},
+			},
+			MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+			log:     obs.Logger(),
+		}
+		mem := &mockMemory{
+			size: func() uint32 { return 10000 },
+		}
+		mod := &mockApiMod{memory: func() api.Memory { return mem }}
+		return context.WithValue(context.Background(), runtimeContextKey, vm), vm, mod
+	}
+
+	t.Run("invalid txo handle", func(t *testing.T) {
+		ctx, _, mod := buildContext(t)
+		stack := []uint64{handle_current_tx_order, 0}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 1, stack[0])
+		// possible improvement - check the log for expected error message?
+	})
+
+	t.Run("evaluating p2pkh returns error", func(t *testing.T) {
+		pkh := []byte{41, 66, 80}
+		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
+		expErr := errors.New("predicate eval failure")
+
+		ctx, vm, mod := buildContext(t)
+		mod.memory = func() api.Memory {
+			return &mockMemory{
+				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
+			}
+		}
+		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		predicateExecuted := false
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
+			predicateExecuted = true
+			return true, expErr
+		}
+		stack := []uint64{handle_current_tx_order, pkhAddr}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 1, stack[0])
+		require.True(t, predicateExecuted, "call predicate engine")
+		// possible improvement - check the log for expected error message?
+	})
+
+	t.Run("evaluating p2pkh returns false", func(t *testing.T) {
+		pkh := []byte{41, 66, 80}
+		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
+
+		ctx, vm, mod := buildContext(t)
+		mod.memory = func() api.Memory {
+			return &mockMemory{
+				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
+			}
+		}
+		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		predicateExecuted := false
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
+			predicateExecuted = true
+			return false, nil
+		}
+		stack := []uint64{handle_current_tx_order, pkhAddr}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 1, stack[0])
+		require.True(t, predicateExecuted, "call predicate engine")
+	})
+
+	t.Run("evaluating p2pkh returns true", func(t *testing.T) {
+		pkh := []byte{41, 66, 80}
+		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
+
+		ctx, vm, mod := buildContext(t)
+		mod.memory = func() api.Memory {
+			return &mockMemory{
+				read: func(offset, byteCount uint32) ([]byte, bool) {
+					require.EqualValues(t, 3320, offset)
+					require.EqualValues(t, len(pkh), byteCount)
+					return pkh, true
+				},
+			}
+		}
+		txOrder := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID: 5,
+			},
+			OwnerProof: []byte{8, 9, 0},
+		}
+		vm.curPrg.vars[handle_current_tx_order] = txOrder
+		predicateExecuted := false
+		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+			predicateExecuted = true
+			require.Equal(t, txOrder, txo)
+			require.Equal(t, txOrder.OwnerProof, args)
+			h, err := templates.ExtractPubKeyHashFromP2pkhPredicate(predicate)
+			require.NoError(t, err)
+			require.Equal(t, pkh, h)
+			return true, nil
+		}
+
+		stack := []uint64{handle_current_tx_order, pkhAddr}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 0, stack[0])
+		require.True(t, predicateExecuted, "call predicate engine")
+	})
+}
 
 func Test_amountTransferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)

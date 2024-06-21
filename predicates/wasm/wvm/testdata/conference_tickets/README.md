@@ -12,17 +12,27 @@ from source).
 Different versions are organized into subdirectories, each containing particular
 version of the predicates. Keep the changelog in this document!
 
+Filenames use pattern `<unit>-<predicate>.wasm` so
+- `token-bearer.wasm` implenemts bearer predicate to be used with token
+
+while
+
+- `type-bearer.wasm` implenemts bearer predicate to be used with token type.
+
+## V2: 21.06.2024
+- switching to "Tickets created by the conference organizer" version;
+
+## V1: 15.05.2024
+
+Initial release:
+- implementing "baseline version";
+- all data structures in SDK request version `1` from host;
+- round number is used as "current time";
+- tx payload type is string (plan is to switch to int?);
+- reference number of the mint predicate doesn't include typeID;
+
 Files in directory:
 - `bearer.wasm` exports only `bearer_invariant`;
 - `mint.wasm` exports only `mint_token`;
 - `update.wasm` exports only `update_data`;
 - `conf_tickets.wasm` exports all three entrypoints;
-
-
-## V1: 15.05.2024
-
-Initial release:
-- all data structures in SDK request version `1` from host;
-- round number is used as "current time";
-- tx payload type is string (plan is to switch to int?);
-- reference number of the mint predicate doesn't include typeID;

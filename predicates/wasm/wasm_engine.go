@@ -17,8 +17,8 @@ type WasmRunner struct {
 	log *slog.Logger
 }
 
-func New(enc wvm.Encoder, obs wvm.Observability) WasmRunner {
-	vm, err := wvm.New(context.Background(), enc, obs)
+func New(enc wvm.Encoder, engines exec.PredicateExecutor, obs wvm.Observability) WasmRunner {
+	vm, err := wvm.New(context.Background(), enc, engines, obs)
 	if err != nil {
 		panic(fmt.Errorf("creating WASM engine: %w", err))
 	}

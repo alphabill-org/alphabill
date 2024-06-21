@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
@@ -50,6 +51,7 @@ type (
 		curPrg  *EvalContext
 		encoder Encoder
 		factory ABTypesFactory
+		engines predicates.PredicateExecutor
 		log     *slog.Logger
 	}
 
@@ -67,13 +69,13 @@ type (
 	}
 
 	EvalEnvironment interface {
-		//Factory(typeID uint32, data []byte) (any, error)
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64
 		SpendGas(gas uint64) error
+		CalculateCost() uint64
 	}
 
 	// translates AB types to WASM consumable representation
@@ -161,7 +163,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 }
 
 // New - creates new wazero based wasm vm
-func New(ctx context.Context, enc Encoder, observe Observability, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor, observe Observability, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -195,6 +197,7 @@ func New(ctx context.Context, enc Encoder, observe Observability, opts ...Option
 				vars: map[uint64]any{},
 			},
 			encoder: enc,
+			engines: engines,
 			factory: ABTypesFactory{},
 			Storage: options.storage,
 			log:     observe.Logger(),
@@ -260,7 +263,7 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	}
 	// spend gas according to how much was used
 	if err = env.SpendGas(initialGas - gasRemaining); err != nil {
-		return 0, fmt.Errorf("unexpedted gas calculation error: %w", err)
+		return 0, fmt.Errorf("calculating gas usage: %w", err)
 	}
 
 	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), conf.Entrypoint, res))

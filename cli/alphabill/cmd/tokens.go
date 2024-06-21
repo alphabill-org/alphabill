@@ -5,12 +5,10 @@ import (
 	"crypto"
 	"fmt"
 	"path/filepath"
-	"slices"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
-	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
@@ -22,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/rpc"
-	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	tokenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
@@ -109,19 +106,23 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("unable to initialize proof DB: %w", err)
 	}
 
-	enc, err := encoder.New(
-		// register all unit- and attribute types from token tx system
-		tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders,
-		// from the money tx system we only need/want to support transfer transactions (ie to check
-		// has money transfer taken place, other money tx types shouldn't be needed by token predicates)
-		moneyenc.RegisterTxAttributeEncodersF(func(id encoder.AttrEncID) bool {
-			return slices.Contains([]string{moneysdk.PayloadTypeTransfer, moneysdk.PayloadTypeSplit}, id.Attr)
-		}),
-	)
+	// register all unit- and attribute types from token tx system
+	enc, err := encoder.New(tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders)
 	if err != nil {
 		return fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
 	}
-	predEng, err := predicates.Dispatcher(templates.New(), wasm.New(enc, obs))
+	// create predicate engine for the transaction system.
+	// however, the WASM engine needs to be able to execute predicate templates
+	// so we create template engine first and use it for both WASM engine and
+	// tx system engine.
+	// it's safe to share template engine as it doesn't have internal state and
+	// predicate executions happen in serialized manner anyway
+	templateEng := templates.New()
+	tpe, err := predicates.Dispatcher(templateEng)
+	if err != nil {
+		return fmt.Errorf("creating predicate executor for WASM engine: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templateEng, wasm.New(enc, tpe.Execute, obs))
 	if err != nil {
 		return fmt.Errorf("creating predicate executor: %w", err)
 	}

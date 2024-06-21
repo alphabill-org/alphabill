@@ -12,6 +12,8 @@ func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) erro
 	return errors.Join(
 		reg(&tokens.NonFungibleTokenData{}, udeNonFungibleTokenData),
 		reg(&tokens.NonFungibleTokenTypeData{}, udeNonFungibleTokenTypeData),
+		reg(&tokens.FungibleTokenTypeData{}, udeFungibleTokenTypeData),
+		reg(&tokens.FungibleTokenData{}, udeFungibleTokenData),
 	)
 }
 
@@ -42,5 +44,29 @@ func udeNonFungibleTokenTypeData(data types.UnitData, ver uint32) ([]byte, error
 	}
 	buf.EncodeTagged(2, value.Symbol)
 	buf.EncodeTagged(3, value.Name)
+	return buf.Bytes()
+}
+
+func udeFungibleTokenTypeData(data types.UnitData, ver uint32) ([]byte, error) {
+	value := data.(*tokens.FungibleTokenTypeData)
+	buf := encoder.TVEnc{}
+	if len(value.ParentTypeID) != 0 {
+		buf.EncodeTagged(1, value.ParentTypeID)
+	}
+	buf.EncodeTagged(2, value.Symbol)
+	buf.EncodeTagged(3, value.Name)
+	buf.EncodeTagged(4, value.DecimalPlaces)
+	return buf.Bytes()
+}
+
+func udeFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
+	value := data.(*tokens.FungibleTokenData)
+	buf := encoder.TVEnc{}
+	buf.EncodeTagged(1, value.TokenType)
+	buf.EncodeTagged(2, value.Value)
+	buf.EncodeTagged(3, value.T)
+	buf.EncodeTagged(4, value.Counter)
+	buf.EncodeTagged(5, value.Locked)
+	buf.EncodeTagged(6, value.T1)
 	return buf.Bytes()
 }

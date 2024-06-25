@@ -2,7 +2,7 @@ name: docker
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "WasmPredicates"]
     tags: ["*"]
   pull_request:
     branches: ["main"]

@@ -15,4 +15,5 @@ SHELL [ "/busybox/sh", "-c" ]
 WORKDIR /app
 ENV PATH="/app:${PATH}"
 COPY --from=builder /usr/src/app/build/alphabill /app/
+COPY --from=builder /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/x86_64-linux-gnu/libgcc_s.so.1
 ENTRYPOINT ["alphabill"]

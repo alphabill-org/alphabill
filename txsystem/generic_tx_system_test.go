@@ -7,16 +7,15 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
 const mockTxType = "mockTx-type"
@@ -386,7 +385,7 @@ type MockTxAttributes struct {
 
 func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
 	txo := transaction.NewTransactionOrder(t, option...)
-	txBytes, err := cbor.Marshal(txo)
+	txBytes, err := types.Cbor.Marshal(txo)
 	require.NoError(t, err)
 	return txBytes
 }

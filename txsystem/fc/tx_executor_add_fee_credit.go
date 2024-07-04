@@ -46,6 +46,10 @@ func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("fee credit tx validation error: %w", err)
 	}
+	//if transTxo.PayloadType() != fc.PayloadTypeTransferFeeCredit {
+	//	return fmt.Errorf("invalid transfer fee credit transaction payload type: %s", transTxo.PayloadType())
+	//} TODO: check if this is needed
+
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
 	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
@@ -121,6 +125,21 @@ func (f *FeeCredit) checkTransferFc(tx *types.TransactionOrder, attr *fc.AddFeeC
 	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID()) {
 		return nil, nil, fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%s tx.UnitId=%s", types.UnitID(transAttr.TargetRecordID), tx.UnitID())
 	}
+
+	// 9. (S.N[P.ι] = ⊥ ∧ P′.A.c′ = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P′.A.c′ = S.N[P.ι].c) – bill transfer order contains correct target unit counter value
+	//if fcr == nil {
+	//	if transAttr.TargetUnitCounter != nil {
+	//		return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
+	//	}
+	//} else {
+	//	if transAttr.TargetUnitCounter == nil {
+	//		return errors.New("invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
+	//	}
+	//	if fcr.GetCounter() != *transAttr.TargetUnitCounter {
+	//		return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
+	//	}
+	//} TODO: check if this is needed
+
 	// 10. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
 	if exeCtx.CurrentRound() > transAttr.LatestAdditionTime {
 		return nil, nil, fmt.Errorf("invalid transferFC timeout: latestAdditionTime=%d currentRoundNumber=%d", transAttr.LatestAdditionTime, exeCtx.CurrentRound())

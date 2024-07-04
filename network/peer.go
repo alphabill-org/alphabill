@@ -51,9 +51,9 @@ type (
 
 	// Peer represents a single node in p2p network. It is a wrapper around the libp2p host.Host.
 	Peer struct {
-		host        host.Host
-		conf        *PeerConfiguration
-		dht         *dht.IpfsDHT
+		host host.Host
+		conf *PeerConfiguration
+		dht  *dht.IpfsDHT
 	}
 )
 
@@ -111,7 +111,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	return &Peer{
 		host: h,
 		conf: conf,
-		dht: kademliaDHT,
+		dht:  kademliaDHT,
 	}, nil
 }
 
@@ -278,7 +278,7 @@ func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, op
 	}
 	routingTable.PeerAdded = func(pid peer.ID) {
 		peerAddedCb(pid)
-		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()))
+		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()), logger.NodeID(h.ID()))
 		// meter routing table size? -> increase?
 	}
 	return kdht, nil

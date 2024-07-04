@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	defaultInitialBillID    = moneysdk.NewBillID(nil, []byte{1})
-	defaultInitialBillOwner = templates.AlwaysTrueBytes()
+	defaultInitialBillID             = moneysdk.NewBillID(nil, []byte{1})
+	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
 	defaultMoneySDR = &types.SystemDescriptionRecord{
 		SystemIdentifier: moneysdk.DefaultSystemID,
@@ -47,27 +47,27 @@ var (
 )
 
 type moneyGenesisConfig struct {
-	Base               *baseConfiguration
-	SystemIdentifier   types.SystemID
-	Keys               *keysConfig
-	Output             string
-	OutputState        string
-	InitialBillID      types.UnitID
-	InitialBillValue   uint64 `validate:"gte=0"`
-	InitialBillOwner   types.PredicateBytes
-	DCMoneySupplyValue uint64   `validate:"gte=0"`
-	T2Timeout          uint32   `validate:"gte=0"`
-	SDRFiles           []string // system description record files
+	Base                      *baseConfiguration
+	SystemIdentifier          types.SystemID
+	Keys                      *keysConfig
+	Output                    string
+	OutputState               string
+	InitialBillID             types.UnitID
+	InitialBillValue          uint64 `validate:"gte=0"`
+	InitialBillOwnerPredicate []byte
+	DCMoneySupplyValue        uint64 `validate:"gte=0"`
+	T2Timeout                 uint32 `validate:"gte=0"`
+	SDRFiles                  []string // system description record files
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var systemID uint32
 	config := &moneyGenesisConfig{
-		Base:             baseConfig,
-		Keys:             NewKeysConf(baseConfig, moneyPartitionDir),
-		InitialBillID:    defaultInitialBillID,
-		InitialBillOwner: defaultInitialBillOwner,
+		Base:                      baseConfig,
+		Keys:                      NewKeysConf(baseConfig, moneyPartitionDir),
+		InitialBillID:             defaultInitialBillID,
+		InitialBillOwnerPredicate: defaultInitialBillOwnerPredicate,
 	}
 	var cmd = &cobra.Command{
 		Use:   "money-genesis",
@@ -82,6 +82,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/money/node-genesis-state.cbor)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
+	cmd.Flags().BytesHexVar(&config.InitialBillOwnerPredicate, "initial-bill-owner-predicate", defaultInitialBillOwnerPredicate, "the initial bill owner predicate")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR)")
@@ -217,7 +218,7 @@ func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 }
 
 func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
-	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwner, &moneysdk.BillData{
+	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwnerPredicate, &moneysdk.BillData{
 		V:       config.InitialBillValue,
 		T:       0,
 		Counter: 0,

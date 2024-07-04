@@ -154,7 +154,7 @@ func (x *RootGenesis) NodeIDs() ([]peer.ID, error) {
 
 // GenerateTrustBase generates root trust base. The final trust
 // base must be generated from the combined root genesis file.
-func (x *RootGenesis) GenerateTrustBase() (*types.RootTrustBaseV0, error) {
+func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustBaseV0, error) {
 	var trustBaseNodes []*types.NodeInfo
 	var unicityTreeRootHash []byte
 	for _, rn := range x.Root.RootValidators {
@@ -172,7 +172,7 @@ func (x *RootGenesis) GenerateTrustBase() (*types.RootTrustBaseV0, error) {
 			}
 		}
 	}
-	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash)
+	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new genesis trust base")
 	}

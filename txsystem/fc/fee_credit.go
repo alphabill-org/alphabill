@@ -31,7 +31,6 @@ type (
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
-		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
 		execPredicate           func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
 		feeCreditRecordUnitType []byte
@@ -64,22 +63,15 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	if err := validConfiguration(m); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
 	}
-	m.txValidator = NewDefaultFeeCreditTxValidator(
-		m.moneySystemIdentifier,
-		m.systemIdentifier,
-		m.hashAlgorithm,
-		m.trustBase,
-		m.feeCreditRecordUnitType,
-	)
 	return m, nil
 }
 
-func (f *FeeCredit) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		fc.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f).ExecuteFunc(),
-		fc.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f).ExecuteFunc(),
-		fc.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f).ExecuteFunc(),
-		fc.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f).ExecuteFunc(),
+func (f *FeeCredit) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		fc.PayloadTypeAddFeeCredit:    txsystem.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit:  txsystem.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+		fc.PayloadTypeLockFeeCredit:   txsystem.NewTxHandler[fc.LockFeeCreditAttributes](f.validateLockFC, f.executeLockFC),
+		fc.PayloadTypeUnlockFeeCredit: txsystem.NewTxHandler[fc.UnlockFeeCreditAttributes](f.validateUnlockFC, f.executeUnlockFC),
 	}
 }
 

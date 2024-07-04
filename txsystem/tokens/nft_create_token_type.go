@@ -12,25 +12,20 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) handleCreateNonFungibleTokenTypeTx() txsystem.GenericExecuteFunc[tokens.CreateNonFungibleTokenTypeAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := n.validate(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid create non-fungible token type tx: %w", err)
-		}
-		fee := n.feeCalculator()
+func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := n.feeCalculator()
 
-		// update state
-		unitID := tx.UnitID()
-		if err := n.state.Apply(
-			state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenTypeData(attr)),
-		); err != nil {
-			return nil, err
-		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	// update state
+	unitID := tx.UnitID()
+	if err := n.state.Apply(
+		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenTypeData(attr)),
+	); err != nil {
+		return nil, err
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes) error {
+func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, _ *txsystem.TxExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
@@ -66,7 +61,7 @@ func (n *NonFungibleTokensModule) validate(tx *types.TransactionOrder, attr *tok
 		attr.SubTypeCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.SubTypeCreationPredicate
+			return d.ParentTypeID, d.SubTypeCreationPredicate
 		},
 		n.state.GetUnit,
 	)

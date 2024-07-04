@@ -1,4 +1,4 @@
-package storage
+package trustbase
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ func TestTrustBaseStore(t *testing.T) {
 	// create db
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	trustBaseStore, err := NewTrustBaseStore(db)
+	trustBaseStore, err := NewStore(db)
 	require.NoError(t, err)
 	require.Equal(t, db, trustBaseStore.GetDB())
 

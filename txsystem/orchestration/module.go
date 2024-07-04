@@ -20,7 +20,7 @@ type (
 		systemID       types.SystemID
 		ownerPredicate types.PredicateBytes
 		hashAlgorithm  crypto.Hash
-		execPredicate  func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate  predicates.PredicateRunner
 	}
 )
 
@@ -44,8 +44,8 @@ func NewModule(options *Options) (*Module, error) {
 	return m, nil
 }
 
-func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		orchestration.PayloadTypeAddVAR: m.handleAddVarTx().ExecuteFunc(),
+func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		orchestration.PayloadTypeAddVAR: txsystem.NewTxHandler[orchestration.AddVarAttributes](m.validateAddVarTx, m.executeAddVarTx),
 	}
 }

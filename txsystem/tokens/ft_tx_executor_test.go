@@ -33,12 +33,17 @@ const (
 )
 
 var (
-	existingTokenTypeUnitID   = tokens.NewFungibleTokenTypeID(nil, []byte{1})
-	existingTokenTypeUnitID2  = tokens.NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
-	existingTokenUnitID       = tokens.NewFungibleTokenID(nil, []byte{0x02})
-	existingTokenUnitID2      = tokens.NewFungibleTokenID(nil, []byte{0xaa})
-	existingLockedTokenUnitID = tokens.NewFungibleTokenID(nil, []byte{0xbb})
-	nonExistingTokenTypeID    = tokens.NewFungibleTokenTypeID(nil, []byte{100})
+	existingTokenTypeID   = tokens.NewFungibleTokenTypeID(nil, []byte{1})
+	existingTokenTypeID2  = tokens.NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
+	existingTokenID       = tokens.NewFungibleTokenID(nil, []byte{0x02})
+	existingTokenID2      = tokens.NewFungibleTokenID(nil, []byte{0xaa})
+	existingLockedTokenID = tokens.NewFungibleTokenID(nil, []byte{0xbb})
+
+	nonExistingTokenTypeID = tokens.NewFungibleTokenTypeID(nil, []byte{100})
+	nonExistingTokenID     = tokens.NewFungibleTokenID(nil, []byte{100})
+
+	invalidFungibleTokenTypeID = tokens.NewNonFungibleTokenTypeID(nil, []byte{0x02}) // use non-fungible type id
+	invalidFungibleTokenID     = tokens.NewNonFungibleTokenID(nil, []byte{1})        // use non-fungible type id
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
@@ -75,7 +80,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeCreateFungibleTokenType,
-					UnitID: existingTokenUnitID,
+					UnitID: existingTokenID,
 				},
 			},
 			attr:       &tokens.CreateFungibleTokenTypeAttributes{},
@@ -87,10 +92,10 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeCreateFungibleTokenType,
-					UnitID: existingTokenTypeUnitID,
+					UnitID: existingTokenTypeID,
 				},
 			},
-			attr:       &tokens.CreateFungibleTokenTypeAttributes{ParentTypeID: existingTokenUnitID},
+			attr:       &tokens.CreateFungibleTokenTypeAttributes{ParentTypeID: existingTokenID},
 			options:    defaultOpts(t),
 			wantErrStr: "invalid parent type ID",
 		},
@@ -141,17 +146,17 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeCreateFungibleTokenType,
-					UnitID: existingTokenTypeUnitID,
+					UnitID: existingTokenTypeID,
 				},
 			},
 			attr:       &tokens.CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 5},
 			options:    defaultOpts(t),
-			wantErrStr: fmt.Sprintf("unit %s exists", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %s exists", existingTokenTypeID),
 		},
 		{
 			name:       "parent.decimals != tx.attributes.decimalPlaces",
 			tx:         validTxOrder,
-			attr:       &tokens.CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: existingTokenTypeUnitID},
+			attr:       &tokens.CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: existingTokenTypeID},
 			options:    defaultOpts(t),
 			wantErrStr: "invalid decimal places. allowed 5, got 6",
 		},
@@ -168,9 +173,8 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := m.handleCreateFungibleTokenTypeTx()(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err = m.validateCreateFTType(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -191,10 +195,12 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	sm, err := m.handleCreateFungibleTokenTypeTx()(
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
+
+	sm, err := txExecutors.ValidateAndExecute(
 		createTransactionOrder(t, attributes, tokens.PayloadTypeCreateFungibleTokenType, unitID),
-		attributes,
-		&txsystem.TxExecutionContext{CurrentBlockNr: 10},
+		&txsystem.TxExecutionContext{CurrentBlockNumber: 10},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -213,7 +219,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
 	require.Equal(t, attributes.TokenCreationPredicate, d.TokenCreationPredicate)
 	require.Equal(t, attributes.InvariantPredicate, d.InvariantPredicate)
-	require.Nil(t, d.ParentTypeId)
+	require.Nil(t, d.ParentTypeID)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
@@ -249,11 +255,14 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	exeCtx := &txsystem.TxExecutionContext{CurrentBlockNumber: 10}
+	sm, err := txExecutors.ValidateAndExecute(parentTx, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
+	sm, err = txExecutors.ValidateAndExecute(childTx, exeCtx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(childID, false)
@@ -270,7 +279,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
 	require.Equal(t, childAttributes.TokenCreationPredicate, d.TokenCreationPredicate)
 	require.Equal(t, childAttributes.InvariantPredicate, d.InvariantPredicate)
-	require.Equal(t, types.UnitID(parentID), d.ParentTypeId)
+	require.Equal(t, parentID, d.ParentTypeID)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSignature(t *testing.T) {
@@ -300,18 +309,19 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	childTx := createTransactionOrder(t, childAttributes, tokens.PayloadTypeCreateFungibleTokenType, childID)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := m.handleCreateFungibleTokenTypeTx()(parentTx, parentAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	sm, err := txExecutors.ValidateAndExecute(parentTx, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	sm, err = m.handleCreateFungibleTokenTypeTx()(childTx, childAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: 11})
-	require.EqualError(t, err, `invalid create fungible token type tx: SubTypeCreationPredicate: executing predicate [0] in the chain: executing predicate: failed to decode P2PKH256 signature: unexpected EOF`)
+	sm, err = txExecutors.ValidateAndExecute(childTx, &txsystem.TxExecutionContext{CurrentBlockNumber: 112})
+	require.EqualError(t, err, `'createFType' validation failed: SubTypeCreationPredicate: executing predicate [0] in the chain: executing predicate: failed to decode P2PKH256 signature: unexpected EOF`)
 	require.Nil(t, sm)
 }
 
 func TestMintFungibleToken_NotOk(t *testing.T) {
-	missingTypeID := tokens.NewFungibleTokenTypeID(nil, []byte{99})
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -334,10 +344,10 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeMintFungibleToken,
-					UnitID: existingTokenUnitID,
+					UnitID: invalidFungibleTokenID,
 				},
 			},
-			attr:       &tokens.MintFungibleTokenAttributes{},
+			attr:       &tokens.MintFungibleTokenAttributes{TypeID: existingTokenTypeID},
 			wantErrStr: "invalid unit ID",
 		},
 		{
@@ -345,64 +355,50 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeMintFungibleToken,
-					UnitID: existingTokenUnitID,
+					UnitID: existingTokenID,
 				},
 			},
-			attr:       &tokens.MintFungibleTokenAttributes{},
-			wantErrStr: "invalid unit ID",
+			attr:       &tokens.MintFungibleTokenAttributes{TypeID: invalidFungibleTokenTypeID},
+			wantErrStr: "invalid token type ID",
 		},
 		{
 			name: "unit type with given ID does not exist",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeMintFungibleToken,
-					UnitID: nonExistingTokenTypeID,
+					UnitID: nonExistingTokenID,
 				},
 			},
-			attr:       &tokens.MintFungibleTokenAttributes{},
-			wantErrStr: "not found",
+			attr:       &tokens.MintFungibleTokenAttributes{TypeID: nonExistingTokenTypeID},
+			wantErrStr: "token type does not exist",
 		},
 		{
 			name: "token type does not exist",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeMintFungibleToken,
-					UnitID: missingTypeID,
+					UnitID: nonExistingTokenID,
 				},
 			},
 			attr: &tokens.MintFungibleTokenAttributes{
 				Bearer:                           templates.AlwaysTrueBytes(),
+				TypeID:                           nonExistingTokenTypeID,
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
-			wantErrStr: fmt.Sprintf("item %s does not exist", missingTypeID),
+			wantErrStr: "token type does not exist",
 		},
-		//{ // 'Always True' ignores the signature bytes
-		//	name: "invalid token creation predicate argument",
-		//	tx: &types.TransactionOrder{
-		//		Payload: &types.Payload{
-		//			Type:   tokens.PayloadTypeMintFungibleToken,
-		//			UnitID: validUnitID,
-		//		},
-		//	},
-		//	attr: &tokens.MintFungibleTokenAttributes{
-		//		Bearer:                           templates.AlwaysTrueBytes(),
-		//		TypeID:                           existingTokenTypeUnitID,
-		//		Value:                            1000,
-		//		TokenCreationPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
-		//	},
-		//	wantErrStr: "invalid predicate",
-		//},
 		{
 			name: "invalid value - zero",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   tokens.PayloadTypeMintFungibleToken,
-					UnitID: existingTokenTypeUnitID,
+					UnitID: nonExistingTokenID,
 				},
 			},
 			attr: &tokens.MintFungibleTokenAttributes{
 				Bearer:                           templates.AlwaysTrueBytes(),
+				TypeID:                           existingTokenTypeID,
 				Value:                            0,
 				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
@@ -412,12 +408,10 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleMintFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateMintFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -426,29 +420,33 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	attributes := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           templates.AlwaysTrueBytes(),
+		TypeID:                           existingTokenTypeID,
 		Value:                            1000,
 		TokenCreationPredicateSignatures: [][]byte{nil},
 	}
-	tx := createTransactionOrder(t, attributes, tokens.PayloadTypeMintFungibleToken, existingTokenTypeUnitID)
+	tx := createTransactionOrder(t, attributes, tokens.PayloadTypeMintFungibleToken, nil)
+	tx.Payload.UnitID = newFungibleTokenID(t, tx)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	handler := m.handleMintFungibleTokenTx()
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
-	sm, err := handler(tx, attributes, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	newTokenID := sm.TargetUnits[0]
-	u, err := opts.state.GetUnit(newTokenID, false)
+	u, err := opts.state.GetUnit(tx.UnitID(), false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 
 	d := u.Data().(*tokens.FungibleTokenData)
-	require.Equal(t, existingTokenTypeUnitID, d.TokenType)
+	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, attributes.Value, d.Value)
-	require.Equal(t, uint64(0), d.Counter)
 	require.Equal(t, uint64(10), d.T)
+	require.Equal(t, uint64(0), d.Counter)
+	require.Equal(t, uint64(1000), d.T1)
+	require.Equal(t, uint64(0), d.Locked)
 	require.Equal(t, attributes.Bearer, []byte(u.Bearer()))
 }
 
@@ -467,7 +465,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeTransferFungibleToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeTransferFungibleToken, existingTokenTypeID),
 			attr:       &tokens.TransferFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
 		},
@@ -479,7 +477,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token locked",
-			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingLockedTokenUnitID),
+			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingLockedTokenID),
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        existingTokenValue,
@@ -491,7 +489,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value",
-			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenID),
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        existingTokenValue - 1,
@@ -503,7 +501,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenID),
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        existingTokenValue,
@@ -515,7 +513,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "empty token type id",
-			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenID),
 			attr: &tokens.TransferFungibleTokenAttributes{
 				TypeID:                       nil,
 				NewBearer:                    templates.AlwaysTrueBytes(),
@@ -528,9 +526,9 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token type id",
-			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, &tokens.TransferFungibleTokenAttributes{}, tokens.PayloadTypeTransferFungibleToken, existingTokenID),
 			attr: &tokens.TransferFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID2,
+				TypeID:                       existingTokenTypeID2,
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
@@ -556,12 +554,10 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleTransferFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateTransferFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -569,21 +565,23 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 func TestTransferFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	transferAttributes := &tokens.TransferFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+		TypeID:                       existingTokenTypeID,
 		NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}
-	uID := existingTokenUnitID
+	uID := existingTokenID
 	tx := createTransactionOrder(t, transferAttributes, tokens.PayloadTypeTransferFungibleToken, uID)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	handler := m.handleTransferFungibleTokenTx()
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	var roundNr uint64 = 10
-	sm, err := handler(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
+	require.NoError(t, m.validateTransferFT(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNr}))
+	sm, err := m.executeTransferFT(tx, transferAttributes, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNr})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -613,7 +611,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenTypeID),
 			attr:       &tokens.SplitFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
 		},
@@ -625,7 +623,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token locked",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingLockedTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingLockedTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue,
@@ -638,7 +636,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid target value - exceeds the max value",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue + 1,
@@ -651,7 +649,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value: target + remainder < original value",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue - 2,
@@ -664,9 +662,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value - remaining value is zero",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
+				TypeID:                       existingTokenTypeID,
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue,
 				RemainingValue:               0,
@@ -678,9 +676,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value - target value is zero",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
+				TypeID:                       existingTokenTypeID,
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				RemainingValue:               existingTokenValue,
 				TargetValue:                  0,
@@ -692,7 +690,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue - 1,
@@ -705,7 +703,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "empty token type id",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				TypeID:                       nil,
 				NewBearer:                    templates.AlwaysTrueBytes(),
@@ -719,9 +717,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token type id",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeSplitFungibleToken, existingTokenID),
 			attr: &tokens.SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID2,
+				TypeID:                       existingTokenTypeID2,
 				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -749,12 +747,10 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleSplitFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateSplitFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -764,7 +760,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	var remainingBillValue uint64 = 10
 	attr := &tokens.SplitFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+		TypeID:                       existingTokenTypeID,
 		NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 		TargetValue:                  existingTokenValue - remainingBillValue,
 		RemainingValue:               remainingBillValue,
@@ -772,12 +768,13 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}
-	uID := existingTokenUnitID
+	uID := existingTokenID
 	tx := createTransactionOrder(t, attr, tokens.PayloadTypeSplitFungibleToken, uID)
 	var roundNr uint64 = 10
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
-	sm, err := m.handleSplitFungibleTokenTx()(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNr})
+	require.NoError(t, m.validateSplitFT(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNr}))
+	sm, err := m.executeSplitFT(tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNr})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(uID, false)
@@ -791,7 +788,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, roundNr, d.T)
 
-	newUnitID := tokens.NewFungibleTokenID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
+	newUnitID := tokens.NewFungibleTokenID(uID, tx.HashForNewUnitID(opts.hashAlgorithm))
 	newUnit, err := opts.state.GetUnit(newUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)
@@ -820,7 +817,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenTypeID),
 			attr:       &tokens.BurnFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
 		},
@@ -832,9 +829,9 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token locked",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingLockedTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingLockedTokenID),
 			attr: &tokens.BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
+				TypeID:                       existingTokenTypeID,
 				Value:                        existingTokenValue,
 				TargetTokenCounter:           0,
 				Counter:                      0,
@@ -844,9 +841,9 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenID),
 			attr: &tokens.BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
+				TypeID:                       existingTokenTypeID,
 				Value:                        existingTokenValue - 1,
 				TargetTokenCounter:           0,
 				Counter:                      0,
@@ -856,9 +853,9 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenID),
 			attr: &tokens.BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
+				TypeID:                       existingTokenTypeID,
 				Value:                        existingTokenValue,
 				TargetTokenCounter:           0,
 				Counter:                      1,
@@ -880,7 +877,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		//},
 		{
 			name: "invalid token type",
-			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenUnitID),
+			tx:   createTransactionOrder(t, nil, tokens.PayloadTypeBurnFungibleToken, existingTokenID),
 			attr: &tokens.BurnFungibleTokenAttributes{
 				TypeID: func() []byte {
 					r := tokens.NewFungibleTokenTypeID(nil, []byte{42})
@@ -897,12 +894,10 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 
 	m, err := NewFungibleTokensModule(defaultOpts(t))
 	require.NoError(t, err)
-	handler := m.handleBurnFungibleTokenTx()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := handler(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateBurnFT(tt.tx, tt.attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -910,21 +905,24 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 func TestBurnFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	burnAttributes := &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+		TypeID:                       existingTokenTypeID,
 		Value:                        existingTokenValue,
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}
-	uID := existingTokenUnitID
+	uID := existingTokenID
 	tx := createTransactionOrder(t, burnAttributes, tokens.PayloadTypeBurnFungibleToken, uID)
 	roundNo := uint64(10)
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	// handle tx
-	sm, err := m.handleBurnFungibleTokenTx()(tx, burnAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNo})
+
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -939,7 +937,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	// verify unit data
 	unitData, ok := u.Data().(*tokens.FungibleTokenData)
 	require.True(t, ok)
-	require.Equal(t, existingTokenTypeUnitID, unitData.TokenType)
+	require.Equal(t, existingTokenTypeID, unitData.TokenType)
 	require.Equal(t, uint64(0), unitData.Value)
 	require.Equal(t, roundNo, unitData.T)
 	require.Equal(t, uint64(1), unitData.Counter)
@@ -952,18 +950,20 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	opts.trustBase = testtb.NewTrustBase(t, verifier)
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
+	txExecutors := make(txsystem.TxExecutors)
+	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	burnAttributes := &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+		TypeID:                       existingTokenTypeID,
 		Value:                        existingTokenValue,
-		TargetTokenID:                existingLockedTokenUnitID,
+		TargetTokenID:                existingLockedTokenID,
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
-	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
+	burnTx := createTxRecord(t, existingTokenID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
 	roundNumber := uint64(10)
-	sm, err := m.handleBurnFungibleTokenTx()(burnTx.TransactionOrder, burnAttributes, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
+	sm, err := txExecutors.ValidateAndExecute(burnTx.TransactionOrder, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNumber})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -974,13 +974,14 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
 	}
-	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, tokens.PayloadTypeBurnFungibleToken)
-	sm, err = m.handleJoinFungibleTokenTx()(joinTx, joinAttr, &txsystem.TxExecutionContext{CurrentBlockNr: roundNumber})
+	joinTx := createTx(t, existingLockedTokenID, joinAttr, tokens.PayloadTypeJoinFungibleToken)
+
+	sm, err = txExecutors.ValidateAndExecute(joinTx, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNumber})
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
 	// verify locked target unit was unlocked
-	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
+	u, err := opts.state.GetUnit(existingLockedTokenID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, u.Data().(*tokens.FungibleTokenData).Locked)
 }
@@ -990,41 +991,41 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	opts := defaultOpts(t)
 	opts.trustBase = testtb.NewTrustBase(t, verifier)
 
-	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenUnitID, &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenID, &tokens.BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeID,
 		Value:                        existingTokenValue,
 		TargetTokenID:                test.RandomBytes(32),
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}, tokens.PayloadTypeBurnFungibleToken)
-	burnTxInvalidTargetTokenCounter := createTxRecord(t, existingTokenUnitID, &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+	burnTxInvalidTargetTokenCounter := createTxRecord(t, existingTokenID, &tokens.BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeID,
 		Value:                        existingTokenValue,
-		TargetTokenID:                existingTokenUnitID,
+		TargetTokenID:                existingTokenID,
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}, tokens.PayloadTypeBurnFungibleToken)
-	burnTx1 := createTxRecord(t, existingTokenUnitID, &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
+	burnTx1 := createTxRecord(t, existingTokenID, &tokens.BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeID,
 		Value:                        existingTokenValue,
-		TargetTokenID:                existingTokenUnitID,
+		TargetTokenID:                existingTokenID,
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}, tokens.PayloadTypeBurnFungibleToken)
-	burnTx2 := createTxRecord(t, existingTokenUnitID2, &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID2,
+	burnTx2 := createTxRecord(t, existingTokenID2, &tokens.BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeID2,
 		Value:                        existingTokenValue,
-		TargetTokenID:                existingTokenUnitID2,
+		TargetTokenID:                existingTokenID2,
 		TargetTokenCounter:           0,
 		Counter:                      0,
 		InvariantPredicateSignatures: [][]byte{nil},
 	}, tokens.PayloadTypeBurnFungibleToken)
 	maxUintValueTokenID := tokens.NewFungibleTokenID(nil, []byte{1, 0, 0, 2})
 	burnTx3 := createTxRecord(t, maxUintValueTokenID, &tokens.BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID2,
+		TypeID:                       existingTokenTypeID2,
 		Value:                        math.MaxUint64,
 		TargetTokenID:                maxUintValueTokenID,
 		TargetTokenCounter:           0,
@@ -1040,9 +1041,9 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	var burnTxs []*types.TransactionRecord
 	for i := uint8(3); i >= 1; i-- {
 		burnTx := createTxRecord(t, tokens.NewFungibleTokenID(nil, []byte{i}), &tokens.BurnFungibleTokenAttributes{
-			TypeID:                       existingTokenTypeUnitID,
+			TypeID:                       existingTokenTypeID,
 			Value:                        existingTokenValue,
-			TargetTokenID:                existingTokenUnitID,
+			TargetTokenID:                existingTokenID,
 			TargetTokenCounter:           0,
 			Counter:                      0,
 			InvariantPredicateSignatures: [][]byte{nil},
@@ -1064,7 +1065,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, &tokens.JoinFungibleTokenAttributes{}, tokens.PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
+			tx:         createTransactionOrder(t, &tokens.JoinFungibleTokenAttributes{}, tokens.PayloadTypeJoinFungibleToken, existingTokenTypeID),
 			wantErrStr: "invalid unit ID",
 		},
 		{
@@ -1074,7 +1075,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid counter",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				Counter:                      1,
 				InvariantPredicateSignatures: [][]byte{nil},
 			}, tokens.PayloadTypeJoinFungibleToken),
@@ -1082,7 +1083,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token identifiers in wrong order",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             burnTxs,
 				Proofs:                       proofs,
 				Counter:                      0,
@@ -1092,7 +1093,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "source not burned - invalid target token id",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidTargetTokenID},
 				Proofs:                       []*types.TxProof{proofInvalidTargetTokenID},
 				Counter:                      0,
@@ -1102,7 +1103,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "source not burned - invalid target token counter",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidTargetTokenCounter},
 				Proofs:                       []*types.TxProof{proofInvalidTargetTokenCounter},
 				Counter:                      1,
@@ -1112,7 +1113,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid source token type",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTx2},
 				Proofs:                       []*types.TxProof{proofInvalidTargetTokenID},
 				Counter:                      0,
@@ -1122,7 +1123,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "proof is not valid",
-			tx: createTx(t, existingTokenUnitID, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTx1},
 				Proofs:                       []*types.TxProof{proofBurnTx2},
 				Counter:                      0,
@@ -1132,7 +1133,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "uint64 overflow",
-			tx: createTx(t, existingTokenUnitID2, &tokens.JoinFungibleTokenAttributes{
+			tx: createTx(t, existingTokenID2, &tokens.JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTx3},
 				Proofs:                       []*types.TxProof{proofBurnTx3},
 				Counter:                      0,
@@ -1149,9 +1150,8 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			attr := &tokens.JoinFungibleTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			sm, err := m.handleJoinFungibleTokenTx()(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNr: 10})
+			err := m.validateJoinFT(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
 			require.ErrorContains(t, err, tt.wantErrStr)
-			require.Nil(t, sm)
 		})
 	}
 }
@@ -1165,44 +1165,44 @@ func defaultOpts(t *testing.T) *Options {
 
 func initState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
-	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err := s.Apply(state.AddUnit(existingTokenTypeID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		ParentTypeId:             nil,
+		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
 		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
 		InvariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenTypeUnitID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err = s.Apply(state.AddUnit(existingTokenTypeID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA2",
 		Name:                     "A long name for ALPHA2",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		ParentTypeId:             nil,
+		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
 		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
 		InvariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeUnitID,
+	err = s.Apply(state.AddUnit(existingTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
+		TokenType: existingTokenTypeID,
 		Value:     existingTokenValue,
 		T:         0,
 		Counter:   0,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenUnitID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeUnitID2,
+	err = s.Apply(state.AddUnit(existingTokenID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
+		TokenType: existingTokenTypeID2,
 		Value:     existingTokenValue,
 		T:         0,
 		Counter:   0,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeUnitID,
+	err = s.Apply(state.AddUnit(existingLockedTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
+		TokenType: existingTokenTypeID,
 		Value:     existingTokenValue,
 		T:         0,
 		Counter:   0,
@@ -1210,9 +1210,9 @@ func initState(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance:  100,
-		Backlink: make([]byte, 32),
-		Timeout:  100,
+		Balance: 100,
+		Counter: 10,
+		Timeout: 100,
 	}))
 	require.NoError(t, err)
 	return s

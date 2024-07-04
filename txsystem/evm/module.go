@@ -21,7 +21,7 @@ type (
 		systemIdentifier types.SystemID
 		options          *Options
 		blockGasCounter  *core.GasPool
-		execPredicate    func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate    predicates.PredicateRunner
 		log              *slog.Logger
 	}
 )
@@ -37,12 +37,6 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate, opts.state),
 		log:              log,
 	}, nil
-}
-
-func (m *Module) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		evm.PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB, m.log).ExecuteFunc(),
-	}
 }
 
 func (m *Module) GenericTransactionValidator() genericTransactionValidator {
@@ -73,5 +67,11 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 			*m.blockGasCounter = core.GasPool(blockGasLimit)
 			return nil
 		},
+	}
+}
+
+func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		evm.PayloadTypeEVMCall: txsystem.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
 	}
 }

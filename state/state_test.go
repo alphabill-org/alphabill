@@ -863,7 +863,7 @@ func createSerializedState(t *testing.T, s *State, h *header, checksum uint32) *
 
 	require.NoError(t, encoder.Encode(h))
 
-	ss := newStateSerializer(encoder, s.hashAlgorithm)
+	ss := newStateSerializer(encoder.Encode, s.hashAlgorithm)
 	s.committedTree.Traverse(ss)
 	require.NoError(t, ss.err)
 

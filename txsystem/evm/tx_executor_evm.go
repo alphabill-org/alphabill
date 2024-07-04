@@ -11,8 +11,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -27,25 +29,36 @@ func errorToStr(err error) string {
 	return ""
 }
 
-func handleEVMTx(systemIdentifier types.SystemID, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[evmsdk.TxAttributes] {
-	return func(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
-		from := common.BytesToAddress(attr.From)
-		stateDB := statedb.NewStateDB(opts.state, log)
-		if !stateDB.Exist(from) {
-			return nil, fmt.Errorf(" address %v does not exist", from)
-		}
-		defer func() {
-			if err == nil {
-				err = stateDB.Finalize()
-			}
-		}()
-		return Execute(exeCtx.CurrentBlockNr, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false, log)
+func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+	from := common.BytesToAddress(attr.From)
+	stateDB := statedb.NewStateDB(m.options.state, m.log)
+	if !stateDB.Exist(from) {
+		return nil, fmt.Errorf("address %v does not exist", from)
 	}
+	defer func() {
+		if retErr == nil {
+			retErr = stateDB.Finalize()
+		}
+	}()
+	return Execute(exeCtx.CurrentBlockNumber, stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
-func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
-	cost := new(big.Int).SetUint64(gas)
-	return cost.Mul(cost, gasPrice)
+func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ *txsystem.TxExecutionContext) error {
+	if attr.From == nil {
+		return fmt.Errorf("invalid evm tx, from addr is nil")
+	}
+	if attr.Value == nil {
+		return fmt.Errorf("invalid evm tx, value is nil")
+	}
+	if attr.Value.Sign() < 0 {
+		return fmt.Errorf("invalid evm tx, value is negative")
+	}
+	return nil
+}
+
+func calcGasPrice(gas uint64, gasPrice *big.Int) *uint256.Int {
+	cost := new(uint256.Int).SetUint64(gas)
+	return cost.Mul(cost, uint256.MustFromBig(gasPrice))
 }
 
 func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
@@ -54,7 +67,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	}
 	// Verify balance
 	balance := stateDB.GetBalance(attr.FromAddr())
-	projectedMaxFee := alphaToWei(weiToAlpha(new(big.Int).Mul(gasUnitPrice, new(big.Int).SetUint64(attr.Gas))))
+	projectedMaxFee := alphaToWei(weiToAlpha(new(uint256.Int).Mul(uint256.MustFromBig(gasUnitPrice), new(uint256.Int).SetUint64(attr.Gas))))
 	if balance.Cmp(projectedMaxFee) == -1 {
 		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
 	}
@@ -99,7 +112,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	fee := weiToAlpha(txPrice)
 	// if rounding isn't clean, add or subtract balance accordingly
 	feeInWei := alphaToWei(fee)
-	stateDB.AddBalance(msg.From, new(big.Int).Sub(txPrice, feeInWei))
+	stateDB.AddBalance(msg.From, new(uint256.Int).Sub(txPrice, feeInWei), tracing.BalanceIncreaseGasReturn)
 
 	log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee), logger.Round(currentBlockNumber))
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
@@ -121,14 +134,13 @@ func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 			}
 			return common.BytesToHash(b.UnicityCertificate.InputRecord.BlockHash)
 		},
-		Coinbase:      common.Address{},
-		GasLimit:      DefaultBlockGasLimit,
-		BlockNumber:   new(big.Int).SetUint64(currentBlockNumber),
-		Time:          1,
-		Difficulty:    big.NewInt(0),
-		BaseFee:       big.NewInt(0),
-		Random:        nil,
-		ExcessBlobGas: nil,
+		Coinbase:    common.Address{},
+		GasLimit:    DefaultBlockGasLimit,
+		BlockNumber: new(big.Int).SetUint64(currentBlockNumber),
+		Time:        1,
+		Difficulty:  big.NewInt(0),
+		BaseFee:     big.NewInt(0),
+		Random:      nil,
 	}
 }
 

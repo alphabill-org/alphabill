@@ -8,32 +8,38 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) handleMintNonFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.MintNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := n.validateMintNonFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
-		}
-		fee := n.feeCalculator()
-		typeID := tx.UnitID()
-		newTokenID := tokens.NewNonFungibleTokenID(typeID, HashForIDCalculation(tx, n.hashAlgorithm))
+func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	tokenID := tx.UnitID()
+	tokenTypeID := attr.TypeID
+	fee := n.feeCalculator()
 
-		if err := n.state.Apply(
-			state.AddUnit(newTokenID, attr.Bearer, tokens.NewNonFungibleTokenData(typeID, attr, exeCtx.CurrentBlockNr, 0)),
-		); err != nil {
-			return nil, err
-		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	if err := n.state.Apply(
+		state.AddUnit(tokenID, attr.Bearer, tokens.NewNonFungibleTokenData(tokenTypeID, attr, exeCtx.CurrentBlockNumber, 0)),
+	); err != nil {
+		return nil, err
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes) error {
-	unitID := tx.UnitID()
-	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
+func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *txsystem.TxExecutionContext) error {
+	tokenID := tx.UnitID()
+	tokenTypeID := attr.TypeID
+
+	// verify token id has correct embedded type
+	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
+
+	// verify token type has correct embedded type
+	if !tokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidTokenTypeID)
+	}
+
+	// verify max allowed sizes
 	if len(attr.Name) > maxNameLength {
 		return errors.New(ErrStrInvalidNameLength)
 	}
@@ -49,18 +55,43 @@ func (n *NonFungibleTokensModule) validateMintNonFungibleToken(tx *types.Transac
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	_, err := n.state.GetUnit(unitID, false)
+
+	// verify token does not exist yet
+	token, err := n.state.GetUnit(tokenID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
+		return err
+	}
+	if token != nil {
+		return fmt.Errorf("token already exists: %s", tokenID)
+	}
+
+	// verify token type does exist
+	tokenType, err := n.state.GetUnit(tokenTypeID, false)
+	if err != nil && !errors.Is(err, avl.ErrNotFound) {
+		return err
+	}
+	if tokenType == nil {
+		return fmt.Errorf("nft type does not exist: %s", tokenTypeID)
+	}
+
+	// verify token id is correctly generated
+	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, n.hashAlgorithm)
 	if err != nil {
 		return err
 	}
+	newTokenID := tokens.NewNonFungibleTokenID(tokenTypeID, unitPart)
+	if !newTokenID.Eq(tokenID) {
+		return errors.New("invalid token id")
+	}
 
+	// verify predicate inheritance chain
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		unitID,
+		tokenTypeID,
 		attr.TokenCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.TokenCreationPredicate
+			return d.ParentTypeID, d.TokenCreationPredicate
 		},
 		n.state.GetUnit,
 	)

@@ -10,54 +10,27 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (n *NonFungibleTokensModule) handleUpdateNonFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.UpdateNonFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (sm *types.ServerMetadata, err error) {
-		isLocked := false
-		if !exeCtx.StateLockReleased {
-			if err = n.validateUpdateNonFungibleToken(tx, attr); err != nil {
-				return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
+func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := n.feeCalculator()
+	unitID := tx.UnitID()
+	// update state
+	if err := n.state.Apply(
+		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			d, ok := data.(*tokens.NonFungibleTokenData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
-			isLocked, err = txsystem.LockUnitState(tx, n.execPredicate, n.state)
-			if err != nil {
-				return nil, fmt.Errorf("failed to lock unit state: %w", err)
-			}
-		}
-		fee := n.feeCalculator()
-		unitID := tx.UnitID()
-
-		// update state
-		if !isLocked {
-			if err = n.state.Apply(
-				state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
-					d, ok := data.(*tokens.NonFungibleTokenData)
-					if !ok {
-						return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
-					}
-					d.Data = attr.Data
-					return d, nil
-				})); err != nil {
-				return nil, err
-			}
-		}
-
-		if err = n.state.Apply(
-			state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
-				d, ok := data.(*tokens.NonFungibleTokenData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
-				}
-				d.T = exeCtx.CurrentBlockNr
-				d.Counter += 1
-				return d, nil
-			})); err != nil {
-			return nil, err
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+			d.Data = attr.Data
+			d.T = exeCtx.CurrentBlockNumber
+			d.Counter += 1
+			return d, nil
+		})); err != nil {
+		return nil, err
 	}
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes) error {
+func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
@@ -89,11 +62,11 @@ func (n *NonFungibleTokensModule) validateUpdateNonFungibleToken(tx *types.Trans
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		data.NftType,
+		data.TypeID,
 		attr.DataUpdateSignatures[1:],
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.DataUpdatePredicate
+			return d.ParentTypeID, d.DataUpdatePredicate
 		},
 		n.state.GetUnit,
 	)

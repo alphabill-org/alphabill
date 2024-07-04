@@ -32,9 +32,9 @@ func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
 		}
 
 		// 6. if the transaction has a fee authorization proof,
-		//    it must satisfy the owner_bytes condition of the fee credit record
+		// it must satisfy the owner predicate of the fee credit record
 		// 7. if the transaction does not have a separate fee authorization proof,
-		//    the owner_bytes proof of the whole transaction must also satisfy the owner_bytes condition of the fee credit record
+		// the owner proof of the whole transaction must also satisfy the owner predicate of the fee credit record
 		if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx); err != nil {
 			return fmt.Errorf("evaluating fee proof: %w", err)
 		}

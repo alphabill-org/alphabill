@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,13 +23,13 @@ func TestStateObject_Write(t *testing.T) {
 	so := &StateObject{
 		Address: common.BytesToAddress(test.RandomBytes(20)),
 		Account: &Account{
-			Balance:  big.NewInt(200),
+			Balance:  uint256.NewInt(200),
 			CodeHash: emptyCodeHash,
 			Nonce:    2,
 		},
 		Storage: state.Storage{key2: value2, key1: value1},
 		AlphaBill: &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
+			Counter: 10,
 			Timeout: 10,
 		},
 		Suicided: false,
@@ -55,7 +56,7 @@ func TestAlphaBillLink_GetTimeout(t *testing.T) {
 	})
 	t.Run("timeout set", func(t *testing.T) {
 		abLink := &AlphaBillLink{
-			TxHash:  test.RandomBytes(32),
+			Counter: 10,
 			Timeout: 10,
 		}
 		require.EqualValues(t, 10, abLink.GetTimeout())

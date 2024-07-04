@@ -12,35 +12,30 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) handleTransferFungibleTokenTx() txsystem.GenericExecuteFunc[tokens.TransferFungibleTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateTransferFungibleToken(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
-		}
-		fee := m.feeCalculator()
-		unitID := tx.UnitID()
+func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	fee := m.feeCalculator()
+	unitID := tx.UnitID()
 
-		if err := m.state.Apply(
-			state.SetOwner(unitID, attr.NewBearer),
-			state.UpdateUnitData(unitID,
-				func(data types.UnitData) (types.UnitData, error) {
-					d, ok := data.(*tokens.FungibleTokenData)
-					if !ok {
-						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
-					}
-					d.T = exeCtx.CurrentBlockNr
-					d.Counter += 1
-					return d, nil
-				}),
-		); err != nil {
-			return nil, err
-		}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	if err := m.state.Apply(
+		state.SetOwner(unitID, attr.NewBearer),
+		state.UpdateUnitData(unitID,
+			func(data types.UnitData) (types.UnitData, error) {
+				d, ok := data.(*tokens.FungibleTokenData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
+				}
+				d.T = exeCtx.CurrentBlockNumber
+				d.Counter += 1
+				return d, nil
+			}),
+	); err != nil {
+		return nil, err
 	}
+
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes) error {
+func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -71,7 +66,7 @@ func (m *FungibleTokensModule) validateTransferFungibleToken(tx *types.Transacti
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -93,9 +88,9 @@ func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateB
 		}
 		return nil, nil, err
 	}
-	d, ok := u.Data().(*tokens.FungibleTokenData)
+	tokenData, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
-	return u.Bearer(), d, nil
+	return u.Bearer(), tokenData, nil
 }

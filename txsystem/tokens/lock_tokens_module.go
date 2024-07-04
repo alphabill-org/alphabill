@@ -28,9 +28,9 @@ func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
 	}, nil
 }
 
-func (m *LockTokensModule) TxExecutors() map[string]txsystem.ExecuteFunc {
-	return map[string]txsystem.ExecuteFunc{
-		tokens.PayloadTypeLockToken:   m.handleLockTokenTx().ExecuteFunc(),
-		tokens.PayloadTypeUnlockToken: m.handleUnlockTokenTx().ExecuteFunc(),
+func (m *LockTokensModule) TxHandlers() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		tokens.PayloadTypeLockToken:   txsystem.NewTxHandler[tokens.LockTokenAttributes](m.validateLockTokenTx, m.executeLockTokensTx),
+		tokens.PayloadTypeUnlockToken: txsystem.NewTxHandler[tokens.UnlockTokenAttributes](m.validateUnlockTokenTx, m.executeUnlockTokenTx),
 	}
 }

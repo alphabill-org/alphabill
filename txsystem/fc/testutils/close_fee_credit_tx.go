@@ -3,6 +3,7 @@ package testutils
 import (
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
@@ -10,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewCloseFC(t *testing.T, attr *fc.CloseFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewCloseFC(t *testing.T, signer abcrypto.Signer, attr *fc.CloseFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewCloseFCAttr()
 	}
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithUnitID(unitID),
+		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeCloseFeeCredit),
 	)
@@ -38,7 +39,7 @@ func NewCloseFCAttr(opts ...CloseFCOption) *fc.CloseFeeCreditAttributes {
 func NewDefaultCloseFCAttr() *fc.CloseFeeCreditAttributes {
 	return &fc.CloseFeeCreditAttributes{
 		Amount:            amount,
-		TargetUnitID:      unitID,
+		TargetUnitID:      DefaultMoneyUnitID(),
 		TargetUnitCounter: targetUnitCounter,
 	}
 }
@@ -46,6 +47,13 @@ func NewDefaultCloseFCAttr() *fc.CloseFeeCreditAttributes {
 func WithCloseFCAmount(amount uint64) CloseFCOption {
 	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
 		tx.Amount = amount
+		return nil
+	}
+}
+
+func WithCloseFCCounter(counter uint64) CloseFCOption {
+	return func(tx *fc.CloseFeeCreditAttributes) CloseFCOption {
+		tx.Counter = counter
 		return nil
 	}
 }

@@ -19,7 +19,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -115,7 +114,7 @@ type (
 func NewDistributedAbConsensusManager(
 	nodeID peer.ID,
 	rg *genesis.RootGenesis,
-	genesisTrustBase types.RootTrustBase, // must be provided for initial run only
+	trustBase types.RootTrustBase,
 	partitionStore partitions.PartitionConfiguration,
 	net RootNet,
 	signer crypto.Signer,
@@ -128,6 +127,9 @@ func NewDistributedAbConsensusManager(
 	}
 	if net == nil {
 		return nil, errors.New("network is nil")
+	}
+	if trustBase == nil {
+		return nil, errors.New("trust base is nil")
 	}
 	// load options
 	optional, err := consensus.LoadConf(opts)
@@ -157,10 +159,6 @@ func NewDistributedAbConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
-	tb, err := initTrustBase(optional.Storage, genesisTrustBase)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init trust base: %w", err)
-	}
 	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
 	if err != nil {
 		return nil, fmt.Errorf("creating Pacemaker: %w", err)
@@ -174,7 +172,7 @@ func NewDistributedAbConsensusManager(
 		net:            net,
 		pacemaker:      pm,
 		leaderSelector: ls,
-		trustBase:      tb,
+		trustBase:      trustBase,
 		irReqBuffer:    NewIrReqBuffer(observe.Logger()),
 		safety:         safetyModule,
 		blockStore:     bStore,
@@ -271,30 +269,6 @@ func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
 		// keep history, ie we can't load blocks older than previous block.
 		return leader.NewReputationBased(rootNodes, 1, 1)
 	}
-}
-
-// initTrustBase returns the stored trust base if it exists, if it does not exist then
-// verify that the genesis trust base is provided, store it, and return it.
-func initTrustBase(store keyvaluedb.KeyValueDB, genesisTrustBase types.RootTrustBase) (types.RootTrustBase, error) {
-	trustBaseStore, err := storage.NewTrustBaseStore(store)
-	if err != nil {
-		return nil, fmt.Errorf("consensus trust base storage init failed: %w", err)
-	}
-	// TODO latest epoch number must be provided externally or stored internally
-	trustBase, err := trustBaseStore.LoadTrustBase(0)
-	if err != nil {
-		return nil, err
-	}
-	if trustBase != nil {
-		return trustBase, nil
-	}
-	if genesisTrustBase == nil {
-		return nil, errors.New("trust base must be provided for initial run")
-	}
-	if err := trustBaseStore.StoreTrustBase(0, genesisTrustBase); err != nil {
-		return nil, fmt.Errorf("failed to store genesis trust base: %w", err)
-	}
-	return genesisTrustBase, nil
 }
 
 func (x *ConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {

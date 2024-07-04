@@ -368,7 +368,7 @@ func (s *State) Serialize(writer io.Writer, committed bool) error {
 	}
 
 	// Write node records
-	ss := newStateSerializer(encoder, s.hashAlgorithm)
+	ss := newStateSerializer(encoder.Encode, s.hashAlgorithm)
 	if tree.Traverse(ss); ss.err != nil {
 		return fmt.Errorf("unable to write node records: %w", ss.err)
 	}

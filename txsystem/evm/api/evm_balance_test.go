@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/holiman/uint256"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -26,8 +28,8 @@ func TestAPI_Balance_OK(t *testing.T) {
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
-	balance := big.NewInt(101)
-	stateDB.AddBalance(address, balance)
+	balance := uint256.NewInt(101)
+	stateDB.AddBalance(address, balance, tracing.BalanceChangeUnspecified)
 	teststate.CommitWithUC(t, tree)
 
 	a := &API{
@@ -43,26 +45,26 @@ func TestAPI_Balance_OK(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
-		_        struct{} `cbor:",toarray"`
-		Balance  string
-		Backlink []byte
+		_       struct{} `cbor:",toarray"`
+		Balance string
+		Counter uint64
 	}{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, balance.String(), resp.Balance)
-	require.Len(t, resp.Backlink, 0)
+	require.EqualValues(t, 0, resp.Counter)
 }
 
-func TestAPI_BalanceWithBacklink(t *testing.T) {
+func TestAPI_BalanceWithCounter(t *testing.T) {
 	tree := abstate.NewEmptyState()
 	stateDB := statedb.NewStateDB(tree, logger.New(t))
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
-	balance := big.NewInt(101)
-	stateDB.AddBalance(address, balance)
-	backlink := test.RandomBytes(20)
+	balance := uint256.NewInt(101)
+	stateDB.AddBalance(address, balance, tracing.BalanceChangeUnspecified)
+	counter := uint64(10)
 	stateDB.SetAlphaBillData(address, &statedb.AlphaBillLink{
-		TxHash: backlink,
+		Counter: counter,
 	})
 	teststate.CommitWithUC(t, tree)
 
@@ -79,13 +81,13 @@ func TestAPI_BalanceWithBacklink(t *testing.T) {
 	rpc.NewRESTServer("", 2000, observability.NOPObservability(), a).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	resp := &struct {
-		_        struct{} `cbor:",toarray"`
-		Balance  string
-		Backlink []byte
+		_       struct{} `cbor:",toarray"`
+		Balance string
+		Counter uint64
 	}{}
 	require.NoError(t, types.Cbor.Decode(recorder.Body, resp))
 	require.Equal(t, balance.String(), resp.Balance)
-	require.Equal(t, backlink, resp.Backlink)
+	require.Equal(t, counter, resp.Counter)
 }
 
 func TestAPI_Balance_NotFound(t *testing.T) {

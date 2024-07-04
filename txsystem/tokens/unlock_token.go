@@ -12,23 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *LockTokensModule) handleUnlockTokenTx() txsystem.GenericExecuteFunc[tokens.UnlockTokenAttributes] {
-	return func(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-		if err := m.validateUnlockTokenTx(tx, attr); err != nil {
-			return nil, fmt.Errorf("invalid unlock token tx: %w", err)
-		}
-		// update lock status, round number and counter
-		updateFn := state.UpdateUnitData(tx.UnitID(),
-			func(data types.UnitData) (types.UnitData, error) {
-				return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNr)
-			})
-		if err := m.state.Apply(updateFn); err != nil {
-			return nil, fmt.Errorf("failed to update state: %w", err)
-		}
-		return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
-	}
-}
-
 func (m *LockTokensModule) updateUnlockTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
 	if tx.UnitID().HasType(tokens.FungibleTokenUnitType) {
 		return updateUnlockFungibleTokenData(data, tx, roundNumber)
@@ -61,14 +44,19 @@ func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrd
 	return d, nil
 }
 
-func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes) error {
-	if tx == nil {
-		return errors.New("tx is nil")
+func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *tokens.UnlockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+	// update lock status, round number and counter
+	updateFn := state.UpdateUnitData(tx.UnitID(),
+		func(data types.UnitData) (types.UnitData, error) {
+			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentBlockNumber)
+		})
+	if err := m.state.Apply(updateFn); err != nil {
+		return nil, fmt.Errorf("failed to update state: %w", err)
 	}
-	if attr == nil {
-		return errors.New("attributes is nil")
-	}
+	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+}
 
+func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, _ *txsystem.TxExecutionContext) error {
 	// unit id identifies an existing fungible or non-fungible token
 	u, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
@@ -101,11 +89,11 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	}
 	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		tx,
-		d.NftType,
+		d.TypeID,
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -133,7 +121,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 		attr.InvariantPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeId, d.InvariantPredicate
+			return d.ParentTypeID, d.InvariantPredicate
 		},
 		m.state.GetUnit,
 	)
@@ -143,7 +131,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	return validateUnlockToken(attr, d)
 }
 
-func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d tokenData) error {
+func validateUnlockToken(attr *tokens.UnlockTokenAttributes, d unitData) error {
 	// the token is locked
 	if d.IsLocked() == 0 {
 		return errors.New("token is already unlocked")

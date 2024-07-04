@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -104,11 +105,13 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	require.NotNil(t, network3)
 	require.NoError(t, peer3.BootstrapConnect(context.Background(), obs.Logger()))
 
+	var wg sync.WaitGroup
+	wg.Add(3)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// peer3 starts forwarding to peer1 and peer2 in a round-robin manner
-	go func() error {
+	go func() {
+		defer wg.Done()
 		txCount := 0
 		network3.ForwardTransactions(ctx, func() peer.ID {
 			txCount++
@@ -117,27 +120,26 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 			}
 			return peer1.ID()
 		})
-		return nil
 	}()
 
 	// peer1 starts processing
 	var peer1TxCount atomic.Int32
-	go func() error {
+	go func() {
+		defer wg.Done()
 		network1.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
 			peer1TxCount.Add(1)
 			return nil
 		})
-		return nil
 	}()
 
 	// peer2 starts processing
 	var peer2TxCount atomic.Int32
-	go func() error {
+	go func() {
+		defer wg.Done()
 		network2.ProcessTransactions(ctx, func(ctx context.Context, tx *types.TransactionOrder) error {
 			peer2TxCount.Add(1)
 			return nil
 		})
-		return nil
 	}()
 
 	// peer3 has opened bootstrap connections to peer1 and peer2
@@ -153,6 +155,9 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return peer1TxCount.Load() == 50 && peer2TxCount.Load() == 50
 	}, test.WaitDuration, test.WaitTick)
+
+	cancel()
+	wg.Wait()
 
 	peer1Conns := peer3.Network().ConnsToPeer(peer1.ID())
 	peer2Conns := peer3.Network().ConnsToPeer(peer2.ID())

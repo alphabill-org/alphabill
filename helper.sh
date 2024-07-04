@@ -45,10 +45,10 @@ function generate_boot_node() {
 }
 
 # generates genesis files
-# expects two arguments
-# $1 alphabill partition type ('money', 'tokens') or root as string
+# first two arguments are mandatory, third is optional
+# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration') as string
 # $2 nof genesis files to generate
-# $3 custom cli args
+# $3 custom CLI args
 function generate_partition_node_genesis() {
 local cmd=""
 local home=""
@@ -75,9 +75,10 @@ case $1 in
     ;;
 esac
 # execute cmd to generate genesis files
+echo "generating $2 genesis files for $1 partition"
 for i in $(seq 1 "$2")
 do
-  # "-g" flags also generates keys
+  # "-g" flag generates keys
   build/alphabill "$cmd" --home "${home}$i" -g $3
 done
 }
@@ -98,6 +99,7 @@ function generate_root_genesis() {
     node_genesis_files="$node_genesis_files -p $file"
   done
   # generate individual root node genesis files
+  echo "generating $1 genesis files for root node"
   for i in $(seq 1 "$1")
   do
     build/alphabill root-genesis new --home testab/rootchain"$i" -g --block-rate=400 --consensus-timeout=2500 --total-nodes="$1" $node_genesis_files
@@ -218,6 +220,7 @@ function start_non_validator_partition_nodes() {
   partition=$1
   count=$2
   home="testab/$partition-non-validator"
+  trust_base_file="testab/root-trust-base.json"
 
   echo "starting $count non-validator $partition nodes"
 
@@ -266,6 +269,7 @@ function start_non_validator_partition_nodes() {
       --tx-db ${home}$i/$partition/tx.db \
       --key-file ${home}$i/$partition/keys.json \
       --genesis $partitionGenesis \
+      --trust-base-file $trust_base_file \
       --state ${home}$i/$partition/node-genesis-state.cbor \
       --address "/ip4/127.0.0.1/tcp/$p2pPort" \
       --bootnodes="$bootNodes" \

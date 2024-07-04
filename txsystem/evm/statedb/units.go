@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"hash"
-	"math/big"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -32,7 +32,7 @@ type StateObject struct {
 // Account represents an account in Ethereum.
 type Account struct {
 	_        struct{} `cbor:",toarray"`
-	Balance  *big.Int
+	Balance  *uint256.Int
 	CodeHash []byte
 	Code     []byte
 	Nonce    uint64
@@ -41,7 +41,7 @@ type Account struct {
 // AlphaBillLink links Account to AB FCR bill
 type AlphaBillLink struct {
 	_       struct{} `cbor:",toarray"`
-	TxHash  []byte
+	Counter uint64
 	Timeout uint64
 }
 
@@ -80,7 +80,7 @@ func (f *AlphaBillLink) Copy() *AlphaBillLink {
 		return nil
 	}
 	return &AlphaBillLink{
-		TxHash:  bytes.Clone(f.TxHash),
+		Counter: f.Counter,
 		Timeout: f.Timeout,
 	}
 }
@@ -92,9 +92,16 @@ func (f *AlphaBillLink) GetTimeout() uint64 {
 	return 0
 }
 
+func (f *AlphaBillLink) GetCounter() uint64 {
+	if f != nil {
+		return f.Counter
+	}
+	return 0
+}
+
 func (a *Account) Copy() *Account {
 	return &Account{
-		Balance:  big.NewInt(0).SetBytes(bytes.Clone(a.Balance.Bytes())),
+		Balance:  a.Balance.Clone(),
 		CodeHash: bytes.Clone(a.CodeHash),
 		Code:     bytes.Clone(a.Code),
 		Nonce:    a.Nonce,

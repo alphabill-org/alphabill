@@ -21,12 +21,6 @@ import (
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
 var addOneWasm []byte
 
-//go:embed testdata/missingHostAPI/target/wasm32-unknown-unknown/release/invalid_api.wasm
-var invalidAPIWasm []byte
-
-//go:embed testdata/p2pkh_v1/p2pkh.wasm
-var p2pkhV1Wasm []byte
-
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	obs := observability.Default(t)

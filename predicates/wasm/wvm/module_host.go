@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+
+	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -49,11 +50,7 @@ func read(m api.Module, pointerSize uint64) (data []byte) {
 }
 
 func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
-	if rtCtx == nil {
-		panic("nil runtime context")
-	}
-
+	rtCtx := vmContext(ctx)
 	rtCtx.log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
 	var Value []byte
 	found, err := rtCtx.Storage.Read(util.Uint32ToBytes(fileID), &Value)
@@ -67,7 +64,7 @@ func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
 	dataLen := uint32(len(Value))
 	offset, err := rtCtx.MemMngr.Alloc(m.Memory(), dataLen)
 	if err != nil {
-		rtCtx.log.WarnContext(ctx, "program state file memory allocation failed failed: %w", err)
+		rtCtx.log.WarnContext(ctx, "program state file memory allocation failed failed", logger.Error(err))
 	}
 	if ok := m.Memory().Write(offset, Value); !ok {
 		rtCtx.log.WarnContext(ctx, "program state file write failed")
@@ -77,10 +74,7 @@ func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
 }
 
 func storageWriteV1(ctx context.Context, m api.Module, fileID uint32, value uint64) int32 {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
-	if rtCtx == nil {
-		panic("nil runtime context")
-	}
+	rtCtx := vmContext(ctx)
 	prt, size := splitPointerSize(value)
 	data, ok := m.Memory().Read(prt, size)
 	if !ok {
@@ -112,11 +106,11 @@ func logMsg(ctx context.Context, m api.Module, level uint32, msgData uint64) {
 	}
 }
 
-func extFree(observe Observability) api.GoModuleFunc {
-	log := observe.Logger()
+func extFree(_ Observability) api.GoModuleFunc {
+	//log := observe.Logger()
 	return func(ctx context.Context, mod api.Module, stack []uint64) {
 		addr := api.DecodeU32(stack[0])
-		log.DebugContext(ctx, fmt.Sprintf("%s.Free(%d)", mod.Name(), addr))
+		//log.DebugContext(ctx, fmt.Sprintf("%s.Free(%d)", mod.Name(), addr))
 		allocator := ctx.Value(runtimeContextKey).(*VmContext).MemMngr
 
 		if err := allocator.Free(mod.Memory(), addr); err != nil {
@@ -125,8 +119,8 @@ func extFree(observe Observability) api.GoModuleFunc {
 	}
 }
 
-func extMalloc(observe Observability) api.GoModuleFunc {
-	log := observe.Logger()
+func extMalloc(_ Observability) api.GoModuleFunc {
+	//log := observe.Logger()
 	return func(ctx context.Context, mod api.Module, stack []uint64) {
 		allocator := ctx.Value(runtimeContextKey).(*VmContext).MemMngr
 
@@ -136,7 +130,7 @@ func extMalloc(observe Observability) api.GoModuleFunc {
 		if err != nil {
 			panic(err)
 		}
-		log.DebugContext(ctx, fmt.Sprintf("%s.Alloc(%d) => %d", mod.Name(), size, res))
+		//log.DebugContext(ctx, fmt.Sprintf("%s.Alloc(%d) => %d", mod.Name(), size, res))
 
 		stack[0] = api.EncodeU32(res)
 	}

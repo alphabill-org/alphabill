@@ -250,20 +250,21 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 		return 0, fmt.Errorf("module doesn't export function %q", conf.Entrypoint)
 	}
 
-	res, err := fn.Call(context.WithValue(ctx, runtimeContextKey, vm.ctx))
+	res, evalErr := fn.Call(context.WithValue(ctx, runtimeContextKey, vm.ctx))
 	gasRemaining := gas.Get()
-	// out of gas during wasm predicate execution, in case of out of gas the Call will also return unreachable error, but
-	// we will instead return gas calculation error
-	if err != nil && (gasRemaining == math.MaxUint64 || gasRemaining > initialGas) {
+	// out of gas during wasm predicate execution, in case of out of gas the Call will
+	// also return unreachable error, but we will instead return gas calculation error
+	if evalErr != nil && (gasRemaining == math.MaxUint64 || gasRemaining > initialGas) {
 		// force error, spend whole budget
-		return 0, errors.Join(err, env.SpendGas(math.MaxUint64))
+		return 0, errors.Join(evalErr, env.SpendGas(math.MaxUint64))
 	}
-	if err != nil {
-		return 0, fmt.Errorf("calling %s returned error: %w", conf.Entrypoint, err)
+	// spend gas according to how much was used. the execution of the predicate might have
+	// failed but we take the fee (gas) anyway!
+	if err := env.SpendGas(initialGas - gasRemaining); err != nil {
+		return 0, errors.Join(evalErr, fmt.Errorf("calculating gas usage: %w", err))
 	}
-	// spend gas according to how much was used
-	if err = env.SpendGas(initialGas - gasRemaining); err != nil {
-		return 0, fmt.Errorf("calculating gas usage: %w", err)
+	if evalErr != nil {
+		return 0, fmt.Errorf("calling %s returned error: %w", conf.Entrypoint, evalErr)
 	}
 
 	vm.ctx.log.DebugContext(ctx, fmt.Sprintf("%s.%s.RESULT: %#v", m.Name(), conf.Entrypoint, res))

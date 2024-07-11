@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateRunner(t *testing.T) {
@@ -202,6 +202,7 @@ func TestAlwaysFalse(t *testing.T) {
 			}
 		}
 	})
+
 	t.Run("out of gas", func(t *testing.T) {
 		execEnv := &mockTxContext{
 			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
@@ -346,6 +347,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
 		require.False(t, res)
 	})
+
 	t.Run("out of gas", func(t *testing.T) {
 		execEnv := &mockTxContext{
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
@@ -371,6 +373,7 @@ func Benchmark_P2pkh256Execute(b *testing.B) {
 
 	execEnv := &mockTxContext{
 		payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return payload, nil },
+		spendGas:     func(gas uint64) error { return nil },
 	}
 	txo := &types.TransactionOrder{}
 

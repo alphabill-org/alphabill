@@ -198,7 +198,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 			},
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
 			payloadBytes: payloadBytes,
-			GasRemaining: 30000,
+			GasRemaining: 50000,
 		}
 
 		obs := observability.Default(t)
@@ -228,7 +228,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x5859, env.GasRemaining)
+		assert.EqualValues(t, 0xa679, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and
@@ -239,7 +239,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.EqualError(t, err, `calling token_bearer returned error: module closed with exit_code(3134196653)`)
-		assert.EqualValues(t, 0x5471, env.GasRemaining)
+		assert.EqualValues(t, 0x748b, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
@@ -248,7 +248,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x1fdc, env.GasRemaining)
+		assert.EqualValues(t, 0x3ff6, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 
@@ -294,27 +294,27 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
 		require.NoError(t, txNFTUpdate.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
-		start := time.Now()
+		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
-		t.Logf("took %s", time.Since(start))
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		assert.EqualValues(t, 0x58dc, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
 		txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
-		start = time.Now()
+		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
-		t.Logf("took %s", time.Since(start))
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		assert.EqualValues(t, 0x36ce, env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
 		txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
-		start = time.Now()
+		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
-		t.Logf("took %s", time.Since(start))
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		assert.EqualValues(t, 0x14c0, env.GasRemaining)
 		require.EqualValues(t, 0x701, res, "expected code `7` = transferred amount doesn't equal to `P2 - P1`")

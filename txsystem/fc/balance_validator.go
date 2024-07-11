@@ -37,8 +37,16 @@ func (f *FeeCredit) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.Transa
 	}
 	// 3. if the transaction has a fee authorization proof,
 	// it must satisfy the owner predicate of the fee credit record
-	if err := f.execPredicate(unit.Bearer(), tx.FeeProof, tx, exeCtx); err != nil {
+	if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil
+}
+
+// getFeeProof returns tx.FeeProof if it exists or tx.OwnerProof if it does not exist
+func getFeeProof(tx *types.TransactionOrder) []byte {
+	if len(tx.FeeProof) > 0 {
+		return tx.FeeProof
+	}
+	return tx.OwnerProof
 }

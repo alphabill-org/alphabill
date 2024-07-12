@@ -39,12 +39,6 @@ func WithTrustBase(trustBase types.RootTrustBase) Option {
 	}
 }
 
-func WithFeeCalculator(feeCalculator FeeCalculator) Option {
-	return func(f *FeeCredit) {
-		f.feeCalculator = feeCalculator
-	}
-}
-
 func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
 	return func(f *FeeCredit) {
 		f.feeCreditRecordUnitType = feeCreditRecordUnitType

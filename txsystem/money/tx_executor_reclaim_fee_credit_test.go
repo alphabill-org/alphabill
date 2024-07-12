@@ -9,8 +9,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateReclaimFCTx(tx, attr, exeCtx))
 	})
 	t.Run("Bill is missing", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier)
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx),
 			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000000 does not exist: not found")
 	})
@@ -44,7 +44,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		module := newTestMoneyModule(t, verifier, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid unit type")
 	})
@@ -55,7 +55,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "fee tx cannot contain fee credit reference")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "fee tx cannot contain fee authorization proof")
 	})
 	t.Run("Invalid target unit", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid target unit")
 	})
 	t.Run("Invalid tx fee", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "the transaction fees cannot exceed the transferred value")
 	})
 	t.Run("Invalid target unit counter", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter + 1}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid target unit counter")
 	})
 	t.Run("Invalid counter", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
 	t.Run("owner error", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysFalseBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), `predicate evaluated to "false"`)
 	})
 	t.Run("Invalid proof", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-		exeCtx := &txsystem.TxExecutionContext{}
+		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid proof: proof block hash does not match to block hash in unicity certificate")
 	})
 }
@@ -151,9 +151,10 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-	exeCtx := &txsystem.TxExecutionContext{}
+	exeCtx := testctx.NewMockExecutionContext(t)
 	sm, err := module.executeReclaimFCTx(tx, attr, exeCtx)
 	require.NoError(t, err)
+	require.EqualValues(t, 1, sm.ActualFee)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 	require.EqualValues(t, []types.UnitID{tx.UnitID()}, sm.TargetUnits)
 	// verify changes
@@ -163,11 +164,11 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
 	// target bill is credited correct amount (using default values from testutils)
-	v := 50 - 10 - module.feeCalculator()
+	v := 50 - 10 - sm.ActualFee
 	require.EqualValues(t, bill.V, amount+v)
 	// counter is incremented
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentBlockNumber)
+	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 	require.EqualValues(t, bill.Locked, 0)
 }
 

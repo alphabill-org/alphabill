@@ -7,14 +7,13 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
 )
 
-var _ txsystem.Module = (*Module)(nil)
+var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
@@ -24,7 +23,6 @@ type (
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
-		feeCalculator       fc.FeeCalculator
 		execPredicate       predicates.PredicateRunner
 	}
 )
@@ -36,9 +34,6 @@ func NewMoneyModule(options *Options) (*Module, error) {
 	if options.state == nil {
 		return nil, errors.New("state is nil")
 	}
-	if options.feeCalculator == nil {
-		return nil, errors.New("fee calculator function is nil")
-	}
 
 	m := &Module{
 		state:               options.state,
@@ -47,24 +42,23 @@ func NewMoneyModule(options *Options) (*Module, error) {
 		hashAlgorithm:       options.hashAlgorithm,
 		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, options.systemIdentifier, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
-		feeCalculator:       options.feeCalculator,
-		execPredicate:       predicates.NewPredicateRunner(options.exec, options.state),
+		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}
 	return m, nil
 }
 
-func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
+func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
 		// money partition tx handlers
-		money.PayloadTypeTransfer: txsystem.NewTxHandler[money.TransferAttributes](m.validateTransferTx, m.executeTransferTx),
-		money.PayloadTypeSplit:    txsystem.NewTxHandler[money.SplitAttributes](m.validateSplitTx, m.executeSplitTx),
-		money.PayloadTypeTransDC:  txsystem.NewTxHandler[money.TransferDCAttributes](m.validateTransferDCTx, m.executeTransferDCTx),
-		money.PayloadTypeSwapDC:   txsystem.NewTxHandler[money.SwapDCAttributes](m.validateSwapTx, m.executeSwapTx),
-		money.PayloadTypeLock:     txsystem.NewTxHandler[money.LockAttributes](m.validateLockTx, m.executeLockTx),
-		money.PayloadTypeUnlock:   txsystem.NewTxHandler[money.UnlockAttributes](m.validateUnlockTx, m.executeUnlockTx),
+		money.PayloadTypeTransfer: txtypes.NewTxHandler[money.TransferAttributes](m.validateTransferTx, m.executeTransferTx),
+		money.PayloadTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes](m.validateSplitTx, m.executeSplitTx),
+		money.PayloadTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes](m.validateTransferDCTx, m.executeTransferDCTx),
+		money.PayloadTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes](m.validateSwapTx, m.executeSwapTx),
+		money.PayloadTypeLock:     txtypes.NewTxHandler[money.LockAttributes](m.validateLockTx, m.executeLockTx),
+		money.PayloadTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes](m.validateUnlockTx, m.executeUnlockTx),
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		fcsdk.PayloadTypeTransferFeeCredit: txsystem.NewTxHandler[fcsdk.TransferFeeCreditAttributes](m.validateTransferFCTx, m.executeTransferFCTx),
-		fcsdk.PayloadTypeReclaimFeeCredit:  txsystem.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes](m.validateReclaimFCTx, m.executeReclaimFCTx),
+		fcsdk.PayloadTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes](m.validateTransferFCTx, m.executeTransferFCTx),
+		fcsdk.PayloadTypeReclaimFeeCredit:  txtypes.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes](m.validateReclaimFCTx, m.executeReclaimFCTx),
 	}
 }
 

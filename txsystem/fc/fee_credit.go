@@ -7,14 +7,19 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*FeeCredit)(nil)
+const (
+	GeneralTxCostGasUnits = 400
+	GasUnitsPerTema       = 1000
+)
+
+var _ txtypes.Module = (*FeeCredit)(nil)
 
 var (
 	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
@@ -31,24 +36,14 @@ type (
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
-		feeCalculator           FeeCalculator
-		execPredicate           func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error
+		execPredicate           predicates.PredicateRunner
 		feeCreditRecordUnitType []byte
 	}
-
-	FeeCalculator func() uint64
 )
-
-func FixedFee(fee uint64) FeeCalculator {
-	return func() uint64 {
-		return fee
-	}
-}
 
 func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	m := &FeeCredit{
 		hashAlgorithm: crypto.SHA256,
-		feeCalculator: FixedFee(1),
 	}
 	for _, o := range opts {
 		o(m)
@@ -58,7 +53,7 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 		if err != nil {
 			return nil, fmt.Errorf("creating predicate executor: %w", err)
 		}
-		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute, m.state)
+		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
 	if err := validConfiguration(m); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
@@ -66,12 +61,25 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	return m, nil
 }
 
-func (f *FeeCredit) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:    txsystem.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit:  txsystem.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
-		fc.PayloadTypeLockFeeCredit:   txsystem.NewTxHandler[fc.LockFeeCreditAttributes](f.validateLockFC, f.executeLockFC),
-		fc.PayloadTypeUnlockFeeCredit: txsystem.NewTxHandler[fc.UnlockFeeCreditAttributes](f.validateUnlockFC, f.executeUnlockFC),
+func (f *FeeCredit) CalculateCost(gasUsed uint64) uint64 {
+	cost := (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
+	// all transactions cost at least 1 tema - to be refined
+	if cost == 0 {
+		cost = 1
+	}
+	return cost
+}
+
+func (f *FeeCredit) BuyGas(maxTxCost uint64) uint64 {
+	return maxTxCost * GasUnitsPerTema
+}
+
+func (f *FeeCredit) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		fc.PayloadTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+		fc.PayloadTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes](f.validateLockFC, f.executeLockFC),
+		fc.PayloadTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes](f.validateUnlockFC, f.executeUnlockFC),
 	}
 }
 

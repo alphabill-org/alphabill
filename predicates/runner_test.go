@@ -174,11 +174,10 @@ func Test_PredicateRunner(t *testing.T) {
 			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, expErr
 			},
-			nil, // state is not used so it's OK to use nil
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{})
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.ErrorIs(t, err, expErr)
 	})
 
@@ -187,11 +186,10 @@ func Test_PredicateRunner(t *testing.T) {
 			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, nil
 			},
-			nil, // state is not used so it's OK to use nil
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{})
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.EqualError(t, err, `predicate evaluated to "false"`)
 	})
 
@@ -202,11 +200,10 @@ func Test_PredicateRunner(t *testing.T) {
 				require.EqualValues(t, []byte("arguments"), args)
 				return true, nil
 			},
-			nil, // state is not used so it's OK to use nil
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{})
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.NoError(t, err)
 	})
 }

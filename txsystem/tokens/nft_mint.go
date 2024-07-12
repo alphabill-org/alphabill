@@ -9,27 +9,22 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-	tokenID := tx.UnitID()
-	tokenTypeID := attr.TypeID
-	fee := n.feeCalculator()
-
+func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if err := n.state.Apply(
-		state.AddUnit(tokenID, attr.Bearer, tokens.NewNonFungibleTokenData(tokenTypeID, attr, exeCtx.CurrentBlockNumber, 0)),
+		state.AddUnit(tx.UnitID(), attr.Bearer, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	tokenID := tx.UnitID()
 	tokenTypeID := attr.TypeID
 
-	// verify token id has correct embedded type
 	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -86,6 +81,7 @@ func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, 
 
 	// verify predicate inheritance chain
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		tokenTypeID,
 		attr.TokenCreationPredicateSignatures,

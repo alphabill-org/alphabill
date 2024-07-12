@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/alphabill-org/alphabill/logger"
@@ -14,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*Module)(nil)
+var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
@@ -34,7 +35,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 		systemIdentifier: systemIdentifier,
 		options:          opts,
 		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate, opts.state),
+		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate),
 		log:              log,
 	}, nil
 }
@@ -50,7 +51,7 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		}
 
 		if ctx.Unit != nil {
-			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx); err != nil {
+			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
 				return fmt.Errorf("evaluating bearer predicate: %w", err)
 			}
 		}
@@ -70,8 +71,8 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 	}
 }
 
-func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		evm.PayloadTypeEVMCall: txsystem.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
+func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
 	}
 }

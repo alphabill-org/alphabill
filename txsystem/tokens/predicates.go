@@ -6,6 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 /*
@@ -13,6 +14,7 @@ runChainedPredicates recursively executes predicates returned by callback functi
 Typically, these are predicates of the token type chain.
 
 Parameters:
+  - "env": transaction execution environment/context;
   - "txo": transaction order against which predicates are run, passed on as argument to the
     exec callback;
   - "parentID": ID of the first unit in the chain, typically token's type ID;
@@ -23,6 +25,7 @@ Parameters:
   - "getUnit": function which returns unit with given ID;
 */
 func runChainedPredicates[T types.UnitData](
+	env txtypes.ExecutionContext,
 	txo *types.TransactionOrder,
 	parentID types.UnitID,
 	args [][]byte,
@@ -43,7 +46,7 @@ func runChainedPredicates[T types.UnitData](
 		if parentID, predicate = iter(parentData); predicate == nil {
 			return fmt.Errorf("unexpected nil predicate")
 		}
-		if err := exec(predicate, args[idx], txo); err != nil {
+		if err := exec(predicate, args[idx], txo, env); err != nil {
 			return fmt.Errorf("executing predicate [%d] in the chain: %w", idx, err)
 		}
 	}

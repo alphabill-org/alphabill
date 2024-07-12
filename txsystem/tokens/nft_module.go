@@ -6,15 +6,13 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-var _ txsystem.Module = (*NonFungibleTokensModule)(nil)
+var _ txtypes.Module = (*NonFungibleTokensModule)(nil)
 
 type NonFungibleTokensModule struct {
 	state         *state.State
-	feeCalculator fc.FeeCalculator
 	hashAlgorithm crypto.Hash
 	execPredicate predicates.PredicateRunner
 }
@@ -22,17 +20,16 @@ type NonFungibleTokensModule struct {
 func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, error) {
 	return &NonFungibleTokensModule{
 		state:         options.state,
-		feeCalculator: options.feeCalculator,
 		hashAlgorithm: options.hashAlgorithm,
-		execPredicate: PredicateRunner(options.exec, options.state),
+		execPredicate: PredicateRunner(options.exec),
 	}, nil
 }
 
-func (n *NonFungibleTokensModule) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		tokens.PayloadTypeCreateNFTType: txsystem.NewTxHandler[tokens.CreateNonFungibleTokenTypeAttributes](n.validateCreateNFTType, n.executeCreateNFTType),
-		tokens.PayloadTypeMintNFT:       txsystem.NewTxHandler[tokens.MintNonFungibleTokenAttributes](n.validateNFTMintTx, n.executeNFTMintTx),
-		tokens.PayloadTypeTransferNFT:   txsystem.NewTxHandler[tokens.TransferNonFungibleTokenAttributes](n.validateNFTTransferTx, n.executeNFTTransferTx),
-		tokens.PayloadTypeUpdateNFT:     txsystem.NewTxHandler[tokens.UpdateNonFungibleTokenAttributes](n.validateNFTUpdateTx, n.executeNFTUpdateTx),
+func (n *NonFungibleTokensModule) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		tokens.PayloadTypeCreateNFTType: txtypes.NewTxHandler[tokens.CreateNonFungibleTokenTypeAttributes](n.validateCreateNFTType, n.executeCreateNFTType),
+		tokens.PayloadTypeMintNFT:       txtypes.NewTxHandler[tokens.MintNonFungibleTokenAttributes](n.validateNFTMintTx, n.executeNFTMintTx),
+		tokens.PayloadTypeTransferNFT:   txtypes.NewTxHandler[tokens.TransferNonFungibleTokenAttributes](n.validateNFTTransferTx, n.executeNFTTransferTx),
+		tokens.PayloadTypeUpdateNFT:     txtypes.NewTxHandler[tokens.UpdateNonFungibleTokenAttributes](n.validateNFTUpdateTx, n.executeNFTUpdateTx),
 	}
 }

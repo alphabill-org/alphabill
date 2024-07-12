@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (m *LockTokensModule) updateLockTokenData(data types.UnitData, tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, roundNumber uint64) (types.UnitData, error) {
@@ -43,19 +43,19 @@ func updateLockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder
 	return d, nil
 }
 
-func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
-			return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentBlockNumber)
+			return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentRound())
 		},
 	)
 	if err := m.state.Apply(updateFn); err != nil {
 		return nil, fmt.Errorf("failed to update state: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 }
 
-func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	if tx == nil {
 		return errors.New("tx is nil")
 	}
@@ -73,15 +73,15 @@ func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr 
 	}
 
 	if tx.UnitID().HasType(tokens.FungibleTokenUnitType) {
-		return m.validateFungibleLockToken(tx, attr, u)
+		return m.validateFungibleLockToken(tx, attr, u, exeCtx)
 	} else if tx.UnitID().HasType(tokens.NonFungibleTokenUnitType) {
-		return m.validateNonFungibleLockToken(tx, attr, u)
+		return m.validateNonFungibleLockToken(tx, attr, u, exeCtx)
 	} else {
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
@@ -90,10 +90,11 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*tokens.FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TokenType,
 		attr.InvariantPredicateSignatures,
@@ -109,7 +110,7 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	return nil
 }
 
-func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit) error {
+func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
@@ -118,10 +119,11 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 		return err
 	}
 
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		d.TypeID,
 		attr.InvariantPredicateSignatures,

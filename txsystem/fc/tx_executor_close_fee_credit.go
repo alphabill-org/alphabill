@@ -5,12 +5,12 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateDataFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -24,10 +24,10 @@ func (f *FeeCredit) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCre
 	if err := f.state.Apply(updateDataFn); err != nil {
 		return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{ActualFee: execCtx.CalculateCost(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ *txsystem.TxExecutionContext) error {
+func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -35,7 +35,7 @@ func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFe
 	// ι identifies an existing fee credit record
 	// ExtrType(P.ι) = fcr – target unit is a fee credit record
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	fcr, _, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
+	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("fee credit error: %w", err)
 	}
@@ -44,6 +44,11 @@ func (f *FeeCredit) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFe
 	// target unit list is empty
 	if err = ValidateCloseFC(attr, fcr); err != nil {
 		return fmt.Errorf("validation error: %w", err)
+	}
+	// validate owner condition
+	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+	if err = f.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
 	if err = VerifyMaxTxFeeDoesNotExceedFRCBalance(tx, fcr.Balance); err != nil {

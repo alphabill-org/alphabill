@@ -3,17 +3,18 @@ package templates
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateRunner(t *testing.T) {
@@ -66,14 +67,20 @@ func TestTemplateRunner(t *testing.T) {
 
 	t.Run("always false", func(t *testing.T) {
 		af := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysFalseID}}
-		res, err := runner.Execute(context.Background(), af, nil, nil, nil)
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
+		res, err := runner.Execute(context.Background(), af, nil, nil, execEnv)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
 
 	t.Run("always true", func(t *testing.T) {
 		at := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.AlwaysTrueID}}
-		res, err := runner.Execute(context.Background(), at, nil, nil, nil)
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
+		res, err := runner.Execute(context.Background(), at, nil, nil, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
@@ -82,6 +89,7 @@ func TestTemplateRunner(t *testing.T) {
 		// easier to check for known error here
 		expErr := errors.New("attempt to extract payload bytes")
 		execEnv := &mockTxContext{
+			spendGas:     func(gas uint64) error { return nil },
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
 		}
 		pred := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.P2pkh256ID}}
@@ -111,9 +119,11 @@ func TestAlwaysTrue(t *testing.T) {
 			{params: cborNull, args: []byte{}},
 			{params: []byte{}, args: cborNull},
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysTrue_Execute(tc.params, tc.args)
+			res, err := executeAlwaysTrue(tc.params, tc.args, execEnv)
 			if err != nil {
 				t.Errorf("unexpected error with arguments (%#v , %#v): %v", tc.params, tc.args, err)
 			}
@@ -121,6 +131,15 @@ func TestAlwaysTrue(t *testing.T) {
 				t.Errorf("unexpectedly got 'false' for (%#v , %#v)", tc.params, tc.args)
 			}
 		}
+	})
+
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := executeAlwaysTrue(nil, nil, execEnv)
+		require.EqualError(t, err, "out of gas")
+		require.False(t, res)
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
@@ -133,9 +152,11 @@ func TestAlwaysTrue(t *testing.T) {
 			{params: []byte{0}, args: []byte{0}},
 			{params: nil, args: []byte{0xf6, 0}}, // CBOR null with extra byte!
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysTrue_Execute(tc.params, tc.args)
+			res, err := executeAlwaysTrue(tc.params, tc.args, execEnv)
 			if err == nil {
 				t.Errorf("expected error with arguments (%#v , %#v)", tc.params, tc.args)
 			} else if err.Error() != `"always true" predicate arguments must be empty` {
@@ -168,9 +189,11 @@ func TestAlwaysFalse(t *testing.T) {
 			{params: cborNull, args: []byte{}},
 			{params: []byte{}, args: cborNull},
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysFalse_Execute(tc.params, tc.args)
+			res, err := executeAlwaysFalse(tc.params, tc.args, execEnv)
 			if err != nil {
 				t.Errorf("unexpected error with arguments (%#v , %#v): %v", tc.params, tc.args, err)
 			}
@@ -178,6 +201,15 @@ func TestAlwaysFalse(t *testing.T) {
 				t.Errorf("unexpectedly got 'true' for (%#v , %#v)", tc.params, tc.args)
 			}
 		}
+	})
+
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := executeAlwaysFalse(nil, nil, execEnv)
+		require.EqualError(t, err, "out of gas")
+		require.False(t, res)
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
@@ -190,9 +222,11 @@ func TestAlwaysFalse(t *testing.T) {
 			{params: []byte{0}, args: []byte{0}},
 			{params: nil, args: []byte{0xf6, 0}}, // CBOR null with extra byte!
 		}
-
+		execEnv := &mockTxContext{
+			spendGas: func(gas uint64) error { return nil },
+		}
 		for _, tc := range args {
-			res, err := alwaysFalse_Execute(tc.params, tc.args)
+			res, err := executeAlwaysFalse(tc.params, tc.args, execEnv)
 			if err == nil {
 				t.Errorf("expected error with arguments (%#v , %#v)", tc.params, tc.args)
 			} else if err.Error() != `"always false" predicate arguments must be empty` {
@@ -228,10 +262,11 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	execEnv := &mockTxContext{
 		payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
+		spendGas:     func(gas uint64) error { return nil },
 	}
 
 	t.Run("success", func(t *testing.T) {
-		res, err := p2pkh256_Execute(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
@@ -240,22 +275,23 @@ func TestP2pkh256_Execute(t *testing.T) {
 		expErr := errors.New("nope")
 		execEnv := &mockTxContext{
 			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
+			spendGas:     func(gas uint64) error { return nil },
 		}
-		res, err := p2pkh256_Execute(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
 		require.ErrorIs(t, err, expErr)
 		require.False(t, res)
 	})
 
 	t.Run("invalid CBOR encoded OwnerProof", func(t *testing.T) {
-		res, err := p2pkh256_Execute(pubKeyHash, nil, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash, nil, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = p2pkh256_Execute(pubKeyHash, []byte{}, validTxOrder, execEnv)
+		res, err = executeP2PKH256(pubKeyHash, []byte{}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = p2pkh256_Execute(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
+		res, err = executeP2PKH256(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: cbor: 2 bytes of extraneous data starting at index 1`)
 		require.False(t, res)
 	})
@@ -266,7 +302,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: []byte{1, 2, 3}, PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
 		require.False(t, res)
 
@@ -274,7 +310,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
 		require.False(t, res)
 
@@ -282,7 +318,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `pubkey hash does not match`)
 		require.False(t, res)
 
@@ -290,7 +326,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = p2pkh256_Execute(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to create verifier: public key decompress faield`)
 		require.False(t, res)
 	})
@@ -301,14 +337,24 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := p2pkh256_Execute(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to verify signature: verification failed`)
 		require.False(t, res)
 	})
 
 	t.Run("invalid pubkey hash size", func(t *testing.T) {
-		res, err := p2pkh256_Execute(pubKeyHash[:len(pubKeyHash)-1], validTxOrder.OwnerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256(pubKeyHash[:len(pubKeyHash)-1], validTxOrder.OwnerProof, validTxOrder, execEnv)
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
+		require.False(t, res)
+	})
+
+	t.Run("out of gas", func(t *testing.T) {
+		execEnv := &mockTxContext{
+			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
+			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
+		}
+		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+		require.EqualError(t, err, "out of gas")
 		require.False(t, res)
 	})
 }
@@ -327,12 +373,13 @@ func Benchmark_P2pkh256Execute(b *testing.B) {
 
 	execEnv := &mockTxContext{
 		payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return payload, nil },
+		spendGas:     func(gas uint64) error { return nil },
 	}
 	txo := &types.TransactionOrder{}
 
 	// valid data, the P2pkh256.Execute should not return any error
 	for i := 0; i < b.N; i++ {
-		if res, err := p2pkh256_Execute(pubKeyHash, ownerProof, txo, execEnv); err != nil {
+		if res, err := executeP2PKH256(pubKeyHash, ownerProof, txo, execEnv); err != nil {
 			b.Error(err.Error())
 			if !res {
 				b.Error("evaluated to false")
@@ -342,8 +389,18 @@ func Benchmark_P2pkh256Execute(b *testing.B) {
 }
 
 type mockTxContext struct {
+	gasRemaining uint64
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
 	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
+	spendGas     func(gas uint64) error
+}
+
+func (env *mockTxContext) GasAvailable() uint64 {
+	return env.gasRemaining
+}
+
+func (env *mockTxContext) SpendGas(gas uint64) error {
+	return env.spendGas(gas)
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
@@ -352,3 +409,11 @@ func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
 	return env.payloadBytes(txo)
 }
+
+func (env *mockTxContext) CurrentRound() uint64 { return 0 }
+
+func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return nil, fmt.Errorf("mockTxContext.TrustBase is not implemented")
+}
+
+func (env *mockTxContext) CalculateCost() uint64 { return 0 }

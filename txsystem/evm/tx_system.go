@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type genericTransactionValidator func(ctx *TxValidationContext) error
@@ -26,8 +28,8 @@ type TxSystem struct {
 	systemIdentifier    types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
-	currentBlockNumber  uint64
-	executors           txsystem.TxExecutors
+	currentRoundNumber  uint64
+	executors           txtypes.TxExecutors
 	genericTxValidators []genericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
@@ -63,7 +65,7 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
 		endBlockFunctions:   nil,
-		executors:           make(txsystem.TxExecutors),
+		executors:           make(txtypes.TxExecutors),
 		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
 		log:                 log,
 	}
@@ -79,7 +81,7 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 }
 
 func (m *TxSystem) CurrentBlockNumber() uint64 {
-	return m.currentBlockNumber
+	return m.currentRoundNumber
 }
 
 func (m *TxSystem) State() txsystem.StateReader {
@@ -104,18 +106,18 @@ func (m *TxSystem) getState() (txsystem.StateSummary, error) {
 	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *TxSystem) BeginBlock(blockNr uint64) error {
-	m.currentBlockNumber = blockNr
+func (m *TxSystem) BeginBlock(roundNo uint64) error {
+	m.currentRoundNumber = roundNo
 	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
-		if err := function(blockNr); err != nil {
+		if err := function(roundNo); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 	}
 	return nil
 }
 
-func (m *TxSystem) pruneState(blockNr uint64) error {
+func (m *TxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
@@ -125,7 +127,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		Tx:               tx,
 		Unit:             u,
 		SystemIdentifier: m.systemIdentifier,
-		BlockNumber:      m.currentBlockNumber,
+		BlockNumber:      m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
 		if err = validator(ctx); err != nil {
@@ -157,8 +159,8 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, &txsystem.TxExecutionContext{CurrentBlockNumber: m.currentBlockNumber})
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	sm, err = m.executors.ValidateAndExecute(tx, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +170,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 
 func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
-		if err := function(m.currentBlockNumber); err != nil {
+		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
@@ -193,3 +195,28 @@ func (m *TxSystem) Commit(uc *types.UnicityCertificate) error {
 func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
 }
+
+func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+	return nil, fmt.Errorf("TxValidationContext.GetUnit not implemented")
+}
+
+func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
+
+func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
+}
+
+// until AB-1012 gets resolved we need this hack to get correct payload bytes.
+func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+	return txo.PayloadBytes()
+}
+
+func (vc *TxValidationContext) GasAvailable() uint64 {
+	return math.MaxUint64
+}
+
+func (vc *TxValidationContext) SpendGas(gas uint64) error {
+	return nil
+}
+
+func (vc *TxValidationContext) CalculateCost() uint64 { return 0 }

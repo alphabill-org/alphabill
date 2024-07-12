@@ -6,48 +6,39 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 /*
-CheckFeeCreditBalance implements the fee credit verification steps listed in the
-Yellowpaper "Valid Transaction Orders" chapter.
+IsCredible implements the fee credit verification for ordinary transactions (everything else except fee credit txs)
 */
-func (f *FeeCredit) CheckFeeCreditBalance(tx *types.TransactionOrder) error {
-	if !fc.IsFeeCreditTx(tx) {
-		clientMetadata := tx.Payload.ClientMetadata
+func (f *FeeCredit) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
+	clientMetadata := tx.Payload.ClientMetadata
 
-		// 5. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
-		feeCreditRecordID := clientMetadata.FeeCreditRecordID
-		if len(feeCreditRecordID) == 0 {
-			return errors.New("fee credit record missing")
-		}
-
-		unit, _ := f.state.GetUnit(feeCreditRecordID, false)
-		if unit == nil {
-			return errors.New("fee credit record unit is nil")
-		}
-		fcr, ok := unit.Data().(*fc.FeeCreditRecord)
-		if !ok {
-			return errors.New("invalid fee credit record type")
-		}
-
-		// 6. if the transaction has a fee authorization proof,
-		// it must satisfy the owner predicate of the fee credit record
-		// 7. if the transaction does not have a separate fee authorization proof,
-		// the owner proof of the whole transaction must also satisfy the owner predicate of the fee credit record
-		if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx); err != nil {
-			return fmt.Errorf("evaluating fee proof: %w", err)
-		}
-
-		// 8. the maximum permitted transaction cost does not exceed the fee credit balance
-		if fcr.Balance < tx.Payload.ClientMetadata.MaxTransactionFee {
-			return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, tx.Payload.ClientMetadata.MaxTransactionFee)
-		}
+	// 1. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
+	feeCreditRecordID := clientMetadata.FeeCreditRecordID
+	if len(feeCreditRecordID) == 0 {
+		return errors.New("fee credit record missing")
 	}
-
-	// 9. the actual transaction cost does not exceed the maximum permitted by the user
-	if f.feeCalculator() > tx.Payload.ClientMetadata.MaxTransactionFee {
-		return errors.New("the tx fee cannot exceed the max specified fee")
+	if !types.UnitID(feeCreditRecordID).HasType(f.feeCreditRecordUnitType) {
+		return errors.New("invalid fee credit record id type")
+	}
+	unit, _ := f.state.GetUnit(feeCreditRecordID, false)
+	if unit == nil {
+		return errors.New("fee credit record unit is nil")
+	}
+	fcr, ok := unit.Data().(*fc.FeeCreditRecord)
+	if !ok {
+		return errors.New("invalid fee credit record type")
+	}
+	// 2. the maximum permitted transaction cost does not exceed the fee credit balance
+	if fcr.Balance < tx.Payload.ClientMetadata.MaxTransactionFee {
+		return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, tx.Payload.ClientMetadata.MaxTransactionFee)
+	}
+	// 3. if the transaction has a fee authorization proof,
+	// it must satisfy the owner predicate of the fee credit record
+	if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx, exeCtx); err != nil {
+		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil
 }

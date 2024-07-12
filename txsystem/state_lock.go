@@ -6,6 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -24,17 +26,17 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock) error {
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx txtypes.ExecutionContext) error {
 	if stateLock == nil {
 		return fmt.Errorf("StateLock is nil")
 	}
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -54,7 +56,7 @@ func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, erro
 
 // handleUnlockUnitState - tries to unlock a state locked unit.
 // Returns error if unit is locked and could not be unlocked (either predicate fails or none input is provided).
-func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx *TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// todo: handle multiple target units
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
@@ -82,7 +84,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
-	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock); err != nil {
+	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock, exeCtx); err != nil {
 		return nil, fmt.Errorf("unlock error: %w", err)
 	}
 	// proof is ok, release the lock
@@ -102,7 +104,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 }
 
 // executeLockUnitState - validates lock predicate and locks the state of a unit
-func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
 	if err := tx.Payload.StateLock.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid state lock parameter: %w", err)
@@ -119,7 +121,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ *Tx
 		if err = m.state.Apply(state.SetStateLock(targetUnit, txBytes)); err != nil {
 			return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
 		}
-		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.currentBlockNumber))
+		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.CurrentRound()))
 	}
 	return &types.ServerMetadata{ActualFee: 1, TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

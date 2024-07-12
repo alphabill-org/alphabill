@@ -5,7 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -15,7 +15,7 @@ func isFeeCreditTx(tx *types.TransactionOrder) bool {
 		typeUrl == fc.PayloadTypeCloseFeeCredit
 }
 
-func checkFeeAccountBalance(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder) error) genericTransactionValidator {
+func checkFeeAccountBalance(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, exeCtx predicates.TxContext) error) genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
 		if isFeeCreditTx(ctx.Tx) {
 			addr, err := getAddressFromPredicateArg(ctx.Tx.OwnerProof)
@@ -31,7 +31,7 @@ func checkFeeAccountBalance(state *state.State, execPredicate func(predicate typ
 				return nil
 			}
 			// owner proof verifies correctly
-			if err = execPredicate(u.Bearer(), ctx.Tx.OwnerProof, ctx.Tx); err != nil {
+			if err = execPredicate(u.Bearer(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
 				return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x]",
 					err, ctx.Tx.OwnerProof, u.Bearer())
 			}

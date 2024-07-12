@@ -168,7 +168,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	}
 	sm, err := m.doExecute(tx, exeCtx)
 	if err != nil {
-		return nil, fmt.Errorf("execute fc error: %w", err)
+		return nil, fmt.Errorf("execute error: %w", err)
 	}
 	return sm, nil
 }

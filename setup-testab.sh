@@ -5,6 +5,7 @@ token_nodes=3
 evm_nodes=3
 orchestration_nodes=3
 root_nodes=3
+enterprise_token_nodes=0
 reset_db_only=false
 initial_bill_owner_predicate=null
 # exit on error
@@ -12,11 +13,11 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes]"
   exit 0
 }
 # handle arguments
-while getopts "chm:t:r:e:o:i:" o; do
+while getopts "chm:t:r:e:o:i:k:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -38,6 +39,9 @@ while getopts "chm:t:r:e:o:i:" o; do
     ;;
   i)
     initial_bill_owner_predicate=${OPTARG}
+    ;;
+  k)
+    enterprise_token_nodes=${OPTARG}
     ;;
   h | *) # help.
     usage
@@ -90,6 +94,13 @@ fi
 if [ "$orchestration_nodes" -ne 0 ]; then
   generate_partition_node_genesis "orchestration" "$orchestration_nodes" " --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
 fi
+# Generate enterprise token partition genesis files
+if [ "$enterprise_token_nodes" -ne 0 ]; then
+  enterpriseTokensSdr='{"system_identifier": 5, "t2timeout": 2500}'
+  echo "$enterpriseTokensSdr" >testab/tokens-sdr-sid-5.json
+  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--system-identifier 5"
+fi
+
 # generate root node genesis files
 generate_root_genesis $root_nodes
 

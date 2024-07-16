@@ -12,7 +12,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
 	fee := exeCtx.CalculateCost()
@@ -42,7 +42,7 @@ func (f *FeeCredit) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCred
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("fee credit tx validation error: %w", err)
 	}
@@ -99,7 +99,7 @@ func (f *FeeCredit) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	return nil
 }
 
-func (f *FeeCredit) checkTransferFc(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
+func (f *FeeCreditModule) checkTransferFc(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
 	if attr.FeeCreditTransferProof == nil {
 		return nil, nil, errors.New("transferFC tx proof is nil")
 	}
@@ -154,7 +154,7 @@ func getTransferFc(addAttr *fc.AddFeeCreditAttributes) (*types.TransactionRecord
 	return transTxr, transferPayload, nil
 }
 
-func (f *FeeCredit) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) types.UnitID {
+func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) types.UnitID {
 	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
 	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
 	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType)

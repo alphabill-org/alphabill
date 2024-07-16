@@ -67,7 +67,7 @@ moneySdrFlags=""
 
 # Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
-tokensSdr='{"system_identifier": 2, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001200", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  tokensSdr='{"system_identifier": 2, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001200", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$tokensSdr" >testab/tokens-sdr.json
   moneySdrFlags+=" -c testab/tokens-sdr.json"
   generate_partition_node_genesis "tokens" "$token_nodes"
@@ -98,7 +98,7 @@ fi
 if [ "$enterprise_token_nodes" -ne 0 ]; then
   enterpriseTokensSdr='{"system_identifier": 5, "t2timeout": 2500}'
   echo "$enterpriseTokensSdr" >testab/tokens-sdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--system-identifier 5"
+  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--system-identifier 5 --admin-key 028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
 fi
 
 # generate root node genesis files

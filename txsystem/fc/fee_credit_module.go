@@ -7,11 +7,10 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 const (
@@ -19,7 +18,7 @@ const (
 	GasUnitsPerTema       = 1000
 )
 
-var _ txtypes.Module = (*FeeCredit)(nil)
+var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
 	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
@@ -29,20 +28,21 @@ var (
 )
 
 type (
-	// FeeCredit contains fee credit related functionality.
-	FeeCredit struct {
+	// FeeCreditModule contains fee credit related functionality.
+	FeeCreditModule struct {
 		systemIdentifier        types.SystemID
 		moneySystemIdentifier   types.SystemID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
 		execPredicate           predicates.PredicateRunner
+		feeBalanceValidator     *FeeBalanceValidator
 		feeCreditRecordUnitType []byte
 	}
 )
 
-func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
-	m := &FeeCredit{
+func NewFeeCreditModule(opts ...Option) (*FeeCreditModule, error) {
+	m := &FeeCreditModule{
 		hashAlgorithm: crypto.SHA256,
 	}
 	for _, o := range opts {
@@ -55,13 +55,16 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 		}
 		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
-	if err := validConfiguration(m); err != nil {
+	if m.feeBalanceValidator == nil {
+		m.feeBalanceValidator = NewFeeBalanceValidator(m.state, m.execPredicate, m.feeCreditRecordUnitType)
+	}
+	if err := m.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
 	}
 	return m, nil
 }
 
-func (f *FeeCredit) CalculateCost(gasUsed uint64) uint64 {
+func (f *FeeCreditModule) CalculateCost(gasUsed uint64) uint64 {
 	cost := (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
 	// all transactions cost at least 1 tema - to be refined
 	if cost == 0 {
@@ -70,11 +73,11 @@ func (f *FeeCredit) CalculateCost(gasUsed uint64) uint64 {
 	return cost
 }
 
-func (f *FeeCredit) BuyGas(maxTxCost uint64) uint64 {
+func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 	return maxTxCost * GasUnitsPerTema
 }
 
-func (f *FeeCredit) TxHandlers() map[string]txtypes.TxExecutor {
+func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
 		fc.PayloadTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
 		fc.PayloadTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
@@ -83,18 +86,22 @@ func (f *FeeCredit) TxHandlers() map[string]txtypes.TxExecutor {
 	}
 }
 
-func validConfiguration(m *FeeCredit) error {
-	if m.systemIdentifier == 0 {
+func (f *FeeCreditModule) IsValid() error {
+	if f.systemIdentifier == 0 {
 		return ErrSystemIdentifierMissing
 	}
-	if m.moneySystemIdentifier == 0 {
+	if f.moneySystemIdentifier == 0 {
 		return ErrMoneySystemIdentifierMissing
 	}
-	if m.state == nil {
+	if f.state == nil {
 		return ErrStateIsNil
 	}
-	if m.trustBase == nil {
+	if f.trustBase == nil {
 		return ErrTrustBaseIsNil
 	}
 	return nil
+}
+
+func (f *FeeCreditModule) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
+	return f.feeBalanceValidator.IsCredible(exeCtx, tx)
 }

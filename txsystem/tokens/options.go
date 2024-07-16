@@ -23,6 +23,7 @@ type (
 		trustBase               types.RootTrustBase
 		state                   *state.State
 		exec                    predicates.PredicateExecutor
+		adminKey                []byte
 	}
 
 	Option func(*Options)
@@ -69,6 +70,12 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 func WithTrustBase(trustBase types.RootTrustBase) Option {
 	return func(c *Options) {
 		c.trustBase = trustBase
+	}
+}
+
+func WithAdminKey(adminKey []byte) Option {
+	return func(c *Options) {
+		c.adminKey = adminKey
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -63,19 +64,19 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 
 	var feeCreditModule txsystem.FeeCreditModule
 	if len(options.adminKey) > 0 {
-		// permissioned mode
+		adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
 			permissioned.WithState(options.state),
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 			permissioned.WithTrustBase(options.trustBase),
 			permissioned.WithSystemIdentifier(options.systemIdentifier),
 			permissioned.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
+			permissioned.WithAdminOwnerCondition(adminOwnerCondition),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load permissionless fee credit module: %w", err)
+			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		// permissionless mode
 		feeCreditModule, err = fc.NewFeeCreditModule(
 			fc.WithState(options.state),
 			fc.WithHashAlgorithm(options.hashAlgorithm),
@@ -85,7 +86,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
+			return nil, fmt.Errorf("failed to load permissionless fee credit module: %w", err)
 		}
 	}
 	return txsystem.NewGenericTxSystem(

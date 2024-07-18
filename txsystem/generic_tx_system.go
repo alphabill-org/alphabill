@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
@@ -49,6 +48,7 @@ type FeeCreditModule interface {
 	txtypes.Module
 	txtypes.FeeCalculation
 	IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
+	IsFeeCreditTx(tx *types.TransactionOrder) bool
 }
 
 func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
@@ -154,7 +154,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	// execute fee credit transactions
-	if fc.IsFeeCreditTx(tx) {
+	if m.fees.IsFeeCreditTx(tx) {
 		sm, err := m.executeFc(tx, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("execute fc error: %w", err)

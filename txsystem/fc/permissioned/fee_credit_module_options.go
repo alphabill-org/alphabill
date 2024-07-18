@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	ErrSystemIdentifierMissing = errors.New("system identifier is missing")
-	ErrStateIsNil              = errors.New("state is nil")
-	ErrTrustBaseIsNil          = errors.New("trust base is nil")
+	ErrSystemIdentifierMissing    = errors.New("system identifier is missing")
+	ErrStateIsNil                 = errors.New("state is nil")
+	ErrTrustBaseIsNil             = errors.New("trust base is nil")
+	ErrMissingAdminOwnerCondition = errors.New("admin owner condition is missing")
 )
 
 type Option func(f *FeeCreditModule)
@@ -43,5 +44,11 @@ func WithTrustBase(trustBase types.RootTrustBase) Option {
 func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
 	return func(f *FeeCreditModule) {
 		f.feeCreditRecordUnitType = feeCreditRecordUnitType
+	}
+}
+
+func WithAdminOwnerCondition(adminOwnerCondition types.PredicateBytes) Option {
+	return func(f *FeeCreditModule) {
+		f.adminOwnerCondition = adminOwnerCondition
 	}
 }

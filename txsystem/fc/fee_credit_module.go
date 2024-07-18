@@ -86,6 +86,10 @@ func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
 	}
 }
 
+func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	return fc.IsFeeCreditTx(tx)
+}
+
 func (f *FeeCreditModule) IsValid() error {
 	if f.systemIdentifier == 0 {
 		return ErrSystemIdentifierMissing

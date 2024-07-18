@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -31,6 +31,7 @@ type (
 		execPredicate           predicates.PredicateRunner
 		feeCreditRecordUnitType []byte
 		feeBalanceValidator     *feeModule.FeeBalanceValidator
+		adminOwnerCondition     types.PredicateBytes
 	}
 )
 
@@ -69,9 +70,13 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 
 func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:   txtypes.NewTxHandler[CreateFCRAttr](f.validateCreateFC, f.executeCreateFC),
-		fc.PayloadTypeCloseFeeCredit: txtypes.NewTxHandler[DeleteFCRAttr](f.validateDeleteFC, f.executeDeleteFC),
+		permissioned.PayloadTypeCreateFCR: txtypes.NewTxHandler[permissioned.CreateFeeCreditAttributes](f.validateCreateFCR, f.executeCreateFCR),
+		permissioned.PayloadTypeDeleteFCR: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes](f.validateDeleteFCR, f.executeDeleteFCR),
 	}
+}
+
+func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	return permissioned.IsFeeCreditTx(tx)
 }
 
 func (f *FeeCreditModule) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
@@ -88,35 +93,8 @@ func (f *FeeCreditModule) IsValid() error {
 	if f.trustBase == nil {
 		return ErrTrustBaseIsNil
 	}
+	if len(f.adminOwnerCondition) == 0 {
+		return ErrMissingAdminOwnerCondition
+	}
 	return nil
-}
-
-type CreateFCRAttr struct {
-	_ struct{} `cbor:",toarray"`
-	// TODO impl
-}
-
-type DeleteFCRAttr struct {
-	_ struct{} `cbor:",toarray"`
-	// TODO impl
-}
-
-func (f *FeeCreditModule) validateCreateFC(tx *types.TransactionOrder, attr *CreateFCRAttr, exeCtx txtypes.ExecutionContext) error {
-	// TODO impl
-	return nil
-}
-
-func (f *FeeCreditModule) executeCreateFC(tx *types.TransactionOrder, attr *CreateFCRAttr, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	// TODO impl
-	return nil, nil
-}
-
-func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *DeleteFCRAttr, exeCtx txtypes.ExecutionContext) error {
-	// TODO impl
-	return nil
-}
-
-func (f *FeeCreditModule) executeDeleteFC(tx *types.TransactionOrder, attr *DeleteFCRAttr, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	// TODO impl
-	return nil, nil
 }

@@ -631,7 +631,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	)
 	closeFCRecord := &types.TransactionRecord{
 		TransactionOrder: closeFC,
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
 
 	proof := testblock.CreateProof(t, closeFCRecord, signer)
@@ -972,7 +972,7 @@ func createDCTransferAndSwapTxs(
 		tx, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
 		txr := &types.TransactionRecord{
 			TransactionOrder: tx,
-			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
 		proofs[i] = testblock.CreateProof(t, txr, signer)
 		dcTransfers[i] = txr

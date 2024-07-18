@@ -143,7 +143,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	pkhB := []byte{3, 8, 0, 1, 2, 4, 0}
 	// create mix of tx types
 	// add an invalid proof record - just tx record, proof is missing
-	proofs := []types.TxRecordProof{{TxRecord: &types.TransactionRecord{}, TxProof: nil}}
+	proofs := []types.TxRecordProof{{TxRecord: &types.TransactionRecord{ServerMetadata: &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}}, TxProof: nil}}
 	// valid money transfer
 	txPayment := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -156,7 +156,7 @@ func Test_amountTransferredSum(t *testing.T) {
 		TargetValue: 100,
 	})
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	proofs = append(proofs, types.TxRecordProof{
 		TxRecord: txRec,
 		TxProof:  testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID)),
@@ -178,7 +178,7 @@ func Test_amountTransferredSum(t *testing.T) {
 		RemainingValue: 2000,
 	})
 
-	txRec = &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+	txRec = &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	proofs = append(proofs, types.TxRecordProof{
 		TxRecord: txRec,
 		TxProof:  testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID)),
@@ -318,7 +318,7 @@ func Test_transferredSum(t *testing.T) {
 			TargetValue: 100,
 		})
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		proof := testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		// match without ref-no
@@ -369,7 +369,7 @@ func Test_transferredSum(t *testing.T) {
 			RemainingValue: 2000,
 		})
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		proof := testblock.CreateProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		// match without ref-no

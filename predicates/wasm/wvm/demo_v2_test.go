@@ -352,7 +352,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 		}))
 	require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	proof := testblock.CreateProof(t, txRec, signer, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 	b, err := types.Cbor.Marshal(txRec)

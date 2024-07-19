@@ -85,7 +85,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 			}))
 		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		b, err := types.Cbor.Marshal(txRec)

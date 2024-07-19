@@ -255,7 +255,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(10))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -580,7 +580,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -619,7 +619,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 							testfc.WithTargetUnitCounter(10),
 							testfc.WithLatestAdditionTime(10))),
-						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -660,7 +660,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,
 							testfc.WithTargetUnitCounter(10),
 							testfc.WithLatestAdditionTime(10))),
-						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 				testfc.WithTransferFCProof(newInvalidProof(t, signer)),
@@ -711,7 +711,7 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 					testfc.WithTargetUnitCounter(4),
 					testfc.WithTargetRecordID(testfc.NewFeeCreditRecordID(t, signer)),
 				)),
-				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+				ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 			},
 		),
 	)

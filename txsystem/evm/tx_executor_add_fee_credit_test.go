@@ -76,7 +76,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -93,7 +93,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				testfc.WithTransferFCRecord(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID))),
-						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -399,7 +399,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
 							testfc.WithAmount(100))),
-						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 			),
@@ -444,7 +444,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
 							testfc.WithAmount(100))),
-						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+						ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 					},
 				),
 				testfc.WithTransferFCProof(newInvalidProof(t, signer)),
@@ -486,7 +486,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 				&types.TransactionRecord{
 					TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(evm.DefaultSystemID)),
 						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
-					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 				})),
 		signer, 7)
 	attr := new(fcsdk.AddFeeCreditAttributes)
@@ -525,7 +525,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 							testfc.WithTargetSystemID(evm.DefaultSystemID),
 							testfc.WithTargetUnitCounter(abData.Counter)),
 						testtransaction.WithSystemID(0x00000001), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
-					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 				})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))

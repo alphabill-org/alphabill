@@ -4,10 +4,13 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -15,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -51,6 +55,85 @@ func TestReadHeapBase(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
 	require.EqualValues(t, 8400, wvm.ctx.MemMngr.(*allocator.BumpAllocator).HeapBase())
+}
+
+//go:embed testdata/stack_height.wasm
+var stackHeightWasm []byte
+
+func Test_instrumentation_trigger(t *testing.T) {
+	// if this test fails it means that either the way how instrumentation lib
+	// calculates stack height or gas cost has changed or the way Wazero
+	// engine works has changed. We might need to introduce new version of
+	// WASM predicates to keep things deterministic?
+
+	// These are the numbers we see for the current version of instrumentation
+	// library and Wazero combo.
+	type costData struct {
+		arg    int32  // argument to the func
+		height uint32 // minimum stack height required
+		gas    uint64 // gas required
+	}
+	data := []costData{
+		{arg: 0, height: 8, gas: 15},
+		{arg: 1, height: 12, gas: 45},
+		{arg: 2, height: 16, gas: 75},
+		{arg: 3, height: 20, gas: 105},
+		{arg: 4, height: 24, gas: 135},
+		{arg: 5, height: 28, gas: 165},
+	}
+
+	ctx := context.Background()
+	rt := wazero.NewRuntimeWithConfig(ctx, defaultOptions().cfg)
+	defer rt.Close(ctx)
+
+	runTest := func(t *testing.T, arg int32, stackHeight uint32, gasAvailable uint64) (uint64, error) {
+		instrPredicate, err := instrument.MeterGasAndStack(stackHeightWasm, stackHeight)
+		if err != nil {
+			t.Fatal("instrumenting predicate", err)
+		}
+		m, err := rt.Instantiate(ctx, instrPredicate)
+		if err != nil {
+			t.Fatal("failed to instantiate predicate code", err)
+		}
+		defer m.Close(ctx)
+
+		gas, ok := m.ExportedGlobal(instrument.GasCounterName).(api.MutableGlobal)
+		if !ok {
+			t.Fatal("gas counter not found (instrumentation failed?)")
+		}
+		gas.Set(gasAvailable)
+
+		fn := m.ExportedFunction("f")
+		if fn == nil {
+			t.Fatal("module doesn't export the 'f' function")
+		}
+		_, err = fn.Call(ctx, api.EncodeI32(arg))
+		return gas.Get(), err
+	}
+
+	for _, tc := range data {
+		t.Run(fmt.Sprintf("argument %d", tc.arg), func(t *testing.T) {
+			// cfg with minimum resources which should run successfully
+			gas, err := runTest(t, tc.arg, tc.height, tc.gas)
+			if assert.NoError(t, err) {
+				assert.Zero(t, gas, `expected remaining gas to be zero`)
+			}
+
+			// should err because of not enough stack height
+			gas, err = runTest(t, tc.arg, tc.height-1, tc.gas)
+			if assert.ErrorContains(t, err, `wasm error: unreachable`) {
+				assert.EqualValues(t, 15, gas, `remaining gas`)
+			}
+
+			// should err because of out of gas
+			gas, err = runTest(t, tc.arg, tc.height, tc.gas-1)
+			if assert.ErrorContains(t, err, `wasm error: unreachable`) {
+				if gas != math.MaxUint64 {
+					t.Errorf("expected remaining gas to be MaxUint64, got %d", gas)
+				}
+			}
+		})
+	}
 }
 
 func Benchmark_wazero_call_wasm_fn(b *testing.B) {

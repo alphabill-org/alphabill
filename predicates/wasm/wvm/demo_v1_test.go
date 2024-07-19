@@ -201,7 +201,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
-		require.EqualValues(t, uint64(24077), env.GasRemaining)
+		require.EqualValues(t, 24077, env.GasRemaining)
 		require.EqualValues(t, 0x0, res)
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore

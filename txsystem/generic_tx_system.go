@@ -8,16 +8,16 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
+	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
@@ -38,25 +38,25 @@ type (
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
 	}
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Logger() *slog.Logger
+	}
+
+	FeeCreditModule interface {
+		txtypes.Module
+		txtypes.FeeCalculation
+		IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
+	}
 )
-
-type Observability interface {
-	Meter(name string, opts ...metric.MeterOption) metric.Meter
-	Logger() *slog.Logger
-}
-
-type FeeCreditModule interface {
-	txtypes.Module
-	txtypes.FeeCalculation
-	IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
-}
 
 func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if systemID == 0 {
 		return nil, errors.New("system ID must be assigned")
 	}
 	if observe == nil {
-		return nil, errors.New("observe must not be nil")
+		return nil, errors.New("observability must not be nil")
 	}
 	options := DefaultOptions()
 	for _, option := range opts {
@@ -84,7 +84,7 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 	// if fees are collected, then register fee tx handlers
 	if options.feeCredit != nil {
 		if err := txs.handlers.Add(options.feeCredit.TxHandlers()); err != nil {
-			return nil, fmt.Errorf("registering tx handler: %w", err)
+			return nil, fmt.Errorf("registering fee credit tx handler: %w", err)
 		}
 
 	}
@@ -295,7 +295,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 			// an attack vector.
 			m.state.RollbackToSavepoint(savepointID)
-			return nil, errors.Join(err, fmt.Errorf("adding unit log: %w", err))
+			return nil, fmt.Errorf("adding unit log: %w", err)
 		}
 	}
 	// transaction execution succeeded

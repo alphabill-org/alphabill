@@ -206,15 +206,19 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 }
 
 /*
-Exec loads the WASM module in "predicate" and calls the "fName" function in it.
-  - "fName" function signature must be "no parameters and single i64 return value" where
+Exec loads the WASM module passed in as "predicate" argument and calls the "conf.Entrypoint" function in it.
+  - The entrypoint function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
 func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
-	instrPredicate, err := instrument.MeterGasAndStack(predicate, 0)
+	// Generally we expect long running / buggy predicates to be terminated because
+	// of running out of gas; we do set the stack height limit as last resort
+	// safety measure / to keep things deterministic...
+	// Hardcoded to 64K for now, judged to be enough until requirements are refined.
+	instrPredicate, err := instrument.MeterGasAndStack(predicate, 1<<16)
 	if err != nil {
 		return 0, fmt.Errorf("instrumenting predicate error: %w", err)
 	}

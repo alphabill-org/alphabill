@@ -3,6 +3,7 @@ package permissioned
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -36,8 +37,9 @@ func (f *FeeCreditModule) validateDeleteFCR(tx *types.TransactionOrder, _ *permi
 }
 
 func (f *FeeCreditModule) executeDeleteFCR(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	if err := f.state.Apply(state.DeleteUnit(tx.UnitID())); err != nil {
-		return nil, fmt.Errorf("failed to create fee credit record: %w", err)
+	setOwnerFn := state.SetOwner(tx.UnitID(), templates.AlwaysFalseBytes())
+	if err := f.state.Apply(setOwnerFn); err != nil {
+		return nil, fmt.Errorf("failed to delete fee credit record: %w", err)
 	}
 	return &types.ServerMetadata{
 		TargetUnits:      []types.UnitID{tx.UnitID()},

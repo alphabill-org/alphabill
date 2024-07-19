@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	ErrSystemIdentifierMissing    = errors.New("system identifier is missing")
-	ErrStateIsNil                 = errors.New("state is nil")
-	ErrTrustBaseIsNil             = errors.New("trust base is nil")
-	ErrMissingAdminOwnerCondition = errors.New("admin owner condition is missing")
+	ErrMissingSystemIdentifier        = errors.New("system identifier is missing")
+	ErrStateIsNil                     = errors.New("state is nil")
+	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
+	ErrMissingAdminOwnerCondition     = errors.New("admin owner condition is missing")
 )
 
 type Option func(f *FeeCreditModule)
@@ -32,12 +32,6 @@ func WithState(s *state.State) Option {
 func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	return func(f *FeeCreditModule) {
 		f.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithTrustBase(trustBase types.RootTrustBase) Option {
-	return func(f *FeeCreditModule) {
-		f.trustBase = trustBase
 	}
 }
 

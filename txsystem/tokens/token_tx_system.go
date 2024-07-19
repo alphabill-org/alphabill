@@ -68,7 +68,6 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
 			permissioned.WithState(options.state),
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
-			permissioned.WithTrustBase(options.trustBase),
 			permissioned.WithSystemIdentifier(options.systemIdentifier),
 			permissioned.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 			permissioned.WithAdminOwnerCondition(adminOwnerCondition),

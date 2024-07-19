@@ -27,7 +27,6 @@ type (
 		systemIdentifier        types.SystemID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
-		trustBase               types.RootTrustBase
 		execPredicate           predicates.PredicateRunner
 		feeCreditRecordUnitType []byte
 		feeBalanceValidator     *feeModule.FeeBalanceValidator
@@ -85,13 +84,13 @@ func (f *FeeCreditModule) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.
 
 func (f *FeeCreditModule) IsValid() error {
 	if f.systemIdentifier == 0 {
-		return ErrSystemIdentifierMissing
+		return ErrMissingSystemIdentifier
 	}
 	if f.state == nil {
 		return ErrStateIsNil
 	}
-	if f.trustBase == nil {
-		return ErrTrustBaseIsNil
+	if len(f.feeCreditRecordUnitType) == 0 {
+		return ErrMissingFeeCreditRecordUnitType
 	}
 	if len(f.adminOwnerCondition) == 0 {
 		return ErrMissingAdminOwnerCondition

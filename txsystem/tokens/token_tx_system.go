@@ -62,15 +62,12 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
 	}
 
-	var feeCreditModule txsystem.FeeCreditModule
+	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminKey) > 0 {
 		adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			permissioned.WithState(options.state),
+			options.systemIdentifier, options.state, tokens.FeeCreditRecordUnitType, adminOwnerCondition,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
-			permissioned.WithSystemIdentifier(options.systemIdentifier),
-			permissioned.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
-			permissioned.WithAdminOwnerCondition(adminOwnerCondition),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)

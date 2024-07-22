@@ -10,7 +10,7 @@ usage() {
   exit 0
 }
 
-# stop requires an argument either -a for stop all or -p to stop a specific partition
+# start requires an argument
 [ $# -eq 0 ] && usage
 
 # handle arguments

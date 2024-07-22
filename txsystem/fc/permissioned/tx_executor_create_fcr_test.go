@@ -29,12 +29,7 @@ func TestValidateCreateFCR(t *testing.T) {
 	systemID := types.SystemID(5)
 	fcrUnitType := []byte{1}
 	adminOwnerCondition := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(
-		WithSystemIdentifier(systemID),
-		WithState(stateTree),
-		WithFeeCreditRecordUnitType(fcrUnitType),
-		WithAdminOwnerCondition(adminOwnerCondition),
-	)
+	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerCondition)
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -115,12 +110,7 @@ func TestExecuteCreateFCR(t *testing.T) {
 	systemID := types.SystemID(5)
 	fcrUnitType := []byte{1}
 	adminOwnerCondition := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(
-		WithSystemIdentifier(systemID),
-		WithState(stateTree),
-		WithFeeCreditRecordUnitType(fcrUnitType),
-		WithAdminOwnerCondition(adminOwnerCondition),
-	)
+	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerCondition)
 	require.NoError(t, err)
 
 	// create tx

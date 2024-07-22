@@ -2,6 +2,7 @@ package permissioned
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
@@ -9,14 +10,18 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-var _ txsystem.FeeCreditModule = (*FeeCreditModule)(nil)
+var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
-const GasUnitsPerTema = 1000
+var (
+	ErrMissingSystemIdentifier        = errors.New("system identifier is missing")
+	ErrStateIsNil                     = errors.New("state is nil")
+	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
+	ErrMissingAdminOwnerCondition     = errors.New("admin owner condition is missing")
+)
 
 type (
 	// FeeCreditModule is a transaction system module for handling fees in "permissioned" mode.
@@ -34,9 +39,25 @@ type (
 	}
 )
 
-func NewFeeCreditModule(opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerCondition []byte, opts ...Option) (*FeeCreditModule, error) {
+	if systemID == 0 {
+		return nil, ErrMissingSystemIdentifier
+	}
+	if state == nil {
+		return nil, ErrStateIsNil
+	}
+	if len(feeCreditRecordUnitType) == 0 {
+		return nil, ErrMissingFeeCreditRecordUnitType
+	}
+	if len(adminOwnerCondition) == 0 {
+		return nil, ErrMissingAdminOwnerCondition
+	}
 	m := &FeeCreditModule{
-		hashAlgorithm: crypto.SHA256,
+		systemIdentifier:        systemID,
+		state:                   state,
+		feeCreditRecordUnitType: feeCreditRecordUnitType,
+		adminOwnerCondition:     adminOwnerCondition,
+		hashAlgorithm:           crypto.SHA256,
 	}
 	for _, o := range opts {
 		o(m)
@@ -51,9 +72,6 @@ func NewFeeCreditModule(opts ...Option) (*FeeCreditModule, error) {
 	if m.feeBalanceValidator == nil {
 		m.feeBalanceValidator = feeModule.NewFeeBalanceValidator(m.state, m.execPredicate, m.feeCreditRecordUnitType)
 	}
-	if err := m.IsValid(); err != nil {
-		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
-	}
 	return m, nil
 }
 
@@ -64,7 +82,7 @@ func (f *FeeCreditModule) CalculateCost(gasUsed uint64) uint64 {
 func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 	// FCRs have balance of 1 alpha that is never decreased,
 	// so transactions cannot spend gas worth more than 1 alpha
-	return 1e8 * GasUnitsPerTema
+	return 1e8 * feeModule.GasUnitsPerTema
 }
 
 func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
@@ -80,20 +98,4 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 
 func (f *FeeCreditModule) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	return f.feeBalanceValidator.IsCredible(exeCtx, tx)
-}
-
-func (f *FeeCreditModule) IsValid() error {
-	if f.systemIdentifier == 0 {
-		return ErrMissingSystemIdentifier
-	}
-	if f.state == nil {
-		return ErrStateIsNil
-	}
-	if len(f.feeCreditRecordUnitType) == 0 {
-		return ErrMissingFeeCreditRecordUnitType
-	}
-	if len(f.adminOwnerCondition) == 0 {
-		return ErrMissingAdminOwnerCondition
-	}
-	return nil
 }

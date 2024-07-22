@@ -30,7 +30,7 @@ type (
 		currentRoundNumber  uint64
 		handlers            txtypes.TxExecutors
 		trustBase           types.RootTrustBase
-		fees                FeeCreditModule
+		fees                txtypes.FeeCreditModule
 		beginBlockFunctions []func(roundNumber uint64) error
 		endBlockFunctions   []func(roundNumber uint64) error
 		roundCommitted      bool
@@ -41,13 +41,6 @@ type (
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Logger() *slog.Logger
-	}
-
-	FeeCreditModule interface {
-		txtypes.Module
-		txtypes.FeeCalculation
-		IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
-		IsFeeCreditTx(tx *types.TransactionOrder) bool
 	}
 )
 

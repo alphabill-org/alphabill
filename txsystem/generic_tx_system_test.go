@@ -47,11 +47,13 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `system ID must be assigned`)
 	})
-	t.Run("observe must not be nil", func(t *testing.T) {
+
+	t.Run("observability must not be nil", func(t *testing.T) {
 		txSys, err := NewGenericTxSystem(mockTxSystemID, nil, nil, nil)
 		require.Nil(t, txSys)
-		require.EqualError(t, err, "observe must not be nil")
+		require.EqualError(t, err, "observability must not be nil")
 	})
+
 	t.Run("success", func(t *testing.T) {
 		obs := observability.Default(t)
 		txSys, err := NewGenericTxSystem(

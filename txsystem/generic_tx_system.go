@@ -10,7 +10,6 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
@@ -31,7 +30,7 @@ type (
 		currentRoundNumber  uint64
 		handlers            txtypes.TxExecutors
 		trustBase           types.RootTrustBase
-		fees                FeeCreditModule
+		fees                txtypes.FeeCreditModule
 		beginBlockFunctions []func(roundNumber uint64) error
 		endBlockFunctions   []func(roundNumber uint64) error
 		roundCommitted      bool
@@ -42,12 +41,6 @@ type (
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Logger() *slog.Logger
-	}
-
-	FeeCreditModule interface {
-		txtypes.Module
-		txtypes.FeeCalculation
-		IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error
 	}
 )
 
@@ -154,7 +147,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	// execute fee credit transactions
-	if fc.IsFeeCreditTx(tx) {
+	if m.fees.IsFeeCreditTx(tx) {
 		sm, err := m.executeFc(tx, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("execute fc error: %w", err)

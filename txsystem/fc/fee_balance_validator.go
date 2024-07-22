@@ -6,13 +6,35 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/state"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
+
+type (
+	FeeBalanceValidator struct {
+		state                   StateReader
+		execPredicate           predicates.PredicateRunner
+		feeCreditRecordUnitType []byte
+	}
+
+	StateReader interface {
+		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+	}
+)
+
+func NewFeeBalanceValidator(stateReader StateReader, execPredicate predicates.PredicateRunner, feeCreditRecordUnitType []byte) *FeeBalanceValidator {
+	return &FeeBalanceValidator{
+		state:                   stateReader,
+		execPredicate:           execPredicate,
+		feeCreditRecordUnitType: feeCreditRecordUnitType,
+	}
+}
 
 /*
 IsCredible implements the fee credit verification for ordinary transactions (everything else except fee credit txs)
 */
-func (f *FeeCredit) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
+func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	clientMetadata := tx.Payload.ClientMetadata
 
 	// 1. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system

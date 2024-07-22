@@ -150,30 +150,30 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 
 }
 
-type feeTestOption func(m *FeeCredit) error
+type feeTestOption func(m *FeeCreditModule) error
 
 func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData) feeTestOption {
-	return func(m *FeeCredit) error {
+	return func(m *FeeCreditModule) error {
 		return m.state.Apply(state.AddUnit(unitID, bearer, data))
 	}
 }
 
 func withFeeCreditType(feeType []byte) feeTestOption {
-	return func(m *FeeCredit) error {
+	return func(m *FeeCreditModule) error {
 		m.feeCreditRecordUnitType = feeType
 		return nil
 	}
 }
 
 func withFeePredicateRunner(r predicates.PredicateRunner) feeTestOption {
-	return func(m *FeeCredit) error {
+	return func(m *FeeCreditModule) error {
 		m.execPredicate = r
 		return nil
 	}
 }
 
-func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeCredit {
-	m := &FeeCredit{
+func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeCreditModule {
+	m := &FeeCreditModule{
 		hashAlgorithm:         crypto.SHA256,
 		state:                 state.NewEmptyState(),
 		systemIdentifier:      moneySystemID,

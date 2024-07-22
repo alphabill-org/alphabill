@@ -46,7 +46,7 @@ function generate_boot_node() {
 
 # generates genesis files
 # first two arguments are mandatory, third is optional
-# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration') as string
+# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration', 'tokens-enterprise') as string
 # $2 nof genesis files to generate
 # $3 custom CLI args
 function generate_partition_node_genesis() {
@@ -62,13 +62,17 @@ case $1 in
     home="testab/tokens"
     ;;
   evm)
-      cmd="evm-genesis"
-      home="testab/evm"
-      ;;
+    cmd="evm-genesis"
+    home="testab/evm"
+    ;;
   orchestration)
-      cmd="orchestration-genesis"
-      home="testab/orchestration"
-      ;;
+    cmd="orchestration-genesis"
+    home="testab/orchestration"
+    ;;
+  tokens-enterprise)
+    cmd="tokens-genesis"
+    home="testab/tokens_enterprise"
+    ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -149,7 +153,10 @@ function start_root_nodes() {
   echo "started $(($i-1)) root nodes"
 }
 
+# starts node
+# $1 partition type i.e. one of [money/tokens/evm/orchestration/tokens-enterprise]
 function start_partition_nodes() {
+local cmd=""
 local home=""
 local key_files=""
 local genesis_file=""
@@ -158,6 +165,7 @@ local aPort=0
 local rpcPort=0
   case $1 in
     money)
+      cmd="money"
       home="testab/money"
       key_files="testab/money[0-9]*/money/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
@@ -165,6 +173,7 @@ local rpcPort=0
       rpcPort=26866
       ;;
     tokens)
+      cmd="tokens"
       home="testab/tokens"
       key_files="testab/tokens[0-9]*/tokens/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-2.json"
@@ -172,6 +181,7 @@ local rpcPort=0
       rpcPort=28866
       ;;
     evm)
+      cmd="evm"
       home="testab/evm"
       key_files="testab/evm[0-9]*/evm/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
@@ -179,11 +189,20 @@ local rpcPort=0
       rpcPort=29866
       ;;
     orchestration)
+      cmd="orchestration"
       home="testab/orchestration"
       key_files="testab/orchestration*/orchestration/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-4.json"
       aPort=30666
       rpcPort=30866
+      ;;
+    tokens-enterprise)
+      cmd="tokens"
+      home="testab/tokens_enterprise"
+      key_files="testab/tokens_enterprise[0-9]*/tokens/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-5.json"
+      aPort=31666
+      rpcPort=31866
       ;;
     *)
       echo "error: unknown partition $1" >&2
@@ -197,10 +216,10 @@ local rpcPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" \
+    build/alphabill "$cmd" \
         --home ${home}$i \
-        --db ${home}$i/"$1"/blocks.db \
-        --tx-db ${home}$i/"$1"/tx.db \
+        --db ${home}$i/"$cmd"/blocks.db \
+        --tx-db ${home}$i/"$cmd"/tx.db \
         --key-file $keyf \
         --genesis $genesis_file \
         --trust-base-file $trust_base_file \
@@ -208,7 +227,7 @@ local rpcPort=0
         --address "/ip4/127.0.0.1/tcp/$aPort" \
         --bootnodes="$bootNodes" \
         --rpc-server-address "localhost:$rpcPort" \
-        >> ${home}$i/"$1"/"$1".log  2>&1 &
+        >> "$(dirname $keyf)/$cmd".log  2>&1 &
     ((i=i+1))
     ((aPort=aPort+1))
     ((rpcPort=rpcPort+1))

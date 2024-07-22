@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/predicates"
@@ -60,6 +61,11 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
 		return fmt.Errorf("loading partition genesis: %w", err)
+	}
+
+	params := &genesis.TokensPartitionParams{}
+	if err := types.Cbor.Unmarshal(pg.Params, params); err != nil {
+		return fmt.Errorf("failed to unmarshal tokens partition params: %w", err)
 	}
 
 	stateFilePath := cfg.Node.StateFile
@@ -134,6 +140,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
+		tokens.WithAdminKey(params.AdminKey),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

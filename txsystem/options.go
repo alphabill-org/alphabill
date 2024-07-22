@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type Options struct {
@@ -16,7 +17,7 @@ type Options struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	predicateRunner     predicates.PredicateRunner
-	feeCredit           FeeCreditModule
+	feeCredit           txtypes.FeeCreditModule
 }
 
 type Option func(*Options)
@@ -55,7 +56,7 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithFeeCredits(f FeeCreditModule) Option {
+func WithFeeCredits(f txtypes.FeeCreditModule) Option {
 	return func(g *Options) {
 		g.feeCredit = f
 	}

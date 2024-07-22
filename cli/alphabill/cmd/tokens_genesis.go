@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -29,6 +30,7 @@ type userTokenPartitionGenesisConfig struct {
 	Output           string
 	OutputState      string
 	T2Timeout        uint32
+	AdminKey         []byte
 }
 
 func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
@@ -48,6 +50,7 @@ func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/tokens/node-genesis-state.cbor)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
+	cmd.Flags().BytesHexVar(&config.AdminKey, "admin-key", nil, "the admin public key for permissioned mode")
 	return cmd
 }
 
@@ -86,6 +89,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 	if err != nil {
 		return err
 	}
+
+	params, err := config.getPartitionParams()
+	if err != nil {
+		return err
+	}
 	nodeGenesis, err := partition.NewNodeGenesis(
 		genesisState,
 		partition.WithPeerID(peerID),
@@ -93,6 +101,7 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
 		partition.WithSystemIdentifier(config.SystemIdentifier),
 		partition.WithT2Timeout(config.T2Timeout),
+		partition.WithParams(params),
 	)
 	if err != nil {
 		return err
@@ -117,4 +126,15 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisStateFileLocation(utHome
 		return c.OutputState
 	}
 	return filepath.Join(utHomePath, utGenesisStateFileName)
+}
+
+func (c *userTokenPartitionGenesisConfig) getPartitionParams() ([]byte, error) {
+	src := &genesis.TokensPartitionParams{
+		AdminKey: c.AdminKey,
+	}
+	res, err := types.Cbor.Marshal(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tokens partition params: %w", err)
+	}
+	return res, nil
 }

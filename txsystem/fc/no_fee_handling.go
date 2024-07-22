@@ -30,3 +30,7 @@ func (f *NoFeeHandling) TxHandlers() map[string]txtypes.TxExecutor {
 func (f *NoFeeHandling) IsCredible(_ txtypes.ExecutionContext, _ *types.TransactionOrder) error {
 	return nil
 }
+
+func (f *NoFeeHandling) IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	return false
+}

@@ -48,6 +48,20 @@ func WithCurrentRound(round uint64) TestOption {
 	}
 }
 
+func WithUnit(unit *state.Unit) TestOption {
+	return func(m *MockExecContext) error {
+		m.Unit = unit
+		return nil
+	}
+}
+
+func WithErr(err error) TestOption {
+	return func(m *MockExecContext) error {
+		m.mockErr = err
+		return nil
+	}
+}
+
 func (m *MockExecContext) GasAvailable() uint64 {
 	return m.GasRemaining
 }

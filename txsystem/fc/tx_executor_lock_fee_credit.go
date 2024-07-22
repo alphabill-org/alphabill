@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	fee := execCtx.CalculateCost()
 	if err := f.state.Apply(state.UpdateUnitData(unitID,
@@ -30,7 +30,7 @@ func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCr
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)

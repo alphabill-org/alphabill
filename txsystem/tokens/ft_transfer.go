@@ -13,7 +13,6 @@ import (
 )
 
 func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	fee := exeCtx.CalculateCost()
 	unitID := tx.UnitID()
 
 	if err := m.state.Apply(
@@ -32,7 +31,7 @@ func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, att
 		return nil, err
 	}
 
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {

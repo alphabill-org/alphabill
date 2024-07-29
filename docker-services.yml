@@ -1,5 +1,6 @@
 services:
   alphabill:
+    platform: linux/amd64 # TODO - allow user to pass parameter
     build:
       context: ./
       dockerfile: ./cli/alphabill/Dockerfile

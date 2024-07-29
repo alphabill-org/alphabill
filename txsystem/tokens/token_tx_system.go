@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
+	"github.com/alphabill-org/alphabill/txsystem/fc/permissioned"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 const (
@@ -58,23 +61,36 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	if err != nil {
 		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
 	}
-	feeCreditModule, err := fc.NewFeeCreditModule(
-		fc.WithState(options.state),
-		fc.WithHashAlgorithm(options.hashAlgorithm),
-		fc.WithTrustBase(options.trustBase),
-		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
-		fc.WithFeeCalculator(options.feeCalculator),
-		fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
+
+	var feeCreditModule txtypes.FeeCreditModule
+	if len(options.adminKey) > 0 {
+		adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
+		feeCreditModule, err = permissioned.NewFeeCreditModule(
+			options.systemIdentifier, options.state, tokens.FeeCreditRecordUnitType, adminOwnerCondition,
+			permissioned.WithHashAlgorithm(options.hashAlgorithm),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
+		}
+	} else {
+		feeCreditModule, err = fc.NewFeeCreditModule(
+			fc.WithState(options.state),
+			fc.WithHashAlgorithm(options.hashAlgorithm),
+			fc.WithTrustBase(options.trustBase),
+			fc.WithSystemIdentifier(options.systemIdentifier),
+			fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
+			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load permissionless fee credit module: %w", err)
+		}
 	}
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
-		feeCreditModule.CheckFeeCreditBalance,
-		[]txsystem.Module{nft, fungible, lockTokens, feeCreditModule},
+		options.trustBase,
+		[]txtypes.Module{nft, fungible, lockTokens},
 		observe,
+		txsystem.WithFeeCredits(feeCreditModule),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
 	)

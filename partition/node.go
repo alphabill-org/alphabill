@@ -1320,7 +1320,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
 	rootIDs, err := rootNodesSelector(luc, n.rootNodes, defaultNofRootNodes)
 	if err != nil {
-		n.log.WarnContext(ctx, "root node selection error: %w", err)
+		return fmt.Errorf("selecting root nodes: %w", err)
 	}
 	return n.network.Send(ctx, req, rootIDs...)
 }

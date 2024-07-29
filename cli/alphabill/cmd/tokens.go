@@ -6,17 +6,23 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
 	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/predicates/wasm"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
+	tokenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 type (
@@ -55,6 +61,11 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
 		return fmt.Errorf("loading partition genesis: %w", err)
+	}
+
+	params := &genesis.TokensPartitionParams{}
+	if err := types.Cbor.Unmarshal(pg.Params, params); err != nil {
+		return fmt.Errorf("failed to unmarshal tokens partition params: %w", err)
 	}
 
 	stateFilePath := cfg.Node.StateFile
@@ -101,12 +112,35 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("unable to initialize proof DB: %w", err)
 	}
 
+	// register all unit- and attribute types from token tx system
+	enc, err := encoder.New(tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders)
+	if err != nil {
+		return fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
+	}
+	// create predicate engine for the transaction system.
+	// however, the WASM engine needs to be able to execute predicate templates
+	// so we create template engine first and use it for both WASM engine and
+	// tx system engine.
+	// it's safe to share template engine as it doesn't have internal state and
+	// predicate executions happen in serialized manner anyway
+	templateEng := templates.New()
+	tpe, err := predicates.Dispatcher(templateEng)
+	if err != nil {
+		return fmt.Errorf("creating predicate executor for WASM engine: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templateEng, wasm.New(enc, tpe.Execute, obs))
+	if err != nil {
+		return fmt.Errorf("creating predicate executor: %w", err)
+	}
+
 	txs, err := tokens.NewTxSystem(
 		obs,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),
+		tokens.WithPredicateExecutor(predEng.Execute),
+		tokens.WithAdminKey(params.AdminKey),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

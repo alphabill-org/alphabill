@@ -7,12 +7,12 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
-	txExecutors := make(txsystem.TxExecutors)
+	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	// create unlock tx
 	unlockAttr := &tokens.UnlockTokenAttributes{
@@ -29,7 +29,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedTokenID)
 	roundNo := uint64(11)
-	sm, err := txExecutors.ValidateAndExecute(unlockTx, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(unlockTx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedTokenID, false)
@@ -106,7 +106,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateUnlockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
+			err := m.validateUnlockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -116,7 +116,7 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
 	m, err := NewLockTokensModule(opts)
 	require.NoError(t, err)
-	txExecutors := make(txsystem.TxExecutors)
+	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	// create unlock tx
 	unlockAttr := &tokens.UnlockTokenAttributes{
@@ -125,7 +125,7 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, tokens.PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
-	sm, err := txExecutors.ValidateAndExecute(unlockTx, &txsystem.TxExecutionContext{CurrentBlockNumber: roundNo})
+	sm, err := txExecutors.ValidateAndExecute(unlockTx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingLockedNFTUnitID, false)
@@ -228,7 +228,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			attr := &tokens.UnlockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			err := m.validateUnlockTokenTx(tt.tx, attr, &txsystem.TxExecutionContext{CurrentBlockNumber: 10})
+			err := m.validateUnlockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}

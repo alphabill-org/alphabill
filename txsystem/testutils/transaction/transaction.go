@@ -113,8 +113,9 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 	return &types.TransactionRecord{
 		TransactionOrder: tx,
 		ServerMetadata: &types.ServerMetadata{
-			ActualFee:   1,
-			TargetUnits: []types.UnitID{tx.UnitID()},
+			ActualFee:        1,
+			TargetUnits:      []types.UnitID{tx.UnitID()},
+			SuccessIndicator: types.TxStatusSuccessful,
 		},
 	}
 }

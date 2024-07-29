@@ -48,7 +48,7 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 	if attr.FeeCreditTransfer == nil {
 		attr.FeeCreditTransfer = &types.TransactionRecord{
 			TransactionOrder: NewTransferFC(t, signer, nil),
-			ServerMetadata:   &types.ServerMetadata{},
+			ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 		}
 	}
 	if attr.FeeCreditTransferProof == nil {

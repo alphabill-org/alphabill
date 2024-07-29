@@ -108,12 +108,13 @@ func (l *Log) Clone() *Log {
 func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.NewBearer)
-	if l.NewStateLockTx != nil {
-		hasher.Write(l.NewStateLockTx)
-	}
 	if l.NewUnitData != nil {
 		// todo: change Hash interface to allow errors
 		_ = l.NewUnitData.Write(hasher)
+	}
+	// @todo: AB-1609 add delete round "nd"
+	if l.NewStateLockTx != nil {
+		hasher.Write(l.NewStateLockTx)
 	}
 	//y_j
 	dataHash := hasher.Sum(nil)

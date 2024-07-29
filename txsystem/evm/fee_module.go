@@ -2,18 +2,20 @@ package evm
 
 import (
 	"crypto"
+	"fmt"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*FeeAccount)(nil)
+var _ txtypes.Module = (*FeeAccount)(nil)
 
 type (
 	FeeAccount struct {
@@ -37,22 +39,27 @@ func FixedFee(fee uint64) FeeCalculator {
 }
 
 func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.Logger) (*FeeAccount, error) {
-	return &FeeAccount{
+	m := &FeeAccount{
 		state:         options.state,
 		systemID:      systemIdentifier,
 		moneySystemID: money.DefaultSystemID,
 		trustBase:     options.trustBase,
 		hashAlgorithm: options.hashAlgorithm,
 		feeCalculator: FixedFee(1),
-		execPredicate: predicates.NewPredicateRunner(options.execPredicate, options.state),
 		log:           log,
-	}, nil
+	}
+	predEng, err := predicates.Dispatcher(templates.New())
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate executor: %w", err)
+	}
+	m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
+	return m, nil
 }
 
-func (f *FeeAccount) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:   txsystem.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit: txsystem.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+func (f *FeeAccount) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		fc.PayloadTypeAddFeeCredit:   txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit: txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
@@ -21,14 +22,14 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	}
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
-		NilFeeCreditValidator,
-		[]txsystem.Module{module},
+		options.trustBase,
+		[]txtypes.Module{module},
 		observe,
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
 	)
 }
 
-func NilFeeCreditValidator(_ *types.TransactionOrder) error {
+func NOPFeeCreditValidator(_ txtypes.ExecutionContext, _ *types.TransactionOrder) error {
 	return nil
 }

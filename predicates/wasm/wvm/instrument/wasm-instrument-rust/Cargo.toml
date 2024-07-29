@@ -1,0 +1,17 @@
+[package]
+name = "wasm-instrument"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = "0.2.153"
+wasm-instrument = { version = "0.4.0", features=["sign_ext"]}
+
+[build-dependencies]
+cargo-zigbuild = "0.18.3"
+cbindgen = "0.26.0"

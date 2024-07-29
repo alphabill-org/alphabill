@@ -8,23 +8,22 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	tokenID := tx.UnitID()
 	typeID := attr.TypeID
-	fee := m.feeCalculator()
 
 	if err := m.state.Apply(
-		state.AddUnit(tokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentBlockNumber, 0, tx.Timeout())),
+		state.AddUnit(tokenID, attr.Bearer, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentRound(), 0, tx.Timeout())),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	tokenID := tx.UnitID()
 	tokenTypeID := attr.TypeID
 
@@ -73,6 +72,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 
 	// verify predicate inheritance chain
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		tokenTypeID,
 		attr.TokenCreationPredicateSignatures,

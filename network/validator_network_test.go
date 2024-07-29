@@ -181,6 +181,9 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	// Verify that streams are closed
 	require.LessOrEqual(t, peer1StreamCount, 1)
 	require.LessOrEqual(t, peer2StreamCount, 1)
+
+	cancel()
+	wg.Wait()
 }
 
 type mockNode struct {

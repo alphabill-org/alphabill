@@ -1,18 +1,28 @@
 package money
 
 import (
+	"crypto"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint32, hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	hasher.Write(idBytes)
+	hasher.Write(attr)
+	hasher.Write(util.Uint64ToBytes(timeout))
+	hasher.Write(util.Uint32ToBytes(idx))
+	return hasher.Sum(nil)
+}
+
+func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
@@ -25,7 +35,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			targetUnit.OwnerCondition,
 			&money.BillData{
 				V:       targetUnit.Amount,
-				T:       exeCtx.CurrentBlockNumber,
+				T:       exeCtx.CurrentRound(),
 				Counter: 0,
 			}))
 	}
@@ -38,7 +48,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			}
 			return &money.BillData{
 				V:       attr.RemainingValue,
-				T:       exeCtx.CurrentBlockNumber,
+				T:       exeCtx.CurrentRound(),
 				Counter: bd.Counter + 1,
 			}, nil
 		},
@@ -47,10 +57,10 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	if err := m.state.Apply(actions...); err != nil {
 		return nil, fmt.Errorf("state update failed: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: m.feeCalculator(), TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *txsystem.TxExecutionContext) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -58,7 +68,7 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 	if err = validateSplit(unit.Data(), attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
 	return nil

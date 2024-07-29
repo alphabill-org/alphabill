@@ -42,6 +42,11 @@ type OrchestrationPartitionParams struct {
 	OwnerPredicate types.PredicateBytes
 }
 
+type TokensPartitionParams struct {
+	_        struct{} `cbor:",toarray"`
+	AdminKey []byte
+}
+
 func (x *PartitionNode) IsValid() error {
 	if x == nil {
 		return ErrPartitionNodeIsNil

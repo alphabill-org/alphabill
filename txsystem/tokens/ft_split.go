@@ -2,16 +2,17 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -21,7 +22,6 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 
 	// add new token unit
 	newTokenID := tokens.NewFungibleTokenID(unitID, tx.HashForNewUnitID(m.hashAlgorithm))
-	fee := m.feeCalculator()
 
 	// update state
 	if err = m.state.Apply(
@@ -30,7 +30,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 			&tokens.FungibleTokenData{
 				TokenType: ftData.TokenType,
 				Value:     attr.TargetValue,
-				T:         exeCtx.CurrentBlockNumber,
+				T:         exeCtx.CurrentRound(),
 				Counter:   0,
 				T1:        0,
 				Locked:    0,
@@ -44,7 +44,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 				return &tokens.FungibleTokenData{
 					TokenType: d.TokenType,
 					Value:     d.Value - attr.TargetValue,
-					T:         exeCtx.CurrentBlockNumber,
+					T:         exeCtx.CurrentRound(),
 					Counter:   d.Counter + 1,
 					T1:        d.T1,
 					Locked:    d.Locked,
@@ -53,10 +53,18 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	hasher.Write(tx.UnitID())
+	hasher.Write(tx.Payload.Attributes)
+	tx.Payload.ClientMetadata.AddToHasher(hasher)
+	return hasher.Sum(nil)
+}
+
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -86,10 +94,11 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		tokenData.TokenType,
 		attr.InvariantPredicateSignatures,

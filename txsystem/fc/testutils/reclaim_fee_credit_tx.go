@@ -39,7 +39,8 @@ func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFe
 	tr := &types.TransactionRecord{
 		TransactionOrder: newCloseFC(t),
 		ServerMetadata: &types.ServerMetadata{
-			ActualFee: 10,
+			ActualFee:        10,
+			SuccessIndicator: types.TxStatusSuccessful,
 		},
 	}
 	return &fc.ReclaimFeeCreditAttributes{

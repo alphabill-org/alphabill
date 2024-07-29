@@ -5,12 +5,12 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// 1. SetOwner(ι, DC)
 	setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
@@ -35,7 +35,7 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.V = 0
-			bd.T = exeCtx.CurrentBlockNumber
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			return bd, nil
 		})
@@ -51,13 +51,12 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 	// record dust bills for later deletion TODO AB-1133
 	// dustCollector.AddDustBill(unitID, currentBlockNumber)
 	return &types.ServerMetadata{
-		ActualFee:        m.feeCalculator(),
 		TargetUnits:      []types.UnitID{unitID, DustCollectorMoneySupplyID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }
 
-func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -65,7 +64,7 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.Tr
 	if err = validateTransferDC(unit.Data(), attr); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
 	return nil

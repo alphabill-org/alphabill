@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type (
@@ -19,7 +19,7 @@ type (
 	}
 )
 
-func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// reduce dc-money supply by target value and update timeout and backlink
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
@@ -28,7 +28,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 			}
 			bd.V -= attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNumber
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			return bd, nil
 		},
@@ -41,7 +41,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
 			}
 			bd.V += attr.TargetValue
-			bd.T = exeCtx.CurrentBlockNumber
+			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			bd.Locked = 0
 			return bd, nil
@@ -50,13 +50,12 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 		return nil, fmt.Errorf("unit update failed: %w", err)
 	}
 	return &types.ServerMetadata{
-		ActualFee:        m.feeCalculator(),
 		TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }
 
-func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) error {
 	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {
@@ -92,7 +91,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if len(dustTransfers) != len(attr.DcTransferProofs) {
 		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
 	}
-	if err = m.execPredicate(unitData.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unitData.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("swap tx predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {

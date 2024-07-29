@@ -6,13 +6,13 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var _ txsystem.Module = (*Module)(nil)
+var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
@@ -39,13 +39,13 @@ func NewModule(options *Options) (*Module, error) {
 		systemID:       options.systemIdentifier,
 		ownerPredicate: options.ownerPredicate,
 		hashAlgorithm:  options.hashAlgorithm,
-		execPredicate:  predicates.NewPredicateRunner(options.exec, options.state),
+		execPredicate:  predicates.NewPredicateRunner(options.exec),
 	}
 	return m, nil
 }
 
-func (m *Module) TxHandlers() map[string]txsystem.TxExecutor {
-	return map[string]txsystem.TxExecutor{
-		orchestration.PayloadTypeAddVAR: txsystem.NewTxHandler[orchestration.AddVarAttributes](m.validateAddVarTx, m.executeAddVarTx),
+func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
+	return map[string]txtypes.TxExecutor{
+		orchestration.PayloadTypeAddVAR: txtypes.NewTxHandler[orchestration.AddVarAttributes](m.validateAddVarTx, m.executeAddVarTx),
 	}
 }

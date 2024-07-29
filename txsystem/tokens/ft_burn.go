@@ -8,13 +8,12 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-	fee := m.feeCalculator()
+func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 
 	// 1. SetOwner(ι, DC)
@@ -28,19 +27,18 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, attr *t
 				return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 			}
 			ftData.Value = 0
-			ftData.T = exeCtx.CurrentBlockNumber
+			ftData.T = exeCtx.CurrentRound()
 			ftData.Counter += 1
 			return ftData, nil
 		},
 	)
-
 	if err := m.state.Apply(setOwnerFn, updateUnitFn); err != nil {
 		return nil, fmt.Errorf("burnFToken: failed to update state: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
@@ -58,11 +56,12 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
 
-	err = m.execPredicate(bearer, tx.OwnerProof, tx)
+	err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx)
 	if err != nil {
 		return fmt.Errorf("bearer predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
+		exeCtx,
 		tx,
 		tokenData.TokenType,
 		attr.InvariantPredicateSignatures,

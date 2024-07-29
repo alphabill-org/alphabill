@@ -6,14 +6,14 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, _ *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
-	fee := f.feeCalculator()
+	fee := execCtx.CalculateCost()
 	if err := f.state.Apply(state.UpdateUnitData(unitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -30,13 +30,13 @@ func (f *FeeCredit) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCr
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCredit) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// ι identifies an existing fee credit record
-	fcr, _, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
+	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}
@@ -55,6 +55,10 @@ func (f *FeeCredit) validateLockFC(tx *types.TransactionOrder, attr *fc.LockFeeC
 	// verify lock status is non-zero i.e. "locked"
 	if attr.LockStatus == 0 {
 		return errors.New("lock status must be non-zero value")
+	}
+	// validate owner
+	if err = f.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil
 }

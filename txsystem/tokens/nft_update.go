@@ -7,11 +7,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-	fee := n.feeCalculator()
+func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// update state
 	if err := n.state.Apply(
@@ -21,16 +20,16 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
 			d.Data = attr.Data
-			d.T = exeCtx.CurrentBlockNumber
+			d.T = exeCtx.CurrentRound()
 			d.Counter += 1
 			return d, nil
 		})); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx *txsystem.TxExecutionContext) error {
+func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
@@ -57,10 +56,11 @@ func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder
 		return errors.New("missing data update signatures")
 	}
 
-	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
+		exeCtx,
 		tx,
 		data.TypeID,
 		attr.DataUpdateSignatures[1:],

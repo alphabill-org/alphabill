@@ -14,6 +14,12 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 )
 
+const (
+	P2PKHGasCost       = 1000
+	AlwaysTrueGasCost  = 100
+	AlwaysFalseGasCost = 100
+)
+
 var cborNull = []byte{0xf6}
 
 type TemplateRunner struct{}
@@ -36,17 +42,20 @@ func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, a
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return p2pkh256_Execute(p.Params, args, txo, env)
+		return executeP2PKH256(p.Params, args, txo, env)
 	case templates.AlwaysTrueID:
-		return alwaysTrue_Execute(p.Params, args)
+		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
-		return alwaysFalse_Execute(p.Params, args)
+		return executeAlwaysFalse(p.Params, args, env)
 	default:
 		return false, fmt.Errorf("unknown predicate template with id %d", p.Code[0])
 	}
 }
 
-func alwaysTrue_Execute(params, args []byte) (bool, error) {
+func executeAlwaysTrue(params, args []byte, env predicates.TxContext) (bool, error) {
+	if err := env.SpendGas(AlwaysTrueGasCost); err != nil {
+		return false, err
+	}
 	// do not allow to piggyback any additional data on "always true" predicate
 	if (len(params) == 0 || (bytes.Equal(params, cborNull))) && (len(args) == 0 || (bytes.Equal(args, cborNull))) {
 		return true, nil
@@ -55,7 +64,10 @@ func alwaysTrue_Execute(params, args []byte) (bool, error) {
 	return false, fmt.Errorf(`"always true" predicate arguments must be empty`)
 }
 
-func alwaysFalse_Execute(params, args []byte) (bool, error) {
+func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, error) {
+	if err := env.SpendGas(AlwaysFalseGasCost); err != nil {
+		return false, err
+	}
 	// do not allow to piggyback any additional data on "always false" predicate
 	if (len(params) == 0 || (bytes.Equal(params, cborNull))) && (len(args) == 0 || (bytes.Equal(args, cborNull))) {
 		return false, nil
@@ -64,7 +76,10 @@ func alwaysFalse_Execute(params, args []byte) (bool, error) {
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func p2pkh256_Execute(pubKeyHash, sig []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+	if err := env.SpendGas(P2PKHGasCost); err != nil {
+		return false, err
+	}
 	// when AB-1012 gets resolved should call txo.PayloadBytes() instead
 	payloadBytes, err := env.PayloadBytes(txo)
 	if err != nil {
@@ -72,7 +87,7 @@ func p2pkh256_Execute(pubKeyHash, sig []byte, txo *types.TransactionOrder, env p
 	}
 
 	p2pkh256Signature := templates.P2pkh256Signature{}
-	if err := types.Cbor.Unmarshal(sig, &p2pkh256Signature); err != nil {
+	if err = types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
 		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {

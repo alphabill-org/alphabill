@@ -8,9 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 var (
@@ -19,10 +19,10 @@ var (
 	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
-func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
-	fee := m.feeCalculator()
+	fee := exeCtx.CalculateCost()
 	closeFCAttr := &fc.CloseFeeCreditAttributes{}
 	closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
 	if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
@@ -36,7 +36,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.V += v
-		newBillData.T = exeCtx.CurrentBlockNumber
+		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		newBillData.Locked = 0
 		return newBillData, nil
@@ -58,7 +58,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, _ *txsystem.TxExecutionContext) error {
+func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, execCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -94,7 +94,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, execCtx); err != nil {
 		return err
 	}
 	// verify proof

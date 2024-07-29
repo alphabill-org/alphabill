@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -28,7 +29,6 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithTrustBase(options.trustBase),
 		fc.WithSystemIdentifier(options.systemIdentifier),
 		fc.WithMoneySystemIdentifier(options.systemIdentifier),
-		fc.WithFeeCalculator(options.feeCalculator),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)
 	if err != nil {
@@ -36,9 +36,10 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	}
 	return txsystem.NewGenericTxSystem(
 		options.systemIdentifier,
-		feeCreditModule.CheckFeeCreditBalance,
-		[]txsystem.Module{moneyModule, feeCreditModule},
+		options.trustBase,
+		[]txtypes.Module{moneyModule},
 		observe,
+		txsystem.WithFeeCredits(feeCreditModule),
 		txsystem.WithEndBlockFunctions(moneyModule.EndBlockFuncs()...),
 		txsystem.WithBeginBlockFunctions(moneyModule.BeginBlockFuncs()...),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

@@ -2,6 +2,9 @@ module github.com/alphabill-org/alphabill
 
 go 1.22
 
+// uncomment for local development:
+//replace github.com/alphabill-org/alphabill-go-base => ../alphabill-go-base
+
 replace (
 	github.com/apache/thrift v0.13.0 => github.com/apache/thrift v0.16.0
 	github.com/microcosm-cc/bluemonday v1.0.1 => github.com/microcosm-cc/bluemonday v1.0.18
@@ -12,7 +15,7 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-base v0.0.0-20240524090639-677d68479baf
+	github.com/alphabill-org/alphabill-go-base v0.0.0-20240719121951-a24f712338d5
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.14.0
 	github.com/fxamacker/cbor/v2 v2.6.0
@@ -31,6 +34,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.4
+	github.com/tetratelabs/wazero v1.6.0
 	go.etcd.io/bbolt v1.3.8
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.21.0

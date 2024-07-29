@@ -6,9 +6,9 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 var (
@@ -16,11 +16,9 @@ var (
 	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 )
 
-func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx *txsystem.TxExecutionContext) (*types.ServerMetadata, error) {
-	// calculate actual tx fee cost
-	fee := m.feeCalculator()
+func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// update state
-	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentBlockNumber)
+	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentRound())
 	setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 	if err := m.state.Apply(
 		setOwnerFunc,
@@ -28,10 +26,10 @@ func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.Trans
 	); err != nil {
 		return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 	}
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, _ *txsystem.TxExecutionContext) error {
+func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return fmt.Errorf("transfer validation error: %w", err)
@@ -39,7 +37,7 @@ func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.Tran
 	if err = validateTransfer(unit.Data(), attr); err != nil {
 		return fmt.Errorf("transfer validation error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx); err != nil {
+	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing bearer predicate: %w", err)
 	}
 	return nil

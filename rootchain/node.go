@@ -181,7 +181,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	sysID := req.SystemIdentifier
 	if sysID == 0 {
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("status", "err.sysid"))))
-		return fmt.Errorf("request contains invalid system identifier %s", req.SystemIdentifier)
+		return fmt.Errorf("request contains invalid system identifier %s", sysID)
 	}
 	defer func() {
 		if rErr != nil {
@@ -193,12 +193,12 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
-	_, pTrustBase, err := v.partitions.GetInfo(sysID)
+	_, pTrustBase, err := v.partitions.GetInfo(sysID, req.RootRound())
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
 	}
 	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
-		return fmt.Errorf("%X node %v rejected: %w", req.SystemIdentifier, req.NodeIdentifier, err)
+		return fmt.Errorf("partition %s node %v rejected: %w", sysID, req.NodeIdentifier, err)
 	}
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {

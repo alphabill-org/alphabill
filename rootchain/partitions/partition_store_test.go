@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
@@ -80,11 +81,12 @@ func TestPartitionStore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf, err := NewPartitionStoreFromGenesis(tt.args.partitions)
+			conf, err := NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(tt.args.partitions))
 			require.NoError(t, err)
+			require.NoError(t, conf.Reset(func() uint64 { return 1 }))
 			require.Equal(t, tt.want.size, len(conf.partitions))
 			for i, id := range tt.want.containsPartitions {
-				sysDesc, tb, err := conf.GetInfo(id)
+				sysDesc, tb, err := conf.GetInfo(id, 1)
 				require.NoError(t, err)
 				if tt.want.nodeCounts != nil {
 					require.Equal(t, tt.want.nodeCounts[i], int(tb.GetTotalNodes()))
@@ -93,7 +95,7 @@ func TestPartitionStore(t *testing.T) {
 				}
 			}
 			for _, id := range tt.want.doesNotContainPartitions {
-				_, _, err := conf.GetInfo(id)
+				_, _, err := conf.GetInfo(id, 1)
 				require.Error(t, err)
 			}
 		})
@@ -127,13 +129,15 @@ func TestPartitionStore_Info(t *testing.T) {
 			},
 		},
 	}
-	store, err := NewPartitionStoreFromGenesis(partitions)
+	store, err := NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(partitions))
 	require.NoError(t, err)
+	require.NoError(t, store.Reset(func() uint64 { return 1 }))
+	sysDesc, tb, err := store.GetInfo(id1, 1)
 	require.NoError(t, err)
-	sysDesc, tb, err := store.GetInfo(id1)
-	require.NoError(t, err)
+	require.NotNil(t, sysDesc)
 	require.Equal(t, id1, sysDesc.SystemIdentifier)
 	require.Equal(t, uint32(2600), sysDesc.T2Timeout)
+	require.NotNil(t, tb)
 	require.Equal(t, 3, int(tb.GetTotalNodes()))
 	require.Equal(t, uint64(2), tb.GetQuorum())
 }

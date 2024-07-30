@@ -40,12 +40,11 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-// there will be other commands added in the future
 func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
-		Short: "Generates root chain genesis files",
+		Short: "Tools to work with root chain genesis files",
 	}
 	cmd.AddCommand(newGenesisCmd(config))
 	cmd.AddCommand(combineRootGenesisCmd(config))
@@ -115,7 +114,7 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
-		return fmt.Errorf("failed to extract root ID from publick key: %w", err)
+		return fmt.Errorf("failed to extract root ID from public key: %w", err)
 	}
 	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {

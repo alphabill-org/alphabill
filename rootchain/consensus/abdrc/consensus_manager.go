@@ -306,6 +306,9 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to read last TC from block store: %w", err)
 		}
 		x.pacemaker.Reset(ctx, hQc.GetRound(), lastTC, vote)
+		if err := x.partitions.Reset(x.pacemaker.GetCurrentRound); err != nil {
+			return fmt.Errorf("resetting partition store: %w", err)
+		}
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)

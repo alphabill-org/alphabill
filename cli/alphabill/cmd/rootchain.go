@@ -3,16 +3,26 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/logger"
@@ -25,12 +35,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/libp2p/go-libp2p/core/peer"
-	ma "github.com/multiformats/go-multiaddr"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -159,29 +163,26 @@ func initTrustBaseStore(dbPath string) (*boltdb.BoltDB, error) {
 }
 
 func runRootNode(ctx context.Context, config *rootNodeConfig) error {
-	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
+	gf, err := os.Open(config.getGenesisFilePath())
 	if err != nil {
-		return fmt.Errorf("loading root node genesis file %s: %w", config.getGenesisFilePath(), err)
+		return fmt.Errorf("opening root genesis file: %w", err)
 	}
+	rootGenesis, err := parseRootGenesis(gf)
+	if err != nil {
+		return fmt.Errorf("reading root genesis file: %w", err)
+	}
+
 	keys, err := LoadKeys(config.getKeyFilePath(), false, false)
 	if err != nil {
 		return fmt.Errorf("loading keys from %s: %w", config.KeyFile, err)
-	}
-	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
-	if err != nil {
-		return fmt.Errorf("failed to calculate nodeID: %w", err)
-	}
-	log := config.Base.observe.Logger().With(logger.NodeID(nodeID))
-	obs := observability.WithLogger(config.Base.observe, log)
-	// check if genesis file is valid and exit early if is not
-	if err = rootGenesis.Verify(); err != nil {
-		return fmt.Errorf("root genesis verification failed: %w", err)
 	}
 	// Process partition node network
 	host, err := createHost(ctx, keys, config)
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
+	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
+	obs := observability.WithLogger(config.Base.observe, log)
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -190,13 +191,8 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
-	if err = verifyKeyPresentInGenesis(host, rootGenesis.Root, ver); err != nil {
+	if err = verifyKeyPresentInGenesis(host.ID(), rootGenesis.Root, ver); err != nil {
 		return fmt.Errorf("root node key not found in genesis: %w", err)
-	}
-	// initiate partition store
-	partitionCfg, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	if err != nil {
-		return fmt.Errorf("failed to extract partition info from genesis file %s: %w", config.getGenesisFilePath(), err)
 	}
 	// Initiate root storage
 	rootStore, err := initRootStore(config.getStorageDir())
@@ -213,6 +209,16 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("root trust base init failed: %w", err)
 	}
+
+	gs, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"), rootGenesis)
+	if err != nil {
+		return fmt.Errorf("creating genesis store: %w", err)
+	}
+	partitionCfg, err := partitions.NewPartitionStore(gs)
+	if err != nil {
+		return fmt.Errorf("creating partition store: %w", err)
+	}
+
 	var cm rootchain.ConsensusManager
 	if len(rootGenesis.Root.RootValidators) == 1 {
 		// use monolithic consensus algorithm
@@ -267,13 +273,20 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
-		pr := config.Base.observe.PrometheusRegisterer()
-		if pr == nil || config.RPCServerAddress == "" {
+		if config.RPCServerAddress == "" {
 			return nil // do not kill the group!
 		}
 
 		mux := http.NewServeMux()
-		mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
+		if pr := config.Base.observe.PrometheusRegisterer(); pr != nil {
+			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
+		}
+		// there is a race - the partitionCfg.AddConfiguration is only safe to call after
+		// the partitionCfg.Reset has been called which happens once the consensus manager
+		// is running (ie node is "fully running").
+		// The request must have ?start-round=n query parameter (the round when the genesis
+		// in the body must take effect)
+		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(partitionCfg.AddConfiguration))
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.RPCServerAddress,
@@ -305,8 +318,8 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	return network.NewPeer(ctx, peerConf, cfg.Base.observe.Logger(), cfg.Base.observe.PrometheusRegisterer())
 }
 
-func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
-	nodeInfo := rg.FindPubKeyById(peer.ID().String())
+func verifyKeyPresentInGenesis(nodeID peer.ID, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
+	nodeInfo := rg.FindPubKeyById(nodeID.String())
 	if nodeInfo == nil {
 		return fmt.Errorf("node id/encode key not found in genesis")
 	}
@@ -344,4 +357,45 @@ func initTrustBase(store keyvaluedb.KeyValueDB, trustBaseFile string) (types.Roo
 		return nil, fmt.Errorf("failed to store trust base: %w", err)
 	}
 	return trustBase, nil
+}
+
+// The request must have ?start-round=n query parameter round param?
+func cfgHandler(addConfiguration func(round uint64, cfg *genesis.RootGenesis) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		round, err := strconv.ParseUint(r.URL.Query().Get("start-round"), 10, 64)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "invalid 'start-round' parameter: %v", err)
+			return
+		}
+
+		rootGenesis, err := parseRootGenesis(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "parsing root genesis: %v", err)
+			return
+		}
+		// should we verify that the node is in the genesis? ie call
+		// verifyKeyPresentInGenesis as done on bootstrap?
+
+		if err := addConfiguration(round, rootGenesis); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "registering configurations: %v", err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func parseRootGenesis(r io.ReadCloser) (*genesis.RootGenesis, error) {
+	defer r.Close()
+	rg := &genesis.RootGenesis{}
+	if err := json.NewDecoder(r).Decode(&rg); err != nil {
+		return nil, fmt.Errorf("decoding root genesis: %w", err)
+	}
+	if err := rg.Verify(); err != nil {
+		return nil, fmt.Errorf("invalid root genesis: %w", err)
+	}
+	return rg, nil
 }

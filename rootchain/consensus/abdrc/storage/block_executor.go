@@ -166,9 +166,20 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 	// copy parent input records
 	irState := make(InputRecords, len(parent.CurrentIR))
 	copy(irState, parent.CurrentIR)
+
+	// TODO
+	// if new partition is added, and new partition validators have begun sending block certification requests,
+	// then irState.Update below throws error because IR is not found in parent block
+	// some options how to solve:
+	// 1) take down RC, manually create new block with new partition data so that parent block becomes available, restart RC
+	// 2) manually add IR to irState array below i.e. make this component aware of new partitions similarly to BlockStore and PartitionStore
+
 	for _, d := range changed {
 		if err := irState.Update(d); err != nil {
-			return nil, fmt.Errorf("block execution failed, system id %X was not found in input records", d.SysID)
+			// do the option 2) from above
+			fmt.Printf("system id %d was not found in input records; new partition added?\n", d.SysID)
+			irState = append(irState, d)
+			//return nil, fmt.Errorf("block execution failed, system id %d was not found in input records", d.SysID)
 		}
 	}
 	// calculate root hash

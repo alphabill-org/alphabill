@@ -1,6 +1,7 @@
 #!/bin/bash
 
 rootPortStart=26662
+rootRpcPortStart=27662
 
 # generate logger configuration file
 function generate_log_configuration() {
@@ -132,6 +133,7 @@ function start_root_nodes() {
   # use root node 1 as bootstrap node
   local bootNode=""
   local port=$rootPortStart
+  local rpcPort=$rootRpcPortStart
   bootNode=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
@@ -141,13 +143,14 @@ function start_root_nodes() {
       exit 1
     fi
     if [[ $i -eq 1 ]]; then
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --rpc-server-address "127.0.0.1:$rpcPort" --trust-base-file testab/root-trust-base.json >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
           # give bootstrap node a head start
           sleep 0.200
     else
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --rpc-server-address "127.0.0.1:$rpcPort" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     fi
     ((port=port+1))
+    ((rpcPort=rpcPort+1))
     ((i=i+1))
   done
   echo "started $(($i-1)) root nodes"

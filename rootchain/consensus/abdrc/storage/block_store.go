@@ -161,7 +161,12 @@ func (x *BlockStore) IsChangeInProgress(sysId types.SystemID) *types.InputRecord
 	// go through the block we have and make sure that there is no change in progress for this system id
 	for _, b := range blocks {
 		if slices.Contains(b.Changed, sysId) {
-			return b.CurrentIR.Find(sysId).IR
+			inputData := b.CurrentIR.Find(sysId)
+			if inputData != nil {
+				return inputData.IR
+			}
+			// input data can be nil if we just added a new partition but block has not yet been executed
+			return nil
 		}
 	}
 	return nil
@@ -323,6 +328,28 @@ func (x *BlockStore) StoreLastVote(vote any) error {
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
+}
+
+func (x *BlockStore) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
+	// TODO add round number check?
+	// TODO add certificate removal?
+	x.lock.Lock()
+	defer x.lock.Unlock()
+
+	// generate ucs from the provided configuration
+	ucs := UnicityCertificatesFromGenesis(cfg.Partitions)
+	for id, cert := range ucs {
+		// if generate config does not exist, add it
+		_, f := x.certificates[id]
+		if !f {
+			fmt.Printf("adding genesis unicity certificate to block store for sysid=%d\n", id)
+			if err := x.storage.Write(certKey(id.Bytes()), cert); err != nil {
+				return fmt.Errorf("certificate %X write failed, %w", id, err)
+			}
+			x.certificates[id] = cert
+		}
+	}
+	return nil
 }
 
 // ToRecoveryInputData function for type conversion

@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
@@ -44,6 +45,8 @@ type (
 		GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
+		// AddConfiguration updates the partition configurations starting from round "round"
+		AddConfiguration(round uint64, cfg *genesis.RootGenesis) error
 	}
 
 	Node struct {

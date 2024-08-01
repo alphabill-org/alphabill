@@ -55,10 +55,10 @@ if [ "$reset_db_only" == true ]; then
   exit 0
 fi
 
-# make clean will remove "testab" directory with all of the content
-echo "clearing 'testab' directory and building Alphabill"
-make clean build
-mkdir testab
+## make clean will remove "testab" directory with all of the content
+#echo "clearing 'testab' directory and building Alphabill"
+#make clean build
+#mkdir testab
 
 # get common functions
 source helper.sh

@@ -137,6 +137,7 @@ func saveConfiguration(bucket *bolt.Bucket, round uint64, cfg *genesis.RootGenes
 	if err != nil {
 		return fmt.Errorf("serializing configuration: %w", err)
 	}
+	fmt.Printf("updating genesis store from round=%d\n", round)
 	if err = bucket.Put(roundToKey(round), b); err != nil {
 		return fmt.Errorf("bolt DB write: %w", err)
 	}

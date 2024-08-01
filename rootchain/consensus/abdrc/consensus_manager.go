@@ -291,6 +291,16 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*type
 	return x.blockStore.GetCertificate(id)
 }
 
+func (x *ConsensusManager) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
+	if err := x.partitions.AddConfiguration(round, cfg); err != nil {
+		return err
+	}
+	if err := x.blockStore.AddConfiguration(round, cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (x *ConsensusManager) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 

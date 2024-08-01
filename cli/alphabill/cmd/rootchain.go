@@ -286,7 +286,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		// is running (ie node is "fully running").
 		// The request must have ?start-round=n query parameter (the round when the genesis
 		// in the body must take effect)
-		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(partitionCfg.AddConfiguration))
+		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(cm.AddConfiguration))
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.RPCServerAddress,

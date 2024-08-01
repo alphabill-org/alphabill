@@ -324,3 +324,8 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	x.changes = make(map[types.SystemID]*types.InputRecord)
 	return certs, nil
 }
+
+func (x *ConsensusManager) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
+	// TODO impl
+	return nil
+}

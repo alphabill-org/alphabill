@@ -31,6 +31,7 @@ type (
 	}
 
 	Unit[T any] struct {
+		SystemID       types.SystemID        `json:"systemId"`
 		UnitID         types.UnitID          `json:"unitId"`
 		Data           T                     `json:"data"`
 		OwnerPredicate types.Bytes           `json:"ownerPredicate,omitempty"`
@@ -69,6 +70,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 	}
 
 	resp := &Unit[any]{
+		SystemID:       s.node.SystemID(),
 		UnitID:         unitID,
 		Data:           unit.Data(),
 		OwnerPredicate: unit.Bearer(),

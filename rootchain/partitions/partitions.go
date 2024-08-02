@@ -12,6 +12,7 @@ type (
 	}
 
 	PartitionConfiguration interface {
-		GetInfo(id types.SystemID) (*types.SystemDescriptionRecord, PartitionTrustBase, error)
+		Reset(curRound func() uint64) error
+		GetInfo(id types.SystemID, round uint64) (*types.SystemDescriptionRecord, PartitionTrustBase, error)
 	}
 )

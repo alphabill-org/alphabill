@@ -1,7 +1,7 @@
 package genesis
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"errors"
 	"fmt"
 
@@ -28,7 +28,7 @@ func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.SystemDescr
 	return x.SystemDescriptionRecord
 }
 
-func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgorithm gocrypto.Hash) error {
+func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
 	if x == nil {
 		return ErrGenesisPartitionRecordIsNil
 	}
@@ -39,15 +39,15 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 		return ErrNodesAreMissing
 	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
-		return fmt.Errorf("system decrition validation failed, %w", err)
+		return fmt.Errorf("invalid system description record: %w", err)
+	}
+	if err := nodesUnique(x.Nodes); err != nil {
+		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
 	systemIdentifier := x.SystemDescriptionRecord.SystemIdentifier
 	systemDescriptionHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
-	if err := nodesUnique(x.Nodes); err != nil {
-		return fmt.Errorf("partition nodes validation failed, %w", err)
-	}
 	if err := x.Certificate.Verify(trustBase, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
-		return fmt.Errorf("unicity certificate verify error: %w", err)
+		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
 	return nil
 }

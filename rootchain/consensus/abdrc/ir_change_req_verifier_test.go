@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -76,9 +77,11 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			},
 		},
 	}
+	pConf, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
+	require.NoError(t, err)
+	require.NoError(t, pConf.Reset(func() uint64 { return 1 }))
+
 	t.Run("ir change request nil", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
@@ -88,9 +91,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.Nil(t, data)
 		require.EqualError(t, err, "IR change request is nil")
 	})
+
 	t.Run("error change in progress", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
@@ -120,9 +122,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.Nil(t, data)
 		require.EqualError(t, err, "add state failed: partition 00000001 has pending changes in pipeline")
 	})
+
 	t.Run("invalid sys ID", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
@@ -152,9 +153,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.Nil(t, data)
 		require.EqualError(t, err, "reading partition certificate: no UC for partition 00000002")
 	})
+
 	t.Run("duplicate request", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		newIR := &types.InputRecord{
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
@@ -184,9 +184,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.Nil(t, data)
 		require.ErrorIs(t, err, ErrDuplicateChangeReq)
 	})
+
 	t.Run("invalid root round, luc round is bigger", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
 			state:      &MockState{},
@@ -216,9 +215,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.Nil(t, data)
 		require.EqualError(t, err, "current round 0 is in the past, LUC round 1")
 	})
+
 	t.Run("ok", func(t *testing.T) {
-		pConf, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
 			state:      &MockState{},
@@ -268,28 +266,29 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 			},
 		},
 	}
+	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
+	require.NoError(t, err)
+	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
+
 	t.Run("partition store is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, nil, &MockState{})
 		require.EqualError(t, err, "error partition store is nil")
 		require.Nil(t, ver)
 	})
+
 	t.Run("state monitor is nil", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, pInfo, nil)
 		require.EqualError(t, err, "error state monitor is nil")
 		require.Nil(t, ver)
 	})
+
 	t.Run("params is nil", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver, err := NewIRChangeReqVerifier(nil, pInfo, &MockState{})
 		require.EqualError(t, err, "error consensus params is nil")
 		require.Nil(t, ver)
 	})
+
 	t.Run("ok", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, pInfo, &MockState{})
 		require.NoError(t, err)
 		require.NotNil(t, ver)
@@ -311,28 +310,29 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 			},
 		},
 	}
+	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
+	require.NoError(t, err)
+	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
+
 	t.Run("state monitor is nil", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, pInfo, nil)
 		require.EqualError(t, err, "error state monitor is nil")
 		require.Nil(t, tmoGen)
 	})
+
 	t.Run("partition store is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, nil, &MockState{})
 		require.EqualError(t, err, "error partition store is nil")
 		require.Nil(t, tmoGen)
 	})
+
 	t.Run("params is nil", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(nil, pInfo, &MockState{})
 		require.EqualError(t, err, "error consensus params is nil")
 		require.Nil(t, tmoGen)
 	})
+
 	t.Run("ok", func(t *testing.T) {
-		pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
-		require.NoError(t, err)
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, pInfo, &MockState{})
 		require.NoError(t, err)
 		require.NotNil(t, tmoGen)
@@ -354,8 +354,9 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 		},
 	}
-	pInfo, err := partitions.NewPartitionStoreFromGenesis(genesisPartitions)
+	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
 	require.NoError(t, err)
+	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
 	state := &MockState{}
 	tmoGen := &PartitionTimeoutGenerator{
 		params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},

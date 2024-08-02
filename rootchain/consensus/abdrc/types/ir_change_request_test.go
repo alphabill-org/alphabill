@@ -223,7 +223,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 			PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "3": v2},
 		}
 		ir, err := x.Verify(trustBase, luc, 0, 0)
-		require.EqualError(t, err, "request proof from partition 00000001 node 2 is not valid: verification failed, unknown node id 2")
+		require.EqualError(t, err, "request proof from partition 00000001 node 2 is not valid: node 2 is not part of partition trustbase")
 		require.Nil(t, ir)
 	})
 	t.Run("Proof contains duplicate node", func(t *testing.T) {

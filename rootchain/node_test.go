@@ -12,6 +12,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -100,8 +101,9 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
+	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
 
@@ -123,8 +125,9 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	mockNet := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
+	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	log := testlogger.New(t).With(logger.NodeID(id))
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
@@ -157,8 +160,9 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
+	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	trustBase, err := createTrustBaseFromRootGenesis(rootGenesis)
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
@@ -219,7 +223,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	// unknown node gets rejected
 	unknownNode := testutils.NewTestNode(t)
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, unknownNode)
-	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), "verification failed, unknown node id")
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), fmt.Sprintf("node %s is not part of partition trustbase", unknownNode.PeerConf.ID))
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 	// signature does not verify
 	invalidNode := testutils.TestNode{

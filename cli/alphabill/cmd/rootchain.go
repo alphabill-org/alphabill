@@ -46,14 +46,15 @@ const (
 
 type rootNodeConfig struct {
 	Base               *baseConfiguration
-	KeyFile            string // path to rootchain chain key file
-	GenesisFile        string // path to rootchain-genesis.json file
-	TrustBaseFile      string // path to root-trust-base.json file
-	Address            string // node address (libp2p multiaddress format)
-	StoragePath        string // path to Bolt storage file
-	MaxRequests        uint   // validator partition certification request channel capacity
-	BootStrapAddresses string // boot strap addresses (libp2p multiaddress format)
-	RPCServerAddress   string // address on which http server is exposed with metrics endpoint
+	KeyFile            string   // path to rootchain chain key file
+	GenesisFile        string   // path to rootchain-genesis.json file
+	TrustBaseFile      string   // path to root-trust-base.json file
+	Address            string   // node address (libp2p multiaddress format)
+	AnnounceAddrs      []string // node public ip addresses (libp2p multiaddress format)
+	StoragePath        string   // path to Bolt storage file
+	MaxRequests        uint     // validator partition certification request channel capacity
+	BootStrapAddresses string   // boot strap addresses (libp2p multiaddress format)
+	RPCServerAddress   string   // address on which http server is exposed with metrics endpoint
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -74,6 +75,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVar(&config.TrustBaseFile, "trust-base-file", "", "path to root-trust-base.json file (default $AB_HOME/"+rootTrustBaseFileName+")")
 	cmd.Flags().StringVar(&config.StoragePath, "db", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
+	cmd.Flags().StringSliceVar(&config.AnnounceAddrs, "announce-addresses", nil, "validator public ip addresses in libp2p multiaddress-format, if specified overwrites any and all default listen addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
 	cmd.Flags().StringVar(&config.RPCServerAddress, "rpc-server-address", "", `Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
@@ -309,11 +311,10 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	if err != nil {
 		return nil, fmt.Errorf("get key pair failed: %w", err)
 	}
-	peerConf, err := network.NewPeerConfiguration(cfg.Address, keyPair, bootNodes, nil)
+	peerConf, err := network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, keyPair, bootNodes, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	return network.NewPeer(ctx, peerConf, cfg.Base.observe.Logger(), cfg.Base.observe.PrometheusRegisterer())
 }
 

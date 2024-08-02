@@ -410,7 +410,7 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	require.NoError(t, err)
 	bootNodes := make([]*network.Peer, nofBootNodes)
 	for i := 0; i < int(nofBootNodes); i++ {
-		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", encKeyPairs[i], nil, nil)
+		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil, nil)
 		require.NoError(t, err)
 		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
 		require.NoError(t, err)
@@ -717,6 +717,7 @@ func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
 	for i := 0; i < int(count); i++ {
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
+			nil,
 			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
 			nil,
 			validators, // Persistent peers

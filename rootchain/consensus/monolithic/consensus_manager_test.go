@@ -12,6 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
@@ -59,7 +60,7 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
@@ -69,12 +70,15 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
-	})
+	partitionStore, err := partitions.NewPartitionStore(
+		testgenesis.NewGenesisStoreFromPartitions(
+			[]*genesis.GenesisPartitionRecord{
+				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
+				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
+				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
+			}))
 	require.NoError(t, err)
+	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	store := NewStateStore(db)

@@ -1,14 +1,26 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -17,12 +29,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
@@ -354,4 +362,97 @@ func (mn *mockNode) Peer() *network.Peer {
 
 func (mn *mockNode) IsValidatorNode() bool {
 	return slices.Contains(mn.validatorNodes, mn.peer.ID())
+}
+
+func Test_cfgHandler(t *testing.T) {
+
+	// helper to set up handler for the case where we expect that the addConfig
+	// callback is not called (ie handler fails before there is a reason to call it)
+	setupNoCallbackHandler := func(t *testing.T) (http.HandlerFunc, *httptest.ResponseRecorder) {
+		return cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+				err := fmt.Errorf("unexpected call of addConfig callback with %d, %v", round, cfg)
+				t.Error(err)
+				return err
+			}),
+			httptest.NewRecorder()
+	}
+
+	t.Run("missing round parameter", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", nil))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `invalid 'start-round' parameter: strconv.ParseUint: parsing "": invalid syntax`, string(body))
+	})
+
+	t.Run("missing request body", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations?start-round=1", nil))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `parsing root genesis: decoding root genesis: EOF`, string(body))
+	})
+
+	t.Run("invalid request body", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations?start-round=1", bytes.NewBufferString("not valid json")))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `parsing root genesis: decoding root genesis: invalid character 'o' in literal null (expecting 'u')`, string(body))
+	})
+
+	t.Run("empty json", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations?start-round=1", bytes.NewBufferString(`{}`)))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `parsing root genesis: invalid root genesis: root genesis record is nil`, string(body))
+	})
+
+	// for testing the callback we need valid root genesis - the body parser
+	// validates the input before calling the callback
+	genesisFiles := createRootGenesisFiles(t, t.TempDir(), consensusParams{totalNodes: 1})
+	rootGenesisData, err := os.ReadFile(genesisFiles[0])
+	require.NoError(t, err)
+
+	t.Run("config registration fails", func(t *testing.T) {
+		hf := cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+			return fmt.Errorf("nope, can't add this conf")
+		})
+		w := httptest.NewRecorder()
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations?start-round=55", bytes.NewBuffer(rootGenesisData)))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusInternalServerError, resp.StatusCode)
+		require.Equal(t, `registering configurations: nope, can't add this conf`, string(body))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		cbCall := false
+		rg := genesis.RootGenesis{}
+		require.NoError(t, json.Unmarshal(rootGenesisData, &rg))
+		hf := cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+			cbCall = true
+			require.EqualValues(t, 55, round)
+			require.Equal(t, &rg, cfg)
+			return nil
+		})
+		w := httptest.NewRecorder()
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations?start-round=55", bytes.NewBuffer(rootGenesisData)))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusOK, resp.StatusCode)
+		require.Empty(t, body)
+		require.True(t, cbCall, "add configuration callback has not been called")
+	})
 }

@@ -1,114 +1,152 @@
 package partitions
 
 import (
+	"fmt"
+	"math"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/stretchr/testify/require"
 )
 
-const id1 types.SystemID = 1
-const id2 types.SystemID = 2
+func Test_PartitionStore_Init(t *testing.T) {
+	// calling constructor with nil storage should return error
+	ps, err := NewPartitionStore(nil)
+	require.Nil(t, ps)
+	require.EqualError(t, err, `genesis storage must be initialized`)
 
-func TestPartitionStore(t *testing.T) {
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	pubKeyBytes, err := encPubKey.MarshalPublicKey()
-	require.NoError(t, err)
-
-	type args struct {
-		partitions []*genesis.GenesisPartitionRecord
-	}
-	type want struct {
-		size                     int
-		nodeCounts               []int
-		containsPartitions       []types.SystemID
-		doesNotContainPartitions []types.SystemID
-	}
-	tests := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			name: "create empty store",
-			args: args{partitions: nil},
-			want: want{
-				size:               0,
-				nodeCounts:         nil,
-				containsPartitions: nil,
-			},
-		},
-		{
-			name: "create using an empty array",
-			args: args{partitions: []*genesis.GenesisPartitionRecord{}},
-			want: want{
-				size:               0,
-				nodeCounts:         nil,
-				containsPartitions: nil,
-			},
-		},
-		{
-			name: "create partition store",
-			args: args{partitions: []*genesis.GenesisPartitionRecord{
-				{
-					SystemDescriptionRecord: &types.SystemDescriptionRecord{
-						SystemIdentifier: id1,
-						T2Timeout:        2500,
-					},
-					Nodes: nil,
-				},
-				{
-					SystemDescriptionRecord: &types.SystemDescriptionRecord{
-						SystemIdentifier: id2,
-						T2Timeout:        2500,
-					},
-					Nodes: []*genesis.PartitionNode{
-						{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
-						{NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
-					},
-				}},
-			},
-			want: want{
-				size:                     2,
-				nodeCounts:               []int{0, 2},
-				containsPartitions:       []types.SystemID{1, 2},
-				doesNotContainPartitions: []types.SystemID{0},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			conf, err := NewPartitionStoreFromGenesis(tt.args.partitions)
-			require.NoError(t, err)
-			require.Equal(t, tt.want.size, len(conf.partitions))
-			for i, id := range tt.want.containsPartitions {
-				sysDesc, tb, err := conf.GetInfo(id)
-				require.NoError(t, err)
-				if tt.want.nodeCounts != nil {
-					require.Equal(t, tt.want.nodeCounts[i], int(tb.GetTotalNodes()))
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, sysDesc.SystemIdentifier)
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, sysDesc.T2Timeout)
-				}
-			}
-			for _, id := range tt.want.doesNotContainPartitions {
-				_, _, err := conf.GetInfo(id)
-				require.Error(t, err)
-			}
-		})
-	}
-}
-
-func TestPartitionStore_Info(t *testing.T) {
+	// set up genesis store
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &types.SystemDescriptionRecord{
-				SystemIdentifier: id1,
+				SystemIdentifier: 1,
 				T2Timeout:        2600,
+			},
+			Nodes: []*genesis.PartitionNode{
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+			},
+		},
+	}
+	gs := &mockGenesisStore{
+		partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+			require.EqualValues(t, 10, round, "round used to init partition store")
+			return partitions, 100, nil
+		},
+	}
+
+	// calling constructor with non nil storage should return partition store...
+	ps, err = NewPartitionStore(gs)
+	require.NoError(t, err)
+	require.NotNil(t, ps)
+	require.Equal(t, uint64(math.MaxUint64), ps.next, "next config change round")
+	require.Empty(t, ps.partitions)
+	require.Nil(t, ps.curRound)
+	//...but to complete the initialization Reset must be called
+	err = ps.Reset(func() uint64 { return 10 })
+	require.NoError(t, err)
+	require.EqualValues(t, 100, ps.next)
+	require.NotNil(t, ps.curRound)
+	require.Len(t, ps.partitions, 1)
+
+	// Reset might return error when loading from genesis store fail
+	expErr := fmt.Errorf("no genesis data")
+	gs = &mockGenesisStore{
+		partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+			return nil, 0, expErr
+		},
+	}
+	ps, err = NewPartitionStore(gs)
+	require.NoError(t, err)
+	require.NotNil(t, ps)
+	err = ps.Reset(func() uint64 { return 10 })
+	require.ErrorIs(t, err, expErr)
+}
+
+func Test_PartitionStore_AddConfiguration(t *testing.T) {
+	t.Run("can't add past configs", func(t *testing.T) {
+		gs := &mockGenesisStore{
+			addConfiguration: func(round uint64, cfg *genesis.RootGenesis) error {
+				return fmt.Errorf("unexpected call (%d, %v)", round, cfg)
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+
+		ps.next = 100
+		ps.curRound = func() uint64 { return 50 }
+		err = ps.AddConfiguration(49, &genesis.RootGenesis{})
+		require.EqualError(t, err, `can't add config taking effect on round 49 as current round is already 50`)
+		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
+	})
+
+	t.Run("failure to store new config", func(t *testing.T) {
+		expErr := fmt.Errorf("save cfg error")
+		gs := &mockGenesisStore{
+			addConfiguration: func(round uint64, cfg *genesis.RootGenesis) error {
+				return expErr
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+
+		ps.next = 100
+		ps.curRound = func() uint64 { return 50 }
+		err = ps.AddConfiguration(51, &genesis.RootGenesis{})
+		require.ErrorIs(t, err, expErr)
+		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
+	})
+
+	t.Run("success, new config is NOT next", func(t *testing.T) {
+		gs := &mockGenesisStore{
+			addConfiguration: func(round uint64, cfg *genesis.RootGenesis) error {
+				return nil
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+
+		ps.next = 100
+		ps.curRound = func() uint64 { return 50 }
+		err = ps.AddConfiguration(ps.next+1, &genesis.RootGenesis{})
+		require.NoError(t, err)
+		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
+	})
+
+	t.Run("success, new config is the next", func(t *testing.T) {
+		gs := &mockGenesisStore{
+			addConfiguration: func(round uint64, cfg *genesis.RootGenesis) error {
+				return nil
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+
+		ps.next = 100
+		ps.curRound = func() uint64 { return 50 }
+		err = ps.AddConfiguration(ps.next-1, &genesis.RootGenesis{})
+		require.NoError(t, err)
+		require.EqualValues(t, 99, ps.next, "next config round marker must be updated")
+	})
+}
+
+func Test_PartitionStore_GetInfo(t *testing.T) {
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	pubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	partitions := []*genesis.GenesisPartitionRecord{
+		{
+			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+				SystemIdentifier: 1,
+				T2Timeout:        1000,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -118,8 +156,8 @@ func TestPartitionStore_Info(t *testing.T) {
 		},
 		{
 			SystemDescriptionRecord: &types.SystemDescriptionRecord{
-				SystemIdentifier: id2,
-				T2Timeout:        2500,
+				SystemIdentifier: 2,
+				T2Timeout:        2000,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
@@ -127,13 +165,251 @@ func TestPartitionStore_Info(t *testing.T) {
 			},
 		},
 	}
-	store, err := NewPartitionStoreFromGenesis(partitions)
-	require.NoError(t, err)
-	require.NoError(t, err)
-	sysDesc, tb, err := store.GetInfo(id1)
-	require.NoError(t, err)
-	require.Equal(t, id1, sysDesc.SystemIdentifier)
-	require.Equal(t, uint32(2600), sysDesc.T2Timeout)
-	require.Equal(t, 3, int(tb.GetTotalNodes()))
-	require.Equal(t, uint64(2), tb.GetQuorum())
+
+	t.Run("unknown partition ID", func(t *testing.T) {
+		gs := &mockGenesisStore{
+			partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+				return partitions, 100, nil
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
+		sdr, tb, err := ps.GetInfo(3, 1)
+		require.EqualError(t, err, `unknown partition identifier 00000003`)
+		require.Nil(t, sdr)
+		require.Nil(t, tb)
+	})
+
+	t.Run("partition ID exist in current dataset", func(t *testing.T) {
+		loadCalls := 0
+		gs := &mockGenesisStore{
+			// partitionRecords is called each time configuration is loaded from genesis store,
+			// we expect it to be called only once, during initial partition store setup
+			partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+				loadCalls++
+				return partitions, 100, nil
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
+
+		sdr, tb, err := ps.GetInfo(1, 1)
+		require.NoError(t, err)
+		require.NotNil(t, tb)
+		require.Equal(t, partitions[0].SystemDescriptionRecord, sdr)
+		require.EqualValues(t, 1, loadCalls)
+
+		sdr, tb, err = ps.GetInfo(2, 10)
+		require.NoError(t, err)
+		require.NotNil(t, tb)
+		require.Equal(t, partitions[1].SystemDescriptionRecord, sdr)
+		// as the queries hit current dataset no additional calls to genesis store is expected
+		require.EqualValues(t, 1, loadCalls)
+	})
+
+	t.Run("genesis store returns error on loading data", func(t *testing.T) {
+		expErr := fmt.Errorf("no genesis data")
+		loadCalls := 0
+		gs := &mockGenesisStore{
+			partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+				loadCalls++
+				switch loadCalls {
+				case 1:
+					return partitions, 100, nil
+				default:
+					return nil, 0, expErr
+				}
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
+		// query from round beyond current range to trigger load from storage
+		sdr, tb, err := ps.GetInfo(1, ps.next+1)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, tb)
+		require.Nil(t, sdr)
+		require.EqualValues(t, 2, loadCalls)
+	})
+
+	t.Run("data from genesis store is invalid", func(t *testing.T) {
+		invalidPartitions := []*genesis.GenesisPartitionRecord{
+			{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
+					SystemIdentifier: 1,
+					T2Timeout:        1000,
+				},
+				// make one of the PKs invalid so building partition trust base should fail
+				Nodes: []*genesis.PartitionNode{
+					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+					{NodeIdentifier: "node2", SigningPublicKey: []byte{1, 4, 8}},
+					{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				},
+			},
+		}
+		loadCalls := 0
+		gs := &mockGenesisStore{
+			partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+				loadCalls++
+				switch loadCalls {
+				case 1:
+					return partitions, 100, nil
+				default:
+					return invalidPartitions, math.MaxUint64, nil
+				}
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
+		// query from round beyond current range to trigger load from storage
+		sdr, tb, err := ps.GetInfo(1, ps.next+1)
+		require.EqualError(t, err, `switching to new config: creating verifier for the node "node2": pubkey must be 33 bytes long, but is 3`)
+		require.Nil(t, tb)
+		require.Nil(t, sdr)
+		require.EqualValues(t, 2, loadCalls)
+	})
+
+	t.Run("successfully load config for next range of rounds", func(t *testing.T) {
+		nextConfig := []*genesis.GenesisPartitionRecord{
+			{
+				SystemDescriptionRecord: &types.SystemDescriptionRecord{
+					SystemIdentifier: 3,
+					T2Timeout:        3000,
+				},
+				Nodes: []*genesis.PartitionNode{
+					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				},
+			},
+		}
+		loadCalls := 0
+		gs := &mockGenesisStore{
+			partitionRecords: func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+				loadCalls++
+				switch loadCalls {
+				case 1:
+					return partitions, 100, nil
+				default:
+					return nextConfig, math.MaxUint64, nil
+				}
+			},
+		}
+		ps, err := NewPartitionStore(gs)
+		require.NoError(t, err)
+		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
+		// initial config has partitions 1 and 2
+		sdr, tb, err := ps.GetInfo(1, 1)
+		require.NoError(t, err)
+		require.NotNil(t, tb)
+		require.Equal(t, partitions[0].SystemDescriptionRecord, sdr)
+		require.EqualValues(t, 1, loadCalls)
+
+		sdr, tb, err = ps.GetInfo(2, 2)
+		require.NoError(t, err)
+		require.NotNil(t, tb)
+		require.Equal(t, partitions[1].SystemDescriptionRecord, sdr)
+		require.EqualValues(t, 1, loadCalls)
+		// but no partition 3
+		sdr, tb, err = ps.GetInfo(3, ps.next-1)
+		require.EqualError(t, err, `unknown partition identifier 00000003`)
+		require.Nil(t, sdr)
+		require.Nil(t, tb)
+
+		// query from round beyond current range to trigger load from storage
+		// we now should only have partition 3
+		cfg2round := ps.next
+		sdr, tb, err = ps.GetInfo(1, cfg2round)
+		require.EqualError(t, err, `unknown partition identifier 00000001`)
+		require.Nil(t, tb)
+		require.Nil(t, sdr)
+		sdr, tb, err = ps.GetInfo(2, cfg2round+1)
+		require.EqualError(t, err, `unknown partition identifier 00000002`)
+		require.Nil(t, tb)
+		require.Nil(t, sdr)
+		sdr, tb, err = ps.GetInfo(3, cfg2round+30)
+		require.NoError(t, err)
+		require.NotNil(t, tb)
+		require.Equal(t, nextConfig[0].SystemDescriptionRecord, sdr)
+		// we expect only two calls to genesis store
+		require.EqualValues(t, 2, loadCalls)
+	})
 }
+
+func Test_TrustBase_Quorum(t *testing.T) {
+	// quorum rule is "50% + 1 node"
+	var testCases = []struct {
+		count  uint64 // node count
+		quorum uint64 // quorum value we expect
+	}{
+		{count: 1, quorum: 1},
+		{count: 2, quorum: 2},
+		{count: 3, quorum: 2},
+		{count: 4, quorum: 3},
+		{count: 5, quorum: 3},
+		{count: 6, quorum: 4},
+		{count: 99, quorum: 50},
+		{count: 100, quorum: 51},
+	}
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%d nodes", tc.count), func(t *testing.T) {
+			tb := make(map[string]abcrypto.Verifier, tc.count)
+			for v := range tc.count {
+				tb[fmt.Sprintf("node%d", v)] = verifier
+			}
+			ptb := NewPartitionTrustBase(tb)
+			require.Equal(t, tc.count, ptb.GetTotalNodes())
+			require.Equal(t, tc.quorum, ptb.GetQuorum())
+		})
+	}
+}
+
+func Test_TrustBase_Verify(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	tb := map[string]abcrypto.Verifier{"node1": verifier}
+	ptb := NewPartitionTrustBase(tb)
+
+	t.Run("node not found in the trustbase", func(t *testing.T) {
+		mv := mockMsgVerification{
+			isValid: func(v abcrypto.Verifier) error { return fmt.Errorf("unexpected call") },
+		}
+		err := ptb.Verify("foobar", mv)
+		require.EqualError(t, err, `node foobar is not part of partition trustbase`)
+	})
+
+	t.Run("message does NOT verify", func(t *testing.T) {
+		expErr := fmt.Errorf("nope, thats invalid")
+		mv := mockMsgVerification{
+			isValid: func(v abcrypto.Verifier) error { return expErr },
+		}
+		err := ptb.Verify("node1", mv)
+		require.ErrorIs(t, err, expErr)
+	})
+
+	t.Run("message does verify", func(t *testing.T) {
+		mv := mockMsgVerification{
+			isValid: func(v abcrypto.Verifier) error { return nil },
+		}
+		require.NoError(t, ptb.Verify("node1", mv))
+	})
+}
+
+type mockGenesisStore struct {
+	addConfiguration func(round uint64, cfg *genesis.RootGenesis) error
+	partitionRecords func(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error)
+}
+
+func (gs *mockGenesisStore) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
+	return gs.addConfiguration(round, cfg)
+}
+func (gs *mockGenesisStore) PartitionRecords(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
+	return gs.partitionRecords(round)
+}
+
+type mockMsgVerification struct {
+	isValid func(v abcrypto.Verifier) error
+}
+
+func (mv mockMsgVerification) IsValid(v abcrypto.Verifier) error { return mv.isValid(v) }

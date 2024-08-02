@@ -2,18 +2,18 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/util"
-
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateGenesisFiles_OK(t *testing.T) {
@@ -45,7 +45,7 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 	require.Len(t, partitionGenesis.RootValidators, 1)
 	trustBase, err := partitionGenesis.GenerateRootTrustBase()
 	require.NoError(t, err)
-	require.NoError(t, partitionGenesis.IsValid(trustBase, gocrypto.SHA256))
+	require.NoError(t, partitionGenesis.IsValid(trustBase, crypto.SHA256))
 	// verify root consensus parameters, using defaults
 	require.EqualValues(t, 1, rootGenesis.Root.Consensus.TotalRootValidators)
 	require.EqualValues(t, 900, rootGenesis.Root.Consensus.BlockRateMs)
@@ -54,7 +54,6 @@ func TestGenerateGenesisFiles_OK(t *testing.T) {
 	// verify, content
 	require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
 	require.EqualValues(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, money.DefaultSystemID)
-	//
 }
 
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {

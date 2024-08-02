@@ -67,14 +67,14 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 		return nil, fmt.Errorf("reading partition certificate: %w", err)
 	}
 	// Find if the SystemIdentifier is known by partition store
-	sysDesRecord, tb, err := x.partitions.GetInfo(sysID)
+	sysDesRecord, tb, err := x.partitions.GetInfo(sysID, round)
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload: unknown partition %s", sysID)
 	}
 	// verify request
 	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
-		return nil, fmt.Errorf("certification request verifiaction failed: %w", err)
+		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	if ir := x.state.IsChangeInProgress(sysID); ir != nil {
@@ -117,7 +117,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.
 		if ir := x.state.IsChangeInProgress(id); ir != nil {
 			continue
 		}
-		sysDesc, _, getErr := x.partitions.GetInfo(id)
+		sysDesc, _, getErr := x.partitions.GetInfo(id, currentRound)
 		if getErr != nil {
 			err = errors.Join(err, fmt.Errorf("read partition system description failed: %w", getErr))
 			// still try to check the rest of the partitions

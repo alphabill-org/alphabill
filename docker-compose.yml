@@ -9,6 +9,9 @@ services:
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "nc", "-zv", "alphabill-root1", "8000" ]
+      interval: 2s
     networks:
       - default
   alphabill-root2:
@@ -20,9 +23,12 @@ services:
       - ./.genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       sign-root-trust-base2:
         condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "nc", "-zv", "alphabill-root2", "8000" ]
+      interval: 2s
     networks:
       - default
   alphabill-root3:
@@ -33,10 +39,13 @@ services:
       - ./.genesis/root3:/genesis
       - ./.genesis:/genesis-nodes
     depends_on:
-      alphabill-root1:
-        condition: service_started
+      alphabill-root2:
+        condition: service_healthy
       sign-root-trust-base3:
         condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "nc", "-zv", "alphabill-root3", "8000" ]
+      interval: 2s
     networks:
       - default
   alphabill-money1:
@@ -48,11 +57,11 @@ services:
       - ./.genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 8001:8001
       - 8011:8002
@@ -67,11 +76,11 @@ services:
       - ./.genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 8002:8001
     networks:
@@ -85,11 +94,11 @@ services:
       - ./.genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
-        condition: service_started # TODO: must check with service_healthy to check if its properly running
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 8003:8001
     networks:
@@ -105,11 +114,11 @@ services:
       generate-tokens-genesis1:
         condition: service_completed_successfully
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 9001:8001
     networks:
@@ -125,11 +134,11 @@ services:
       generate-tokens-genesis2:
         condition: service_completed_successfully
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 9002:8001
     networks:
@@ -145,11 +154,11 @@ services:
       generate-tokens-genesis3:
           condition: service_completed_successfully
       alphabill-root1:
-        condition: service_started
+        condition: service_healthy
       alphabill-root2:
-        condition: service_started
+        condition: service_healthy
       alphabill-root3:
-        condition: service_started
+        condition: service_healthy
     ports:
       - 9003:8001
     networks:
@@ -231,11 +240,7 @@ services:
     volumes:
       - ./.genesis/root2:/genesis/root
     depends_on:
-      generate-root-genesis1:
-        condition: service_completed_successfully
-      generate-root-genesis2:
-        condition: service_completed_successfully
-      generate-root-genesis3:
+      combine-root-genesis1:
         condition: service_completed_successfully
   combine-root-genesis3:
     extends:
@@ -244,11 +249,7 @@ services:
     volumes:
       - ./.genesis/root3:/genesis/root
     depends_on:
-      generate-root-genesis1:
-        condition: service_completed_successfully
-      generate-root-genesis2:
-        condition: service_completed_successfully
-      generate-root-genesis3:
+      combine-root-genesis2:
         condition: service_completed_successfully
   generate-root-trust-base:
     extends:
@@ -279,7 +280,7 @@ services:
       - ./.genesis/root2:/genesis/root
       - ./.genesis:/genesis-nodes
     depends_on:
-      generate-root-trust-base:
+      sign-root-trust-base1:
         condition: service_completed_successfully
   sign-root-trust-base3:
     extends:
@@ -289,7 +290,7 @@ services:
       - ./.genesis/root3:/genesis/root
       - ./.genesis:/genesis-nodes
     depends_on:
-      generate-root-trust-base:
+      sign-root-trust-base2:
         condition: service_completed_successfully
   generate-tokens-genesis1:
     extends:

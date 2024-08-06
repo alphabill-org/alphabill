@@ -38,6 +38,7 @@ type (
 	PeerConfiguration struct {
 		ID             peer.ID         // peer identifier derived from the KeyPair.PublicKey.
 		Address        string          // address to listen for incoming connections. Uses libp2p multiaddress format.
+		AnnounceAddrs  []ma.Multiaddr  // callback addresses to announce to other peers, if specified then overwrites any and all default listen addresses
 		KeyPair        *PeerKeyPair    // keypair for the peer.
 		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
 		Validators     []peer.ID       // a list of known peers (in case of partition node this list must contain all validators).
@@ -98,6 +99,13 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	}
 	if prom != nil {
 		opts = append(opts, libp2p.PrometheusRegisterer(prom))
+	}
+	if len(conf.AnnounceAddrs) > 0 {
+		addrsFactory := libp2p.AddrsFactory(func(_ []ma.Multiaddr) []ma.Multiaddr {
+			// completely overwrite default announce addresses with provided values
+			return conf.AnnounceAddrs
+		})
+		opts = append(opts, addrsFactory)
 	}
 	h, err := libp2p.New(opts...)
 	if err != nil {
@@ -229,6 +237,7 @@ func (p *Peer) Discover(ctx context.Context, topic string) (<-chan peer.AddrInfo
 
 func NewPeerConfiguration(
 	addr string,
+	announceAddrs []string,
 	keyPair *PeerKeyPair,
 	bootstrapPeers []peer.AddrInfo,
 	validators []peer.ID) (*PeerConfiguration, error) {
@@ -242,9 +251,19 @@ func NewPeerConfiguration(
 		return nil, fmt.Errorf("invalid key pair: %w", err)
 	}
 
+	var announceMultiAddrs []ma.Multiaddr
+	for _, announceAddr := range announceAddrs {
+		announceMultiAddr, err := ma.NewMultiaddr(announceAddr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert announce address '%s' to libp2p multiaddress format: %w", announceAddr, err)
+		}
+		announceMultiAddrs = append(announceMultiAddrs, announceMultiAddr)
+	}
+
 	return &PeerConfiguration{
 		ID:             peerID,
 		Address:        addr,
+		AnnounceAddrs:  announceMultiAddrs,
 		KeyPair:        keyPair,
 		BootstrapPeers: bootstrapPeers,
 		Validators:     validators,

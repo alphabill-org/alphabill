@@ -15,6 +15,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -70,7 +71,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
 	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, trustBase, partitionStore, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
@@ -120,6 +121,8 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	// we need to init pacemaker into correct round, otherwise IR validation fails
 	cm.pacemaker.Reset(context.Background(), cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
+	// as CM is actually not running we need to manually reset the partition store in order to init it
+	require.NoError(t, cm.partitions.Reset(cm.pacemaker.GetCurrentRound))
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
@@ -1201,7 +1204,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
 	// store timeout vote to DB
 	db, err := memorydb.New()

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -17,9 +17,15 @@ import (
 	"testing"
 	"time"
 
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -36,10 +42,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/stretchr/testify/require"
 )
 
 // AlphabillNetwork for integration tests
@@ -212,8 +214,8 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
-		// Initiate partition store
-		partitionStore, err := partitions.NewPartitionStoreFromGenesis(r.rcGenesis.Partitions)
+
+		partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(r.rcGenesis))
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
@@ -408,7 +410,7 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	require.NoError(t, err)
 	bootNodes := make([]*network.Peer, nofBootNodes)
 	for i := 0; i < int(nofBootNodes); i++ {
-		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", encKeyPairs[i], nil, nil)
+		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil, nil)
 		require.NoError(t, err)
 		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
 		require.NoError(t, err)
@@ -464,7 +466,7 @@ func (a *AlphabillNetwork) StartWithStandAloneBootstrapNodes(t *testing.T) error
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// create boot nodes
 	a.createBootNodes(t, ctx, a.RootPartition.obs, 2)
-	// Setup boostrap info for the whole network to use the dedicated nodes
+	// Setup bootstrap info for the whole network to use the dedicated nodes
 	bootStrapInfo := make([]peer.AddrInfo, len(a.BootNodes))
 	for i, n := range a.BootNodes {
 		bootStrapInfo[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}
@@ -553,7 +555,7 @@ func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.Unicity
 	if !f {
 		return nil, fmt.Errorf("unknown partition %s", sysID)
 	}
-	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, gocrypto.SHA256)
+	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, crypto.SHA256)
 }
 
 // BroadcastTx sends transactions to all nodes.
@@ -585,7 +587,7 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 			}
 			for j, t := range b.Transactions {
 				if reflect.DeepEqual(t.TransactionOrder, tx) {
-					proof, _, err := types.NewTxProof(b, j, gocrypto.SHA256)
+					proof, _, err := types.NewTxProof(b, j, crypto.SHA256)
 					if err != nil {
 						return nil, nil, nil, err
 					}
@@ -619,7 +621,7 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 		txRecord *types.TransactionRecord
 		txProof  *types.TxProof
 	)
-	txHash := txOrder.Hash(gocrypto.SHA256)
+	txHash := txOrder.Hash(crypto.SHA256)
 	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
@@ -642,7 +644,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 	var (
 		unitProof *types.UnitDataAndProof
 	)
-	txOrderHash := txOrder.Hash(gocrypto.SHA256)
+	txOrderHash := txOrder.Hash(crypto.SHA256)
 	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
@@ -715,6 +717,7 @@ func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
 	for i := 0; i < int(count); i++ {
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
+			nil,
 			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
 			nil,
 			validators, // Persistent peers

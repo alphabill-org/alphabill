@@ -40,6 +40,7 @@ type baseNodeConfiguration struct {
 
 type startNodeConfiguration struct {
 	Address                    string
+	AnnounceAddrs              []string
 	Genesis                    string
 	StateFile                  string
 	TrustBaseFile              string
@@ -147,7 +148,7 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
-	return network.NewPeerConfiguration(cfg.Address, pair, bootNodes, validatorIdentifiers)
+	return network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, pair, bootNodes, validatorIdentifiers)
 }
 
 func createNode(ctx context.Context,
@@ -238,6 +239,7 @@ func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConst
 
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
 	nodeCmd.Flags().StringVarP(&config.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
+	nodeCmd.Flags().StringSliceVarP(&config.AnnounceAddrs, "announce-addresses", "b", nil, "node public ip addresses in libp2p multiaddress-format, if specified overwrites any and all default listen addresses")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.StateFile, cmdFlagState, "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/node-genesis-state.cbor)", partitionSuffix))

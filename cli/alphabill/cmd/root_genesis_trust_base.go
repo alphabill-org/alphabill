@@ -69,7 +69,7 @@ func genTrustBaseRunFunc(config *genTrustBaseConfig) error {
 	// load root genesis files
 	rgs, err := loadRootGenesisFiles(config.RootGenesisFiles)
 	if err != nil {
-		return fmt.Errorf("failed to read root geresis files: %w", err)
+		return fmt.Errorf("failed to read root genesis files: %w", err)
 	}
 	// create trust base from each root genesis file, and verify they match
 	var trustBase *types.RootTrustBaseV0

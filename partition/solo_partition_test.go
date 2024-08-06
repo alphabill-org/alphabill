@@ -365,6 +365,7 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
+		nil,
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
 		// Need to also add peerID to make it a validator node.

@@ -42,7 +42,7 @@ func quitSignalContext() context.Context {
 }
 
 /*
-cancelledByQuitSignal returns true when ctx has been cancelled with quit sigal cause
+cancelledByQuitSignal returns true when ctx has been cancelled with quit signal cause
 */
 func cancelledByQuitSignal(ctx context.Context) bool {
 	err := context.Cause(ctx)

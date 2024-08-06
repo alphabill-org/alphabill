@@ -89,6 +89,9 @@ func NewMonolithicConsensusManager(
 		trustBase:    trustBase,
 		log:          log,
 	}
+	if err := partitionStore.Reset(func() uint64 { return consensusManager.round }); err != nil {
+		return nil, fmt.Errorf("resetting partition store: %w", err)
+	}
 	return consensusManager, nil
 }
 
@@ -161,7 +164,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		// in repeat UC just advance partition/shard round number
 		newInputRecord = luc.InputRecord.NewRepeatIR()
 	default:
-		return fmt.Errorf("invalid certfification reason %v", req.Reason)
+		return fmt.Errorf("invalid certification reason %v", req.Reason)
 	}
 	// In this round, has a request already been received?
 	_, found := x.changes[req.SystemIdentifier]
@@ -208,7 +211,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 	for id := range x.ir {
 		// if new input was this partition id was not received for this round
 		if _, found := x.changes[id]; !found {
-			partInfo, _, err := x.partitions.GetInfo(id)
+			partInfo, _, err := x.partitions.GetInfo(id, round)
 			if err != nil {
 				return err
 			}
@@ -258,7 +261,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	// convert IR to unicity tree input
 	utData := make([]*types.UnicityTreeData, 0, len(newIR))
 	for id, rec := range newIR {
-		sysDesc, _, err := x.partitions.GetInfo(id)
+		sysDesc, _, err := x.partitions.GetInfo(id, round)
 		if err != nil {
 			return nil, err
 		}

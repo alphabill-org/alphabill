@@ -32,6 +32,10 @@ import (
 var ticketsWasmV2 embed.FS
 
 func Test_conference_tickets_v2(t *testing.T) {
+	checkSpentGas := func(t *testing.T, expected, actual uint64) {
+		t.Helper()
+		assert.Equal(t, expected, actual, "amount of gas spent, diff %d", max(expected, actual)-min(expected, actual))
+	}
 	// parameters which can be shared by all tests
 	// conference organizer keys
 	signerOrg, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -108,7 +112,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x4a80, env.GasRemaining)
+		checkSpentGas(t, 10928, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set date past D1, should eval to false
@@ -117,7 +121,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x1fe9, env.GasRemaining)
+		checkSpentGas(t, 10903, curGas-env.GasRemaining)
 		require.EqualValues(t, 1, res)
 	})
 
@@ -161,7 +165,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x4869, env.GasRemaining)
+		checkSpentGas(t, 11463, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// update data to "foobar", should evaluate to false
@@ -174,7 +178,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x2f69, env.GasRemaining)
+		checkSpentGas(t, 6400, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x201, res, `expected error code 2: new value of the token data is not "regular"`)
 	})
 
@@ -228,27 +232,28 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0xa679, env.GasRemaining)
+		checkSpentGas(t, 7381, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
-		// sign the transfer with some other key - p2pkh check should eval to "false" and
-		// predicate carries on attempting to decode argument BLOB as proof of payment.
-		// that however fails (CBOR decode) and predicate is killed with error (and tx is rejected)
+		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
+		// returns "false" without any further work (ie checking for money transfer).
 		require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
-		require.EqualError(t, err, `calling token_bearer returned error: module closed with exit_code(3134196653)`)
-		assert.EqualValues(t, 0x748b, env.GasRemaining)
-		require.EqualValues(t, 0, res)
+		require.NoError(t, err)
+		checkSpentGas(t, 7395, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x801, res)
 
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
+		// attempt to eval p2pkh with OwnerProof as argument should fail (returns error) and
+		// predicate should carry on attempting to decode argument BLOB as proof of payment.
 		txNFTTransfer.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.Payload.UnitID)))
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x3ff6, env.GasRemaining)
+		checkSpentGas(t, 13473, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 
@@ -298,7 +303,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x58dc, env.GasRemaining)
+		checkSpentGas(t, 7250, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
@@ -307,7 +312,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x36ce, env.GasRemaining)
+		checkSpentGas(t, 8731, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
@@ -316,7 +321,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		assert.EqualValues(t, 0x14c0, env.GasRemaining)
+		checkSpentGas(t, 8731, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x701, res, "expected code `7` = transferred amount doesn't equal to `P2 - P1`")
 	})
 }

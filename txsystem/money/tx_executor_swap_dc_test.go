@@ -122,7 +122,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(test.RandomBytes(10)), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, exeCtx), `swap tx predicate validation failed: executing predicate: pubkey hash does not match`)
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, exeCtx), `swap tx predicate validation failed: predicate evaluated to "false"`)
 	})
 }
 

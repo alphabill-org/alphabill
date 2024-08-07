@@ -41,8 +41,7 @@ func Test_txSignedByPKH(t *testing.T) {
 		ctx, _, mod := buildContext(t)
 		stack := []uint64{handle_current_tx_order, 0}
 		txSignedByPKH(ctx, mod, stack)
-		require.EqualValues(t, 1, stack[0])
-		// possible improvement - check the log for expected error message?
+		require.EqualValues(t, 3, stack[0])
 	})
 
 	t.Run("evaluating p2pkh returns error", func(t *testing.T) {
@@ -64,9 +63,8 @@ func Test_txSignedByPKH(t *testing.T) {
 		}
 		stack := []uint64{handle_current_tx_order, pkhAddr}
 		txSignedByPKH(ctx, mod, stack)
-		require.EqualValues(t, 1, stack[0])
+		require.EqualValues(t, 2, stack[0])
 		require.True(t, predicateExecuted, "call predicate engine")
-		// possible improvement - check the log for expected error message?
 	})
 
 	t.Run("evaluating p2pkh returns false", func(t *testing.T) {

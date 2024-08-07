@@ -13,11 +13,15 @@ Different versions are organized into subdirectories, each containing particular
 version of the predicates. Keep the changelog in this document!
 
 Filenames use pattern `<unit>-<predicate>.wasm` so
-- `token-bearer.wasm` implenemts bearer predicate to be used with token
+- `token-bearer.wasm` implements bearer predicate to be used with token
 
 while
 
-- `type-bearer.wasm` implenemts bearer predicate to be used with token type.
+- `type-bearer.wasm` implements bearer predicate to be used with token type.
+
+## V2: 07.08.2024
+- host API `tx_signed_by_pkh` returns status code instead of boolean allowing to
+  optimize `token_bearer` and `token_update_data` predicates;
 
 ## V2: 21.06.2024
 - switching to "Tickets created by the conference organizer" version;

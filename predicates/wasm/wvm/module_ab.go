@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -31,33 +32,37 @@ func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability)
 
 /*
 txSignedByPKH attempts to verify transaction's OwnerProof (stack[0] is handle
-of txOrder) against P2PKH predicate (address of the pkh is stack[1]).
-Returns bool (ie was/was not signed by given PubKey hash).
-
-When the OwnerProof is NOT data structure expected by the P2PKH predicate
-"false" is returned (ie instead of error/stopping the predicate). This API
-should allow to check has the tx been signed by given PubKey and if not
-then carry on with some other logic.
+of the txOrder) against P2PKH predicate (address of the pkh is stack[1]).
+Returns:
+  - 0: true, ie the txOrder was signed by the PubKey hash;
+  - 1: false, ie the txOrder OwnerProof is valid argument for P2PKH but signed
+    by different key;
+  - 2: error, most likely the tx.OwnerProof is not valid argument for P2PKH ie
+    some other (bearer) predicate is used;
+  - 3: error, argument stack[0] is not valid tx handle;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := vmContext(ctx)
 
 	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
 	if err != nil {
-		vec.log.DebugContext(ctx, fmt.Sprintf("invalid tx order parameter: %v", err))
-		stack[0] = 1
+		vec.log.DebugContext(ctx, "argument is not valid tx order handle", logger.Error(err))
+		stack[0] = 3
 		return
 	}
 	pkh := read(mod, stack[1])
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
 	ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
-	if err != nil || !ok {
-		vec.log.DebugContext(ctx, "p2pkh evaluated to false or returned error", "error", err)
+	switch {
+	case err != nil:
+		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
+		stack[0] = 2
+	case ok:
+		stack[0] = 0
+	default:
 		stack[0] = 1
-		return
 	}
-	stack[0] = 0
 }
 
 func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
@@ -157,7 +162,7 @@ func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecord
 transferredSum returns the sum transferred to the "receiverPKH" by given transaction
 record.
 Arguments:
-  - receiverPKH: public key hash of the recipient - currently only ptpkh template is
+  - receiverPKH: public key hash of the recipient - currently only p2pkh template is
     supported as owner condition;
   - refNo: reference number of the transaction, if nil then ignored, otherwise must match
     (use not nil zero length slice to get sum of transfers without reference number);

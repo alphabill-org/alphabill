@@ -100,7 +100,7 @@ func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env p
 		return false, fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
 	}
 	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
-		return false, errors.New("pubkey hash does not match")
+		return false, nil
 	}
 
 	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
@@ -108,6 +108,9 @@ func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env p
 		return false, fmt.Errorf("failed to create verifier: %w", err)
 	}
 	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
+		if errors.Is(err, crypto.ErrVerificationFailed) {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to verify signature: %w", err)
 	}
 	return true, nil

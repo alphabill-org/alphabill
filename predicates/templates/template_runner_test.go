@@ -306,7 +306,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
 		require.False(t, res)
 
-		// pubkey is of invalid length
+		// OwnerProof.PubKey is of invalid length
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
@@ -314,12 +314,12 @@ func TestP2pkh256_Execute(t *testing.T) {
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
 		require.False(t, res)
 
-		// pubKey hash doesn't match with the has of the pubKey in OP
+		// PubKey hash doesn't match with the hash of the PubKey in OwnerProof
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
-		require.EqualError(t, err, `pubkey hash does not match`)
+		require.NoError(t, err, `testing against different public key is not error`)
 		require.False(t, res)
 
 		// set incorrect first byte, compressed key should start with 0x02 or 0x03
@@ -338,7 +338,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err := executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
-		require.EqualError(t, err, `failed to verify signature: verification failed`)
+		require.NoError(t, err)
 		require.False(t, res)
 	})
 

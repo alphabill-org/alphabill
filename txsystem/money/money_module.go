@@ -50,15 +50,16 @@ func NewMoneyModule(options *Options) (*Module, error) {
 func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
 		// money partition tx handlers
-		money.PayloadTypeTransfer: txtypes.NewTxHandler[money.TransferAttributes](m.validateTransferTx, m.executeTransferTx),
-		money.PayloadTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes](m.validateSplitTx, m.executeSplitTx),
-		money.PayloadTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes](m.validateTransferDCTx, m.executeTransferDCTx),
-		money.PayloadTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes](m.validateSwapTx, m.executeSwapTx),
-		money.PayloadTypeLock:     txtypes.NewTxHandler[money.LockAttributes](m.validateLockTx, m.executeLockTx),
-		money.PayloadTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes](m.validateUnlockTx, m.executeUnlockTx),
+		money.PayloadTypeTransfer: txtypes.NewTxHandler[money.TransferAttributes, money.TransferAuthProof](m.validateTransferTx, m.executeTransferTx),
+		money.PayloadTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes, money.SplitAuthProof](m.validateSplitTx, m.executeSplitTx),
+		money.PayloadTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes, money.TransferDCAuthProof](m.validateTransferDCTx, m.executeTransferDCTx),
+		money.PayloadTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes, money.SwapDCAuthProof](m.validateSwapTx, m.executeSwapTx),
+		money.PayloadTypeLock:     txtypes.NewTxHandler[money.LockAttributes, money.LockAuthProof](m.validateLockTx, m.executeLockTx),
+		money.PayloadTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes, money.UnlockAuthProof](m.validateUnlockTx, m.executeUnlockTx),
+
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		fcsdk.PayloadTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes](m.validateTransferFCTx, m.executeTransferFCTx),
-		fcsdk.PayloadTypeReclaimFeeCredit:  txtypes.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes](m.validateReclaimFCTx, m.executeReclaimFCTx),
+		fcsdk.PayloadTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes, fcsdk.TransferFeeCreditAuthProof](m.validateTransferFCTx, m.executeTransferFCTx),
+		fcsdk.PayloadTypeReclaimFeeCredit:  txtypes.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes, fcsdk.ReclaimFeeCreditAuthProof](m.validateReclaimFCTx, m.executeReclaimFCTx),
 	}
 }
 

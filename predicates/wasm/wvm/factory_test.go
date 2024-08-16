@@ -39,8 +39,8 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 				SystemID: 1,
 				Type:     "txt",
 			},
-			OwnerProof: []byte{1},
-			FeeProof:   []byte{2},
+			AuthProof: []byte{1},
+			FeeProof:  []byte{2},
 		}
 		buf, err := types.Cbor.Marshal(txo)
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	t.Run("TransactionRecord ok", func(t *testing.T) {
 		txr := types.TransactionRecord{
 			TransactionOrder: &types.TransactionOrder{
-				OwnerProof: []byte{0, 0, 0},
+				AuthProof: []byte{0, 0, 0},
 			},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,

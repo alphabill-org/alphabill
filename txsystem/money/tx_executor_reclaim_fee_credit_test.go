@@ -21,6 +21,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		counter = uint64(4)
 	)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	authProof := &fcsdk.ReclaimFeeCreditAuthProof{OwnerProof: nil}
 
 	t.Run("Ok", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
@@ -29,7 +30,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.NoError(t, module.validateReclaimFCTx(tx, attr, exeCtx))
+		require.NoError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("Bill is missing", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
@@ -37,7 +38,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx),
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx),
 			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000000 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		exeCtx := testctx.NewMockExecutionContext(t)
 		module := newTestMoneyModule(t, verifier, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid unit type")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid unit type")
 	})
 	t.Run("Fee credit record exists in tx", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
@@ -56,7 +57,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "fee tx cannot contain fee credit reference")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee credit reference")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
@@ -66,7 +67,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "fee tx cannot contain fee authorization proof")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee authorization proof")
 	})
 	t.Run("Invalid target unit", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
@@ -76,7 +77,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid target unit")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit")
 	})
 	t.Run("Invalid tx fee", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer,
@@ -99,7 +100,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "the transaction fees cannot exceed the transferred value")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "the transaction fees cannot exceed the transferred value")
 	})
 	t.Run("Invalid target unit counter", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
@@ -108,7 +109,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter + 1}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid target unit counter")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit counter")
 	})
 	t.Run("Invalid counter", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, testutils.NewReclaimFCAttr(t, signer, testutils.WithReclaimFCCounter(counter+1)))
@@ -117,7 +118,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "the transaction counter is not equal to the unit counter")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
 	t.Run("owner error", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)
@@ -126,7 +127,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysFalseBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), `predicate evaluated to "false"`)
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), `predicate evaluated to "false"`)
 	})
 	t.Run("Invalid proof", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, testutils.NewReclaimFCAttr(t, signer,
@@ -136,7 +137,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, exeCtx), "invalid proof: proof block hash does not match to block hash in unicity certificate")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid proof: proof block hash does not match to block hash in unicity certificate")
 	})
 }
 
@@ -152,7 +153,8 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 	exeCtx := testctx.NewMockExecutionContext(t)
-	sm, err := module.executeReclaimFCTx(tx, attr, exeCtx)
+	authProof := &fcsdk.ReclaimFeeCreditAuthProof{OwnerProof: nil}
+	sm, err := module.executeReclaimFCTx(tx, attr, authProof, exeCtx)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, sm.ActualFee)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
@@ -160,7 +162,7 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	// verify changes
 	u, err := module.state.GetUnit(tx.UnitID(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, u.Bearer(), templates.AlwaysTrueBytes())
+	require.EqualValues(t, u.Owner(), templates.AlwaysTrueBytes())
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
 	// target bill is credited correct amount (using default values from testutils)

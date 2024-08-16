@@ -51,11 +51,11 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		}
 
 		if ctx.Unit != nil {
-			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
-				return fmt.Errorf("evaluating bearer predicate: %w", err)
-			}
+			// TODO move owner proof verification to transaction specific verification
+			//if err := m.execPredicate(ctx.Unit.Owner(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
+			//	return fmt.Errorf("evaluating owner predicate: %w", err)
+			//}
 		}
-
 		return nil
 	}
 }
@@ -73,6 +73,6 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 
 func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
+		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes, evm.TxAuthProof](m.validateEVMTx, m.executeEVMTx),
 	}
 }

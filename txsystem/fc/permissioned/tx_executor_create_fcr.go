@@ -13,7 +13,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (f *FeeCreditModule) validateCreateFCR(tx *types.TransactionOrder, attr *permissioned.CreateFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateCreateFCR(tx *types.TransactionOrder, attr *permissioned.CreateFeeCreditAttributes, authProof *permissioned.CreateFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// verify tx.FeeProof is nil and tx.ClientMetadata.FeeCreditRecordID is nil
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return err
@@ -26,7 +26,7 @@ func (f *FeeCreditModule) validateCreateFCR(tx *types.TransactionOrder, attr *pe
 	}
 
 	// verify fee credit record is calculated correctly
-	fcrID := f.NewFeeCreditRecordID(unitID, attr.FeeCreditOwnerCondition, tx.Timeout())
+	fcrID := f.NewFeeCreditRecordID(unitID, attr.FeeCreditOwnerPredicate, tx.Timeout())
 	if !fcrID.Eq(unitID) {
 		return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of fee credit owner condition and tx.timeout), tx.UnitID=%s expected.fcrID=%s", unitID, fcrID)
 	}
@@ -41,19 +41,23 @@ func (f *FeeCreditModule) validateCreateFCR(tx *types.TransactionOrder, attr *pe
 	}
 
 	// verify tx is signed by admin key
-	if err := f.execPredicate(f.adminOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err := f.execPredicate(f.adminOwnerCondition, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil
 }
 
-func (f *FeeCreditModule) executeCreateFCR(tx *types.TransactionOrder, attr *permissioned.CreateFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeCreateFCR(tx *types.TransactionOrder, attr *permissioned.CreateFeeCreditAttributes, _ *permissioned.CreateFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// create the fee credit record
 	fcr := &fc.FeeCreditRecord{
 		Balance: 1e8, // all "permissioned" fee credit records have hardcoded random chosen value of 1 alpha
 		Timeout: tx.Timeout(),
 	}
-	if err := f.state.Apply(state.AddUnit(tx.UnitID(), attr.FeeCreditOwnerCondition, fcr)); err != nil {
+	if err := f.state.Apply(state.AddUnit(tx.UnitID(), attr.FeeCreditOwnerPredicate, fcr)); err != nil {
 		return nil, fmt.Errorf("failed to create fee credit record: %w", err)
 	}
 	return &types.ServerMetadata{

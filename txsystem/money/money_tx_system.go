@@ -27,8 +27,8 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		fc.WithState(options.state),
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithTrustBase(options.trustBase),
-		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneySystemIdentifier(options.systemIdentifier),
+		fc.WithSystemID(options.systemIdentifier),
+		fc.WithMoneySystemID(options.systemIdentifier),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)
 	if err != nil {

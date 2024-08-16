@@ -35,21 +35,19 @@ func NewFeeBalanceValidator(stateReader StateReader, execPredicate predicates.Pr
 IsCredible implements the fee credit verification for ordinary transactions (everything else except fee credit txs)
 */
 func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
-	clientMetadata := tx.Payload.ClientMetadata
-
 	// 1. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
-	feeCreditRecordID := clientMetadata.FeeCreditRecordID
-	if len(feeCreditRecordID) == 0 {
+	fcrID := tx.Payload.ClientMetadata.FeeCreditRecordID
+	if len(fcrID) == 0 {
 		return errors.New("fee credit record missing")
 	}
-	if !types.UnitID(feeCreditRecordID).HasType(f.feeCreditRecordUnitType) {
+	if !types.UnitID(fcrID).HasType(f.feeCreditRecordUnitType) {
 		return errors.New("invalid fee credit record id type")
 	}
-	unit, _ := f.state.GetUnit(feeCreditRecordID, false)
-	if unit == nil {
+	fcrUnit, _ := f.state.GetUnit(fcrID, false)
+	if fcrUnit == nil {
 		return errors.New("fee credit record unit is nil")
 	}
-	fcr, ok := unit.Data().(*fc.FeeCreditRecord)
+	fcr, ok := fcrUnit.Data().(*fc.FeeCreditRecord)
 	if !ok {
 		return errors.New("invalid fee credit record type")
 	}
@@ -57,18 +55,13 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 	if fcr.Balance < tx.Payload.ClientMetadata.MaxTransactionFee {
 		return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, tx.Payload.ClientMetadata.MaxTransactionFee)
 	}
-	// 3. if the transaction has a fee authorization proof,
-	// it must satisfy the owner predicate of the fee credit record
-	if err := f.execPredicate(unit.Bearer(), getFeeProof(tx), tx, exeCtx); err != nil {
+	// VerifyFeeAuth(N[ιf].φ, T, T.sf) - fee authorization proof satisfies the owner predicate of the fee credit record
+	sigBytes, err := tx.FeeProofSigBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal fee proof bytes: %w", err)
+	}
+	if err := f.execPredicate(fcrUnit.Owner(), tx.FeeProof, sigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil
-}
-
-// getFeeProof returns tx.FeeProof if it exists or tx.OwnerProof if it does not exist
-func getFeeProof(tx *types.TransactionOrder) []byte {
-	if len(tx.FeeProof) > 0 {
-		return tx.FeeProof
-	}
-	return tx.OwnerProof
 }

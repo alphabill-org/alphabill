@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-func (f *FeeCreditModule) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, authProof *fc.UnlockFeeCreditAuthProof, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	fee := execCtx.CalculateCost()
 	updateFunc := state.UpdateUnitData(unitID,
@@ -31,7 +31,7 @@ func (f *FeeCreditModule) executeUnlockFC(tx *types.TransactionOrder, _ *fc.Unlo
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.UnlockFeeCreditAttributes, authProof *fc.UnlockFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -55,7 +55,11 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return errors.New("fee credit record is already unlocked")
 	}
 	// validate owner
-	if err = f.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = f.execPredicate(bearer, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

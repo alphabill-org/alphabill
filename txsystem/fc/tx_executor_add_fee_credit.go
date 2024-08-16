@@ -12,29 +12,29 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, _ *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
 	fee := exeCtx.CalculateCost()
 	// find net value of credit
-	_, transferFc, err := getTransferFc(attr)
+	_, transferFC, err := getTransferFc(attr)
 	if err != nil {
 		return nil, err
 	}
 
-	v := transferFc.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
+	v := transferFC.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
 
-	err = f.state.Apply(unit.IncrCredit(unitID, v, transferFc.LatestAdditionTime))
+	err = f.state.Apply(unit.IncrCredit(unitID, v, transferFC.LatestAdditionTime))
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
 		// add credit
 		fcr := &fc.FeeCreditRecord{
 			Balance: v,
 			Counter: 0,
-			Timeout: transferFc.LatestAdditionTime,
+			Timeout: transferFC.LatestAdditionTime,
 			Locked:  0,
 		}
-		err = f.state.Apply(unit.AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr))
+		err = f.state.Apply(unit.AddCredit(unitID, attr.FeeCreditOwnerPredicate, fcr))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("addFC state update failed: %w", err)
@@ -42,13 +42,13 @@ func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddF
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, authProof *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("fee credit tx validation error: %w", err)
 	}
 
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
+	fcr, fcrOwnerPredicate, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
@@ -61,7 +61,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	if createFC {
 		// try to create free credit
 		// 3. S.N[P.ι] != ⊥ ∨ ExtrUnit(P.ι) = PrndSh(ExtrUnit(P.ι), P.A.φ|P′.A.t′) – if the target does not exist, the identifier must agree with the owner predicate
-		fcrID := f.NewFeeCreditRecordID(tx.UnitID(), attr.FeeCreditOwnerCondition, transAttr.LatestAdditionTime)
+		fcrID := f.NewFeeCreditRecordID(tx.UnitID(), attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
 		if !fcrID.Eq(tx.UnitID()) {
 			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID(), fcrID)
 		}
@@ -70,7 +70,11 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 		}
 		// 4. S.N[P.ι] != ⊥ ∨ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
-		if err = f.execPredicate(attr.FeeCreditOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
+		payloadBytes, err := tx.PayloadBytes()
+		if err != nil {
+			return fmt.Errorf("failed to marshal payload bytes: %w", err)
+		}
+		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
 			return fmt.Errorf("executing fee credit predicate: %w", err)
 		}
 	} else {
@@ -84,8 +88,8 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 			return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
 		}
 		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-		if !bytes.Equal(bearer, attr.FeeCreditOwnerCondition) {
-			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", bearer, attr.FeeCreditOwnerCondition)
+		if !bytes.Equal(fcrOwnerPredicate, attr.FeeCreditOwnerPredicate) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", fcrOwnerPredicate, attr.FeeCreditOwnerPredicate)
 		}
 	}
 	// 5. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies

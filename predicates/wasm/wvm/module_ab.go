@@ -25,7 +25,7 @@ func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability)
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digestSHA256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
-		NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
+		//NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
 		Instantiate(ctx)
 	return err
 }
@@ -52,8 +52,14 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 	pkh := read(mod, stack[1])
 
+	// TODO fix for new signatures format
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
+	//ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
+	sigByes, err := txo.PayloadBytes()
+	if err != nil {
+		return
+	}
+	ok, err := vec.engines(ctx, predicate, txo.AuthProof, sigByes, vec.curPrg.env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -189,7 +195,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding transfer attributes: %w", err)
 		}
-		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewBearer)
+		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewOwnerPredicate)
 		if err != nil {
 			return 0, fmt.Errorf("extracting bearer pkh: %w", err)
 		}
@@ -203,7 +209,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 			return 0, fmt.Errorf("decoding split attributes: %w", err)
 		}
 		for _, v := range attr.TargetUnits {
-			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerCondition)
+			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerPredicate)
 			if err != nil {
 				return 0, fmt.Errorf("extracting owner pkh: %w", err)
 			}

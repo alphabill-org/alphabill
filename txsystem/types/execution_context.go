@@ -36,11 +36,6 @@ func (ec *TxExecutionContext) TrustBase(epoch uint64) (types.RootTrustBase, erro
 	return ec.trustStore, nil
 }
 
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (ec *TxExecutionContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
-}
-
 func (ec *TxExecutionContext) GasAvailable() uint64 {
 	return ec.remainingGas
 }

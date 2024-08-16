@@ -183,7 +183,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NoError(t, err)
 	unit, err := s.GetUnit(defaultInitialBillID, false)
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("%X", unit.Bearer()), ownerPredicate)
+	require.Equal(t, fmt.Sprintf("%X", unit.Owner()), ownerPredicate)
 
 	params := &genesis.MoneyPartitionParams{}
 	require.NoError(t, types.Cbor.Unmarshal(pg.Params, params))

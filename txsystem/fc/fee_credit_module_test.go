@@ -23,23 +23,23 @@ func TestFC_Validation(t *testing.T) {
 		require.Nil(t, fcModule)
 		require.ErrorIs(t, err, ErrSystemIdentifierMissing)
 
-		_, err = NewFeeCreditModule(WithSystemIdentifier(moneySystemID))
+		_, err = NewFeeCreditModule(WithSystemID(moneySystemID))
 		require.ErrorIs(t, err, ErrMoneySystemIdentifierMissing)
 
-		_, err = NewFeeCreditModule(WithSystemIdentifier(moneySystemID),
-			WithMoneySystemIdentifier(moneySystemID))
+		_, err = NewFeeCreditModule(WithSystemID(moneySystemID),
+			WithMoneySystemID(moneySystemID))
 		require.ErrorIs(t, err, ErrStateIsNil)
 
-		_, err = NewFeeCreditModule(WithSystemIdentifier(moneySystemID),
-			WithMoneySystemIdentifier(moneySystemID),
+		_, err = NewFeeCreditModule(WithSystemID(moneySystemID),
+			WithMoneySystemID(moneySystemID),
 			WithState(s))
 		require.ErrorIs(t, err, ErrTrustBaseIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {
 		fc, err := NewFeeCreditModule(
-			WithSystemIdentifier(moneySystemID),
-			WithMoneySystemIdentifier(moneySystemID),
+			WithSystemID(moneySystemID),
+			WithMoneySystemID(moneySystemID),
 			WithState(s),
 			WithTrustBase(trustBase),
 		)
@@ -49,8 +49,8 @@ func TestFC_Validation(t *testing.T) {
 
 	t.Run("new fc module executors", func(t *testing.T) {
 		fc, err := NewFeeCreditModule(
-			WithSystemIdentifier(moneySystemID),
-			WithMoneySystemIdentifier(moneySystemID),
+			WithSystemID(moneySystemID),
+			WithMoneySystemID(moneySystemID),
 			WithState(s),
 			WithTrustBase(trustBase),
 		)
@@ -70,7 +70,7 @@ func TestFC_Validation(t *testing.T) {
 func TestFC_CalculateCost(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	fcModule, err := NewFeeCreditModule(WithSystemIdentifier(10), WithMoneySystemIdentifier(1),
+	fcModule, err := NewFeeCreditModule(WithSystemID(10), WithMoneySystemID(1),
 		WithState(state.NewEmptyState()), WithTrustBase(trustBase))
 	require.NoError(t, err)
 	require.NotNil(t, fcModule)

@@ -109,12 +109,12 @@ func TestRunTokensNode(t *testing.T) {
 		// Test
 		// green path
 		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
-		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
+		attr := &tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
 			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
-			InvariantPredicate:       templates.AlwaysTrueBytes(),
+			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
 		attrBytes, err := types.Cbor.Marshal(attr)
@@ -122,7 +122,7 @@ func TestRunTokensNode(t *testing.T) {
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       tokens.DefaultSystemID,
-				Type:           tokens.PayloadTypeCreateNFTType,
+				Type:           tokens.PayloadTypeDefineNFT,
 				UnitID:         id[:],
 				Attributes:     attrBytes,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},

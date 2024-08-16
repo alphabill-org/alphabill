@@ -29,14 +29,14 @@ func Test_tokenAttributesEncoding_trigger(t *testing.T) {
 	t.Run("CreateNonFungibleTokenTypeAttributes", func(t *testing.T) {
 		tests := []encAttr{
 			{
-				attr: tokens.CreateNonFungibleTokenTypeAttributes{
+				attr: tokens.DefineNonFungibleTokenAttributes{
 					Symbol: "AB",
 					Name:   "test token",
 				},
 				enc: []byte{0x1, 0x4, 0x2, 0x0, 0x0, 0x0, 0x41, 0x42, 0x2, 0x4, 0xa, 0x0, 0x0, 0x0, 0x74, 0x65, 0x73, 0x74, 0x20, 0x74, 0x6f, 0x6b, 0x65, 0x6e},
 			},
 			{
-				attr: tokens.CreateNonFungibleTokenTypeAttributes{
+				attr: tokens.DefineNonFungibleTokenAttributes{
 					ParentTypeID: []byte{1, 2, 3, 8, 9, 0},
 					Symbol:       "AB-NFT",
 					Name:         "funky token",
@@ -371,7 +371,7 @@ func Test_generateTxAttributeDecodeTests(t *testing.T) {
 		// version 1 encoding exports: Symbol, Name, ParentTypeID (optional)
 		const version = 1
 		fmtFields := func(a any) string {
-			attr := a.(tokens.CreateNonFungibleTokenTypeAttributes)
+			attr := a.(tokens.DefineNonFungibleTokenAttributes)
 			return fieldList(t,
 				"name", rustOptionValue(t, attr.Name),
 				"symbol", rustOptionValue(t, attr.Symbol),
@@ -380,14 +380,14 @@ func Test_generateTxAttributeDecodeTests(t *testing.T) {
 		}
 		tests := []inOut{
 			{
-				attr: tokens.CreateNonFungibleTokenTypeAttributes{
+				attr: tokens.DefineNonFungibleTokenAttributes{
 					Symbol: "AB",
 					Name:   "test token",
 				},
 				fields: fmtFields,
 			},
 			{
-				attr: tokens.CreateNonFungibleTokenTypeAttributes{
+				attr: tokens.DefineNonFungibleTokenAttributes{
 					ParentTypeID: []byte{1, 2, 3, 8, 9, 0},
 					Symbol:       "AB-NFT",
 					Name:         "funky token",

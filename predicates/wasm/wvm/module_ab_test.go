@@ -55,9 +55,10 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		//vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, []byte, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return true, expErr
 		}
@@ -77,9 +78,10 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		//vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
+		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, []byte, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return false, nil
 		}
@@ -107,14 +109,18 @@ func Test_txSignedByPKH(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID: 5,
 			},
-			OwnerProof: []byte{8, 9, 0},
+			//OwnerProof: []byte{8, 9, 0},
+			AuthProof: []byte{8, 9, 0},
 		}
 		vm.curPrg.vars[handle_current_tx_order] = txOrder
 		predicateExecuted := false
-		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigByes []byte, env predicates.TxContext) (bool, error) {
 			predicateExecuted = true
-			require.Equal(t, txOrder, txo)
-			require.Equal(t, txOrder.OwnerProof, args)
+			payloadBytes, err := txOrder.PayloadBytes()
+			require.NoError(t, err)
+			require.Equal(t, payloadBytes, sigByes)
+			//require.Equal(t, txOrder.OwnerProof, args)
+			require.Equal(t, txOrder.AuthProof, args)
 			h, err := templates.ExtractPubKeyHashFromP2pkhPredicate(predicate)
 			require.NoError(t, err)
 			require.Equal(t, pkh, h)
@@ -150,8 +156,8 @@ func Test_amountTransferredSum(t *testing.T) {
 		},
 	}
 	txPayment.Payload.SetAttributes(money.TransferAttributes{
-		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pkhA),
-		TargetValue: 100,
+		NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkhA),
+		TargetValue:       100,
 	})
 
 	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
@@ -169,9 +175,9 @@ func Test_amountTransferredSum(t *testing.T) {
 	}
 	txPayment.Payload.SetAttributes(money.SplitAttributes{
 		TargetUnits: []*money.TargetUnit{
-			{Amount: 10, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
-			{Amount: 50, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhB)},
-			{Amount: 90, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
+			{Amount: 10, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
+			{Amount: 50, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkhB)},
+			{Amount: 90, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkhA)},
 		},
 		RemainingValue: 2000,
 	})
@@ -286,8 +292,8 @@ func Test_transferredSum(t *testing.T) {
 		pkHash := []byte{3, 8, 0, 1, 2, 4, 5}
 		// txType is Split but use Transfer attributes!
 		txPayment.Payload.SetAttributes(money.TransferAttributes{
-			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pkHash),
-			TargetValue: 100,
+			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkHash),
+			TargetValue:       100,
 		})
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
 
@@ -312,8 +318,8 @@ func Test_transferredSum(t *testing.T) {
 		}
 		pkHash := []byte{3, 8, 0, 1, 2, 4, 5}
 		txPayment.Payload.SetAttributes(money.TransferAttributes{
-			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pkHash),
-			TargetValue: 100,
+			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkHash),
+			TargetValue:       100,
 		})
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
@@ -360,9 +366,9 @@ func Test_transferredSum(t *testing.T) {
 		pkHash := []byte{3, 8, 0, 1, 2, 4, 5}
 		txPayment.Payload.SetAttributes(money.SplitAttributes{
 			TargetUnits: []*money.TargetUnit{
-				{Amount: 10, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkHash)},
-				{Amount: 50, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash([]byte("other guy"))},
-				{Amount: 90, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pkHash)},
+				{Amount: 10, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkHash)},
+				{Amount: 50, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash([]byte("other guy"))},
+				{Amount: 90, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(pkHash)},
 			},
 			RemainingValue: 2000,
 		})

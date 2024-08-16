@@ -12,7 +12,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -26,7 +26,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	// update state
 	if err = m.state.Apply(
 		state.AddUnit(newTokenID,
-			attr.NewBearer,
+			attr.NewOwnerPredicate,
 			&tokens.FungibleTokenData{
 				TokenType: ftData.TokenType,
 				Value:     attr.TargetValue,
@@ -64,8 +64,8 @@ func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []by
 	return hasher.Sum(nil)
 }
 
-func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
-	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
@@ -94,22 +94,26 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx,
+		payloadBytes,
 		tokenData.TokenType,
-		attr.InvariantPredicateSignatures,
+		authProof.TokenTypeOwnerPredicateSignatures,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
+			return d.ParentTypeID, d.TokenTypeOwnerPredicate
 		},
 		m.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf("evaluating InvariantPredicate: %w", err)
+		return fmt.Errorf("evaluating TokenTypeOwnerPredicate: %w", err)
 	}
 	return nil
 }

@@ -348,23 +348,26 @@ func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) 
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
-		NewBearer:   templates.AlwaysTrueBytes(),
-		TargetValue: 1,
-		Counter:     0,
+		NewOwnerPredicate: templates.AlwaysTrueBytes(),
+		TargetValue:       1,
+		Counter:           0,
 	}
 
 	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	order, err := types.Cbor.Marshal(&types.TransactionOrder{
+	txo := &types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:         unitID,
 			Type:           money.PayloadTypeTransfer,
 			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},
 		},
-		OwnerProof: []byte{1},
-	})
+	}
+	authProof := money.TransferAuthProof{OwnerProof: []byte{1}}
+	require.NoError(t, txo.SetAuthProof(authProof))
+
+	txoCBOR, err := types.Cbor.Marshal(txo)
 	require.NoError(t, err)
-	return order
+	return txoCBOR
 }

@@ -58,8 +58,8 @@ func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.L
 
 func (f *FeeAccount) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:   txtypes.NewTxHandler[fc.AddFeeCreditAttributes](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit: txtypes.NewTxHandler[fc.CloseFeeCreditAttributes](f.validateCloseFC, f.executeCloseFC),
+		fc.PayloadTypeAddFeeCredit:   txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
+		fc.PayloadTypeCloseFeeCredit: txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
 	}
 }
 

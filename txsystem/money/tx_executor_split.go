@@ -22,7 +22,7 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 	return hasher.Sum(nil)
 }
 
-func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
@@ -32,7 +32,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		actions = append(actions, state.AddUnit(
 			newUnitID,
-			targetUnit.OwnerCondition,
+			targetUnit.OwnerPredicate,
 			&money.BillData{
 				V:       targetUnit.Amount,
 				T:       exeCtx.CurrentRound(),
@@ -60,7 +60,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	return &types.ServerMetadata{TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) error {
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, authProof *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
@@ -68,8 +68,12 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 	if err = validateSplit(unit.Data(), attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("executing bearer predicate: %w", err)
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }
@@ -96,7 +100,7 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 		if targetUnit.Amount == 0 {
 			return fmt.Errorf("target unit amount is zero at index %d", i)
 		}
-		if len(targetUnit.OwnerCondition) == 0 {
+		if len(targetUnit.OwnerPredicate) == 0 {
 			return fmt.Errorf("target unit owner condition is empty at index %d", i)
 		}
 		var err error

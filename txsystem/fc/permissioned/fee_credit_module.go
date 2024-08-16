@@ -87,8 +87,8 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 
 func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		permissioned.PayloadTypeCreateFCR: txtypes.NewTxHandler[permissioned.CreateFeeCreditAttributes](f.validateCreateFCR, f.executeCreateFCR),
-		permissioned.PayloadTypeDeleteFCR: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes](f.validateDeleteFCR, f.executeDeleteFCR),
+		permissioned.PayloadTypeCreateFCR: txtypes.NewTxHandler[permissioned.CreateFeeCreditAttributes, permissioned.CreateFeeCreditAuthProof](f.validateCreateFCR, f.executeCreateFCR),
+		permissioned.PayloadTypeDeleteFCR: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes, permissioned.DeleteFeeCreditAuthProof](f.validateDeleteFCR, f.executeDeleteFCR),
 	}
 }
 

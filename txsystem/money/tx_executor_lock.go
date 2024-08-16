@@ -13,7 +13,7 @@ import (
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
-func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, _ *money.LockAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// lock the unit
 	unitID := tx.UnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -32,7 +32,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, _ txtypes.ExecutionContext) error {
+func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, authProof *money.LockAuthProof, _ txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -51,5 +51,6 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
+	// TODO missing lock tx owner proof??
 	return nil
 }

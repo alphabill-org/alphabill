@@ -251,13 +251,11 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithUnitID(unitID),
 			testtransaction.WithSystemID(money.DefaultSystemID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
+			testtransaction.WithAuthProof(&money.TransferAuthProof{}),
 		)
-		data, err := tx.PayloadBytes()
-		require.NoError(t, err)
-		unlockProof, err := predicates.OwnerProoferForSigner(sig1)(data)
-		require.NoError(t, err)
-		// update unlock
-		tx.StateUnlock = append([]byte{byte(StateUnlockExecute)}, unlockProof...)
+
+		ownerProof := testsig.NewOwnerProof(t, tx, sig1)
+		tx.StateUnlock = append([]byte{byte(StateUnlockExecute)}, ownerProof...)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.EqualError(t, err, "failed to execute tx that was on hold: unknown transaction type trans")
 		require.Nil(t, sm)
@@ -330,7 +328,7 @@ func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte 
 		testtransaction.WithPayloadType(money.PayloadTypeTransfer),
 		testtransaction.WithUnitID(id),
 		testtransaction.WithSystemID(money.DefaultSystemID),
-		testtransaction.WithAttributes(&money.TransferAttributes{NewBearer: basetemplates.AlwaysTrueBytes(), TargetValue: 1, Counter: 1}),
+		testtransaction.WithAttributes(&money.TransferAttributes{NewOwnerPredicate: basetemplates.AlwaysTrueBytes(), TargetValue: 1, Counter: 1}),
 		testtransaction.WithStateLock(&types.StateLock{
 			ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubkey)}),
 	)

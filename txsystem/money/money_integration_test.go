@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -20,7 +21,6 @@ import (
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -77,7 +77,6 @@ func TestPartition_Ok(t *testing.T) {
 			testutils.WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitID(ib.ID),
-		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(fcsdk.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
@@ -99,7 +98,7 @@ func TestPartition_Ok(t *testing.T) {
 		testutils.NewAddFCAttr(t, signer,
 			testutils.WithTransferFCRecord(transferFCRecord),
 			testutils.WithTransferFCProof(transferFCProof),
-			testutils.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
+			testutils.WithFeeCreditOwnerPredicate(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithPayloadType(fcsdk.PayloadTypeAddFeeCredit),
@@ -120,7 +119,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, ib.ID, fcrID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
+	transferInitialBillTx, _, _ := createBillTransfer(t, ib.ID, fcrID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
@@ -133,7 +132,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
-	targetUnit := &money.TargetUnit{Amount: amountPK2, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
+	targetUnit := &money.TargetUnit{Amount: amountPK2, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
 	remainingValue := total - fcrAmount - amountPK2
 	tx := createSplitTx(t, ib.ID, fcrID, 2, []*money.TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
@@ -204,7 +203,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			testutils.WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitID(initialBill.ID),
-		testtransaction.WithOwnerProof(nil),
+
 		testtransaction.WithPayloadType(fcsdk.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
@@ -219,7 +218,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		testutils.NewAddFCAttr(t, signer,
 			testutils.WithTransferFCRecord(transferFCRecord),
 			testutils.WithTransferFCProof(transferFCProof),
-			testutils.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
+			testutils.WithFeeCreditOwnerPredicate(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithPayloadType(fcsdk.PayloadTypeAddFeeCredit),
@@ -234,7 +233,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, fcrID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
+	transferInitialBillTx, _, _ := createBillTransfer(t, initialBill.ID, fcrID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
 	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
@@ -252,7 +251,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	var targetUnits []*money.TargetUnit
 	for i := 0; i < nofDustToSwap; i++ {
-		targetUnits = append(targetUnits, &money.TargetUnit{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))})
+		targetUnits = append(targetUnits, &money.TargetUnit{Amount: amount, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))})
 		total -= amount
 		amount++
 	}
@@ -273,7 +272,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	sort.Slice(dcBillIds, func(i, j int) bool {
 		return bytes.Compare(dcBillIds[i], dcBillIds[j]) == -1
 	})
-	dcTxs, sum := createDCAndSwapTxs(t, initialBill.ID, 3, fcrID, dcBillIds, txsState)
+	dcTxs, sum := createDustTransferTxs(t, initialBill.ID, 3, fcrID, dcBillIds, txsState)
 	dcRecords := make([]*types.TransactionRecord, len(dcTxs))
 	dcRecordsProofs := make([]*types.TxProof, len(dcTxs))
 	for i, dcTx := range dcTxs {
@@ -305,10 +304,13 @@ func TestPartition_SwapDCOk(t *testing.T) {
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: nil,
-		FeeProof:   templates.EmptyArgument(),
+		FeeProof: templates.EmptyArgument(),
 	}
-	require.NoError(t, swapTx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
+	signer, err = abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
+	require.NoError(t, err)
+	ownerProof := testsig.NewOwnerProof(t, swapTx, signer)
+	authProof := fcsdk.AddFeeCreditAuthProof{OwnerProof: ownerProof}
+	require.NoError(t, swapTx.SetAuthProof(authProof))
 
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))
 	_, _, err = testpartition.WaitTxProof(t, moneyPrt, swapTx)
@@ -319,13 +321,19 @@ func TestPartition_SwapDCOk(t *testing.T) {
 }
 
 func createSplitTx(t *testing.T, fromID []byte, fcrID types.UnitID, counter uint64, targetUnits []*money.TargetUnit, remaining uint64) *types.TransactionOrder {
-	tx, _ := createSplit(t, fromID, fcrID, targetUnits, remaining, counter)
-	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey1), decodeHex(pubKey1))))
+	tx, _, _ := createSplit(t, fromID, fcrID, targetUnits, remaining, counter)
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
+	require.NoError(t, err)
+
+	ownerProof := testsig.NewOwnerProof(t, tx, signer)
+	authProof := money.SplitAuthProof{OwnerProof: ownerProof}
+	require.NoError(t, tx.SetAuthProof(authProof))
+
 	tx.FeeProof = templates.EmptyArgument() // default fee credit record has "always true" predicate
 	return tx
 }
 
-func createDCAndSwapTxs(t *testing.T, targetID []byte, targetCounter uint64, fcrID types.UnitID, ids []types.UnitID, s *state.State) ([]*types.TransactionOrder, uint64) {
+func createDustTransferTxs(t *testing.T, targetID []byte, targetCounter uint64, fcrID types.UnitID, ids []types.UnitID, s *state.State) ([]*types.TransactionOrder, uint64) {
 	t.Helper()
 
 	// create dc transfers
@@ -335,8 +343,14 @@ func createDCAndSwapTxs(t *testing.T, targetID []byte, targetCounter uint64, fcr
 	for i, id := range ids {
 		_, billData := getBill(t, s, id)
 		targetValue += billData.V
-		tx, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
-		tx.SetOwnerProof(predicates.OwnerProoferSecp256K1(decodeHex(privKey2), decodeHex(pubKey2)))
+		tx, _, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
+		signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey2))
+		require.NoError(t, err)
+
+		ownerProof := testsig.NewOwnerProof(t, tx, signer)
+		authProof := money.TransferDCAuthProof{OwnerProof: ownerProof}
+		require.NoError(t, tx.SetAuthProof(authProof))
+
 		tx.FeeProof = templates.EmptyArgument() // default fee credit record has "always true" predicate
 		dcTransfers[i] = tx
 	}

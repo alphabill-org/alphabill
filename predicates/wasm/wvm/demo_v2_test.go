@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,10 +48,10 @@ func Test_conference_tickets_v2(t *testing.T) {
 	// customer buying conference ticket
 	signerAttendee, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	verifierAttendee, err := signerAttendee.Verifier()
-	require.NoError(t, err)
-	pubKeyAttendee, err := verifierAttendee.MarshalPublicKey()
-	require.NoError(t, err)
+	//verifierAttendee, err := signerAttendee.Verifier()
+	//require.NoError(t, err)
+	//pubKeyAttendee, err := verifierAttendee.MarshalPublicKey()
+	//require.NoError(t, err)
 
 	// need VerifyQuorumSignatures for verifying tx proofs of payment
 	trustbase := &mockRootTrustBase{
@@ -106,10 +107,12 @@ func Test_conference_tickets_v2(t *testing.T) {
 				UnitID:   tokenID,
 			},
 		}
+		sigBytes, err := txNFTTransfer.PayloadBytes()
+		require.NoError(t, err)
 
 		// token is "early-bird" and date <= D1 - should eval to "true"
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
+		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 10928, curGas-env.GasRemaining)
@@ -118,7 +121,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// set date past D1, should eval to false
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 10903, curGas-env.GasRemaining)
@@ -154,6 +157,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 				UnitID:   tokenID,
 			},
 		}
+		sigBytes, err := txNFTUpdate.PayloadBytes()
+		require.NoError(t, err)
+
 		require.NoError(t, txNFTUpdate.Payload.SetAttributes(
 			tokens.UpdateNonFungibleTokenAttributes{
 				Data:    []byte("regular"),
@@ -162,7 +168,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// update from "early-bird" to "regular", should succeed
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
+		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 11463, curGas-env.GasRemaining)
@@ -175,7 +181,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				Counter: 66,
 			}))
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 6400, curGas-env.GasRemaining)
@@ -201,7 +207,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
 			},
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
-			payloadBytes: payloadBytes,
 			GasRemaining: 50000,
 		}
 
@@ -220,16 +225,20 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 		require.NoError(t, txNFTTransfer.Payload.SetAttributes(
 			tokens.TransferNonFungibleTokenAttributes{
-				NewBearer: []byte{5, 5, 5},
-				TypeID:    nftTypeID,
+				NewOwnerPredicate: []byte{5, 5, 5},
+				TypeID:            nftTypeID,
 			}))
 
 		// conference organizer transfers ticket (NFT token) to new owner.
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
-		require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		//require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTTransfer, signerOrg)}))
+		sigBytes, err := txNFTTransfer.PayloadBytes()
+		require.NoError(t, err)
+
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
+		res, err := wvm.Exec(context.Background(), predWASM, txNFTTransfer.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 7381, curGas-env.GasRemaining)
@@ -237,9 +246,13 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
 		// returns "false" without any further work (ie checking for money transfer).
-		require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTTransfer, signerAttendee)}))
+		sigBytes, err = txNFTTransfer.PayloadBytes()
+		require.NoError(t, err)
+		//require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
+
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 7395, curGas-env.GasRemaining)
@@ -248,9 +261,13 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
 		// attempt to eval p2pkh with OwnerProof as argument should fail (returns error) and
 		// predicate should carry on attempting to decode argument BLOB as proof of payment.
-		txNFTTransfer.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.Payload.UnitID)))
+		//txNFTTransfer.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.Payload.UnitID)))
+		txNFTTransfer.AuthProof = proofOfPayment(t, signerAttendee, pubKeyOrg, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.Payload.UnitID)))
+		sigBytes, err = txNFTTransfer.PayloadBytes()
+		require.NoError(t, err)
+
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.OwnerProof, conf, txNFTTransfer, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTTransfer.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 13473, curGas-env.GasRemaining)
@@ -271,9 +288,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 				}
 				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
 			},
-			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:     func() uint64 { return regularDate },
-			payloadBytes: payloadBytes,
+			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
+			curRound:  func() uint64 { return regularDate },
+			//payloadBytes: payloadBytes,
 			GasRemaining: 30000,
 		}
 
@@ -298,27 +315,39 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// conference organizer updates the ticket (NFT token).
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
-		require.NoError(t, txNFTUpdate.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		//require.NoError(t, txNFTUpdate.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		require.NoError(t, txNFTUpdate.SetAuthProof(
+			&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTUpdate, signerOrg)}),
+		)
+		sigBytes, err := txNFTUpdate.PayloadBytes()
+		require.NoError(t, err)
+
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
+		res, err := wvm.Exec(context.Background(), predWASM, txNFTUpdate.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 7250, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
-		txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		//txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		txNFTUpdate.AuthProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		sigBytes, err = txNFTUpdate.PayloadBytes()
+		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 8731, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
-		txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		//txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		txNFTUpdate.AuthProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		sigBytes, err = txNFTUpdate.PayloadBytes()
+		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.OwnerProof, conf, txNFTUpdate, env)
+		res, err = wvm.Exec(context.Background(), predWASM, txNFTUpdate.AuthProof, conf, sigBytes, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 8731, curGas-env.GasRemaining)
@@ -351,11 +380,14 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	}
 	require.NoError(t, txPayment.Payload.SetAttributes(
 		money.TransferAttributes{
-			NewBearer:   predtempl.NewP2pkh256BytesFromKey(receiverPK),
-			TargetValue: value,
-			Counter:     1,
+			NewOwnerPredicate: predtempl.NewP2pkh256BytesFromKey(receiverPK),
+			TargetValue:       value,
+			Counter:           1,
 		}))
-	require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	//require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	require.NoError(t, txPayment.SetAuthProof(
+		&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txPayment, signer)}),
+	)
 
 	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	proof := testblock.CreateProof(t, txRec, signer, testblock.WithSystemIdentifier(money.DefaultSystemID))
@@ -376,51 +408,51 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	return b
 }
 
-/*
-PayloadBytes returns txo payload bytes (bytes signed by bearer).
-This hack is needed until AB-1012 gets resolved.
-*/
-func payloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	attr, err := attrType(txo.PayloadType())
-	if err != nil {
-		return nil, err
-	}
-	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, err
-	}
-	buf, err := txo.Payload.BytesWithAttributeSigBytes(attr)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-func attrType(payloadType string) (types.SigBytesProvider, error) {
-	switch payloadType {
-	case tokens.PayloadTypeCreateNFTType:
-		return &tokens.CreateNonFungibleTokenTypeAttributes{}, nil
-	case tokens.PayloadTypeMintNFT:
-		return &tokens.MintNonFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeTransferNFT:
-		return &tokens.TransferNonFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeUpdateNFT:
-		return &tokens.UpdateNonFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeCreateFungibleTokenType:
-		return &tokens.CreateFungibleTokenTypeAttributes{}, nil
-	case tokens.PayloadTypeMintFungibleToken:
-		return &tokens.MintFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeTransferFungibleToken:
-		return &tokens.TransferFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeSplitFungibleToken:
-		return &tokens.SplitFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeBurnFungibleToken:
-		return &tokens.BurnFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeJoinFungibleToken:
-		return &tokens.JoinFungibleTokenAttributes{}, nil
-	case tokens.PayloadTypeLockToken:
-		return &tokens.LockTokenAttributes{}, nil
-	case tokens.PayloadTypeUnlockToken:
-		return &tokens.UnlockTokenAttributes{}, nil
-	}
-	return nil, fmt.Errorf("unknown payload type %q", payloadType)
-}
+///*
+//PayloadBytes returns txo payload bytes (bytes signed by bearer).
+//This hack is needed until AB-1012 gets resolved.
+//*/
+//func payloadBytes(txo *types.TransactionOrder) ([]byte, error) {
+//	attr, err := attrType(txo.PayloadType())
+//	if err != nil {
+//		return nil, err
+//	}
+//	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
+//		return nil, err
+//	}
+//	buf, err := txo.Payload.BytesWithAttributeSigBytes(attr)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return buf, nil
+//}
+//
+//func attrType(payloadType string) (types.SigBytesProvider, error) {
+//	switch payloadType {
+//	case tokens.PayloadTypeDefineNFT:
+//		return &tokens.DefineNonFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeMintNFT:
+//		return &tokens.MintNonFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeTransferNFT:
+//		return &tokens.TransferNonFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeUpdateNFT:
+//		return &tokens.UpdateNonFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeDefineFT:
+//		return &tokens.DefineFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeMintFT:
+//		return &tokens.MintFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeTransferFT:
+//		return &tokens.TransferFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeSplitFT:
+//		return &tokens.SplitFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeBurnFT:
+//		return &tokens.BurnFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeJoinFT:
+//		return &tokens.JoinFungibleTokenAttributes{}, nil
+//	case tokens.PayloadTypeLockToken:
+//		return &tokens.LockTokenAttributes{}, nil
+//	case tokens.PayloadTypeUnlockToken:
+//		return &tokens.UnlockTokenAttributes{}, nil
+//	}
+//	return nil, fmt.Errorf("unknown payload type %q", payloadType)
+//}

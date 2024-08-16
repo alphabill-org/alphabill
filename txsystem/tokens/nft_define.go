@@ -12,7 +12,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, _ *tokens.DefineNonFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// update state
 	unitID := tx.UnitID()
 	if err := n.state.Apply(
@@ -23,7 +23,7 @@ func (n *NonFungibleTokensModule) executeCreateNFTType(tx *types.TransactionOrde
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrder, attr *tokens.CreateNonFungibleTokenTypeAttributes, exeCtx txtypes.ExecutionContext) error {
+func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, authProof *tokens.DefineNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
@@ -52,12 +52,15 @@ func (n *NonFungibleTokensModule) validateCreateNFTType(tx *types.TransactionOrd
 	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
-
+	sigBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
+		sigBytes,
 		attr.ParentTypeID,
-		attr.SubTypeCreationPredicateSignatures,
+		authProof.SubTypeCreationPredicateSignatures,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.SubTypeCreationPredicate

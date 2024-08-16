@@ -6,7 +6,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
@@ -19,6 +18,7 @@ func NewCloseFC(t *testing.T, signer abcrypto.Signer, attr *fc.CloseFeeCreditAtt
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeCloseFeeCredit),
+		testtransaction.WithAuthProof(fc.CloseFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

@@ -31,6 +31,7 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttribu
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(fc.PayloadTypeAddFeeCredit),
+		testtransaction.WithAuthProof(fc.AddFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))
@@ -54,15 +55,15 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 	if attr.FeeCreditTransferProof == nil {
 		attr.FeeCreditTransferProof = testblock.CreateProof(t, attr.FeeCreditTransfer, signer)
 	}
-	if attr.FeeCreditOwnerCondition == nil {
-		attr.FeeCreditOwnerCondition = NewP2pkhPredicate(t, signer)
+	if attr.FeeCreditOwnerPredicate == nil {
+		attr.FeeCreditOwnerPredicate = NewP2pkhPredicate(t, signer)
 	}
 	return attr
 }
 
-func WithFCOwnerCondition(ownerCondition []byte) AddFeeCreditOption {
+func WithFeeCreditOwnerPredicate(ownerPredicate []byte) AddFeeCreditOption {
 	return func(tx *fc.AddFeeCreditAttributes) AddFeeCreditOption {
-		tx.FeeCreditOwnerCondition = ownerCondition
+		tx.FeeCreditOwnerPredicate = ownerPredicate
 		return nil
 	}
 }

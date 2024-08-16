@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
@@ -37,7 +36,9 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 
 	t.Run("Ok", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10)))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -47,7 +48,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.NoError(t, feeModule.validateCloseFC(tx, &attr, execCtx))
+		require.NoError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx))
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
@@ -59,17 +60,21 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 				Account:   &statedb.Account{Balance: alphaToWei(50)},
 				AlphaBill: &statedb.AlphaBillLink{Counter: 10},
 			}))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithFeeProof([]byte{1}))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -79,22 +84,26 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"invalid fee credit transaction: fee tx cannot contain fee authorization proof")
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase, withStateUnit(address.Bytes(), nil, &testData{}))
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"invalid unit type: not evm object")
 	})
 	t.Run("Invalid amount", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51)))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -104,12 +113,14 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
 	})
 	t.Run("Nil target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10), testfc.WithCloseFCTargetUnitID(nil)))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -119,12 +130,14 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID([]byte{})))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -134,13 +147,15 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}))
-		require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+		authProof := fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+		require.NoError(t, tx.SetAuthProof(authProof))
 		feeModule := newTestFeeModule(t, trustBase,
 			withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 				Address:   address,
@@ -150,7 +165,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		var attr fcsdk.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, execCtx),
+		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"not enough funds: max fee cannot exceed fee credit record balance: tx.maxFee=51 fcr.Balance=50")
 	})
 }
@@ -166,15 +181,17 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	// create existing fee credit record for closeFC
 	attr := testfc.NewCloseFCAttr(testfc.WithCloseFCCounter(10))
 	tx := testfc.NewCloseFC(t, signer, attr, testtransaction.WithUnitID(address.Bytes()))
-	require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	authProof := &fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, tx, signer)}
+	require.NoError(t, tx.SetAuthProof(authProof))
+	//require.NoError(t, tx.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 	feeModule := newTestFeeModule(t, trustBase,
 		withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 			Address:   address,
 			Account:   &statedb.Account{Balance: alphaToWei(50)},
 			AlphaBill: &statedb.AlphaBillLink{Counter: 10},
 		})) // execute closeFC transaction
-	require.NoError(t, feeModule.validateCloseFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
-	sm, err := feeModule.executeCloseFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+	require.NoError(t, feeModule.validateCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+	sm, err := feeModule.executeCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	// verify closeFC updated the FCR.Backlink

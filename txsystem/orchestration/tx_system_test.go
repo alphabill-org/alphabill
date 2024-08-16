@@ -35,7 +35,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	roundNumber := uint64(10)
-	txo := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
+	txo, _ := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: roundNumber + 1}),
 	)
@@ -52,10 +52,6 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
-
-	postCommitUnit, err := s.GetUnit(unitID, true)
-	require.NoError(t, err)
-	require.NotEqual(t, txo.OwnerProof, postCommitUnit.Bearer())
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {

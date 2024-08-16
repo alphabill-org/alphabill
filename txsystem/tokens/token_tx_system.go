@@ -42,7 +42,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	for _, opt := range opts {
 		opt(options)
 	}
-	if options.systemIdentifier == 0 {
+	if options.systemID == 0 {
 		return nil, errors.New(ErrStrInvalidSystemID)
 	}
 	if options.state == nil {
@@ -66,7 +66,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	if len(options.adminKey) > 0 {
 		adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			options.systemIdentifier, options.state, tokens.FeeCreditRecordUnitType, adminOwnerCondition,
+			options.systemID, options.state, tokens.FeeCreditRecordUnitType, adminOwnerCondition,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 		)
 		if err != nil {
@@ -77,8 +77,8 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 			fc.WithState(options.state),
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithTrustBase(options.trustBase),
-			fc.WithSystemIdentifier(options.systemIdentifier),
-			fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
+			fc.WithSystemID(options.systemID),
+			fc.WithMoneySystemID(options.moneySystemID),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)
 		if err != nil {
@@ -86,7 +86,7 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		}
 	}
 	return txsystem.NewGenericTxSystem(
-		options.systemIdentifier,
+		options.systemID,
 		options.trustBase,
 		[]txtypes.Module{nft, fungible, lockTokens},
 		observe,

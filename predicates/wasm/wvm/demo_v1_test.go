@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -20,11 +18,12 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/predicates"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/state"
 	moneyenc "github.com/alphabill-org/alphabill/txsystem/money/encoder"
 	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed testdata/conference_tickets/v1/conf_tickets.wasm
@@ -79,11 +78,14 @@ func Test_conference_tickets_v1(t *testing.T) {
 		}
 		require.NoError(t, txPayment.Payload.SetAttributes(
 			money.TransferAttributes{
-				NewBearer:   templates.NewP2pkh256BytesFromKey(pubKeyOrg),
-				TargetValue: value,
-				Counter:     1,
+				NewOwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKeyOrg),
+				TargetValue:       value,
+				Counter:           1,
 			}))
-		require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
+		require.NoError(t, txPayment.SetAuthProof(
+			money.TransferAuthProof{OwnerProof: testsig.NewOwnerProof(t, txPayment, signerAttendee)}),
+		)
+		//require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
 
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		proof := testblock.CreateProof(t, txRec, signerAttendee, testblock.WithSystemIdentifier(money.DefaultSystemID))
@@ -140,8 +142,8 @@ func Test_conference_tickets_v1(t *testing.T) {
 		}
 		require.NoError(t, txNFTTransfer.Payload.SetAttributes(
 			tokens.TransferNonFungibleTokenAttributes{
-				NewBearer: []byte{5, 5, 5},
-				TypeID:    nftTypeID,
+				NewOwnerPredicate: []byte{5, 5, 5},
+				TypeID:            nftTypeID,
 			}))
 
 		obs := observability.Default(t)
@@ -152,7 +154,9 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		// should eval to "true"
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
+		payloadBytes, err := txNFTTransfer.PayloadBytes()
+		require.NoError(t, err)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 18307, env.GasRemaining)
@@ -161,7 +165,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 		// hackish way to change current round past D1 so now should eval to "false"
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		start = time.Now()
-		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
@@ -180,11 +184,14 @@ func Test_conference_tickets_v1(t *testing.T) {
 		}
 		require.NoError(t, txNFTMint.Payload.SetAttributes(
 			tokens.MintNonFungibleTokenAttributes{
-				Bearer: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
-				TypeID: nftTypeID,
-				Data:   []byte("early-bird"),
+				OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
+				TypeID:         nftTypeID,
+				Data:           []byte("early-bird"),
 			}))
-		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		require.NoError(t, txNFTMint.SetAuthProof(
+			tokens.MintNonFungibleTokenAuthProof{TokenCreationPredicateSignature: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
+		)
+		//require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
 		env := &mockTxContext{
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
@@ -198,7 +205,9 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
+		payloadBytes, err := txNFTMint.PayloadBytes()
+		require.NoError(t, err)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 24077, env.GasRemaining)
@@ -206,7 +215,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
-		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		require.NoError(t, err)
 		require.EqualValues(t, 8183, env.GasRemaining)
 		require.EqualValues(t, 0x01, res)
@@ -224,10 +233,13 @@ func Test_conference_tickets_v1(t *testing.T) {
 		}
 		require.NoError(t, txNFTMint.Payload.SetAttributes(
 			tokens.MintNonFungibleTokenAttributes{
-				Bearer: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
-				Data:   []byte("early-bird"),
+				OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKeyAttendee),
+				Data:           []byte("early-bird"),
 			}))
-		require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
+		require.NoError(t, txNFTMint.SetAuthProof(
+			tokens.MintNonFungibleTokenAuthProof{TokenCreationPredicateSignature: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
+		)
+		//require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
 		env := &mockTxContext{
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
@@ -241,7 +253,9 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
+		payloadBytes, err := txNFTMint.PayloadBytes()
+		require.NoError(t, err)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		t.Logf("took %s", time.Since(start))
 		require.ErrorContains(t, err, "out of gas")
 		require.EqualValues(t, 0, env.GasRemaining)
@@ -255,8 +269,8 @@ func Test_conference_tickets_v1(t *testing.T) {
 				Type:     tokens.PayloadTypeUpdateNFT,
 				UnitID:   tokenID,
 			},
-			OwnerProof: make([]byte, 32),
-			FeeProof:   []byte{1, 2, 3, 4},
+			AuthProof: make([]byte, 32),
+			FeeProof:  []byte{1, 2, 3, 4},
 		}
 		require.NoError(t, txNFTUpdate.Payload.SetAttributes(
 			tokens.UpdateNonFungibleTokenAttributes{
@@ -288,7 +302,9 @@ func Test_conference_tickets_v1(t *testing.T) {
 		// upgrade early-bird to regular so it can be transferred after D2
 		args := predicateArgs(t, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, nftTypeID, txNFTUpdate.Payload.UnitID)))
 		start := time.Now()
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
+		payloadBytes, err := txNFTUpdate.PayloadBytes()
+		require.NoError(t, err)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 9389, env.GasRemaining)

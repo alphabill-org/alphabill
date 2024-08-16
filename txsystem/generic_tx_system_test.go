@@ -130,6 +130,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithSystemID(mockTxSystemID),
 			transaction.WithPayloadType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
+			transaction.WithAuthProof(MockTxAuthProof{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
 				MaxTransactionFee: 1,
@@ -385,6 +386,11 @@ type MockTxAttributes struct {
 	Value uint64
 }
 
+type MockTxAuthProof struct {
+	_          struct{} `cbor:",toarray"`
+	OwnerProof []byte
+}
+
 func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
 	txo := transaction.NewTransactionOrder(t, option...)
 	txBytes, err := types.Cbor.Marshal(txo)
@@ -401,10 +407,11 @@ func NewMockTxModule(wantErr error) *MockModule {
 	return &MockModule{Result: wantErr}
 }
 
-func (mm MockModule) mockValidateTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ txtypes.ExecutionContext) (err error) {
+func (mm MockModule) mockValidateTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (err error) {
 	return mm.ValidateError
 }
-func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+
+func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if mm.Result != nil {
 		return &types.ServerMetadata{SuccessIndicator: types.TxStatusFailed}, mm.Result
 	}

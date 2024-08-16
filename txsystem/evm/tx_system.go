@@ -206,11 +206,6 @@ func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, err
 	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
 }
 
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
-}
-
 func (vc *TxValidationContext) GasAvailable() uint64 {
 	return math.MaxUint64
 }

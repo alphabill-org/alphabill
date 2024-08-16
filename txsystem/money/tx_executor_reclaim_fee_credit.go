@@ -19,7 +19,7 @@ var (
 	ErrReclaimFCInvalidTargetUnitCounter = errors.New("invalid target unit counter")
 )
 
-func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, _ *fc.ReclaimFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 	// calculate actual tx fee cost
 	fee := exeCtx.CalculateCost()
@@ -58,7 +58,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, execCtx txtypes.ExecutionContext) error {
+func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, authProof *fc.ReclaimFeeCreditAuthProof, execCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -94,7 +94,11 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, execCtx); err != nil {
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, execCtx); err != nil {
 		return err
 	}
 	// verify proof

@@ -177,8 +177,8 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 					Attributes:     nil,
 					ClientMetadata: nil,
 				},
-				OwnerProof: nil,
-				FeeProof:   nil,
+				AuthProof: nil,
+				FeeProof:  nil,
 			},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
@@ -227,8 +227,8 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 				Attributes:     nil,
 				ClientMetadata: nil,
 			},
-			OwnerProof: nil,
-			FeeProof:   nil,
+			AuthProof: nil,
+			FeeProof:  nil,
 		},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,

@@ -58,10 +58,10 @@ func Test_PredicateEngines_Add(t *testing.T) {
 }
 
 func Test_PredicateEngines_Execute(t *testing.T) {
-	// tx order is not "actively used" by the tests so could use "nil" parameter
-	// but it is easier to read param list having "txo" there - so alloc once and
+	// sigBytes is not "actively used" by the tests so could use "nil" parameter,
+	// but it is easier to read param list having "sigBytes" there - so alloc once and
 	// share in all tests
-	txo := &types.TransactionOrder{}
+	var sigBytes []byte
 
 	t.Run("predicate binary size", func(t *testing.T) {
 		// must fail before dispatching to engine so OK not to have any
@@ -69,15 +69,15 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		require.NoError(t, err)
 
 		// nil
-		res, err := eng.Execute(context.Background(), nil, nil, txo, nil)
+		res, err := eng.Execute(context.Background(), nil, nil, sigBytes, nil)
 		require.EqualError(t, err, `predicate is empty`)
 		require.False(t, res)
 		// empty slice
-		res, err = eng.Execute(context.Background(), []byte{}, nil, txo, nil)
+		res, err = eng.Execute(context.Background(), []byte{}, nil, sigBytes, nil)
 		require.EqualError(t, err, `predicate is empty`)
 		require.False(t, res)
 		// too big
-		res, err = eng.Execute(context.Background(), make([]byte, MaxPredicateBinSize+1), nil, txo, nil)
+		res, err = eng.Execute(context.Background(), make([]byte, MaxPredicateBinSize+1), nil, sigBytes, nil)
 		require.EqualError(t, err, fmt.Sprintf("predicate is too large, max allowed is %d got %d bytes", MaxPredicateBinSize, MaxPredicateBinSize+1))
 		require.False(t, res)
 	})
@@ -86,7 +86,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher()
 		require.NoError(t, err)
 
-		res, err := eng.Execute(context.Background(), []byte("this ain't valid predicate"), nil, txo, nil)
+		res, err := eng.Execute(context.Background(), []byte("this ain't valid predicate"), nil, sigBytes, nil)
 		require.EqualError(t, err, `decoding predicate: cbor: 5 bytes of extraneous data starting at index 21`)
 		require.False(t, res)
 	})
@@ -99,7 +99,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
-		res, err := eng.Execute(context.Background(), bin, nil, txo, nil)
+		res, err := eng.Execute(context.Background(), bin, nil, sigBytes, nil)
 		require.EqualError(t, err, `unknown predicate engine with id 3`)
 		require.False(t, res)
 	})
@@ -109,7 +109,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 					return false, expErr
 				},
 			},
@@ -120,7 +120,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
-		res, err := eng.Execute(context.Background(), bin, nil, txo, nil)
+		res, err := eng.Execute(context.Background(), bin, nil, sigBytes, nil)
 		require.ErrorIs(t, err, expErr)
 		require.False(t, res)
 	})
@@ -129,7 +129,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 					return false, nil
 				},
 			},
@@ -140,7 +140,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		bin, err := pred.AsBytes()
 		require.NoError(t, err)
 
-		res, err := eng.Execute(context.Background(), bin, nil, txo, nil)
+		res, err := eng.Execute(context.Background(), bin, nil, sigBytes, nil)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
@@ -153,7 +153,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 					require.Equal(t, pred, predicate)
 					return true, nil
 				},
@@ -161,7 +161,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		res, err := eng.Execute(context.Background(), bin, nil, txo, nil)
+		res, err := eng.Execute(context.Background(), bin, nil, sigBytes, nil)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
@@ -171,31 +171,31 @@ func Test_PredicateRunner(t *testing.T) {
 	t.Run("executor returns error", func(t *testing.T) {
 		expErr := errors.New("evaluation failed")
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 				return false, expErr
 			},
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
 		require.ErrorIs(t, err, expErr)
 	})
 
 	t.Run("evals to false", func(t *testing.T) {
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 				return false, nil
 			},
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
 		require.EqualError(t, err, `predicate evaluated to "false"`)
 	})
 
 	t.Run("evals to true", func(t *testing.T) {
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) (bool, error) {
 				require.EqualValues(t, []byte("predicate"), predicate)
 				require.EqualValues(t, []byte("arguments"), args)
 				return true, nil
@@ -203,7 +203,7 @@ func Test_PredicateRunner(t *testing.T) {
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
 		require.NoError(t, err)
 	})
 }
@@ -220,11 +220,11 @@ func Test_Predicate_AsBytes(t *testing.T) {
 
 type mockPredicateEngine struct {
 	id   uint64
-	exec func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	exec func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error)
 }
 
 func (pe mockPredicateEngine) ID() uint64 { return pe.id }
 
-func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
-	return pe.exec(ctx, predicate, args, txo, env)
+func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error) {
+	return pe.exec(ctx, predicate, args, sigBytes, env)
 }

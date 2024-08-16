@@ -17,11 +17,7 @@ func defaultTx() *types.TransactionOrder {
 		UnitID:         test.RandomBytes(33),
 		ClientMetadata: defaultClientMetadata(),
 	}
-
-	return &types.TransactionOrder{
-		Payload:    payload,
-		OwnerProof: nil,
-	}
+	return &types.TransactionOrder{Payload: payload}
 }
 
 func defaultClientMetadata() *types.ClientMetadata {
@@ -51,9 +47,13 @@ func WithPayloadType(t string) Option {
 	}
 }
 
-func WithOwnerProof(ownerProof []byte) Option {
+func WithAuthProof(authProof any) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.OwnerProof = ownerProof
+		authProofCBOR, err := types.Cbor.Marshal(authProof)
+		if err != nil {
+			return err
+		}
+		tx.AuthProof = authProofCBOR
 		return nil
 	}
 }

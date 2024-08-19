@@ -787,7 +787,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	sm, err = txSystem.Execute(lockTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	require.EqualValues(t, 1, sm.ActualFee)
+	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+	require.True(t, sm.ActualFee > 0)
 	remainingValue -= sm.ActualFee
 
 	// verify target got locked

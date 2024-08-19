@@ -34,7 +34,7 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, authProof *money.UnlockAuthProof, _ txtypes.ExecutionContext) error {
+func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, authProof *money.UnlockAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -50,6 +50,12 @@ func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.Unlock
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	// TODO missing auth proof lock/unlock check?
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
+	}
 	return nil
 }

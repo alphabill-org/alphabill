@@ -32,7 +32,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, authProof *money.LockAuthProof, _ txtypes.ExecutionContext) error {
+func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, authProof *money.LockAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -51,6 +51,12 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	// TODO missing lock tx owner proof??
+	payloadBytes, err := tx.PayloadBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload bytes: %w", err)
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
+	}
 	return nil
 }

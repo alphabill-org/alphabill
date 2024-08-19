@@ -68,6 +68,13 @@ func TestModule_validateLockTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
+	t.Run("invalid owner", func(t *testing.T) {
+		unitID := money.NewBillID(nil, []byte{1, 2, 3})
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: 10}))
+		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
+		exeCtx := testctx.NewMockExecutionContext(t)
+		require.ErrorContains(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "evaluating owner predicate")
+	})
 }
 
 func TestModule_executeLockTx(t *testing.T) {

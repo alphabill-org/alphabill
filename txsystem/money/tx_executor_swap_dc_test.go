@@ -131,7 +131,6 @@ func TestModule_executeSwapTx(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	authProof := &money.SwapDCAuthProof{OwnerProof: nil} // TODO??
 	swapTx, swapAttr, authProof := newSwapDC(t, signer)
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: targetBillValue, T: 0, Counter: 0}),

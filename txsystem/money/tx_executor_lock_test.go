@@ -53,9 +53,7 @@ func TestModule_validateLockTx(t *testing.T) {
 			LockStatus: 0,
 			Counter:    0,
 		}
-		rawBytes, err := types.Cbor.Marshal(lockTxAttr)
-		require.NoError(t, err)
-		lockTx.Payload.Attributes = rawBytes
+		require.NoError(t, lockTx.Payload.SetAttributes(lockTxAttr))
 		authProof := &money.LockAuthProof{}
 		require.NoError(t, lockTx.SetAuthProof(authProof))
 		exeCtx := testctx.NewMockExecutionContext(t)

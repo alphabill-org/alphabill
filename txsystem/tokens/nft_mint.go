@@ -68,6 +68,10 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	if tokenType == nil {
 		return fmt.Errorf("nft type does not exist: %s", tokenTypeID)
 	}
+	tokenTypeData, ok := tokenType.Data().(*tokens.NonFungibleTokenTypeData)
+	if !ok {
+		return fmt.Errorf("token type data is not of type *tokens.NonFungibleTokenTypeData")
+	}
 
 	// verify token id is correctly generated
 	unitPart, err := tokens.HashForNewTokenID(tx, n.hashAlgorithm)
@@ -84,8 +88,8 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	if err != nil {
 		return fmt.Errorf("failed to extract tx payload bytes: %w", err)
 	}
-	if err := n.execPredicate(tokenType.Owner(), authProof.TokenCreationPredicateSignature, sigBytes, exeCtx); err != nil {
-		return fmt.Errorf(`executing NFT type's "TokenCreationPredicate": %w`, err)
+	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, sigBytes, exeCtx); err != nil {
+		return fmt.Errorf(`executing NFT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil
 }

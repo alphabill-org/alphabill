@@ -40,7 +40,7 @@ var (
 	nftUnitID                = tokens.NewNonFungibleTokenID(nil, []byte{1})
 	symbol                   = "TEST"
 	subTypeCreationPredicate = []byte{4}
-	tokenCreationPredicate   = []byte{5}
+	tokenMintingPredicate    = []byte{5}
 	tokenTypeOwnerPredicate  = []byte{6}
 	dataUpdatePredicate      = []byte{7}
 	updatedData              = []byte{0, 12}
@@ -67,7 +67,7 @@ func TestExecuteDefineNFT_WithoutParentID(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
-			TokenCreationPredicate:   tokenCreationPredicate,
+			TokenMintingPredicate:    tokenMintingPredicate,
 			TokenTypeOwnerPredicate:  tokenTypeOwnerPredicate,
 			DataUpdatePredicate:      dataUpdatePredicate,
 			ParentTypeID:             nil,
@@ -91,7 +91,7 @@ func TestExecuteDefineNFT_WithoutParentID(t *testing.T) {
 	require.Equal(t, symbol, d.Symbol)
 	require.Nil(t, d.ParentTypeID)
 	require.Equal(t, subTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, tokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, tokenMintingPredicate, d.TokenMintingPredicate)
 	require.Equal(t, tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, dataUpdatePredicate, d.DataUpdatePredicate)
 }
@@ -151,7 +151,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	// only parent2 can create subtypes from parent1
 	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(parent2PubKey))
 
-	// parent2 and child together can create a sub-type because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
+	// parent2 and child together can create a subtype because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
 	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(childPublicKey))
 
 	txs, _ := newTokenTxSystem(t)
@@ -571,6 +571,10 @@ func TestExecuteDefineNFT_InvalidIconDataLength(t *testing.T) {
 }
 
 func TestMintNFT_Ok(t *testing.T) {
+	mintingSigner, mintingVerifier := testsig.CreateSignerAndVerifier(t)
+	mintingPublicKey, err := mintingVerifier.MarshalPublicKey()
+	require.NoError(t, err)
+
 	txs, _ := newTokenTxSystem(t)
 	tx := testtransaction.NewTransactionOrder(
 		t,
@@ -580,7 +584,7 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.NewP2pkh256BytesFromKey(mintingPublicKey),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 			ParentTypeID:             nil,
@@ -609,12 +613,16 @@ func TestMintNFT_Ok(t *testing.T) {
 			Data:                []byte{10},
 			DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		}),
-		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{TokenCreationPredicateSignature: templates.EmptyArgument()}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
 	newTokenID := newNonFungibleTokenID(t, tx)
 	tx.Payload.UnitID = newTokenID
+
+	// set minting predicate
+	ownerProof := testsig.NewOwnerProof(t, tx, mintingSigner)
+	authProof := tokens.MintNonFungibleTokenAuthProof{TokenMintingPredicateSignature: ownerProof}
+	require.NoError(t, tx.SetAuthProof(authProof))
 
 	sm, err = txs.Execute(tx)
 	require.NoError(t, err)
@@ -689,7 +697,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 			ParentTypeID:             nil,
@@ -715,7 +723,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 			Data:                []byte{10},
 			DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		}),
-		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{TokenCreationPredicateSignature: templates.EmptyArgument()}),
+		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{TokenMintingPredicateSignature: templates.EmptyArgument()}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
@@ -836,7 +844,7 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 			TypeID: typeID,
 		}),
 		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{
-			TokenCreationPredicateSignature: []byte{0}},
+			TokenMintingPredicateSignature: []byte{0}},
 		),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
@@ -886,7 +894,7 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
-			TokenCreationPredicate:   tokenCreationPredicate,
+			TokenMintingPredicate:    tokenMintingPredicate,
 			TokenTypeOwnerPredicate:  tokenTypeOwnerPredicate,
 			DataUpdatePredicate:      dataUpdatePredicate,
 			ParentTypeID:             nil,
@@ -1316,7 +1324,7 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
-			TokenCreationPredicate:   tokenCreationPredicate,
+			TokenMintingPredicate:    tokenMintingPredicate,
 			TokenTypeOwnerPredicate:  tokenTypeOwnerPredicate,
 			DataUpdatePredicate:      dataUpdatePredicate,
 			ParentTypeID:             nil,
@@ -1442,7 +1450,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 			ParentTypeID:             nil,
@@ -1477,7 +1485,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 			DataUpdatePredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 		}),
 		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{
-			TokenCreationPredicateSignature: templates.EmptyArgument()},
+			TokenMintingPredicateSignature: templates.EmptyArgument()},
 		),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,
@@ -1622,7 +1630,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeI
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 			ParentTypeID:             nil,
@@ -1656,7 +1664,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeI
 			Data:                []byte{10},
 			DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		}),
-		testtransaction.WithAuthProof(tokens.MintNonFungibleTokenAuthProof{TokenCreationPredicateSignature: templates.EmptyArgument()}),
+		testtransaction.WithAuthProof(tokens.MintNonFungibleTokenAuthProof{TokenMintingPredicateSignature: templates.EmptyArgument()}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,
 			MaxTransactionFee: 10,

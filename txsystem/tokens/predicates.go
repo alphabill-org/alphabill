@@ -19,7 +19,7 @@ Parameters:
     passed on as argument to the exec callback;
   - "parentID": ID of the first unit in the chain, typically token's type ID;
   - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the
-    TokenCreationPredicateSignatures field of the mint tx;
+    TokenMintingPredicateSignatures field of the mint tx;
   - "exec": function which evaluates the predicate;
   - "iter": function which returns "parent ID" and predicate for given unit (the "chain iterator");
   - "getUnit": function which returns unit with given ID;

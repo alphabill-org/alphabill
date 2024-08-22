@@ -201,7 +201,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: templates.AlwaysFalseBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
 	unitID := tokens.NewFungibleTokenTypeID(nil, []byte{7})
@@ -231,7 +231,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, attributes.DecimalPlaces, d.DecimalPlaces)
 	require.Equal(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, attributes.TokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, attributes.TokenMintingPredicate, d.TokenMintingPredicate)
 	require.Equal(t, attributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Nil(t, d.ParentTypeID)
 }
@@ -246,7 +246,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysFalseBytes(),
+		TokenMintingPredicate:    templates.AlwaysFalseBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
 	parentID := tokens.NewFungibleTokenTypeID(nil, []byte{19})
@@ -260,7 +260,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		ParentTypeID:             parentID,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: templates.AlwaysFalseBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
 	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationPredicateSignatures: [][]byte{templates.EmptyArgument()}}))
@@ -289,7 +289,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, childAttributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, childAttributes.DecimalPlaces, d.DecimalPlaces)
 	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, childAttributes.TokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, childAttributes.TokenMintingPredicate, d.TokenMintingPredicate)
 	require.Equal(t, childAttributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, parentID, d.ParentTypeID)
 }
@@ -302,7 +302,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
-		TokenCreationPredicate:   templates.AlwaysFalseBytes(),
+		TokenMintingPredicate:    templates.AlwaysFalseBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
 	parentID := tokens.NewFungibleTokenTypeID(nil, []byte{19})
@@ -314,7 +314,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 		ParentTypeID:             parentID,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: templates.AlwaysFalseBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
 	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationPredicateSignatures: [][]byte{[]byte("invalid")}}))
@@ -400,7 +400,6 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 				TypeID:         nonExistingTokenTypeID,
 				Value:          1000,
-				//TokenCreationPredicateSignatures: [][]byte{nil},
 			},
 			authProof:  &tokens.MintFungibleTokenAuthProof{},
 			wantErrStr: "token type does not exist",
@@ -1148,7 +1147,7 @@ func initState(t *testing.T) *state.State {
 		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
@@ -1159,7 +1158,7 @@ func initState(t *testing.T) *state.State {
 		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)

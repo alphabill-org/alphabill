@@ -142,7 +142,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))

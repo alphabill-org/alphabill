@@ -250,7 +250,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
@@ -277,7 +277,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))

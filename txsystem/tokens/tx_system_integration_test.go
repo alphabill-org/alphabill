@@ -54,7 +54,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 			Icon:                     &tokens.Icon{Type: validIconType, Data: []byte{3, 2, 1}},
 			ParentTypeID:             nil,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}),
@@ -109,7 +109,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Icon:                     &tokens.Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 				ParentTypeID:             nil,
 				SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-				TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+				TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 				TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			},
 		),
@@ -122,7 +122,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err, "token create type tx failed")
 	require.NoError(t, types.VerifyTxProof(txProof, txRecord, trustBase, hashAlgorithm))
 	RequireFungibleTokenTypeState(t, state0, fungibleTokenTypeUnitData{
-		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		tokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
 		tokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		unitID:                   fungibleTokenTypeID,
@@ -387,11 +387,11 @@ type fungibleTokenUnitData struct {
 }
 
 type fungibleTokenTypeUnitData struct {
-	parentID, unitID, bearer                                                  []byte
-	symbol, name                                                              string
-	icon                                                                      *tokens.Icon
-	decimalPlaces                                                             uint32
-	tokenCreationPredicate, subTypeCreationPredicate, tokenTypeOwnerPredicate []byte
+	parentID, unitID, bearer                                                 []byte
+	symbol, name                                                             string
+	icon                                                                     *tokens.Icon
+	decimalPlaces                                                            uint32
+	tokenMintingPredicate, subTypeCreationPredicate, tokenTypeOwnerPredicate []byte
 }
 
 func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleTokenTypeUnitData) {
@@ -402,7 +402,7 @@ func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleToken
 	require.Equal(t, e.bearer, []byte(u.Owner()))
 	require.IsType(t, &tokens.FungibleTokenTypeData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenTypeData)
-	require.Equal(t, e.tokenCreationPredicate, d.TokenCreationPredicate)
+	require.Equal(t, e.tokenMintingPredicate, d.TokenMintingPredicate)
 	require.Equal(t, e.subTypeCreationPredicate, d.SubTypeCreationPredicate)
 	require.Equal(t, e.tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, e.symbol, d.Symbol)

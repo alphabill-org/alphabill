@@ -113,7 +113,7 @@ func TestRunTokensNode(t *testing.T) {
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}

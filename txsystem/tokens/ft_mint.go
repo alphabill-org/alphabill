@@ -54,6 +54,10 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	if tokenType == nil {
 		return fmt.Errorf("token type does not exist: %s", tokenTypeID)
 	}
+	tokenTypeData, ok := tokenType.Data().(*tokens.FungibleTokenTypeData)
+	if !ok {
+		return fmt.Errorf("token type data is not of type *tokens.FungibleTokenTypeData")
+	}
 
 	// verify new token has non-zero value
 	if attr.Value == 0 {
@@ -75,8 +79,8 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
-	if err := m.execPredicate(tokenType.Owner(), authProof.TokenCreationPredicateSignature, payloadBytes, exeCtx); err != nil {
-		return fmt.Errorf(`executing NFT type's "TokenCreationPredicate": %w`, err)
+	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, payloadBytes, exeCtx); err != nil {
+		return fmt.Errorf(`executing FT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil
 }

@@ -25,7 +25,7 @@ func SignBytes(t *testing.T, sigData []byte) ([]byte, []byte) {
 	return sig, pubKey
 }
 
-// NewOwnerProof creates P2PKH-transaction predicate signature aka the "OwnerProof"
+// NewOwnerProof creates a P2PKH predicate signature aka the "OwnerProof"
 func NewOwnerProof(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
 	sigBytes, err := txo.PayloadBytes()
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func NewOwnerProof(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Si
 	return templates.NewP2pkh256SignatureBytes(signedBytes, publicKey)
 }
 
-// NewFeeProof creates P2PKH-transaction fee predicate signature aka the "FeeProof"
+// NewFeeProof creates a P2PKH fee predicate signature aka the "FeeProof"
 func NewFeeProof(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
 	sigBytes, err := txo.FeeProofSigBytes()
 	require.NoError(t, err)

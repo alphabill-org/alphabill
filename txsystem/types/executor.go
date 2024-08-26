@@ -65,7 +65,7 @@ func (t *TxHandler[T, T1]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr a
 	}
 	txAuthProof, ok := authProof.(*T1)
 	if !ok {
-		return nil, fmt.Errorf("incorrect auth proof type: %T for tx order %s", attr, txo.PayloadType())
+		return nil, fmt.Errorf("incorrect auth proof type: %T for tx order %s", authProof, txo.PayloadType())
 	}
 	return t.Execute(txo, txAttr, txAuthProof, exeCtx)
 }

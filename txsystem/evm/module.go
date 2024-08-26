@@ -45,16 +45,8 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		if ctx.Tx.SystemID() != ctx.SystemIdentifier {
 			return txsystem.ErrInvalidSystemIdentifier
 		}
-
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {
 			return txsystem.ErrTransactionExpired
-		}
-
-		if ctx.Unit != nil {
-			// TODO move owner proof verification to transaction specific verification
-			//if err := m.execPredicate(ctx.Unit.Owner(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
-			//	return fmt.Errorf("evaluating owner predicate: %w", err)
-			//}
 		}
 		return nil
 	}

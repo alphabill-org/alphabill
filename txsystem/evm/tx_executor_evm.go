@@ -43,7 +43,7 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, authProof, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
-func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ *evmsdk.TxAuthProof, _ txtypes.ExecutionContext) error {
+func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, authProof *evmsdk.TxAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}
@@ -52,6 +52,16 @@ func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribu
 	}
 	if attr.Value.Sign() < 0 {
 		return fmt.Errorf("invalid evm tx, value is negative")
+	}
+	unit, _ := exeCtx.GetUnit(tx.UnitID(), false)
+	if unit != nil {
+		payloadBytes, err := tx.PayloadBytes()
+		if err != nil {
+			return fmt.Errorf("failed to marshal payload bytes: %w", err)
+		}
+		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+			return fmt.Errorf("evaluating owner predicate: %w", err)
+		}
 	}
 	return nil
 }

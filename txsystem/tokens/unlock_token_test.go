@@ -24,10 +24,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	// create unlock tx
-	unlockAttr := &tokens.UnlockTokenAttributes{
-		Counter: 0,
-		//InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-	}
+	unlockAttr := &tokens.UnlockTokenAttributes{Counter: 0}
 	unlockTx := createTxo(t, existingLockedTokenID, tokens.PayloadTypeUnlockToken, unlockAttr)
 	roundNo := uint64(11)
 	sm, err := txExecutors.ValidateAndExecute(unlockTx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
@@ -88,7 +85,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 				existingLockedTokenID,
 				tokens.PayloadTypeUnlockToken,
 				&tokens.UnlockTokenAttributes{Counter: 0},
-				testtransaction.WithAuthProof(tokens.UnlockTokenAuthProof{OwnerPredicateSignature: templates.AlwaysFalseBytes()}),
+				testtransaction.WithAuthProof(tokens.UnlockTokenAuthProof{OwnerProof: templates.AlwaysFalseBytes()}),
 			),
 			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},
@@ -199,7 +196,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 				existingLockedNFTUnitID,
 				tokens.PayloadTypeUnlockToken,
 				&tokens.UnlockTokenAttributes{Counter: 0},
-				testtransaction.WithAuthProof(tokens.UnlockTokenAuthProof{OwnerPredicateSignature: templates.AlwaysFalseBytes()}),
+				testtransaction.WithAuthProof(tokens.UnlockTokenAuthProof{OwnerProof: templates.AlwaysFalseBytes()}),
 			),
 			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},

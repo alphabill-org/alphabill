@@ -233,7 +233,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
 		//require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
-		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTTransfer, signerOrg)}))
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewOwnerProof(t, txNFTTransfer, signerOrg)}))
 		sigBytes, err := txNFTTransfer.PayloadBytes()
 		require.NoError(t, err)
 
@@ -246,7 +246,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
 		// returns "false" without any further work (ie checking for money transfer).
-		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTTransfer, signerAttendee)}))
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewOwnerProof(t, txNFTTransfer, signerAttendee)}))
 		sigBytes, err = txNFTTransfer.PayloadBytes()
 		require.NoError(t, err)
 		//require.NoError(t, txNFTTransfer.SetOwnerProof(predicates.OwnerProofer(signerAttendee, pubKeyAttendee)))
@@ -317,7 +317,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// should evaluate to true without requiring any proofs for money transfer etc
 		//require.NoError(t, txNFTUpdate.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 		require.NoError(t, txNFTUpdate.SetAuthProof(
-			&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txNFTUpdate, signerOrg)}),
+			&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewOwnerProof(t, txNFTUpdate, signerOrg)}),
 		)
 		sigBytes, err := txNFTUpdate.PayloadBytes()
 		require.NoError(t, err)
@@ -386,7 +386,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 		}))
 	//require.NoError(t, txPayment.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
 	require.NoError(t, txPayment.SetAuthProof(
-		&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: testsig.NewOwnerProof(t, txPayment, signer)}),
+		&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewOwnerProof(t, txPayment, signer)}),
 	)
 
 	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}

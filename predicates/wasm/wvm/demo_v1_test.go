@@ -189,7 +189,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 				Data:           []byte("early-bird"),
 			}))
 		require.NoError(t, txNFTMint.SetAuthProof(
-			tokens.MintNonFungibleTokenAuthProof{TokenMintingPredicateSignature: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
+			tokens.MintNonFungibleTokenAuthProof{TokenMintingProof: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
 		)
 		//require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 
@@ -237,7 +237,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 				Data:           []byte("early-bird"),
 			}))
 		require.NoError(t, txNFTMint.SetAuthProof(
-			tokens.MintNonFungibleTokenAuthProof{TokenMintingPredicateSignature: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
+			tokens.MintNonFungibleTokenAuthProof{TokenMintingProof: testsig.NewOwnerProof(t, txNFTMint, signerOrg)}),
 		)
 		//require.NoError(t, txNFTMint.SetOwnerProof(predicates.OwnerProofer(signerOrg, pubKeyOrg)))
 

@@ -60,7 +60,7 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
-	err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, payloadBytes, exeCtx)
+	err = m.execPredicate(ownerPredicate, authProof.OwnerProof, payloadBytes, exeCtx)
 	if err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
@@ -68,7 +68,7 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		exeCtx,
 		payloadBytes,
 		tokenData.TokenType,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

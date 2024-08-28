@@ -88,7 +88,7 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	if err != nil {
 		return fmt.Errorf("failed to extract tx payload bytes: %w", err)
 	}
-	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, sigBytes, exeCtx); err != nil {
+	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, sigBytes, exeCtx); err != nil {
 		return fmt.Errorf(`executing NFT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

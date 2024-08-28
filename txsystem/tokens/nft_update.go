@@ -56,14 +56,14 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
-	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdatePredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdateProof, payloadBytes, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		payloadBytes,
 		data.TypeID,
-		authProof.TokenTypeDataUpdatePredicateSignatures,
+		authProof.TokenTypeDataUpdateProofs,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.DataUpdatePredicate

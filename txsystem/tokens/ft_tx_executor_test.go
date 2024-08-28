@@ -263,7 +263,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
-	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationPredicateSignatures: [][]byte{templates.EmptyArgument()}}))
+	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{templates.EmptyArgument()}}))
 
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, parentID, d.ParentTypeID)
 }
 
-func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSignature(t *testing.T) {
+func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationProof(t *testing.T) {
 	opts := defaultOpts(t)
 
 	parentAttributes := &tokens.DefineFungibleTokenAttributes{
@@ -317,7 +317,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
-	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationPredicateSignatures: [][]byte{[]byte("invalid")}}))
+	childTx := createTxo(t, childID, tokens.PayloadTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{[]byte("invalid")}}))
 	m, err := NewFungibleTokensModule(opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
@@ -578,7 +578,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 		Counter:           0,
 	}
 	authProof := &tokens.TransferFungibleTokenAuthProof{
-		TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()},
+		TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()},
 	}
 	uID := existingTokenID
 	tx := createTxo(t, uID, tokens.PayloadTypeTransferFT, transferAttributes, testtransaction.WithAuthProof(authProof))
@@ -764,7 +764,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 		Nonce:             test.RandomBytes(32),
 		Counter:           0,
 	}
-	authProof := &tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}}
+	authProof := &tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 	uID := existingTokenID
 	tx := createTxo(t, uID, tokens.PayloadTypeSplitFT, attr, testtransaction.WithAuthProof(authProof))
 	var roundNo uint64 = 10
@@ -899,7 +899,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	}
-	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}}
+	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 	uID := existingTokenID
 	tx := createTxo(t, uID, tokens.PayloadTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
@@ -948,7 +948,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	}
-	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}}
+	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 	burnTx := createTxr(t, existingTokenID, tokens.PayloadTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
 	sm, err := txExecutors.ValidateAndExecute(burnTx.TransactionOrder, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
@@ -961,7 +961,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		Proofs:           []*types.TxProof{burnTxProof},
 		Counter:          0,
 	}
-	burnAuthProof := testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}})
+	burnAuthProof := testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}})
 	joinTx := createTxo(t, existingLockedTokenID, tokens.PayloadTypeJoinFT, joinAttr, burnAuthProof)
 
 	sm, err = txExecutors.ValidateAndExecute(joinTx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
@@ -1023,7 +1023,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	// create block with 3 burn txs
 	var burnTxs []*types.TransactionRecord
 	for i := uint8(3); i >= 1; i-- {
-		burnAuthProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}}
+		burnAuthProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 		burnTx := createTxr(t, tokens.NewFungibleTokenID(nil, []byte{i}), tokens.PayloadTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 			TypeID:             existingTokenTypeID,
 			Value:              existingTokenValue,
@@ -1066,7 +1066,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: burnTxs,
 				Proofs:           proofs,
 				Counter:          0,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "burn tx orders are not listed in strictly increasing order of token identifiers",
 		},
 		{
@@ -1075,7 +1075,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: []*types.TransactionRecord{burnTxInvalidTargetTokenID},
 				Proofs:           []*types.TxProof{proofInvalidTargetTokenID},
 				Counter:          0,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "burn tx target token id does not match with join transaction unit id",
 		},
 		{
@@ -1084,7 +1084,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: []*types.TransactionRecord{burnTxInvalidTargetTokenCounter},
 				Proofs:           []*types.TxProof{proofInvalidTargetTokenCounter},
 				Counter:          1,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "burn tx target token counter does not match with join transaction counter",
 		},
 		{
@@ -1093,7 +1093,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: []*types.TransactionRecord{burnTx2},
 				Proofs:           []*types.TxProof{proofInvalidTargetTokenID},
 				Counter:          0,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "the type of the burned source token does not match the type of target token",
 		},
 		{
@@ -1102,7 +1102,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: []*types.TransactionRecord{burnTx1},
 				Proofs:           []*types.TxProof{proofBurnTx2},
 				Counter:          0,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "proof is not valid",
 		},
 		{
@@ -1111,7 +1111,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				BurnTransactions: []*types.TransactionRecord{burnTx3},
 				Proofs:           []*types.TxProof{proofBurnTx3},
 				Counter:          0,
-			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()}})),
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "invalid sum of tokens: uint64 overflow",
 		},
 	}

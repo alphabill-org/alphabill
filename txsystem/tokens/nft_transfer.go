@@ -58,14 +58,14 @@ func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
-	if err = n.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		payloadBytes,
 		tokenTypeID,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

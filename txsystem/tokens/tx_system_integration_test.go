@@ -178,7 +178,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:           0,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
@@ -218,7 +218,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:           1,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
@@ -257,7 +257,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:           2,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.TransferFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.TransferFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
@@ -287,7 +287,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:            0,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
@@ -309,7 +309,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:            0,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
@@ -349,7 +349,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Counter:          3,
 			},
 		),
-		testtransaction.WithAuthProof(&tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerPredicateSignatures: [][]byte{nil}}),
+		testtransaction.WithAuthProof(&tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)

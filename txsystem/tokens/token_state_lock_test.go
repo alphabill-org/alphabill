@@ -36,7 +36,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(tokens.TransferNonFungibleTokenAuthProof{
-			TokenTypeOwnerPredicateSignatures: [][]byte{templates.EmptyArgument()}},
+			TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}},
 		),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
@@ -91,7 +91,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
 		testtransaction.WithAuthProof(
-			tokens.UpdateNonFungibleTokenAuthProof{TokenTypeDataUpdatePredicateSignatures: [][]byte{templates.EmptyArgument()}},
+			tokens.UpdateNonFungibleTokenAuthProof{TokenTypeDataUpdateProofs: [][]byte{templates.EmptyArgument()}},
 		),
 	)
 

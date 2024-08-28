@@ -98,14 +98,14 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		payloadBytes,
 		tokenData.TokenType,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

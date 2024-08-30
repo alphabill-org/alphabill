@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -56,14 +55,6 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	hasher.Write(tx.UnitID())
-	hasher.Write(tx.Payload.Attributes)
-	tx.Payload.ClientMetadata.AddToHasher(hasher)
-	return hasher.Sum(nil)
-}
-
 func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
@@ -75,18 +66,9 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	if attr.TargetValue == 0 {
 		return errors.New("when splitting a token the value assigned to the new token must be greater than zero")
 	}
-	if attr.RemainingValue == 0 {
-		return errors.New("when splitting a token the remaining value of the token must be greater than zero")
+	if attr.TargetValue >= tokenData.Value {
+		return fmt.Errorf("the target value must be less than the value of the source token: targetValue=%d tokenValue=%d", attr.TargetValue, tokenData.Value)
 	}
-
-	if tokenData.Value < attr.TargetValue {
-		return fmt.Errorf("invalid token value: max allowed %d, got %d", tokenData.Value, attr.TargetValue)
-	}
-	remainingValue := tokenData.Value - attr.TargetValue
-	if remainingValue != attr.RemainingValue {
-		return errors.New("remaining value must equal to the original value minus target value")
-	}
-
 	if tokenData.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}

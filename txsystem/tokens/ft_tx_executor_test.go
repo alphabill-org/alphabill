@@ -437,7 +437,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	attributes := &tokens.MintFungibleTokenAttributes{
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		TypeID:         existingTokenTypeID,
-		Value:          1000,
+		Value:          existingTokenValue,
 	}
 	tx := createTxo(t, nil, tokens.PayloadTypeMintFT, attributes)
 	tx.Payload.UnitID = newFungibleTokenID(t, tx)
@@ -500,7 +500,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				Value:             existingTokenValue,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
@@ -512,7 +511,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				Value:             existingTokenValue - 1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
@@ -524,7 +522,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.TransferFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				Value:             existingTokenValue,
-				Nonce:             test.RandomBytes(32),
 				Counter:           1,
 			},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
@@ -537,7 +534,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 				TypeID:            nil,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				Value:             existingTokenValue,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
@@ -550,7 +546,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 				TypeID:            existingTokenTypeID2,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				Value:             existingTokenValue,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
@@ -574,7 +569,6 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 		TypeID:            existingTokenTypeID,
 		NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 		Value:             existingTokenValue,
-		Nonce:             test.RandomBytes(32),
 		Counter:           0,
 	}
 	authProof := &tokens.TransferFungibleTokenAuthProof{
@@ -638,52 +632,33 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
 			wantErrStr: "token is locked",
 		},
 		{
-			name: "invalid target value - exceeds the max value",
+			name: "target value exceeds token value",
 			tx:   createTxo(t, existingTokenID, tokens.PayloadTypeSplitFT, nil),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue + 1,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: fmt.Sprintf("invalid token value: max allowed %v, got %v", existingTokenValue, existingTokenValue+1),
+			wantErrStr: fmt.Sprintf("the target value must be less than the value of the source token: targetValue=1001 tokenValue=1000"),
 		},
 		{
-			name: "invalid value: target + remainder < original value",
-			tx:   createTxo(t, existingTokenID, tokens.PayloadTypeSplitFT, nil),
-			attr: &tokens.SplitFungibleTokenAttributes{
-				NewOwnerPredicate: templates.AlwaysTrueBytes(),
-				TargetValue:       existingTokenValue - 2,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
-				Counter:           0,
-			},
-			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: `remaining value must equal to the original value minus target value`,
-		},
-		{
-			name: "invalid value - remaining value is zero",
+			name: "target value equals token value",
 			tx:   createTxo(t, existingTokenID, tokens.PayloadTypeSplitFT, nil),
 			attr: &tokens.SplitFungibleTokenAttributes{
 				TypeID:            existingTokenTypeID,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue,
-				RemainingValue:    0,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: `when splitting a token the remaining value of the token must be greater than zero`,
+			wantErrStr: `the target value must be less than the value of the source token: targetValue=1000 tokenValue=1000`,
 		},
 		{
 			name: "invalid value - target value is zero",
@@ -691,9 +666,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.SplitFungibleTokenAttributes{
 				TypeID:            existingTokenTypeID,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
-				RemainingValue:    existingTokenValue,
 				TargetValue:       0,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
@@ -705,8 +678,6 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			attr: &tokens.SplitFungibleTokenAttributes{
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue - 1,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           1,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
@@ -719,8 +690,6 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 				TypeID:            nil,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue - 1,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
@@ -733,8 +702,6 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 				TypeID:            existingTokenTypeID2,
 				NewOwnerPredicate: templates.AlwaysTrueBytes(),
 				TargetValue:       existingTokenValue - 1,
-				RemainingValue:    1,
-				Nonce:             test.RandomBytes(32),
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
@@ -760,8 +727,6 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 		TypeID:            existingTokenTypeID,
 		NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 		TargetValue:       existingTokenValue - remainingBillValue,
-		RemainingValue:    remainingBillValue,
-		Nonce:             test.RandomBytes(32),
 		Counter:           0,
 	}
 	authProof := &tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}

@@ -71,10 +71,7 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
-	if len(attr.Nonce) != 0 {
-		buf.EncodeTagged(2, attr.Nonce)
-	}
-	buf.EncodeTagged(3, attr.Counter)
+	buf.EncodeTagged(2, attr.Counter)
 	return buf.Bytes()
 }
 
@@ -123,8 +120,7 @@ func txaTransferFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32)
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
 	buf.EncodeTagged(2, attr.Value)
-	buf.EncodeTagged(3, attr.Nonce)
-	buf.EncodeTagged(4, attr.Counter)
+	buf.EncodeTagged(3, attr.Counter)
 	return buf.Bytes()
 }
 
@@ -135,10 +131,8 @@ func txaSplitFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
-	buf.EncodeTagged(2, attr.RemainingValue)
-	buf.EncodeTagged(3, attr.Nonce)
-	buf.EncodeTagged(4, attr.Counter)
-	buf.EncodeTagged(5, attr.TargetValue)
+	buf.EncodeTagged(2, attr.Counter)
+	buf.EncodeTagged(3, attr.TargetValue)
 	return buf.Bytes()
 }
 

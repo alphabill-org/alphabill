@@ -1,4 +1,4 @@
-package allocator
+package bumpallocator
 
 import (
 	"fmt"
@@ -49,7 +49,7 @@ func Test_align(t *testing.T) {
 
 func TestAllocate(t *testing.T) {
 	mem := NewMemoryMock(t, 1)
-	allocator := NewBumpAllocator(0, mem.Definition())
+	allocator := New(0, mem.Definition())
 	require.EqualValues(t, 0, allocator.HeapBase())
 	ptr1, err := allocator.Alloc(mem, 1)
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestAllocate(t *testing.T) {
 
 func TestMemoryArenaChange(t *testing.T) {
 	mem := NewMemoryMock(t, 1)
-	allocator := NewBumpAllocator(8, mem.Definition())
+	allocator := New(8, mem.Definition())
 	require.EqualValues(t, 8, allocator.HeapBase())
 	// start allocating from the end of stack space
 	require.EqualValues(t, allocator.freePtr, allocator.HeapBase())
@@ -109,7 +109,7 @@ func TestMemoryArenaChange(t *testing.T) {
 func TestAllocateOverLimit(t *testing.T) {
 	const pageLimit = 4
 	mem := NewMemoryMockWithLimit(t, 1, pageLimit)
-	allocator := NewBumpAllocator(8, mem.Definition())
+	allocator := New(8, mem.Definition())
 	// allocate 1024 Kb
 	ptr, err := allocator.Alloc(mem, 1024)
 	require.NoError(t, err)
@@ -133,6 +133,7 @@ func TestAllocateOverLimit(t *testing.T) {
 	// can allocate 1Kb - we would need 5 pages, but max is set to 4 so this will fail
 	ptr, err = allocator.Alloc(mem, 1024)
 	require.NoError(t, err)
+	require.NotZero(t, ptr)
 	ptr, err = allocator.Alloc(mem, WasmPageSize)
 	require.EqualError(t, err, "linear memory grow error: from 4 pages to 5 pages")
 	require.EqualValues(t, 0, ptr)
@@ -140,7 +141,7 @@ func TestAllocateOverLimit(t *testing.T) {
 
 func TestReadWrite(t *testing.T) {
 	mem := NewMemoryMock(t, 1)
-	allocator := NewBumpAllocator(8, mem.Definition())
+	allocator := New(8, mem.Definition())
 	// allocate 1024 Kb
 	ptr, err := allocator.Alloc(mem, 8)
 	require.NoError(t, err)

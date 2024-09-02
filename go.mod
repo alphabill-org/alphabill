@@ -34,7 +34,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.4
-	github.com/tetratelabs/wazero v1.6.0
+	github.com/tetratelabs/wazero v1.8.0
 	go.etcd.io/bbolt v1.3.8
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.21.0

@@ -1,4 +1,4 @@
-package allocator
+package bumpallocator
 
 type Memory interface {
 	Size() uint32

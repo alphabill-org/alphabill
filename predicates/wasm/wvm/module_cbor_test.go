@@ -9,13 +9,13 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 )
 
 func Test_cbor_parse(t *testing.T) {
 	t.Run("unknown handle", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
 		}
@@ -25,8 +25,8 @@ func Test_cbor_parse(t *testing.T) {
 
 	t.Run("wrong data type behind handle", func(t *testing.T) {
 		// data must be []byte "compatible"
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{handle_predicate_conf: 42},
 			},
 		}
@@ -35,8 +35,8 @@ func Test_cbor_parse(t *testing.T) {
 	})
 
 	t.Run("bytes but invalid CBOR", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{handle_predicate_conf: []byte{}},
 			},
 		}
@@ -45,12 +45,12 @@ func Test_cbor_parse(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				// CBOR(830a63737472430102ff) == [10, "str", h'0102FF']
 				vars: map[uint64]any{handle_predicate_conf: []byte{0x83, 0x0a, 0x63, 0x73, 0x74, 0x72, 0x43, 0x01, 0x02, 0xff}},
 			},
-			MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+			memMngr: bumpallocator.New(0, maxMem(10000)),
 		}
 		mem := &mockMemory{
 			size: func() uint32 { return 10000 },
@@ -67,15 +67,15 @@ func Test_cbor_parse(t *testing.T) {
 }
 
 func Test_cbor_parse_array_raw(t *testing.T) {
-	vm := &VmContext{
-		curPrg: &EvalContext{
+	vm := &vmContext{
+		curPrg: &evalContext{
 			// the "txProof" contains tx proof CBOR as saved by CLI wallet:
 			// array of array pairs [ {[txRec],[txProof]}, {...} ]
 			vars:   map[uint64]any{handle_current_args: txProof},
 			varIdx: handle_max_reserved,
 		},
 		factory: ABTypesFactory{},
-		MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+		memMngr: bumpallocator.New(0, maxMem(10000)),
 	}
 
 	var handle, handle2 uint64

@@ -1,4 +1,4 @@
-package allocator
+package bumpallocator
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ func addrToPage(addr uint64) (uint32, error) {
 	return uint32(pageNo), nil
 }
 
-func NewBumpAllocator(heapBase uint32, info MemInfo) *BumpAllocator {
+func New(heapBase uint32, info MemInfo) *BumpAllocator {
 	return &BumpAllocator{
 		heapBase:     heapBase,
 		freePtr:      heapBase,

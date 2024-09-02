@@ -16,18 +16,18 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 )
 
 func Test_txSignedByPKH(t *testing.T) {
 
-	buildContext := func(t *testing.T) (context.Context, *VmContext, *mockApiMod) {
+	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
 		obs := observability.Default(t)
-		vm := &VmContext{
-			curPrg: &EvalContext{
+		vm := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
-			MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+			memMngr: bumpallocator.New(0, maxMem(10000)),
 			log:     obs.Logger(),
 		}
 		mem := &mockMemory{

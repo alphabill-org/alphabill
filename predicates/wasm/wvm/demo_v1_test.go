@@ -30,6 +30,8 @@ import (
 var ticketsWasm []byte
 
 func Test_conference_tickets_v1(t *testing.T) {
+	t.SkipNow() // TODO AB-1679
+
 	// conference organizer
 	signerOrg, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)

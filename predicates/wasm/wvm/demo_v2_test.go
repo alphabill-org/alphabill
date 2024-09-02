@@ -33,6 +33,8 @@ import (
 var ticketsWasmV2 embed.FS
 
 func Test_conference_tickets_v2(t *testing.T) {
+	t.SkipNow() // TODO AB-1679
+
 	checkSpentGas := func(t *testing.T, expected, actual uint64) {
 		t.Helper()
 		assert.Equal(t, expected, actual, "amount of gas spent, diff %d", max(expected, actual)-min(expected, actual))

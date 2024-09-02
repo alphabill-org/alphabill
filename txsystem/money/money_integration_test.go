@@ -283,7 +283,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create swap order
 	swapAttr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)),
 		DcTransfers:      dcRecords,
 		DcTransferProofs: dcRecordsProofs,
 		TargetValue:      sum,
@@ -321,7 +320,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 }
 
 func createSplitTx(t *testing.T, fromID []byte, fcrID types.UnitID, counter uint64, targetUnits []*money.TargetUnit, remaining uint64) *types.TransactionOrder {
-	tx, _, _ := createSplit(t, fromID, fcrID, targetUnits, remaining, counter)
+	tx, _, _ := createSplit(t, fromID, fcrID, targetUnits, counter)
 	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	require.NoError(t, err)
 

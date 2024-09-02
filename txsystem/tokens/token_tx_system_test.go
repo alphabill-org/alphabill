@@ -868,7 +868,6 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -915,7 +914,6 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -943,7 +941,6 @@ func TestTransferNFT_InvalidCounter(t *testing.T) {
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           1,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: templates.EmptyArgument()}),
@@ -970,7 +967,6 @@ func TestTransferNFT_InvalidTypeID(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            tokens.NewFungibleTokenTypeID(nil, test.RandomBytes(32)),
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -998,7 +994,6 @@ func TestTransferNFT_EmptyTypeID(t *testing.T) {
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -1034,7 +1029,6 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: test.RandomBytes(32), // invalid owner
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -1056,7 +1050,6 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
-			Nonce:             test.RandomBytes(32),
 			Counter:           1,
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -1087,7 +1080,6 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -1119,7 +1111,6 @@ func TestTransferNFT_Ok(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -1161,7 +1152,6 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysFalseBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -1190,7 +1180,6 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysFalseBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           1,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
@@ -1249,7 +1238,6 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Nonce:             test.RandomBytes(32),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{

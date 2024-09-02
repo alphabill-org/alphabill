@@ -185,7 +185,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
-	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, remaining, initBillData.Counter)
+	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initBillData.Counter)
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -245,7 +245,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		targetUnits = append(targetUnits, &money.TargetUnit{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()})
 		remaining -= amount
 	}
-	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, targetUnits, remaining, initBillData.Counter)
+	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, targetUnits, initBillData.Counter)
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
-	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, remaining, initialBillData.Counter)
+	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initialBillData.Counter)
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	roundNumber := uint64(10)
 	amount := initialBill.Value - remaining
 	counter := initBillData.Counter
-	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, remaining, counter)
+	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
 
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -522,7 +522,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
 	for i := 0; i < 10; i++ {
 		remaining--
-		splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: 1, OwnerPredicate: templates.AlwaysTrueBytes()}}, remaining, counter)
+		splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: 1, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
 		roundNumber := uint64(10)
 		err := txSystem.BeginBlock(roundNumber)
 		require.NoError(t, err)
@@ -668,7 +668,7 @@ func TestRegisterData_RevertSplit(t *testing.T) {
 
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, remaining, initBillData.Counter)
+	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initBillData.Counter)
 	require.NoError(t, err)
 	roundNumber := uint64(10)
 	err = txSystem.BeginBlock(roundNumber)
@@ -997,7 +997,6 @@ func createDCTransferAndSwapTxs(
 	}
 
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      dcTransfers,
 		DcTransferProofs: proofs,
 		TargetValue:      targetValue,
@@ -1026,12 +1025,11 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, val
 	return tx, attr, authProof
 }
 
-func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUnits []*money.TargetUnit, remainingValue uint64, counter uint64) (*types.TransactionOrder, *money.SplitAttributes, *money.SplitAuthProof) {
+func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUnits []*money.TargetUnit, counter uint64) (*types.TransactionOrder, *money.SplitAttributes, *money.SplitAuthProof) {
 	tx := createTx(fromID, fcrID, money.PayloadTypeSplit)
 	attr := &money.SplitAttributes{
-		TargetUnits:    targetUnits,
-		RemainingValue: remainingValue,
-		Counter:        counter,
+		TargetUnits: targetUnits,
+		Counter:     counter,
 	}
 	require.NoError(t, tx.Payload.SetAttributes(attr))
 

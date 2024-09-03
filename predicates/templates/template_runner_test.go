@@ -244,15 +244,22 @@ func TestP2pkh256_Execute(t *testing.T) {
 		},
 	}
 	require.NoError(t, validTxOrder.Payload.SetAttributes("not really attributes"))
-	predicateSignature := testsig.NewOwnerProof(t, validTxOrder, signer)
-	require.NoError(t, validTxOrder.SetAuthProof(predicateSignature))
+	ownerProof := testsig.NewOwnerProof(t, validTxOrder, signer)
+	require.NoError(t, validTxOrder.SetAuthProof(ownerProof))
+	feeProof := testsig.NewFeeProof(t, validTxOrder, signer)
 
 	execEnv := &mockTxContext{
 		spendGas:     func(gas uint64) error { return nil },
 	}
 
-	t.Run("success", func(t *testing.T) {
-		res, err := executeP2PKH256TxAuth(pubKeyHash, predicateSignature, validTxOrder, execEnv)
+	t.Run("txAuth success", func(t *testing.T) {
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		require.NoError(t, err)
+		require.True(t, res)
+	})
+
+	t.Run("feeAuth success", func(t *testing.T) {
+		res, err := executeP2PKH256FeeAuth(pubKeyHash, feeProof, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
@@ -318,7 +325,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	})
 
 	t.Run("invalid pubkey hash size", func(t *testing.T) {
-		res, err := executeP2PKH256TxAuth(pubKeyHash[:len(pubKeyHash)-1], predicateSignature, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash[:len(pubKeyHash)-1], ownerProof, validTxOrder, execEnv)
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
 		require.False(t, res)
 	})
@@ -327,7 +334,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		execEnv := &mockTxContext{
 			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
 		}
-		res, err := executeP2PKH256TxAuth(pubKeyHash, predicateSignature, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, "out of gas")
 		require.False(t, res)
 	})

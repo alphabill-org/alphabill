@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
@@ -54,7 +54,7 @@ func TestReadHeapBase(t *testing.T) {
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
 	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
-	require.EqualValues(t, 8400, wvm.ctx.MemMngr.(*allocator.BumpAllocator).HeapBase())
+	require.EqualValues(t, 8400, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
 }
 
 //go:embed testdata/stack_height.wasm

@@ -43,7 +43,8 @@ Returns:
   - 3: error, argument stack[0] is not valid tx handle;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
-	vec := vmContext(ctx)
+	vec := extractVMContext(ctx)
+
 	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
 	if err != nil {
 		vec.log.DebugContext(ctx, "argument is not valid tx order handle", logger.Error(err))
@@ -58,12 +59,12 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	case tokens.PayloadTypeTransferNFT:
 		var authProof tokens.TransferNonFungibleTokenAuthProof
 		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.OwnerPredicateSignature
+			proof = authProof.OwnerProof
 		}
 	case tokens.PayloadTypeUpdateNFT:
 		var authProof tokens.UpdateNonFungibleTokenAuthProof
 		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.TokenDataUpdatePredicateSignature
+			proof = authProof.TokenDataUpdateProof
 		}
 	default:
 		unmarshalErr = errors.New("failed to extract OwnerProof from tx order")
@@ -87,7 +88,7 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 }
 
-func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
+func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	// args: handle of txProof, handle of txRec
 	proof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
 	if err != nil {
@@ -111,7 +112,7 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 	return nil
 }
 
-func digestSHA256(vec *VmContext, mod api.Module, stack []uint64) error {
+func digestSHA256(vec *vmContext, mod api.Module, stack []uint64) error {
 	data := read(mod, stack[0])
 	addr, err := vec.writeToMemory(mod, hash.Sum256(data))
 	if err != nil {
@@ -132,7 +133,7 @@ Arguments in "stack":
   - [2] ref_no: address (if given, ie not zero) of the reference number transfer(s)
     must have in order to be counted;
 */
-func amountTransferred(vec *VmContext, mod api.Module, stack []uint64) error {
+func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)

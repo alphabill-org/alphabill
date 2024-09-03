@@ -35,7 +35,7 @@ Parameters (stack):
 
 Returns handle of the object.
 */
-func createObjMem(vec *VmContext, mod api.Module, stack []uint64) error {
+func createObjMem(vec *vmContext, mod api.Module, stack []uint64) error {
 	// obj type, address of the data. version must be part of the raw (CBOR) data or we need param!?
 	data := read(mod, stack[1])
 	typeID := api.DecodeU32(stack[0])
@@ -43,7 +43,7 @@ func createObjMem(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("decoding object: %w", err)
 	}
-	stack[0] = vec.curPrg.AddVar(obj)
+	stack[0] = vec.curPrg.addVar(obj)
 	return nil
 }
 
@@ -55,7 +55,7 @@ Parameters (stack):
 
 Returns handle of the object.
 */
-func createObjH(vec *VmContext, mod api.Module, stack []uint64) error {
+func createObjH(vec *vmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[1])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
@@ -66,11 +66,11 @@ func createObjH(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("decoding object: %w", err)
 	}
-	stack[0] = vec.curPrg.AddVar(obj)
+	stack[0] = vec.curPrg.addVar(obj)
 	return nil
 }
 
-func expUnitData(vec *VmContext, mod api.Module, stack []uint64) error {
+func expUnitData(vec *vmContext, mod api.Module, stack []uint64) error {
 	id := read(mod, stack[0])
 	unit, err := vec.curPrg.env.GetUnit(id, stack[1] != 0)
 	if err != nil {
@@ -93,12 +93,12 @@ Arguments in stack:
   - 0: handle of the variable;
   - 1: version of the data struct (in the SDK);
 */
-func expSerialize(vec *VmContext, mod api.Module, stack []uint64) error {
+func expSerialize(vec *vmContext, mod api.Module, stack []uint64) error {
 	v, ok := vec.curPrg.vars[stack[0]]
 	if !ok {
 		return fmt.Errorf("no variable with handle %d", stack[0])
 	}
-	data, err := vec.encoder.Encode(v, api.DecodeU32(stack[1]), vec.curPrg.AddVar)
+	data, err := vec.encoder.Encode(v, api.DecodeU32(stack[1]), vec.curPrg.addVar)
 	if err != nil {
 		return fmt.Errorf("encoding object: %w", err)
 	}
@@ -111,7 +111,7 @@ func expSerialize(vec *VmContext, mod api.Module, stack []uint64) error {
 	return nil
 }
 
-func expTxAttributes(vec *VmContext, mod api.Module, stack []uint64) error {
+func expTxAttributes(vec *vmContext, mod api.Module, stack []uint64) error {
 	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
 	if err != nil {
 		return fmt.Errorf("reading tx order variable: %w", err)
@@ -128,7 +128,7 @@ func expTxAttributes(vec *VmContext, mod api.Module, stack []uint64) error {
 	return nil
 }
 
-func expCurrentRound(vec *VmContext, mod api.Module, stack []uint64) error {
+func expCurrentRound(vec *vmContext, mod api.Module, stack []uint64) error {
 	stack[0] = vec.curPrg.env.CurrentRound()
 	return nil
 }

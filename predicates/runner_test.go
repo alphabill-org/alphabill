@@ -109,7 +109,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					return false, expErr
 				},
 			},
@@ -129,7 +129,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					return false, nil
 				},
 			},
@@ -153,7 +153,7 @@ func Test_PredicateEngines_Execute(t *testing.T) {
 		eng, err := Dispatcher(
 			mockPredicateEngine{
 				id: 1,
-				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+				exec: func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 					require.Equal(t, pred, predicate)
 					return true, nil
 				},
@@ -171,31 +171,31 @@ func Test_PredicateRunner(t *testing.T) {
 	t.Run("executor returns error", func(t *testing.T) {
 		expErr := errors.New("evaluation failed")
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, expErr
 			},
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.ErrorIs(t, err, expErr)
 	})
 
 	t.Run("evals to false", func(t *testing.T) {
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				return false, nil
 			},
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.EqualError(t, err, `predicate evaluated to "false"`)
 	})
 
 	t.Run("evals to true", func(t *testing.T) {
 		exec := NewPredicateRunner(
-			func(ctx context.Context, predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
+			func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 				require.EqualValues(t, []byte("predicate"), predicate)
 				require.EqualValues(t, []byte("arguments"), args)
 				return true, nil
@@ -203,7 +203,7 @@ func Test_PredicateRunner(t *testing.T) {
 		)
 		require.NotNil(t, exec)
 
-		err := exec([]byte("predicate"), []byte("arguments"), nil, nil)
+		err := exec([]byte("predicate"), []byte("arguments"), &types.TransactionOrder{}, nil)
 		require.NoError(t, err)
 	})
 }
@@ -220,11 +220,11 @@ func Test_Predicate_AsBytes(t *testing.T) {
 
 type mockPredicateEngine struct {
 	id   uint64
-	exec func(ctx context.Context, predicate *predicates.Predicate, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error)
+	exec func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 }
 
 func (pe mockPredicateEngine) ID() uint64 { return pe.id }
 
-func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, tx *types.TransactionOrder, env TxContext) (bool, error) {
-	return pe.exec(ctx, predicate, args, tx, env)
+func (pe mockPredicateEngine) Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+	return pe.exec(ctx, predicate, args, txo, env)
 }

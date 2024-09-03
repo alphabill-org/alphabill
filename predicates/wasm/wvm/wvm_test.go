@@ -25,6 +25,9 @@ import (
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
 var addOneWasm []byte
 
+//go:embed testdata/conference_tickets/v2/conf_tickets.wasm
+var ticketsWasm []byte
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	obs := observability.Default(t)

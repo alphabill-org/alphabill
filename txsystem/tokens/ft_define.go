@@ -75,7 +75,7 @@ func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr
 		exeCtx,
 		tx,
 		attr.ParentTypeID,
-		authProof.SubTypeCreationPredicateSignatures,
+		authProof.SubTypeCreationProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.SubTypeCreationPredicate

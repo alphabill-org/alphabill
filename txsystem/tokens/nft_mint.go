@@ -84,7 +84,7 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	}
 
 	// verify token minting predicate of the type
-	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, tx, exeCtx); err != nil {
+	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx, exeCtx); err != nil {
 		return fmt.Errorf(`executing NFT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

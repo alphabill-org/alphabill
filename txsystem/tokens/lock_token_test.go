@@ -35,7 +35,7 @@ func TestLockFT_Ok(t *testing.T) {
 		Counter:    0,
 	}
 	tx := createTxo(t, existingTokenID, tokens.PayloadTypeLockToken, attr,
-		testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerPredicateSignature: templates.EmptyArgument()}),
+		testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: templates.EmptyArgument()}),
 	)
 	var roundNo uint64 = 10
 	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
@@ -113,7 +113,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTxo(t, existingTokenID, tokens.PayloadTypeLockToken, &tokens.LockTokenAttributes{
 				LockStatus: 1,
 				Counter:    0,
-			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerPredicateSignature: []byte{8, 4, 0}})),
+			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: []byte{8, 4, 0}})),
 			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
@@ -215,7 +215,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTxo(t, existingNFTUnitID, tokens.PayloadTypeLockToken, &tokens.LockTokenAttributes{
 				LockStatus: 1,
 				Counter:    0,
-			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerPredicateSignature: []byte{1, 2, 3}})),
+			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: []byte{1, 2, 3}})),
 			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}

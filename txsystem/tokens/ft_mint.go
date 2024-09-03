@@ -75,7 +75,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify token minting predicate of the type
-	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, tx, exeCtx); err != nil {
+	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx, exeCtx); err != nil {
 		return fmt.Errorf(`executing FT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

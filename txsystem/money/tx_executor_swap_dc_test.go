@@ -189,7 +189,6 @@ func newInvalidTargetValueSwap(t *testing.T, signer abcrypto.Signer) (*types.Tra
 		Counter:      6,
 	})
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 		DcTransferProofs: []*types.TxProof{nil},
 		TargetValue:      100,
@@ -222,7 +221,6 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) (*types.Tr
 		Counter:      6,
 	})
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 		DcTransferProofs: []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 		TargetValue:      100,
@@ -273,7 +271,6 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      dcTransfers,
 		DcTransferProofs: proofs,
 		TargetValue:      200,
@@ -313,7 +310,6 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transacti
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      dcTransfers,
 		DcTransferProofs: proofs,
 		TargetValue:      200,
@@ -368,7 +364,6 @@ func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) (*types.Transactio
 		Counter:      6,
 	})
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 		DcTransferProofs: nil,
 		TargetValue:      100,
@@ -400,7 +395,6 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 		Counter:      6,
 	})
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 		DcTransferProofs: []*types.TxProof{{BlockHeaderHash: []byte{0}}},
 		TargetValue:      100,
@@ -451,7 +445,6 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 		proofs = append(proofs, testblock.CreateProof(t, dcTx, signer))
 	}
 	attrs := &money.SwapDCAttributes{
-		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      transferDCRecords,
 		DcTransferProofs: proofs,
 		TargetValue:      100,

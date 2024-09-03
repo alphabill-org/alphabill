@@ -91,14 +91,14 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %X, got %X", d.Counter, attr.Counter)
 	}
 
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,
 		d.TokenType,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

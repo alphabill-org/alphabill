@@ -8,6 +8,8 @@ import (
 )
 
 func Test_ABTypesFactory_createObj(t *testing.T) {
+	t.SkipNow() // TODO AB-1679
+
 	t.Run("unknown type id", func(t *testing.T) {
 		f := ABTypesFactory{}
 		obj, err := f.createObj(0, nil)

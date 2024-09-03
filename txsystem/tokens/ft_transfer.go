@@ -51,14 +51,14 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,
 		d.TokenType,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

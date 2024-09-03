@@ -56,7 +56,7 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
 
-	err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, tx, exeCtx)
+	err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx)
 	if err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
@@ -64,7 +64,7 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		exeCtx,
 		tx,
 		tokenData.TokenType,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

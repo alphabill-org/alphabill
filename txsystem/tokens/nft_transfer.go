@@ -54,14 +54,14 @@ func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.TypeID)
 	}
 
-	if err = n.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
+	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
 		tx,
 		tokenTypeID,
-		authProof.TokenTypeOwnerPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.TokenTypeOwnerPredicate

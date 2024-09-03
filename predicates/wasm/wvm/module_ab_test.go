@@ -12,6 +12,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -55,7 +56,9 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
+		txo := &types.TransactionOrder{Payload: &types.Payload{Type: tokens.PayloadTypeTransferNFT}}
+		txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{})
+		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
 		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
@@ -77,7 +80,9 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
+		txo := &types.TransactionOrder{Payload: &types.Payload{Type: tokens.PayloadTypeTransferNFT}}
+		txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{})
+		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
 		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
@@ -105,17 +110,19 @@ func Test_txSignedByPKH(t *testing.T) {
 		}
 		txOrder := &types.TransactionOrder{
 			Payload: &types.Payload{
+				Type: tokens.PayloadTypeTransferNFT,
 				SystemID: 5,
 			},
-			AuthProof: []byte{8, 9, 0},
 		}
+		ownerProof := []byte{9, 8, 0}
+		txOrder.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerPredicateSignature: ownerProof})
 
 		vm.curPrg.vars[handle_current_tx_order] = txOrder
 		predicateExecuted := false
 		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			require.Equal(t, txOrder, txo)
-			require.EqualValues(t, txOrder.AuthProof, args)
+			require.EqualValues(t, ownerProof, args)
 			h, err := templates.ExtractPubKeyHashFromP2pkhPredicate(predicate)
 			require.NoError(t, err)
 			require.Equal(t, pkh, h)

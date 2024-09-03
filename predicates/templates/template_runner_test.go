@@ -252,21 +252,21 @@ func TestP2pkh256_Execute(t *testing.T) {
 	}
 
 	t.Run("success", func(t *testing.T) {
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash, predicateSignature, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, predicateSignature, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
 
 	t.Run("invalid CBOR encoded OwnerProof", func(t *testing.T) {
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash, nil, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, nil, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = executeP2PKH256ForAuthProof(pubKeyHash, []byte{}, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, []byte{}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = executeP2PKH256ForAuthProof(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: cbor: 2 bytes of extraneous data starting at index 1`)
 		require.False(t, res)
 	})
@@ -277,7 +277,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: []byte{1, 2, 3}, PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
 		require.False(t, res)
 
@@ -285,7 +285,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256ForAuthProof(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
 		require.False(t, res)
 
@@ -293,7 +293,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256ForAuthProof(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.NoError(t, err, `testing against different public key is not error`)
 		require.False(t, res)
 
@@ -301,7 +301,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256ForAuthProof(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to create verifier: public key decompress faield`)
 		require.False(t, res)
 	})
@@ -312,13 +312,13 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
 
 	t.Run("invalid pubkey hash size", func(t *testing.T) {
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash[:len(pubKeyHash)-1], predicateSignature, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash[:len(pubKeyHash)-1], predicateSignature, validTxOrder, execEnv)
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
 		require.False(t, res)
 	})
@@ -327,7 +327,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		execEnv := &mockTxContext{
 			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
 		}
-		res, err := executeP2PKH256ForAuthProof(pubKeyHash, predicateSignature, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, predicateSignature, validTxOrder, execEnv)
 		require.EqualError(t, err, "out of gas")
 		require.False(t, res)
 	})

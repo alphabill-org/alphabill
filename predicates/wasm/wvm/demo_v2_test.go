@@ -151,7 +151,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 				UnitID:   tokenID,
 			},
 		}
-
 		require.NoError(t, txNFTUpdate.Payload.SetAttributes(
 			tokens.UpdateNonFungibleTokenAttributes{
 				Data:    []byte("regular"),
@@ -225,6 +224,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
 		ownerProofOrg := testsig.NewOwnerProof(t, txNFTTransfer, signerOrg)
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
+			OwnerPredicateSignature: ownerProofOrg,
+		}))
 
 		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer, env)
@@ -236,6 +238,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
 		// returns "false" without any further work (ie checking for money transfer).
 		ownerProofAttendee := testsig.NewOwnerProof(t, txNFTTransfer, signerAttendee)
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
+			OwnerPredicateSignature: ownerProofAttendee,
+		}))
 
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
@@ -249,6 +254,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// predicate should carry on attempting to decode argument BLOB as proof of payment.
 		ownerProofAttendee = proofOfPayment(t, signerAttendee, pubKeyOrg,
 			earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.Payload.UnitID)))
+		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
+			OwnerPredicateSignature: ownerProofAttendee,
+		}))
 
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
@@ -300,6 +308,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
 		ownerProofOrg := testsig.NewOwnerProof(t, txNFTUpdate, signerOrg)
+		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
+			TokenDataUpdatePredicateSignature: ownerProofOrg,
+		}))
 
 		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate, env)
@@ -310,6 +321,10 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
 		ownerProof := proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
+			TokenDataUpdatePredicateSignature: ownerProof,
+		}))
+
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
@@ -318,8 +333,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
-		//txNFTUpdate.OwnerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
 		ownerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.Payload.UnitID)))
+		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
+			TokenDataUpdatePredicateSignature: ownerProof,
+		}))
+
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)

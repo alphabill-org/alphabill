@@ -662,7 +662,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -705,7 +705,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -726,7 +726,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -752,7 +752,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))

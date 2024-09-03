@@ -56,7 +56,7 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 		attr.FeeCreditTransferProof = testblock.CreateProof(t, attr.FeeCreditTransfer, signer)
 	}
 	if attr.FeeCreditOwnerPredicate == nil {
-		attr.FeeCreditOwnerPredicate = NewP2pkhPredicate(t, signer)
+		attr.FeeCreditOwnerPredicate = NewP2pkhFeeAuthPredicate(t, signer)
 	}
 	return attr
 }

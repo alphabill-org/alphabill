@@ -70,11 +70,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 		}
 		// 4. S.N[P.ι] != ⊥ ∨ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
-		payloadBytes, err := tx.PayloadBytes()
-		if err != nil {
-			return fmt.Errorf("failed to marshal payload bytes: %w", err)
-		}
-		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 			return fmt.Errorf("executing fee credit predicate: %w", err)
 		}
 	} else {

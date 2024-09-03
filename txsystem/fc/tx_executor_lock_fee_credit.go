@@ -57,11 +57,7 @@ func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.Lo
 		return errors.New("lock status must be non-zero value")
 	}
 	// validate owner
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = f.execPredicate(fcrOwnerPredicate, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcrOwnerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

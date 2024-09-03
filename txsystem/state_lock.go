@@ -26,17 +26,17 @@ type StateUnlockProof struct {
 }
 
 // check checks if the state unlock proof is valid, gives error if not
-func (p *StateUnlockProof) check(pr predicates.PredicateRunner, sigBytes []byte, stateLock *types.StateLock, exeCtx txtypes.ExecutionContext) error {
+func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.TransactionOrder, stateLock *types.StateLock, exeCtx txtypes.ExecutionContext) error {
 	if stateLock == nil {
 		return fmt.Errorf("StateLock is nil")
 	}
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, sigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, sigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -82,13 +82,9 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
 	}
-	sigBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal tx payload: %w", err)
-	}
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
-	if err = proof.check(m.pr, sigBytes, txOnHold.Payload.StateLock, exeCtx); err != nil {
+	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock, exeCtx); err != nil {
 		return nil, fmt.Errorf("unlock error: %w", err)
 	}
 	// proof is ok, release the lock

@@ -51,16 +51,12 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	if !bytes.Equal(attr.TypeID, d.TokenType) {
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		payloadBytes,
+		tx,
 		d.TokenType,
 		authProof.TokenTypeOwnerPredicateSignatures,
 		m.execPredicate,

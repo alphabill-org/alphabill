@@ -91,20 +91,12 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %X, got %X", d.Counter, attr.Counter)
 	}
 
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
-	}
-	sigBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		sigBytes,
+		tx,
 		d.TokenType,
 		authProof.TokenTypeOwnerPredicateSignatures,
 		m.execPredicate,

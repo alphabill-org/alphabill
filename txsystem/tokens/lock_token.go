@@ -89,11 +89,7 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err := m.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err := m.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
@@ -107,11 +103,7 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err := m.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err := m.execPredicate(u.Owner(), authProof.OwnerPredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

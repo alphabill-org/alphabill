@@ -203,7 +203,7 @@ func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOptio
 		systemIdentifier:      moneySystemID,
 		moneySystemIdentifier: moneySystemID,
 		trustBase:             tb,
-		execPredicate: func(predicate types.PredicateBytes, args []byte, sigBytes []byte, env predicates.TxContext) error {
+		execPredicate: func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
 			return nil
 		},
 		feeCreditRecordUnitType: money.FeeCreditRecordUnitType,

@@ -64,11 +64,7 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.Tr
 	if err = validateTransferDC(unit.Data(), attr); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
 	return nil

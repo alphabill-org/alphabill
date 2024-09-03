@@ -71,13 +71,9 @@ func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr
 		}
 	}
 
-	sigBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		sigBytes,
+		tx,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationPredicateSignatures,
 		m.execPredicate,

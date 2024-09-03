@@ -65,11 +65,7 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestratio
 		}
 	}
 	// Always check owner predicate, do it as a last step because it is the most expensive check
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

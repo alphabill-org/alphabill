@@ -85,11 +85,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("verify owner proof: %w", err)
 	}
 	return nil

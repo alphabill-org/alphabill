@@ -56,11 +56,7 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 		return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, tx.Payload.ClientMetadata.MaxTransactionFee)
 	}
 	// VerifyFeeAuth(N[ιf].φ, T, T.sf) - fee authorization proof satisfies the owner predicate of the fee credit record
-	sigBytes, err := tx.FeeProofSigBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal fee proof bytes: %w", err)
-	}
-	if err := f.execPredicate(fcrUnit.Owner(), tx.FeeProof, sigBytes, exeCtx); err != nil {
+	if err := f.execPredicate(fcrUnit.Owner(), tx.FeeProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil

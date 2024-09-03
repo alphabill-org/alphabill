@@ -52,16 +52,12 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 		return fmt.Errorf("invalid counter: got %d expected %d", attr.Counter, data.Counter)
 	}
 
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdatePredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdatePredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		payloadBytes,
+		tx,
 		data.TypeID,
 		authProof.TokenTypeDataUpdatePredicateSignatures,
 		n.execPredicate,

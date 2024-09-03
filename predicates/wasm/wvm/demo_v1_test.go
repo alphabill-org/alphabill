@@ -154,9 +154,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		// should eval to "true"
 		start := time.Now()
-		payloadBytes, err := txNFTTransfer.PayloadBytes()
-		require.NoError(t, err)
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 18307, env.GasRemaining)
@@ -165,7 +163,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 		// hackish way to change current round past D1 so now should eval to "false"
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		start = time.Now()
-		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTTransfer, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res)
@@ -205,9 +203,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
-		payloadBytes, err := txNFTMint.PayloadBytes()
-		require.NoError(t, err)
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 24077, env.GasRemaining)
@@ -215,7 +211,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		// set the date to future (after D1) so early-bird tickets can't be minted anymore
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
-		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err = wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		require.NoError(t, err)
 		require.EqualValues(t, 8183, env.GasRemaining)
 		require.EqualValues(t, 0x01, res)
@@ -253,9 +249,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 
 		args := predicateArgs(t, earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, nftTypeID, txNFTMint.Payload.UnitID)))
 		start := time.Now()
-		payloadBytes, err := txNFTMint.PayloadBytes()
-		require.NoError(t, err)
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTMint, env)
 		t.Logf("took %s", time.Since(start))
 		require.ErrorContains(t, err, "out of gas")
 		require.EqualValues(t, 0, env.GasRemaining)
@@ -302,9 +296,7 @@ func Test_conference_tickets_v1(t *testing.T) {
 		// upgrade early-bird to regular so it can be transferred after D2
 		args := predicateArgs(t, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, nftTypeID, txNFTUpdate.Payload.UnitID)))
 		start := time.Now()
-		payloadBytes, err := txNFTUpdate.PayloadBytes()
-		require.NoError(t, err)
-		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, payloadBytes, env)
+		res, err := wvm.Exec(context.Background(), ticketsWasm, args, conf, txNFTUpdate, env)
 		t.Logf("took %s", time.Since(start))
 		require.NoError(t, err)
 		require.EqualValues(t, 9389, env.GasRemaining)

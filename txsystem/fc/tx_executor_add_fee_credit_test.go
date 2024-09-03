@@ -173,7 +173,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer))
-		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, sigBytes []byte, env predicates.TxContext) error {
+		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
@@ -534,7 +534,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					},
 				),
 			))
-		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, sigBytes []byte, env predicates.TxContext) error {
+		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}
 		feeCreditModule := newTestFeeModule(t, trustBase,

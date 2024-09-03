@@ -209,7 +209,7 @@ Exec loads the WASM module passed in as "predicate" argument and calls the "conf
   - The entrypoint function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, sigBytes []byte, env EvalEnvironment) (uint64, error) {
+func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -244,8 +244,7 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	vm.ctx.curPrg.varIdx = handle_max_reserved
 	vm.ctx.curPrg.env = env
 	defer vm.ctx.EndEval()
-	//vm.ctx.curPrg.vars[handle_current_tx_order] = txo
-	vm.ctx.curPrg.vars[handle_current_tx_order] = sigBytes
+	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
 	vm.ctx.curPrg.vars[handle_current_args] = args
 	vm.ctx.curPrg.vars[handle_predicate_conf] = conf.Args
 

@@ -68,11 +68,7 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 	if err = validateSplit(unit.Data(), attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

@@ -94,11 +94,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, execCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, execCtx); err != nil {
 		return err
 	}
 	// verify proof

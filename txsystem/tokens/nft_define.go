@@ -52,13 +52,9 @@ func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, 
 	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
-	sigBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		sigBytes,
+		tx,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationPredicateSignatures,
 		n.execPredicate,

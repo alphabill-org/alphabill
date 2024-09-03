@@ -30,11 +30,7 @@ func (f *FeeCreditModule) validateDeleteFCR(tx *types.TransactionOrder, _ *permi
 	}
 
 	// verify tx is signed by admin key
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err := f.execPredicate(f.adminOwnerCondition, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err := f.execPredicate(f.adminOwnerCondition, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

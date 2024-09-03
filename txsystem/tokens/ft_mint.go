@@ -75,11 +75,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify token minting predicate of the type
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, payloadBytes, exeCtx); err != nil {
+	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingPredicateSignature, tx, exeCtx); err != nil {
 		return fmt.Errorf(`executing FT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

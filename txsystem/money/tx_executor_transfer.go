@@ -37,11 +37,7 @@ func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.Tran
 	if err = validateTransfer(unit.Data(), attr); err != nil {
 		return fmt.Errorf("transfer validation error: %w", err)
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

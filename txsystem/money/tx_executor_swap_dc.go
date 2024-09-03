@@ -91,11 +91,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if len(dustTransfers) != len(attr.DcTransferProofs) {
 		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
 	}
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("swap tx predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {

@@ -52,14 +52,8 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 	pkh := read(mod, stack[1])
 
-	// TODO fix for new signatures format
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	//ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
-	sigByes, err := txo.PayloadBytes()
-	if err != nil {
-		return
-	}
-	ok, err := vec.engines(ctx, predicate, txo.AuthProof, sigByes, vec.curPrg.env)
+	ok, err := vec.engines(ctx, predicate, txo.AuthProof, txo, vec.curPrg.env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))

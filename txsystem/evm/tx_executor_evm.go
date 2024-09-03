@@ -55,11 +55,7 @@ func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttrib
 	}
 	unit, _ := exeCtx.GetUnit(tx.UnitID(), false)
 	if unit != nil {
-		payloadBytes, err := tx.PayloadBytes()
-		if err != nil {
-			return fmt.Errorf("failed to marshal payload bytes: %w", err)
-		}
-		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 			return fmt.Errorf("evaluating owner predicate: %w", err)
 		}
 	}

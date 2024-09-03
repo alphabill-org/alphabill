@@ -55,11 +55,7 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return errors.New("fee credit record is already unlocked")
 	}
 	// validate owner
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = f.execPredicate(bearer, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = f.execPredicate(bearer, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

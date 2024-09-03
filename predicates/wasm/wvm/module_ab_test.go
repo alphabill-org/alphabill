@@ -55,10 +55,9 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		//vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
 		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, []byte, predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return true, expErr
 		}
@@ -78,10 +77,9 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		//vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{OwnerProof: []byte{8, 9, 0}}
 		vm.curPrg.vars[handle_current_tx_order] = &types.TransactionOrder{AuthProof: []byte{8, 9, 0}}
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, []byte, predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return false, nil
 		}
@@ -109,18 +107,15 @@ func Test_txSignedByPKH(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID: 5,
 			},
-			//OwnerProof: []byte{8, 9, 0},
 			AuthProof: []byte{8, 9, 0},
 		}
+
 		vm.curPrg.vars[handle_current_tx_order] = txOrder
 		predicateExecuted := false
-		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigByes []byte, env predicates.TxContext) (bool, error) {
+		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 			predicateExecuted = true
-			payloadBytes, err := txOrder.PayloadBytes()
-			require.NoError(t, err)
-			require.Equal(t, payloadBytes, sigByes)
-			//require.Equal(t, txOrder.OwnerProof, args)
-			require.Equal(t, txOrder.AuthProof, args)
+			require.Equal(t, txOrder, txo)
+			require.EqualValues(t, txOrder.AuthProof, args)
 			h, err := templates.ExtractPubKeyHashFromP2pkhPredicate(predicate)
 			require.NoError(t, err)
 			require.Equal(t, pkh, h)

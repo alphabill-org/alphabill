@@ -18,7 +18,3 @@ func ExtractPubKey(ownerProof []byte) ([]byte, error) {
 	}
 	return sig.PubKey, nil
 }
-
-func EncodeSignature(sig, pubKey []byte) ([]byte, error) {
-	return types.Cbor.Marshal(templates.P2pkh256Signature{Sig: sig, PubKey: pubKey})
-}

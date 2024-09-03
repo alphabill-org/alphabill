@@ -19,14 +19,14 @@ type (
 		ID() uint64
 
 		// Execute executes given predicate
-		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error)
+		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 	}
 
-	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytes []byte, env TxContext) (bool, error)
+	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) (bool, error)
+	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 
-	PredicateRunner func(predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) error
+	PredicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error
 
 	GasMeter interface {
 		GasAvailable() uint64
@@ -79,7 +79,7 @@ func (pe PredicateEngines) Add(engine PredicateEngine) error {
 /*
 Execute decodes predicate from binary representation and dispatches it to appropriate predicate executor.
 */
-func (pe PredicateEngines) Execute(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) (bool, error) {
+func (pe PredicateEngines) Execute(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
 	if len(predicate) == 0 {
 		return false, errors.New("predicate is empty")
 	}
@@ -95,7 +95,7 @@ func (pe PredicateEngines) Execute(ctx context.Context, predicate types.Predicat
 	if !ok {
 		return false, fmt.Errorf("unknown predicate engine with id %d", pred.Tag)
 	}
-	result, err := executor(ctx, pred, args, sigBytes, env)
+	result, err := executor(ctx, pred, args, txo, env)
 	if err != nil {
 		return false, fmt.Errorf("executing predicate: %w", err)
 	}
@@ -116,8 +116,8 @@ func NewPredicateRunner(
 	// usually it is PredicateEngines.Execute
 	executor PredicateExecutor,
 ) PredicateRunner {
-	return func(predicate types.PredicateBytes, args []byte, sigBytes []byte, env TxContext) error {
-		res, err := executor(context.Background(), predicate, args, sigBytes, env)
+	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error {
+		res, err := executor(context.Background(), predicate, args, txo, env)
 		if err != nil {
 			return err
 		}

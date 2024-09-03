@@ -47,11 +47,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	}
 	// validate owner condition
 	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-	payloadBytes, err := tx.PayloadBytes()
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload bytes: %w", err)
-	}
-	if err = f.execPredicate(bearer, authProof.OwnerProof, payloadBytes, exeCtx); err != nil {
+	if err = f.execPredicate(bearer, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

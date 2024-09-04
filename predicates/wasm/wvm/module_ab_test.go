@@ -21,8 +21,6 @@ import (
 )
 
 func Test_txSignedByPKH(t *testing.T) {
-	t.SkipNow() // TODO AB-1679
-
 	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
 		obs := observability.Default(t)
 		vm := &vmContext{

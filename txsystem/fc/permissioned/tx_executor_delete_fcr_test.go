@@ -39,23 +39,23 @@ func TestValidateDeleteFCR(t *testing.T) {
 	fcrID := newFeeCreditRecordID(fcrOwnerCondition, fcrUnitType, timeout)
 
 	t.Run("ok", func(t *testing.T) {
-		tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
+		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 		require.NoError(t, err)
 	})
 
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
-		tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, []byte{1}, nil)
+		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, []byte{1}, nil)
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 		require.ErrorContains(t, err, "fee tx cannot contain fee credit reference")
 	})
 
 	t.Run("FeeProof is not nil", func(t *testing.T) {
-		tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, []byte{1})
+		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, []byte{1})
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 		require.ErrorContains(t, err, "fee tx cannot contain fee authorization proof")
 	})
 
@@ -63,25 +63,25 @@ func TestValidateDeleteFCR(t *testing.T) {
 		// create new fcrID with invalid type byte
 		fcrUnitType := []byte{2}
 		fcrID := newFeeCreditRecordID(fcrOwnerCondition, fcrUnitType, timeout)
-		tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
+		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 		require.ErrorContains(t, err, "invalid unit type for unitID")
 	})
 
 	t.Run("Fee credit record does not exists", func(t *testing.T) {
-		tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
+		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithErr(avl.ErrNotFound)))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithErr(avl.ErrNotFound)))
 		require.ErrorContains(t, err, "get fcr unit error: not found")
 	})
 
 	t.Run("Invalid signature", func(t *testing.T) {
 		// sign tx with random non-admin key
 		signer, _ := testsig.CreateSignerAndVerifier(t)
-		tx, attr, err := newDeleteFeeTx(signer, systemID, fcrID, timeout, nil, nil)
+		tx, attr, authProof, err := newDeleteFeeTx(signer, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+		err = m.validateDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 		require.ErrorContains(t, err, "invalid owner proof")
 	})
 }
@@ -112,11 +112,11 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	require.NoError(t, err)
 
 	// create tx
-	tx, attr, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
+	tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 	require.NoError(t, err)
 
 	// execute tx
-	sm, err := m.executeDeleteFCR(tx, attr, testctx.NewMockExecutionContext(t))
+	sm, err := m.executeDeleteFCR(tx, attr, authProof, testctx.NewMockExecutionContext(t))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -130,31 +130,36 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	unit, err := stateTree.GetUnit(fcrID, false)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
-	require.Equal(t, templates.AlwaysFalseBytes(), unit.Bearer())
+	require.Equal(t, templates.AlwaysFalseBytes(), unit.Owner())
 }
 
-func newDeleteFeeTx(adminKey crypto.Signer, systemID types.SystemID, unitID []byte, timeout uint64, fcrID, feeProof []byte) (*types.TransactionOrder, *permissioned.DeleteFeeCreditAttributes, error) {
+func newDeleteFeeTx(adminKey crypto.Signer, systemID types.SystemID, unitID []byte, timeout uint64, fcrID, feeProof []byte) (*types.TransactionOrder, *permissioned.DeleteFeeCreditAttributes, *permissioned.DeleteFeeCreditAuthProof, error) {
 	attr := &permissioned.DeleteFeeCreditAttributes{}
 	payload, err := newTxPayload(systemID, permissioned.PayloadTypeDeleteFCR, unitID, fcrID, timeout, nil, attr)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	payloadSig, err := signPayload(payload, adminKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	adminKeyVerifier, err := adminKey.Verifier()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	adminPublicKey, err := adminKeyVerifier.MarshalPublicKey()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	authProof := &permissioned.DeleteFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256SignatureBytes(payloadSig, adminPublicKey)}
+	authProofCBOR, err := types.Cbor.Marshal(authProof)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	txo := &types.TransactionOrder{
-		Payload:    payload,
-		OwnerProof: templates.NewP2pkh256SignatureBytes(payloadSig, adminPublicKey),
-		FeeProof:   feeProof,
+		Payload:   payload,
+		AuthProof: authProofCBOR,
+		FeeProof:  feeProof,
 	}
-	return txo, attr, nil
+	return txo, attr, authProof, nil
 }

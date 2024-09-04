@@ -21,8 +21,8 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
 	fcModule, err := NewFeeCreditModule(
-		WithSystemIdentifier(moneySystemID),
-		WithMoneySystemIdentifier(moneySystemID),
+		WithSystemID(moneySystemID),
+		WithMoneySystemID(moneySystemID),
 		WithState(sharedState),
 		WithTrustBase(trustBase),
 	)
@@ -47,20 +47,10 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			expectedError: "fee credit record unit is nil",
 		},
 		{
-			name: "invalid fee proof: fallback to owner proof",
-			tx: testtransaction.NewTransactionOrder(t,
-				testtransaction.WithPayloadType("trans"),
-				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
-				testtransaction.WithOwnerProof(bearer),
-			),
-			expectedError: "decoding predicate",
-		},
-		{
 			name: "invalid fee proof",
 			tx: testtransaction.NewTransactionOrder(t,
 				testtransaction.WithPayloadType("trans"),
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
-				testtransaction.WithOwnerProof(nil),
 				testtransaction.WithFeeProof(bearer),
 			),
 			expectedError: "decoding predicate",

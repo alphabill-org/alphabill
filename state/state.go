@@ -129,7 +129,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 
 		latestLog := &Log{
 			UnitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
-			NewBearer:          nodeRecord.OwnerCondition,
+			NewOwner:           nodeRecord.OwnerPredicate,
 			NewUnitData:        unitData,
 		}
 		logsHash := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
@@ -203,7 +203,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	logsCount := len(unit.logs)
 	l := &Log{
 		TxRecordHash:   transactionRecordHash,
-		NewBearer:      bytes.Clone(unit.bearer),
+		NewOwner:       bytes.Clone(unit.owner),
 		NewUnitData:    copyData(unit.data),
 		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
@@ -443,7 +443,7 @@ func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCer
 	}
 	l := unit.logs[logIndex]
 	dataHasher := s.hashAlgorithm.New()
-	dataHasher.Write(l.NewBearer)
+	dataHasher.Write(l.NewOwner)
 	if err = l.NewUnitData.Write(dataHasher); err != nil {
 		return nil, fmt.Errorf("add to hasher error: %w", err)
 	}

@@ -46,6 +46,6 @@ func NewModule(options *Options) (*Module, error) {
 
 func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		orchestration.PayloadTypeAddVAR: txtypes.NewTxHandler[orchestration.AddVarAttributes](m.validateAddVarTx, m.executeAddVarTx),
+		orchestration.PayloadTypeAddVAR: txtypes.NewTxHandler[orchestration.AddVarAttributes, orchestration.AddVarAuthProof](m.validateAddVarTx, m.executeAddVarTx),
 	}
 }

@@ -663,12 +663,20 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(part, func(actualTx *types.TransactionOrder) bool {
-		return reflect.DeepEqual(actualTx, tx)
+	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+		return reflect.DeepEqual(actualTx.TransactionOrder, tx)
 	})
 }
 
-func BlockchainContains(part *NodePartition, criteria func(tx *types.TransactionOrder) bool) func() bool {
+// BlockchainContainsSuccessfulTx checks if at least one partition node has successfully executed the given transaction.
+func BlockchainContainsSuccessfulTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
+			reflect.DeepEqual(actualTx.TransactionOrder, tx)
+	})
+}
+
+func BlockchainContains(part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
 	return func() bool {
 		for _, n := range part.Nodes {
 			number, err := n.LatestBlockNumber()
@@ -681,7 +689,7 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 					continue
 				}
 				for _, t := range b.Transactions {
-					if criteria(t.TransactionOrder) {
+					if criteria(t) {
 						return true
 					}
 				}

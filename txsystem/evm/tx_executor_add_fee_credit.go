@@ -28,8 +28,8 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*fc.Transf
 	return transferPayload, nil
 }
 
-func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+func (f *FeeAccount) executeAddFC(_ *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, authProof *fc.AddFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	pubKey, err := predicates.ExtractPubKey(authProof.OwnerProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 	}
@@ -50,12 +50,12 @@ func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	// if unit exists update balance and alphabill fee credit link data
 	addCredit := []state.Action{
 		statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime),
-		state.SetOwner(unitID, attr.FeeCreditOwnerCondition),
+		state.SetOwner(unitID, attr.FeeCreditOwnerPredicate),
 	}
 	err = f.state.Apply(addCredit...)
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
-		err = f.state.Apply(statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime))
+		err = f.state.Apply(statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerPredicate, alphaToWei(v), transferFc.LatestAdditionTime))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("addFC state update failed: %w", err)
@@ -63,13 +63,13 @@ func (f *FeeAccount) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCre
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, authProof *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// 10. P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+	pubKey, err := predicates.ExtractPubKey(authProof.OwnerProof)
 	if err != nil {
 		return fmt.Errorf("failed to extract public key from fee credit owner proof")
 	}
@@ -91,8 +91,8 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 		}
 		counter = &(stateObj.AlphaBill.Counter)
 		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-		if !bytes.Equal(u.Bearer(), attr.FeeCreditOwnerCondition) {
-			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", u.Bearer(), attr.FeeCreditOwnerCondition)
+		if !bytes.Equal(u.Owner(), attr.FeeCreditOwnerPredicate) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", u.Owner(), attr.FeeCreditOwnerPredicate)
 		}
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 )
@@ -42,7 +43,9 @@ func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, a
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return executeP2PKH256(p.Params, args, txo, env)
+		return executeP2PKH256TxAuth(p.Params, args, txo, env)
+	case templates.P2pkh256FeeAuthID:
+		return executeP2PKH256FeeAuth(p.Params, args, txo, env)
 	case templates.AlwaysTrueID:
 		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
@@ -76,18 +79,35 @@ func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, er
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func executeP2PKH256TxAuth(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+	sigBytes, err := txo.PayloadBytes()
+	if err != nil {
+		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
+	}
+	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
+}
+
+func executeP2PKH256FeeAuth(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+	var sigBytes []byte
+	var err error
+	if fc.IsFeeCreditTx(txo) {
+		sigBytes, err = txo.PayloadBytes()
+	} else {
+		sigBytes, err = txo.FeeProofSigBytes()
+	}
+	if err != nil {
+		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
+	}
+
+	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
+}
+
+func executeP2PKH256(pubKeyHash, args []byte, sigBytes []byte, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(P2PKHGasCost); err != nil {
 		return false, err
 	}
-	// when AB-1012 gets resolved should call txo.PayloadBytes() instead
-	payloadBytes, err := env.PayloadBytes(txo)
-	if err != nil {
-		return false, fmt.Errorf("reading transaction payload bytes: %w", err)
-	}
-
 	p2pkh256Signature := templates.P2pkh256Signature{}
-	if err = types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
+	if err := types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
 		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {
@@ -107,7 +127,7 @@ func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env p
 	if err != nil {
 		return false, fmt.Errorf("failed to create verifier: %w", err)
 	}
-	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
+	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, sigBytes); err != nil {
 		if errors.Is(err, crypto.ErrVerificationFailed) {
 			return false, nil
 		}

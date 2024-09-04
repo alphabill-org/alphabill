@@ -376,11 +376,12 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	initialBillID := defaultInitialBillID
 	attr := &money.TransferAttributes{
-		NewBearer:   templates.AlwaysTrueBytes(),
-		TargetValue: defaultInitialBillValue,
+		NewOwnerPredicate: templates.AlwaysTrueBytes(),
+		TargetValue:       defaultInitialBillValue,
 	}
 	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
+
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
@@ -389,8 +390,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 			SystemID:       money.DefaultSystemID,
 			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
 	}
+	require.NoError(t, tx.SetAuthProof(money.TransferAuthProof{}))
 	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 
@@ -402,11 +403,12 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 
 func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	attr := &money.TransferAttributes{
-		NewBearer:   templates.AlwaysTrueBytes(),
-		TargetValue: defaultInitialBillValue,
+		NewOwnerPredicate: templates.AlwaysTrueBytes(),
+		TargetValue:       defaultInitialBillValue,
 	}
 	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
+
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           money.PayloadTypeTransfer,
@@ -415,8 +417,8 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 			SystemID:       0, // invalid system id
 			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
 	}
+	require.NoError(t, tx.SetAuthProof(money.TransferAuthProof{}))
 	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 

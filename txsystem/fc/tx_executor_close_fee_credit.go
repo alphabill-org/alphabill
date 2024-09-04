@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-func (f *FeeCreditModule) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeCloseFC(tx *types.TransactionOrder, _ *fc.CloseFeeCreditAttributes, _ *fc.CloseFeeCreditAuthProof, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateDataFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
 			fcr, ok := data.(*fc.FeeCreditRecord)
@@ -27,7 +27,7 @@ func (f *FeeCreditModule) executeCloseFC(tx *types.TransactionOrder, _ *fc.Close
 	return &types.ServerMetadata{ActualFee: execCtx.CalculateCost(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, authProof *fc.CloseFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -47,7 +47,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	}
 	// validate owner condition
 	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-	if err = f.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
+	if err = f.execPredicate(bearer, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

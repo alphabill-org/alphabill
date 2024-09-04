@@ -29,6 +29,7 @@ func NewTransferFC(t *testing.T, signer abcrypto.Signer, attr *fc.TransferFeeCre
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
+		testtransaction.WithAuthProof(fc.TransferFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

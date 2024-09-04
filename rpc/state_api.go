@@ -73,7 +73,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 		SystemID:       s.node.SystemID(),
 		UnitID:         unitID,
 		Data:           unit.Data(),
-		OwnerPredicate: unit.Bearer(),
+		OwnerPredicate: unit.Owner(),
 		StateProof:     nil,
 	}
 

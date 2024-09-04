@@ -70,7 +70,6 @@ type (
 
 	EvalEnvironment interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
-		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64

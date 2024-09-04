@@ -43,7 +43,7 @@ func updateLockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder
 	return d, nil
 }
 
-func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, _ *tokens.LockTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateFn := state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
 			return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentRound())
@@ -55,7 +55,7 @@ func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr 
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 }
 
-func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if tx == nil {
 		return errors.New("tx is nil")
 	}
@@ -73,15 +73,15 @@ func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr 
 	}
 
 	if tx.UnitID().HasType(tokens.FungibleTokenUnitType) {
-		return m.validateFungibleLockToken(tx, attr, u, exeCtx)
+		return m.validateFungibleLockToken(tx, attr, authProof, u, exeCtx)
 	} else if tx.UnitID().HasType(tokens.NonFungibleTokenUnitType) {
-		return m.validateNonFungibleLockToken(tx, attr, u, exeCtx)
+		return m.validateNonFungibleLockToken(tx, attr, authProof, u, exeCtx)
 	} else {
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
-func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID())
@@ -89,28 +89,13 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("evaluating bearer predicate: %w", err)
-	}
-	err := runChainedPredicates[*tokens.FungibleTokenTypeData](
-		exeCtx,
-		tx,
-		d.TokenType,
-		attr.InvariantPredicateSignatures,
-		m.execPredicate,
-		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
-		},
-		m.state.GetUnit,
-	)
-	if err != nil {
-		return fmt.Errorf("token type InvariantPredicate: %w", err)
+	if err := m.execPredicate(u.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }
 
-func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID())
@@ -118,23 +103,8 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-
-	if err := m.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("evaluating bearer predicate: %w", err)
-	}
-	err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
-		exeCtx,
-		tx,
-		d.TypeID,
-		attr.InvariantPredicateSignatures,
-		m.execPredicate,
-		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
-		},
-		m.state.GetUnit,
-	)
-	if err != nil {
-		return fmt.Errorf("token type InvariantPredicate: %w", err)
+	if err := m.execPredicate(u.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }

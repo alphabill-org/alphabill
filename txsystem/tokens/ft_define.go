@@ -13,10 +13,9 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
-func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, _ *tokens.DefineFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 
-	// update state
 	if err := m.state.Apply(
 		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),
 	); err != nil {
@@ -26,7 +25,7 @@ func (m *FungibleTokensModule) executeCreateFTType(tx *types.TransactionOrder, a
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, attr *tokens.CreateFungibleTokenTypeAttributes, exeCtx txtypes.ExecutionContext) error {
+func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, authProof *tokens.DefineFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.UnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
@@ -76,7 +75,7 @@ func (m *FungibleTokensModule) validateCreateFTType(tx *types.TransactionOrder, 
 		exeCtx,
 		tx,
 		attr.ParentTypeID,
-		attr.SubTypeCreationPredicateSignatures,
+		authProof.SubTypeCreationProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.SubTypeCreationPredicate

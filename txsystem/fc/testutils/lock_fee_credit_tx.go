@@ -25,6 +25,7 @@ func NewLockFC(t *testing.T, signer abcrypto.Signer, attr *fc.LockFeeCreditAttri
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
+		testtransaction.WithAuthProof(fc.LockFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

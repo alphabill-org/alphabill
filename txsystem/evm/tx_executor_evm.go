@@ -29,7 +29,7 @@ func errorToStr(err error) string {
 	return ""
 }
 
-func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, exeCtx txtypes.ExecutionContext) (sm *types.ServerMetadata, retErr error) {
+func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, authProof *evmsdk.TxAuthProof, exeCtx txtypes.ExecutionContext) (sm *types.ServerMetadata, retErr error) {
 	from := common.BytesToAddress(attr.From)
 	stateDB := statedb.NewStateDB(m.options.state, m.log)
 	if !stateDB.Exist(from) {
@@ -40,10 +40,10 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 			retErr = stateDB.Finalize()
 		}
 	}()
-	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
+	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, authProof, m.systemIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
-func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttributes, _ txtypes.ExecutionContext) error {
+func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, authProof *evmsdk.TxAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}
@@ -53,6 +53,12 @@ func (m *Module) validateEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribu
 	if attr.Value.Sign() < 0 {
 		return fmt.Errorf("invalid evm tx, value is negative")
 	}
+	unit, _ := exeCtx.GetUnit(tx.UnitID(), false)
+	if unit != nil {
+		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+			return fmt.Errorf("evaluating owner predicate: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -61,7 +67,7 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *uint256.Int {
 	return cost.Mul(cost, uint256.MustFromBig(gasPrice))
 }
 
-func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, _ *evmsdk.TxAuthProof, systemIdentifier types.SystemID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}

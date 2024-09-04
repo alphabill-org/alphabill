@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
-func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ *orchestration.AddVarAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// try to update unit
 	err := m.state.Apply(state.UpdateUnitData(tx.UnitID(),
 		func(data types.UnitData) (types.UnitData, error) {
@@ -42,7 +42,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	}, nil
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx txtypes.ExecutionContext) error {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, authProof *orchestration.AddVarAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if !tx.UnitID().HasType(orchestration.VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}
@@ -65,7 +65,7 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestratio
 		}
 	}
 	// Always check owner predicate, do it as a last step because it is the most expensive check
-	if err = m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

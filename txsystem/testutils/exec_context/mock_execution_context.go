@@ -34,11 +34,6 @@ func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return m.RootTrustBase, nil
 }
 
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (m *MockExecContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
-}
-
 type TestOption func(*MockExecContext) error
 
 func WithCurrentRound(round uint64) TestOption {

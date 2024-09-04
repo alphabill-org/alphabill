@@ -234,7 +234,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	}
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
-	return &types.TransactionOrder{
+	txo := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
@@ -242,8 +242,10 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
 	}
+	// auth proof in evm is not used, however, all tx systems must have non-nil auth proof field
+	require.NoError(t, txo.SetAuthProof(evm.TxAuthProof{}))
+	return txo
 }
 
 func createCallContractTx(from []byte, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
@@ -257,7 +259,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	}
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
-	return &types.TransactionOrder{
+	txo := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
@@ -265,8 +267,10 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
 	}
+	// auth proof in evm is not used, however, all tx systems must have non-nil auth proof field
+	require.NoError(t, txo.SetAuthProof(evm.TxAuthProof{}))
+	return txo
 }
 
 func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
@@ -279,7 +283,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	}
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
-	return &types.TransactionOrder{
+	txo := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           evm.PayloadTypeEVMCall,
 			SystemID:       systemIdentifier,
@@ -287,6 +291,8 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
 	}
+	// auth proof in evm is not used, however, all tx systems must have non-nil auth proof field
+	require.NoError(t, txo.SetAuthProof(evm.TxAuthProof{}))
+	return txo
 }

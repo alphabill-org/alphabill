@@ -14,10 +14,11 @@ const MaxPredicateBinSize = 65536
 
 type (
 	PredicateEngine interface {
-		// unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
+		// ID unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
 		// to the engine which is supposed to evaluate it.
 		ID() uint64
-		// executes given predicate
+
+		// Execute executes given predicate
 		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
 	}
 
@@ -33,7 +34,7 @@ type (
 		CalculateCost() uint64
 	}
 
-	// environment where predicate runs (AKA transaction execution context)
+	// TxContext environment where predicate runs (AKA transaction execution context)
 	// This is meant to provide the predicate engine with access to the
 	// tx system which processes the transaction.
 	TxContext interface {
@@ -41,8 +42,6 @@ type (
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
-		// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 	}
 )
 
@@ -105,8 +104,7 @@ func (pe PredicateEngines) Execute(ctx context.Context, predicate types.Predicat
 
 /*
 NewPredicateRunner is a helper to refactor predicate support - provide implementation which is common
-for most tx systems (as of now only tokens tx system requires different PayloadBytes implementation,
-see AB-1012 for details) and "translates" between two interfaces:
+for most tx systems and "translates" between two interfaces:
   - currently tx handlers do not have context.Context to pass to the predicate engine so wrapper
     returned doesn't require it and passes context.Background() to the predicate engine;
   - currently tx systems do not differentiate between predicate evaluating to "false" vs returning

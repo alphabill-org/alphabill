@@ -65,5 +65,5 @@ func parseFeeCreditRecord(id types.UnitID, fcrType []byte, state *state.State) (
 	if !ok {
 		return nil, nil, ErrUnitDataTypeIsNotFCR
 	}
-	return fcr, bd.Bearer(), nil
+	return fcr, bd.Owner(), nil
 }

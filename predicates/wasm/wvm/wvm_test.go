@@ -25,6 +25,9 @@ import (
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
 var addOneWasm []byte
 
+//go:embed testdata/conference_tickets/v2/conf_tickets.wasm
+var ticketsWasm []byte
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	obs := observability.Default(t)
@@ -174,7 +177,6 @@ func Benchmark_wazero_call_wasm_fn(b *testing.B) {
 
 type mockTxContext struct {
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
-	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
 	curRound     func() uint64
 	trustBase    func() (types.RootTrustBase, error)
 	GasRemaining uint64
@@ -183,10 +185,6 @@ type mockTxContext struct {
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return env.getUnit(id, committed)
-}
-
-func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return env.payloadBytes(txo)
 }
 
 func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }

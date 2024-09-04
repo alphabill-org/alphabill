@@ -2,19 +2,18 @@ package templates
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateRunner(t *testing.T) {
@@ -83,19 +82,6 @@ func TestTemplateRunner(t *testing.T) {
 		res, err := runner.Execute(context.Background(), at, nil, nil, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
-	})
-
-	t.Run("p2pkh", func(t *testing.T) {
-		// easier to check for known error here
-		expErr := errors.New("attempt to extract payload bytes")
-		execEnv := &mockTxContext{
-			spendGas:     func(gas uint64) error { return nil },
-			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
-		}
-		pred := &sdkpredicates.Predicate{Tag: templates.TemplateStartByte, Code: []byte{templates.P2pkh256ID}}
-		res, err := runner.Execute(context.Background(), pred, nil, &types.TransactionOrder{}, execEnv)
-		require.ErrorIs(t, err, expErr)
-		require.False(t, res)
 	})
 }
 
@@ -258,40 +244,36 @@ func TestP2pkh256_Execute(t *testing.T) {
 		},
 	}
 	require.NoError(t, validTxOrder.Payload.SetAttributes("not really attributes"))
-	require.NoError(t, validTxOrder.SetOwnerProof(predicates.OwnerProoferForSigner(signer)))
+	ownerProof := testsig.NewOwnerProof(t, validTxOrder, signer)
+	require.NoError(t, validTxOrder.SetAuthProof(ownerProof))
+	feeProof := testsig.NewFeeProof(t, validTxOrder, signer)
 
 	execEnv := &mockTxContext{
-		payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
 		spendGas:     func(gas uint64) error { return nil },
 	}
 
-	t.Run("success", func(t *testing.T) {
-		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+	t.Run("txAuth success", func(t *testing.T) {
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.True(t, res)
 	})
 
-	t.Run("failure to read txo payload bytes", func(t *testing.T) {
-		expErr := errors.New("nope")
-		execEnv := &mockTxContext{
-			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return nil, expErr },
-			spendGas:     func(gas uint64) error { return nil },
-		}
-		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
-		require.ErrorIs(t, err, expErr)
-		require.False(t, res)
+	t.Run("feeAuth success", func(t *testing.T) {
+		res, err := executeP2PKH256FeeAuth(pubKeyHash, feeProof, validTxOrder, execEnv)
+		require.NoError(t, err)
+		require.True(t, res)
 	})
 
 	t.Run("invalid CBOR encoded OwnerProof", func(t *testing.T) {
-		res, err := executeP2PKH256(pubKeyHash, nil, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, nil, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = executeP2PKH256(pubKeyHash, []byte{}, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, []byte{}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: EOF`)
 		require.False(t, res)
 
-		res, err = executeP2PKH256(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, []byte{0, 1, 2}, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to decode P2PKH256 signature: cbor: 2 bytes of extraneous data starting at index 1`)
 		require.False(t, res)
 	})
@@ -302,7 +284,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: []byte{1, 2, 3}, PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
 		require.False(t, res)
 
@@ -310,7 +292,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
 		require.False(t, res)
 
@@ -318,7 +300,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.NoError(t, err, `testing against different public key is not error`)
 		require.False(t, res)
 
@@ -326,7 +308,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
+		res, err = executeP2PKH256TxAuth(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, `failed to create verifier: public key decompress faield`)
 		require.False(t, res)
 	})
@@ -337,23 +319,22 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature := templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: pubKey}
 		ownerProof, err := types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err := executeP2PKH256(pubKeyHash, ownerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.NoError(t, err)
 		require.False(t, res)
 	})
 
 	t.Run("invalid pubkey hash size", func(t *testing.T) {
-		res, err := executeP2PKH256(pubKeyHash[:len(pubKeyHash)-1], validTxOrder.OwnerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash[:len(pubKeyHash)-1], ownerProof, validTxOrder, execEnv)
 		require.ErrorContains(t, err, `invalid pubkey hash size: expected 32, got 31`)
 		require.False(t, res)
 	})
 
 	t.Run("out of gas", func(t *testing.T) {
 		execEnv := &mockTxContext{
-			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return txo.PayloadBytes() },
 			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
 		}
-		res, err := executeP2PKH256(pubKeyHash, validTxOrder.OwnerProof, validTxOrder, execEnv)
+		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, "out of gas")
 		require.False(t, res)
 	})
@@ -371,16 +352,13 @@ func Benchmark_templateExecute(b *testing.B) {
 			b.Error(err.Error())
 		}
 		pubKeyHash := hash.Sum256(pk)
-
 		execEnv := &mockTxContext{
-			payloadBytes: func(txo *types.TransactionOrder) ([]byte, error) { return payload, nil },
 			spendGas:     func(gas uint64) error { return nil },
 		}
-		txo := &types.TransactionOrder{}
 
 		// valid data, the P2pkh256.Execute should not return any error
 		for i := 0; i < b.N; i++ {
-			res, err := executeP2PKH256(pubKeyHash, ownerProof, txo, execEnv)
+			res, err := executeP2PKH256(pubKeyHash, ownerProof, payload, execEnv)
 			if err != nil {
 				b.Error(err.Error())
 			}
@@ -424,7 +402,6 @@ func Benchmark_templateExecute(b *testing.B) {
 type mockTxContext struct {
 	gasRemaining uint64
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
-	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
 	spendGas     func(gas uint64) error
 }
 
@@ -438,9 +415,6 @@ func (env *mockTxContext) SpendGas(gas uint64) error {
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return env.getUnit(id, committed)
-}
-func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return env.payloadBytes(txo)
 }
 
 func (env *mockTxContext) CurrentRound() uint64 { return 0 }

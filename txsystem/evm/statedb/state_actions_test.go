@@ -25,7 +25,7 @@ func TestCreateAccountAndAddCredit(t *testing.T) {
 	u, err := tr.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.EqualValues(t, templates.AlwaysFalseBytes(), u.Bearer())
+	require.EqualValues(t, templates.AlwaysFalseBytes(), u.Owner())
 	stateDB := NewStateDB(tr, logger.New(t))
 	require.Equal(t, balance, stateDB.GetBalance(address))
 	abLink := stateDB.GetAlphaBillData(address)

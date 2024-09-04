@@ -19,7 +19,7 @@ type (
 	}
 )
 
-func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, _ *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// reduce dc-money supply by target value and update timeout and backlink
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
@@ -55,7 +55,7 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 	}, nil
 }
 
-func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, exeCtx txtypes.ExecutionContext) error {
+func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, authProof *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
 	if err != nil {
@@ -91,7 +91,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if len(dustTransfers) != len(attr.DcTransferProofs) {
 		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
 	}
-	if err = m.execPredicate(unitData.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("swap tx predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {

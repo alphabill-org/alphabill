@@ -3,6 +3,7 @@ package tokens
 import (
 	"testing"
 
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/hash"
@@ -11,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
@@ -21,7 +21,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	w1Signer, w1PubKey := createSigner(t)
 	_ = w1Signer
 	txs, _ := newTokenTxSystem(t)
-	unitID := createNFTTypeAndMintToken(t, txs, nftTypeID2)
+	unitID := defineNFTAndMintToken(t, txs, nftTypeID2)
 
 	// transfer NFT to pk1 with state lock
 	transferTx := testtransaction.NewTransactionOrder(
@@ -29,19 +29,20 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithPayloadType(tokens.PayloadTypeTransferNFT),
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
-		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
-			TypeID:                       nftTypeID2,
-			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)),
-			Nonce:                        test.RandomBytes(32),
-			Counter:                      0,
-			InvariantPredicateSignatures: [][]byte{nil},
+			TypeID:            nftTypeID2,
+			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)),
+			Counter:           0,
 		}),
+		testtransaction.WithAuthProof(tokens.TransferNonFungibleTokenAuthProof{
+			TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}},
+		),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithStateLock(&types.StateLock{
 			ExecutionPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey),
-			RollbackPredicate:  templates.NewP2pkh256BytesFromKey(w1PubKey)}),
+			RollbackPredicate:  templates.NewP2pkh256BytesFromKey(w1PubKey)},
+		),
 	)
 	_, err := txs.Execute(transferTx)
 	require.NoError(t, err)
@@ -56,7 +57,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, []byte{0xa}, d.Data)
 	require.Equal(t, uint64(0), d.Counter)
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
+	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
 
 	// try to update nft without state unlocking
 	updateTx := testtransaction.NewTransactionOrder(
@@ -77,9 +78,8 @@ func TestTransferNFT_StateLock(t *testing.T) {
 
 	// update nft with state unlock, it must be transferred to new bearer w1
 	attr := &tokens.UpdateNonFungibleTokenAttributes{
-		Data:                 []byte{42},
-		Counter:              1,
-		DataUpdateSignatures: [][]byte{nil, nil},
+		Data:    []byte{42},
+		Counter: 1,
 	}
 	updateTx = testtransaction.NewTransactionOrder(
 		t,
@@ -89,9 +89,13 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
+		testtransaction.WithAuthProof(
+			tokens.UpdateNonFungibleTokenAuthProof{TokenTypeDataUpdateProofs: [][]byte{templates.EmptyArgument()}},
+		),
 	)
-	require.NoError(t, updateTx.SetOwnerProof(predicates.OwnerProoferForSigner(w1Signer)))
-	updateTx.StateUnlock = append([]byte{byte(txsystem.StateUnlockExecute)}, updateTx.OwnerProof...)
+
+	ownerProof := testsig.NewOwnerProof(t, updateTx, w1Signer)
+	updateTx.StateUnlock = append([]byte{byte(txsystem.StateUnlockExecute)}, ownerProof...)
 
 	_, err = txs.Execute(updateTx)
 	require.NoError(t, err)
@@ -107,5 +111,5 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, attr.Data, d.Data)
 	require.Equal(t, uint64(2), d.Counter)
-	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), u.Bearer())
+	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), u.Owner())
 }

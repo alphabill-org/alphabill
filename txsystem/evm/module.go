@@ -45,17 +45,9 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		if ctx.Tx.SystemID() != ctx.SystemIdentifier {
 			return txsystem.ErrInvalidSystemIdentifier
 		}
-
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {
 			return txsystem.ErrTransactionExpired
 		}
-
-		if ctx.Unit != nil {
-			if err := m.execPredicate(ctx.Unit.Bearer(), ctx.Tx.OwnerProof, ctx.Tx, ctx); err != nil {
-				return fmt.Errorf("evaluating bearer predicate: %w", err)
-			}
-		}
-
 		return nil
 	}
 }
@@ -73,6 +65,6 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 
 func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
 	return map[string]txtypes.TxExecutor{
-		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes](m.validateEVMTx, m.executeEVMTx),
+		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes, evm.TxAuthProof](m.validateEVMTx, m.executeEVMTx),
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 )
@@ -52,8 +53,30 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 	pkh := read(mod, stack[1])
 
+	var proof []byte
+	var unmarshalErr error
+	switch txo.PayloadType() {
+	case tokens.PayloadTypeTransferNFT:
+		var authProof tokens.TransferNonFungibleTokenAuthProof
+		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
+			proof = authProof.OwnerProof
+		}
+	case tokens.PayloadTypeUpdateNFT:
+		var authProof tokens.UpdateNonFungibleTokenAuthProof
+		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
+			proof = authProof.TokenDataUpdateProof
+		}
+	default:
+		unmarshalErr = errors.New("failed to extract OwnerProof from tx order")
+	}
+	if unmarshalErr != nil {
+		vec.log.DebugContext(ctx, "unknown tx order type", logger.Error(err))
+		stack[0] = 3
+		return
+	}
+
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
+	ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -189,7 +212,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding transfer attributes: %w", err)
 		}
-		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewBearer)
+		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewOwnerPredicate)
 		if err != nil {
 			return 0, fmt.Errorf("extracting bearer pkh: %w", err)
 		}
@@ -203,7 +226,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 			return 0, fmt.Errorf("decoding split attributes: %w", err)
 		}
 		for _, v := range attr.TargetUnits {
-			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerCondition)
+			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerPredicate)
 			if err != nil {
 				return 0, fmt.Errorf("extracting owner pkh: %w", err)
 			}

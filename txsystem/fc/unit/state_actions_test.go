@@ -31,7 +31,7 @@ func TestAddCredit_OK(t *testing.T) {
 	// verify unit is in state tree
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	require.Equal(t, owner, unit.Bearer())
+	require.Equal(t, owner, unit.Owner())
 	require.Equal(t, counter, unit.Data().(*fc.FeeCreditRecord).Counter)
 	require.Equal(t, fcr, unit.Data())
 }
@@ -81,7 +81,7 @@ func TestIncrCredit_OK(t *testing.T) {
 	require.EqualValues(t, 100, unitFCR.Balance)
 	require.EqualValues(t, 200, unitFCR.Timeout)
 	require.Equal(t, counter+1, unitFCR.Counter)
-	require.Equal(t, owner, unit.Bearer())
+	require.Equal(t, owner, unit.Owner())
 }
 
 func TestDecrCredit_OK(t *testing.T) {

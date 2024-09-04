@@ -144,7 +144,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	if err := m.snFees(tx, exeCtx); err != nil {
 		return nil, fmt.Errorf("error tx snFees: %w", err)
 	}
-	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
+	// all transactions that get this far will go into bock even if they fail and cost is credited from user FCR
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
@@ -227,7 +227,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		return result, nil
 	}
 	// perform transaction-system-specific validation and owner condition check
-	attr, err := m.handlers.Validate(tx, exeCtx)
+	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		txExecErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
 		return result, nil
@@ -243,7 +243,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		return result, nil
 	}
 	// proceed with the transaction execution, if not state lock
-	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	result = appendServerMetadata(result, sm)
 	if err != nil {
 		txExecErr = fmt.Errorf("execute error: %w", err)
@@ -261,7 +261,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
 	// perform transaction-system-specific validation and owner condition check
-	attr, err := m.handlers.Validate(tx, exeCtx)
+	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
 	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
 	// proceed with the transaction execution
-	sm, err := m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
@@ -315,12 +315,6 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	if m.currentRoundNumber >= tx.Timeout() {
 		return ErrTransactionExpired
 	}
-
-	// 4. N[ι] = ⊥ ∨ VerifyOwner(N[ι].φ, P, P.s) = 1 – owner proof verifies correctly.
-	// Yellowpaper currently suggests to check owner proof here. However it requires
-	// knowledge about whether it's ok that the unit is not part of current
-	// state - ie create token type or mint token transactions. So we do the
-	// owner proof verification in the tx handler.
 	return nil
 }
 

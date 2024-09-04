@@ -19,7 +19,7 @@ type genericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
 	Tx               *types.TransactionOrder
-	Unit             *state.Unit
+	state            *state.State
 	SystemIdentifier types.SystemID
 	BlockNumber      uint64
 }
@@ -122,15 +122,14 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 }
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
-	u, _ := m.state.GetUnit(tx.UnitID(), false)
-	ctx := &TxValidationContext{
+	exeCtx := &TxValidationContext{
 		Tx:               tx,
-		Unit:             u,
+		state:            m.state,
 		SystemIdentifier: m.systemIdentifier,
 		BlockNumber:      m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
-		if err = validator(ctx); err != nil {
+		if err = validator(exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
@@ -160,11 +159,10 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, ctx)
+	sm, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
-
 	return sm, err
 }
 
@@ -197,18 +195,13 @@ func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 }
 
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	return nil, fmt.Errorf("TxValidationContext.GetUnit not implemented")
+	return vc.state.GetUnit(id, committed)
 }
 
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
 
 func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
-}
-
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
 }
 
 func (vc *TxValidationContext) GasAvailable() uint64 {

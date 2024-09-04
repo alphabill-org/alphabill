@@ -24,45 +24,58 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 	t.Run("ok - empty", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
-		tx := testfc.NewAddFC(t, signer, attr)
-		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
+		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
 	})
 	t.Run("transferFC tx record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil, FeeCreditTransferProof: &types.TxProof{}}),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: transferFC tx record is nil")
 	})
 	t.Run("transferFC tx order is nil", func(t *testing.T) {
-		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
-			&fc.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}, FeeCreditTransferProof: &types.TxProof{}}))
+		tx := testtransaction.NewTransactionOrder(t,
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
+				FeeCreditTransfer:      &types.TransactionRecord{TransactionOrder: nil},
+				FeeCreditTransferProof: &types.TxProof{}}),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{
+				OwnerProof: templates.EmptyArgument(),
+			}),
+		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: transferFC tx order is nil")
 	})
 	t.Run("transferFC proof is nil", func(t *testing.T) {
-		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
-			&fc.AddFeeCreditAttributes{
-				FeeCreditTransfer: &types.TransactionRecord{
-					TransactionOrder: &types.TransactionOrder{},
-				},
+		tx := testtransaction.NewTransactionOrder(t,
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
+				FeeCreditTransfer:      &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}},
 				FeeCreditTransferProof: nil,
-			},
-		))
+			}),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
+		)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transferFC tx proof is nil")
 	})
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
@@ -80,7 +93,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transferFC tx order is missing server metadata")
 	})
 	t.Run("transferFC type not valid", func(t *testing.T) {
@@ -98,7 +113,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: invalid transfer fee credit transaction payload type: addFC")
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
@@ -117,7 +134,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
@@ -128,7 +147,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"fee credit tx validation error: fee tx cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
@@ -144,19 +165,23 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target record id")
 	})
 	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer))
-		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
+		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"executing fee credit predicate: predicate error")
 	})
 	t.Run("invalid system id", func(t *testing.T) {
@@ -174,7 +199,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC money system identifier FFFFFFFF (expected 00000001)")
 	})
 	t.Run("Invalid target systemID", func(t *testing.T) {
@@ -192,7 +219,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC target system identifier: expected_target_system_id: 00000001 actual_target_system_id=FFFFFFFF")
 	})
 	t.Run("Invalid target recordID", func(t *testing.T) {
@@ -210,7 +239,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target record id")
 	})
 	t.Run("invalid target unit counter (fee credit record does not exist, counter must be nil)", func(t *testing.T) {
@@ -228,7 +259,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 	})
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
@@ -246,7 +279,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(11))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC timeout: latestAdditionTime=10 currentRoundNumber=11")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
@@ -264,7 +299,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
 	t.Run("Invalid tx fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -282,7 +319,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC fee: max_fee+actual_fee=102 transferFC.Amount=100")
 	})
 	t.Run("Invalid proof", func(t *testing.T) {
@@ -295,7 +334,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"proof is not valid: proof block hash does not match to block hash in unicity certificate")
 	})
 
@@ -310,43 +351,50 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("ok - empty", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
-		tx := testfc.NewAddFC(t, signer, attr)
-		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
+		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
 	})
 	t.Run("err - replay will not pass validation", func(t *testing.T) {
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
-		tx := testfc.NewAddFC(t, signer, attr)
-		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
-		sm, err := feeCreditModule.executeAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
+		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+		sm, err := feeCreditModule.executeAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 		// replay attack - have to use error contains since backlink hash changes
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))),
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))),
 			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
 	})
 	t.Run("transferFC tx record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil, FeeCreditTransferProof: &types.TxProof{}}),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: transferFC tx record is nil")
 	})
 	t.Run("transferFC tx order is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
-			testtransaction.WithAttributes(
-				&fc.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}, FeeCreditTransferProof: &types.TxProof{}}))
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}, FeeCreditTransferProof: &types.TxProof{}}),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}))
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: transferFC tx order is nil")
 	})
 	t.Run("transferFC proof is nil", func(t *testing.T) {
@@ -359,12 +407,16 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					},
 					FeeCreditTransferProof: nil,
 				},
-			))
+			),
+			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
+		)
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transferFC tx proof is nil")
 	})
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
@@ -382,7 +434,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transferFC tx order is missing server metadata")
 	})
 	t.Run("transferFC type not valid", func(t *testing.T) {
@@ -400,7 +454,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: invalid transfer fee credit transaction payload type: addFC")
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
@@ -419,7 +475,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: transfer tx attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
@@ -430,7 +488,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"fee credit tx validation error: fee tx cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
@@ -446,7 +506,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC target record id:")
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
@@ -457,7 +519,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"get fcr error: invalid unit identifier: type is not fee credit record")
 	})
 	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
@@ -470,7 +534,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 					},
 				),
 			))
-		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
+		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}
 		feeCreditModule := newTestFeeModule(t, trustBase,
@@ -479,7 +543,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid owner condition:")
 	})
 	t.Run("invalid system id", func(t *testing.T) {
@@ -497,7 +563,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC money system identifier FFFFFFFF (expected 00000001)")
 	})
 	t.Run("Invalid target systemID", func(t *testing.T) {
@@ -515,7 +583,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC target system identifier: expected_target_system_id: 00000001 actual_target_system_id=FFFFFFFF")
 	})
 	t.Run("Invalid target recordID", func(t *testing.T) {
@@ -533,7 +603,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target record id")
 	})
 	t.Run("invalid target unit counter (fee credit record exist, counter must be non-nil)", func(t *testing.T) {
@@ -551,7 +623,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
 	})
 	t.Run("invalid target unit counter (both exist but are not equal)", func(t *testing.T) {
@@ -570,7 +644,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			fmt.Sprintf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", 10, 11))
 
 	})
@@ -586,11 +662,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -608,7 +686,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(11))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC timeout: latestAdditionTime=10 currentRoundNumber=11")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
@@ -625,11 +705,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx))
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
 	t.Run("Invalid tx fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -644,11 +726,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC fee: max_fee+actual_fee=102 transferFC.Amount=100")
 	})
 	t.Run("Invalid proof", func(t *testing.T) {
@@ -668,11 +752,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		)
 
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID(), templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID(), templates.NewP2pkh256FeeAuthBytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, execCtx),
+		var authProof fc.AddFeeCreditAuthProof
+		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
+		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"proof is not valid: proof block hash does not match to block hash in unicity certificate")
 	})
 }
@@ -682,10 +768,11 @@ func TestAddFC_ExecuteAddNewFeeCredit(t *testing.T) {
 	trustBase := testtb.NewTrustBase(t, verifier)
 	feeCreditModule := newTestFeeModule(t, trustBase)
 	attr := testfc.NewAddFCAttr(t, signer)
-	tx := testfc.NewAddFC(t, signer, attr)
+	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
+	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
 
-	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
-	sm, err := feeCreditModule.executeAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+	sm, err := feeCreditModule.executeAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -715,12 +802,13 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 			},
 		),
 	)
-	tx := testfc.NewAddFC(t, signer, attr)
+	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
+	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1}
-	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), attr.FeeCreditOwnerCondition, existingFCR))
+	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), attr.FeeCreditOwnerPredicate, existingFCR))
 
-	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
-	sm, err := feeCreditModule.executeAddFC(tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
+	sm, err := feeCreditModule.executeAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 

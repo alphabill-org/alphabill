@@ -29,7 +29,7 @@ func Test_runChainedPredicates(t *testing.T) {
 			txo,
 			nil, // type ID nil signals no root item to start the chain
 			nil, // no arguments for chained predicates
-			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, tx *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},

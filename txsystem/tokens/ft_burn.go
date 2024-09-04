@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, _ *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.UnitID()
 
 	// 1. SetOwner(ι, DC)
@@ -38,8 +38,8 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
-	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
+func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, authProof *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
 	if err != nil {
 		return err
 	}
@@ -56,23 +56,23 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
 
-	err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx)
+	err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx)
 	if err != nil {
-		return fmt.Errorf("bearer predicate: %w", err)
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx,
 		tokenData.TokenType,
-		attr.InvariantPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
+			return d.ParentTypeID, d.TokenTypeOwnerPredicate
 		},
 		m.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf("token type InvariantPredicate: %w", err)
+		return fmt.Errorf("evaluating TokenTypeOwnerPredicate: %w", err)
 	}
 	return nil
 }

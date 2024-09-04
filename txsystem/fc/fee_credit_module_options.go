@@ -9,13 +9,13 @@ import (
 
 type Option func(f *FeeCreditModule)
 
-func WithSystemIdentifier(systemID types.SystemID) Option {
+func WithSystemID(systemID types.SystemID) Option {
 	return func(f *FeeCreditModule) {
 		f.systemIdentifier = systemID
 	}
 }
 
-func WithMoneySystemIdentifier(moneySystemID types.SystemID) Option {
+func WithMoneySystemID(moneySystemID types.SystemID) Option {
 	return func(f *FeeCreditModule) {
 		f.moneySystemIdentifier = moneySystemID
 	}

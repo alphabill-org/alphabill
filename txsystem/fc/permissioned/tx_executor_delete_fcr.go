@@ -11,7 +11,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (f *FeeCreditModule) validateDeleteFCR(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, exeCtx txtypes.ExecutionContext) error {
+func (f *FeeCreditModule) validateDeleteFCR(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, authProof *permissioned.DeleteFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	// verify tx.FeeProof is nil and tx.ClientMetadata.FeeCreditRecordID is nil
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return err
@@ -30,13 +30,13 @@ func (f *FeeCreditModule) validateDeleteFCR(tx *types.TransactionOrder, _ *permi
 	}
 
 	// verify tx is signed by admin key
-	if err := f.execPredicate(f.adminOwnerCondition, tx.OwnerProof, tx, exeCtx); err != nil {
+	if err := f.execPredicate(f.adminOwnerCondition, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil
 }
 
-func (f *FeeCreditModule) executeDeleteFCR(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (f *FeeCreditModule) executeDeleteFCR(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, _ *permissioned.DeleteFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	setOwnerFn := state.SetOwner(tx.UnitID(), templates.AlwaysFalseBytes())
 	if err := f.state.Apply(setOwnerFn); err != nil {
 		return nil, fmt.Errorf("failed to delete fee credit record: %w", err)

@@ -25,7 +25,7 @@ func NewUnlockFC(t *testing.T, signer abcrypto.Signer, attr *fc.UnlockFeeCreditA
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
-		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithAuthProof(fc.UnlockFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

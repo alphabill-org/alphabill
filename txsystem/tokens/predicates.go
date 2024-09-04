@@ -15,7 +15,7 @@ Typically, these are predicates of the token type chain.
 
 Parameters:
   - "env": transaction execution environment/context;
-  - "sigBytes": transaction order signature bytes against which predicates are run,
+  - "txo": transaction order against which predicates are run,
     passed on as argument to the exec callback;
   - "parentID": ID of the first unit in the chain, typically token's type ID;
   - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the

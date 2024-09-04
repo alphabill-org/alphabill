@@ -12,9 +12,9 @@ type (
 		TxHandlers() map[string]TxExecutor
 	}
 
-	TxHandler[T any, T1 any] struct {
-		Execute  func(tx *types.TransactionOrder, attributes *T, authProof *T1, exeCtx ExecutionContext) (*types.ServerMetadata, error)
-		Validate func(tx *types.TransactionOrder, attributes *T, authProof *T1, exeCtx ExecutionContext) error
+	TxHandler[A any, P any] struct {
+		Execute  func(tx *types.TransactionOrder, attributes *A, authProof *P, exeCtx ExecutionContext) (*types.ServerMetadata, error)
+		Validate func(tx *types.TransactionOrder, attributes *A, authProof *P, exeCtx ExecutionContext) error
 	}
 
 	TxExecutor interface {
@@ -29,9 +29,9 @@ type (
 
 	ValidateFunc func(*types.TransactionOrder, ExecutionContext) error
 
-	GenericExecuteFunc[T, T1 any] func(tx *types.TransactionOrder, attributes *T, authProof *T1, exeCtx ExecutionContext) (*types.ServerMetadata, error)
+	GenericExecuteFunc[A, P any] func(tx *types.TransactionOrder, attributes *A, authProof *P, exeCtx ExecutionContext) (*types.ServerMetadata, error)
 
-	GenericValidateFunc[T, T1 any] func(tx *types.TransactionOrder, attributes *T, authProof *T1, exeCtx ExecutionContext) error
+	GenericValidateFunc[A, P any] func(tx *types.TransactionOrder, attributes *A, authProof *P, exeCtx ExecutionContext) error
 
 	// ExecutionContext - provides additional context and info for tx validation and execution
 	ExecutionContext interface {
@@ -39,16 +39,16 @@ type (
 	}
 )
 
-func NewTxHandler[T, T1 any](v GenericValidateFunc[T, T1], e GenericExecuteFunc[T, T1]) *TxHandler[T, T1] {
-	return &TxHandler[T, T1]{Validate: v, Execute: e}
+func NewTxHandler[A, P any](v GenericValidateFunc[A, P], e GenericExecuteFunc[A, P]) *TxHandler[A, P] {
+	return &TxHandler[A, P]{Validate: v, Execute: e}
 }
 
-func (t *TxHandler[T, T1]) ValidateTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (any, any, error) {
-	attr := new(T)
+func (t *TxHandler[A, P]) ValidateTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (any, any, error) {
+	attr := new(A)
 	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
-	authProof := new(T1)
+	authProof := new(P)
 	if err := txo.UnmarshalAuthProof(authProof); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal auth proof: %w", err)
 	}
@@ -58,24 +58,24 @@ func (t *TxHandler[T, T1]) ValidateTx(txo *types.TransactionOrder, exeCtx Execut
 	return attr, authProof, nil
 }
 
-func (t *TxHandler[T, T1]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, authProof any, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
-	txAttr, ok := attr.(*T)
+func (t *TxHandler[A, P]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, authProof any, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
+	txAttr, ok := attr.(*A)
 	if !ok {
 		return nil, fmt.Errorf("incorrect attribute type: %T for tx order %s", attr, txo.PayloadType())
 	}
-	txAuthProof, ok := authProof.(*T1)
+	txAuthProof, ok := authProof.(*P)
 	if !ok {
 		return nil, fmt.Errorf("incorrect auth proof type: %T for tx order %s", authProof, txo.PayloadType())
 	}
 	return t.Execute(txo, txAttr, txAuthProof, exeCtx)
 }
 
-func (t *TxHandler[T, T1]) ExecuteTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
-	attr := new(T)
+func (t *TxHandler[A, P]) ExecuteTx(txo *types.TransactionOrder, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
+	attr := new(A)
 	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
-	authProof := new(T1)
+	authProof := new(P)
 	if err := txo.UnmarshalAuthProof(authProof); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal auth proof: %w", err)
 	}

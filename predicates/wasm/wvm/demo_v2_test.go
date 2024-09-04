@@ -109,7 +109,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 10928, curGas-env.GasRemaining)
+		checkSpentGas(t, 10950, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set date past D1, should eval to false
@@ -118,7 +118,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 10903, curGas-env.GasRemaining)
+		checkSpentGas(t, 10925, curGas-env.GasRemaining)
 		require.EqualValues(t, 1, res)
 	})
 
@@ -162,7 +162,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 11463, curGas-env.GasRemaining)
+		checkSpentGas(t, 10372, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// update data to "foobar", should evaluate to false
@@ -175,7 +175,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 6400, curGas-env.GasRemaining)
+		checkSpentGas(t, 5318, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x201, res, `expected error code 2: new value of the token data is not "regular"`)
 	})
 
@@ -232,7 +232,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 7381, curGas-env.GasRemaining)
+		checkSpentGas(t, 7403, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
@@ -246,7 +246,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 7395, curGas-env.GasRemaining)
+		checkSpentGas(t, 7417, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x801, res)
 
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
@@ -262,7 +262,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 13473, curGas-env.GasRemaining)
+		checkSpentGas(t, 13495, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 
@@ -316,7 +316,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 7250, curGas-env.GasRemaining)
+		checkSpentGas(t, 6969, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
@@ -329,7 +329,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8731, curGas-env.GasRemaining)
+		checkSpentGas(t, 8450, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
@@ -342,7 +342,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8731, curGas-env.GasRemaining)
+		checkSpentGas(t, 8450, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x701, res, "expected code `7` = transferred amount doesn't equal to `P2 - P1`")
 	})
 }

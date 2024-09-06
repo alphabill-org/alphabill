@@ -31,6 +31,7 @@ type userTokenPartitionGenesisConfig struct {
 	OutputState      string
 	T2Timeout        uint32
 	AdminKey         []byte
+	FeelessMode      bool
 }
 
 func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
@@ -51,6 +52,7 @@ func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().BytesHexVar(&config.AdminKey, "admin-key", nil, "the admin public key for permissioned mode")
+	cmd.Flags().BoolVar(&config.FeelessMode, "feeless-mode", false, "if true then fees are not charged, if false then fees are charged as normal; applies only for permissioned mode")
 	return cmd
 }
 
@@ -130,7 +132,8 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisStateFileLocation(utHome
 
 func (c *userTokenPartitionGenesisConfig) getPartitionParams() ([]byte, error) {
 	src := &genesis.TokensPartitionParams{
-		AdminKey: c.AdminKey,
+		AdminKey:    c.AdminKey,
+		FeelessMode: c.FeelessMode,
 	}
 	res, err := types.Cbor.Marshal(src)
 	if err != nil {

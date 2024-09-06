@@ -186,7 +186,7 @@ transferredSum returns the sum transferred to the "receiverPKH" by given transac
 record.
 Arguments:
   - receiverPKH: public key hash of the recipient - currently only p2pkh template is
-    supported as owner condition;
+    supported as owner predicate;
   - refNo: reference number of the transaction, if nil then ignored, otherwise must match
     (use not nil zero length slice to get sum of transfers without reference number);
 

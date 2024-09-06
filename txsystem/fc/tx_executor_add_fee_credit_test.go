@@ -170,7 +170,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"invalid transferFC target record id")
 	})
-	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
+	t.Run("Invalid fee credit owner predicate", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer))
 		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
@@ -524,7 +524,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"get fcr error: invalid unit identifier: type is not fee credit record")
 	})
-	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
+	t.Run("Invalid fee credit owner predicate", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
@@ -546,7 +546,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"invalid owner condition:")
+			"invalid owner predicate:")
 	})
 	t.Run("invalid system id", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,

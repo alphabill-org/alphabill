@@ -24,7 +24,7 @@ type (
 	UpdateFunction func(data types.UnitData) (newData types.UnitData, err error)
 )
 
-// AddUnit adds a new unit with given identifier, owner condition, unit data.
+// AddUnit adds a new unit with given identifier, owner predicate, unit data.
 func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
@@ -56,7 +56,7 @@ func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) A
 	}
 }
 
-// AddUnitWithLock adds a new unit with given identifier, owner condition, unit data and lock.
+// AddUnitWithLock adds a new unit with given identifier, owner predicate, unit data and lock.
 func AddUnitWithLock(id types.UnitID, owner types.PredicateBytes, data types.UnitData, l []byte) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {

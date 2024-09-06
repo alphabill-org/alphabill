@@ -13,7 +13,7 @@ type (
 	Unit struct {
 		logs                []*Log               // state changes of the unit during the current round
 		logsHash            []byte               // root value of the hash tree built on the logs
-		owner               types.PredicateBytes // current owner condition
+		owner               types.PredicateBytes // current owner predicate
 		data                types.UnitData       // current data of the unit
 		stateLockTx         []byte               // bytes of transaction that locked the unit
 		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node

@@ -90,9 +90,9 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 			return fmt.Errorf("invalid fcr data")
 		}
 		counter = &(stateObj.AlphaBill.Counter)
-		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
 		if !bytes.Equal(u.Owner(), attr.FeeCreditOwnerPredicate) {
-			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", u.Owner(), attr.FeeCreditOwnerPredicate)
+			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", u.Owner(), attr.FeeCreditOwnerPredicate)
 		}
 	}
 

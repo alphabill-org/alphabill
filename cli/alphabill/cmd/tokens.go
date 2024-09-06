@@ -141,6 +141,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
 		tokens.WithAdminKey(params.AdminKey),
+		tokens.WithFeelessMode(params.FeelessMode),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

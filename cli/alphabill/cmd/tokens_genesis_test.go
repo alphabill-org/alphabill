@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -122,4 +124,27 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
 	require.EqualValues(t, 0o1020304, pn.BlockCertificationRequest.SystemIdentifier)
+}
+
+func TestTokensGenesis_PartitionParams(t *testing.T) {
+	homeDir := setupTestHomeDir(t, utGenesisDir)
+	adminKey := "028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
+	adminKeyBytes, err := hex.DecodeString(adminKey)
+	require.NoError(t, err)
+
+	cmd := New(testobserve.NewFactory(t))
+	args := fmt.Sprintf("tokens-genesis -g --home %s --admin-key %s --feeless-mode true", homeDir, adminKey)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.Execute(context.Background())
+	require.NoError(t, err)
+
+	nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
+	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+	require.NoError(t, err)
+	var params *genesis.TokensPartitionParams
+	err = types.Cbor.Unmarshal(pn.Params, &params)
+	require.NoError(t, err)
+	require.NotNil(t, params)
+	require.Equal(t, adminKeyBytes, params.AdminKey)
+	require.True(t, params.FeelessMode)
 }

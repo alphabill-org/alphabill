@@ -88,12 +88,12 @@ func TestModule_validateSplitTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit amount is zero at index 0")
 	})
-	t.Run("err - target unit owner condition is empty", func(t *testing.T) {
+	t.Run("err - target unit owner predicate is empty", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 1, OwnerPredicate: []byte{}}}, counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit owner condition is empty at index 0")
+		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit owner predicate is empty at index 0")
 	})
 	t.Run("err - target unit amount overflow", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})

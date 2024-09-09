@@ -200,9 +200,9 @@ func newFeeCreditRecordID(ownerPredicate []byte, fcrUnitType []byte, timeout uin
 
 func newSetFeeCreditTx(adminKey crypto.Signer, systemID types.SystemID, unitID, fcrOwnerPredicate []byte, counter *uint64, timeout uint64, fcrID, feeProof []byte) (*types.TransactionOrder, *permissioned.SetFeeCreditAttributes, *permissioned.SetFeeCreditAuthProof, error) {
 	attr := &permissioned.SetFeeCreditAttributes{
-		TargetOwnerPredicate: fcrOwnerPredicate,
-		Counter:              counter,
-		Amount:               1e8,
+		OwnerPredicate: fcrOwnerPredicate,
+		Counter:        counter,
+		Amount:         1e8,
 	}
 	payload, err := newTxPayload(systemID, permissioned.PayloadTypeSetFeeCredit, unitID, fcrID, timeout, nil, attr)
 	if err != nil {

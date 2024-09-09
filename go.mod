@@ -15,7 +15,7 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-base v0.0.0-20240906110107-9242f8280693
+	github.com/alphabill-org/alphabill-go-base v0.0.0-20240909054317-d7e94f5c7a48
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.14.0
 	github.com/fxamacker/cbor/v2 v2.6.0

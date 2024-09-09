@@ -33,7 +33,7 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 	}
 	if fcrUnit != nil {
 		// verify owner predicate
-		if !bytes.Equal(fcrUnit.Owner(), attr.TargetOwnerPredicate) {
+		if !bytes.Equal(fcrUnit.Owner(), attr.OwnerPredicate) {
 			return fmt.Errorf("fee credit record owner predicate does not match the target owner predicate")
 		}
 		// verify counter
@@ -49,7 +49,7 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 		}
 	} else {
 		// verify unit id is correctly calculated
-		fcrID := f.NewFeeCreditRecordID(unitID, attr.TargetOwnerPredicate, tx.Timeout())
+		fcrID := f.NewFeeCreditRecordID(unitID, attr.OwnerPredicate, tx.Timeout())
 		if !fcrID.Eq(unitID) {
 			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of fee credit owner predicate and tx.timeout), txUnitID=%s expectedUnitID=%s", unitID, fcrID)
 		}
@@ -79,7 +79,7 @@ func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permiss
 			Balance: attr.Amount,
 			Timeout: tx.Timeout(),
 		}
-		actionFn = state.AddUnit(tx.UnitID(), attr.TargetOwnerPredicate, fcr)
+		actionFn = state.AddUnit(tx.UnitID(), attr.OwnerPredicate, fcr)
 	}
 	if err := f.state.Apply(actionFn); err != nil {
 		return nil, fmt.Errorf("failed to set fee credit record: %w", err)

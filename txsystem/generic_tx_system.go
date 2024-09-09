@@ -226,7 +226,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		txExecErr = fmt.Errorf("unit state lock error: %w", err)
 		return result, nil
 	}
-	// perform transaction-system-specific validation and owner condition check
+	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		txExecErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
@@ -260,7 +260,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	// if we do no handle state locking and unlocking then lock state must be impossible state
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
-	// perform transaction-system-specific validation and owner condition check
+	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		return nil, err

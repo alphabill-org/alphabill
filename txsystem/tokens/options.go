@@ -22,6 +22,7 @@ type (
 		state         *state.State
 		exec          predicates.PredicateExecutor
 		adminKey      []byte
+		feelessMode   bool
 	}
 
 	Option func(*Options)
@@ -74,6 +75,12 @@ func WithTrustBase(trustBase types.RootTrustBase) Option {
 func WithAdminKey(adminKey []byte) Option {
 	return func(c *Options) {
 		c.adminKey = adminKey
+	}
+}
+
+func WithFeelessMode(feelessMode bool) Option {
+	return func(c *Options) {
+		c.feelessMode = feelessMode
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +22,10 @@ type MockExecContext struct {
 func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	if m.mockErr != nil {
 		return nil, m.mockErr
+	}
+	// return avl.ErrNotFound if unit does not exist to be consistent with actual implementation
+	if m.Unit == nil {
+		return nil, avl.ErrNotFound
 	}
 	return m.Unit, nil
 }

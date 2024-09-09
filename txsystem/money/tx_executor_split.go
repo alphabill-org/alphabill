@@ -93,7 +93,7 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 			return fmt.Errorf("target unit amount is zero at index %d", i)
 		}
 		if len(targetUnit.OwnerPredicate) == 0 {
-			return fmt.Errorf("target unit owner condition is empty at index %d", i)
+			return fmt.Errorf("target unit owner predicate is empty at index %d", i)
 		}
 		var err error
 		sum, _, err = util.AddUint64(sum, targetUnit.Amount)

@@ -45,8 +45,8 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	if err = ValidateCloseFC(attr, fcr); err != nil {
 		return fmt.Errorf("validation error: %w", err)
 	}
-	// validate owner condition
-	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+	// validate owner predicate
+	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
 	if err = f.execPredicate(bearer, authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}

@@ -83,9 +83,9 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		if fcr.GetCounter() != *transAttr.TargetUnitCounter {
 			return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
 		}
-		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
 		if !bytes.Equal(fcrOwnerPredicate, attr.FeeCreditOwnerPredicate) {
-			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", fcrOwnerPredicate, attr.FeeCreditOwnerPredicate)
+			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", fcrOwnerPredicate, attr.FeeCreditOwnerPredicate)
 		}
 	}
 	// 5. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies

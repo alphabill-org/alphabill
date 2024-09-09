@@ -241,7 +241,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			fmt.Sprintf("invalid transferFC target record id: transferFC.TargetRecordId=%s tx.UnitId=01", fcrID))
 	})
-	t.Run("Invalid fee credit owner condition", func(t *testing.T) {
+	t.Run("Invalid fee credit owner predicate", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
@@ -543,7 +543,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	remainingCredit := new(uint256.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
 	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
-	// check owner condition set
+	// check owner predicate set
 	u, err := feeCreditModule.state.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
 	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Owner())
@@ -576,7 +576,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
 	remainingCredit = new(uint256.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
-	// check owner condition
+	// check owner predicate
 	u, err = feeCreditModule.state.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
 	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Owner())

@@ -1,10 +1,12 @@
 package unit
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -25,8 +27,12 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64) state.Action {
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
+		balance, ok := util.SafeAdd(fcr.Balance, value)
+		if !ok {
+			return nil, errors.New("failed to increment balance: overflow")
+		}
 		return &fc.FeeCreditRecord{
-			Balance: fcr.Balance + value,
+			Balance: balance,
 			Counter: fcr.Counter + 1,
 			Timeout: max(fcr.Timeout, timeout),
 			Locked:  0,
@@ -42,9 +48,13 @@ func DecrCredit(id types.UnitID, value uint64) state.Action {
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
+		balance, ok := util.SafeSub(fcr.Balance, value)
+		if !ok {
+			return nil, errors.New("failed to decrement balance: underflow")
+		}
 		// note that only balance field changes in this operation
 		return &fc.FeeCreditRecord{
-			Balance: fcr.Balance - value,
+			Balance: balance,
 			Counter: fcr.Counter,
 			Timeout: fcr.Timeout,
 			Locked:  fcr.Locked,

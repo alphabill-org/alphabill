@@ -43,8 +43,9 @@ type OrchestrationPartitionParams struct {
 }
 
 type TokensPartitionParams struct {
-	_        struct{} `cbor:",toarray"`
-	AdminKey []byte
+	_           struct{} `cbor:",toarray"`
+	AdminKey    []byte
+	FeelessMode bool
 }
 
 func (x *PartitionNode) IsValid() error {

@@ -29,14 +29,14 @@ func TestModule_validateUnlockTx(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		lockTx, attr, authProof := createUnlockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock tx: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
+		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock transaction: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		lockTx, attr, authProof := createUnlockTx(t, unitID, fcrID, 0)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock tx: invalid unit type")
+		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock transaction: invalid unit type")
 	})
 	t.Run("bill is already unlocked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})

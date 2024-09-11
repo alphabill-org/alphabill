@@ -49,7 +49,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier, withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid unit type")
 	})
-	t.Run("Fee credit record exists in tx", func(t *testing.T) {
+	t.Run("Fee credit record exists in transaction", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{0}}))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
@@ -57,7 +57,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee credit reference")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee credit reference")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
@@ -67,7 +67,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee authorization proof")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("Invalid target unit", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil,
@@ -79,7 +79,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext(t)
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit")
 	})
-	t.Run("Invalid tx fee", func(t *testing.T) {
+	t.Run("Invalid transaction fee", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer,
 			testutils.NewReclaimFCAttr(t, signer,
 				testutils.WithReclaimFCClosureTx(

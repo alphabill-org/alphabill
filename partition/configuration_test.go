@@ -48,7 +48,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			wantErr: ErrGenesisIsNil,
 		},
 		{
-			name: "tx system is nil",
+			name: "transaction system is nil",
 			args: args{
 				signer:  signer,
 				genesis: createPartitionGenesis(t, signer, verifier, nil, peerConf),

@@ -92,7 +92,7 @@ func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, e
 func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID(), Attr: txo.PayloadType()}]
 	if !ok {
-		return nil, fmt.Errorf("serializing to bytes is not implemented for tx system %d %q attributes", txo.Payload.SystemID, txo.PayloadType())
+		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.Payload.SystemID, txo.PayloadType())
 	}
 	return encoder(txo, ver)
 }

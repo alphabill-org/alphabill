@@ -72,16 +72,16 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if i > 0 && btx.TransactionOrder.UnitID().Compare(transactions[i-1].TransactionOrder.UnitID()) != 1 {
 			// burning transactions orders are listed in strictly increasing order of token identifiers
 			// this ensures that no source token can be included multiple times
-			return errors.New("burn tx orders are not listed in strictly increasing order of token identifiers")
+			return errors.New("burn transaction orders are not listed in strictly increasing order of token identifiers")
 		}
 		if !bytes.Equal(btxAttr.TypeID, d.TokenType) {
 			return fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.TokenType, btxAttr.TypeID)
 		}
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID()) {
-			return fmt.Errorf("burn tx target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
+			return fmt.Errorf("burn transaction target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
 		}
 		if btxAttr.TargetTokenCounter != attr.Counter {
-			return fmt.Errorf("burn tx target token counter does not match with join transaction counter: burnTx %d, joinTx %d", btxAttr.TargetTokenCounter, attr.Counter)
+			return fmt.Errorf("burn transaction target token counter does not match with join transaction counter: burnTx %d, joinTx %d", btxAttr.TargetTokenCounter, attr.Counter)
 		}
 		if err = types.VerifyTxProof(proofs[i], btx, m.trustBase, m.hashAlgorithm); err != nil {
 			return fmt.Errorf("proof is not valid: %w", err)

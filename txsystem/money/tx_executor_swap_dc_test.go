@@ -28,7 +28,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext(t)
 		require.NoError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx))
 	})
-	t.Run("DC money supply < tx target value", func(t *testing.T) {
+	t.Run("DC money supply < transaction target value", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
@@ -81,7 +81,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer order target unit id is not equal to swap tx unit id")
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer order target unit id is not equal to swap transaction unit id")
 	})
 	t.Run("invalid target counter", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetCounterSwap(t, signer)
@@ -121,7 +121,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(test.RandomBytes(10)), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), `swap tx predicate validation failed: predicate evaluated to "false"`)
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), `swap transaction predicate validation failed: predicate evaluated to "false"`)
 	})
 }
 
@@ -255,7 +255,7 @@ func newInvalidTargetCounterSwap(t *testing.T, signer abcrypto.Signer) (*types.T
 }
 
 func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
-	// create swap tx with two dust transfers in descending order of bill ids
+	// create swap transaction with two dust transfers in descending order of bill ids
 	billIds := []types.UnitID{newBillID(2), newBillID(1)}
 	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))
@@ -294,7 +294,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 }
 
 func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
-	// create swap tx with two dust transfers with equal bill ids
+	// create swap transaction with two dust transfers with equal bill ids
 	billIds := []types.UnitID{newBillID(1), newBillID(1)}
 	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))

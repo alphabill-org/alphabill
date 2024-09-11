@@ -61,11 +61,11 @@ func (t *TxHandler[A, P]) ValidateTx(txo *types.TransactionOrder, exeCtx Executi
 func (t *TxHandler[A, P]) ExecuteTxWithAttr(txo *types.TransactionOrder, attr any, authProof any, exeCtx ExecutionContext) (*types.ServerMetadata, error) {
 	txAttr, ok := attr.(*A)
 	if !ok {
-		return nil, fmt.Errorf("incorrect attribute type: %T for tx order %s", attr, txo.PayloadType())
+		return nil, fmt.Errorf("incorrect attribute type: %T for transaction order %s", attr, txo.PayloadType())
 	}
 	txAuthProof, ok := authProof.(*P)
 	if !ok {
-		return nil, fmt.Errorf("incorrect auth proof type: %T for tx order %s", authProof, txo.PayloadType())
+		return nil, fmt.Errorf("incorrect auth proof type: %T for transaction order %s", authProof, txo.PayloadType())
 	}
 	return t.Execute(txo, txAttr, txAuthProof, exeCtx)
 }
@@ -122,7 +122,7 @@ func (h TxExecutors) Execute(txo *types.TransactionOrder, exeCtx ExecutionContex
 
 	sm, err := handler.ExecuteTx(txo, exeCtx)
 	if err != nil {
-		return nil, fmt.Errorf("tx order execution failed: %w", err)
+		return nil, fmt.Errorf("transaction order execution failed: %w", err)
 	}
 	return sm, nil
 }
@@ -130,13 +130,13 @@ func (h TxExecutors) Execute(txo *types.TransactionOrder, exeCtx ExecutionContex
 func (h TxExecutors) Add(src TxExecutors) error {
 	for name, handler := range src {
 		if name == "" {
-			return fmt.Errorf("tx executor must have non-empty tx type name")
+			return fmt.Errorf("transaction executor must have non-empty transaction type name")
 		}
 		if handler == nil {
-			return fmt.Errorf("tx executor must not be nil (%s)", name)
+			return fmt.Errorf("transaction executor must not be nil (%s)", name)
 		}
 		if _, ok := h[name]; ok {
-			return fmt.Errorf("tx executor for %q is already registered", name)
+			return fmt.Errorf("transaction executor for %q is already registered", name)
 		}
 		h[name] = handler
 	}

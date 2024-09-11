@@ -44,7 +44,7 @@ func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddF
 
 func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, authProof *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if err := ValidateGenericFeeCreditTx(tx); err != nil {
-		return fmt.Errorf("fee credit tx validation error: %w", err)
+		return fmt.Errorf("fee credit transaction validation error: %w", err)
 	}
 
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
@@ -101,14 +101,14 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 
 func (f *FeeCreditModule) checkTransferFc(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
 	if attr.FeeCreditTransferProof == nil {
-		return nil, nil, errors.New("transferFC tx proof is nil")
+		return nil, nil, errors.New("transferFC transaction proof is nil")
 	}
 	transTxr, transAttr, err := getTransferFc(attr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("transfer tx attributes error: %w", err)
+		return nil, nil, fmt.Errorf("transfer transaction attributes error: %w", err)
 	}
 	if transTxr.ServerMetadata == nil {
-		return nil, nil, errors.New("transferFC tx order is missing server metadata")
+		return nil, nil, errors.New("transferFC transaction order is missing server metadata")
 	}
 	// 6. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
 	if transTxr.TransactionOrder.SystemID() != f.moneySystemIdentifier {
@@ -138,11 +138,11 @@ func (f *FeeCreditModule) checkTransferFc(tx *types.TransactionOrder, attr *fc.A
 func getTransferFc(addAttr *fc.AddFeeCreditAttributes) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
 	transTxr := addAttr.FeeCreditTransfer
 	if transTxr == nil {
-		return nil, nil, errors.New("transferFC tx record is nil")
+		return nil, nil, errors.New("transferFC transaction record is nil")
 	}
 	transTxo := transTxr.TransactionOrder
 	if transTxo == nil {
-		return nil, nil, errors.New("transferFC tx order is nil")
+		return nil, nil, errors.New("transferFC transaction order is nil")
 	}
 	if transTxo.PayloadType() != fc.PayloadTypeTransferFeeCredit {
 		return nil, nil, fmt.Errorf("invalid transfer fee credit transaction payload type: %s", transTxo.PayloadType())

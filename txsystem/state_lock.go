@@ -80,7 +80,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	}
 	txOnHold := &types.TransactionOrder{}
 	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
@@ -95,7 +95,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if proof.Kind == StateUnlockExecute {
 		sm, err := m.handlers.Execute(txOnHold, exeCtx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute tx that was on hold: %w", err)
+			return nil, fmt.Errorf("failed to execute transaction that was on hold: %w", err)
 		}
 		return sm, nil
 	}
@@ -114,7 +114,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ txt
 	// ignore 'err' as we are only interested if the predicate evaluates to true or not
 	txBytes, err := types.Cbor.Marshal(tx)
 	if err != nil {
-		return nil, fmt.Errorf("state lock: failed to marshal tx: %w", err)
+		return nil, fmt.Errorf("state lock: failed to marshal transaction: %w", err)
 	}
 	// lock the state
 	for _, targetUnit := range targetUnits {

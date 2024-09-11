@@ -116,7 +116,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))),
 			"invalid transferFC target unit counter: transferFC.targetUnitCounter=<nil> unit.counter=0")
 	})
-	t.Run("transferFC tx record is nil", func(t *testing.T) {
+	t.Run("transferFC transaction record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithAttributes(&fcsdk.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
 		)
@@ -128,9 +128,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"transferFC tx record is nil")
+			"transferFC transaction record is nil")
 	})
-	t.Run("transferFC tx order is nil", func(t *testing.T) {
+	t.Run("transferFC transaction order is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithAttributes(&fcsdk.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}}),
 		)
@@ -141,7 +141,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"transferFC tx order is nil")
+			"transferFC transaction order is nil")
 	})
 	t.Run("transferFC proof is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
@@ -160,7 +160,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"transferFC tx proof is nil")
+			"transferFC transaction proof is nil")
 	})
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -181,7 +181,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"transferFC tx order is missing server metadata")
+			"transferFC transaction order is missing server metadata")
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -217,7 +217,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
+			"invalid fee credit transaction: fee transaction cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -445,7 +445,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
-	t.Run("Invalid tx fee", func(t *testing.T) {
+	t.Run("Invalid transaction fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(

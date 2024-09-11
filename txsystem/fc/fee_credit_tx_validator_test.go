@@ -41,14 +41,14 @@ func TestValidateGenericFeeCreditTx(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
 			&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}))
 		tx.FeeProof = []byte{1, 2, 3}
-		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee tx cannot contain fee authorization proof")
+		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("Fee credit transactions must not contain FeeCreditRecordID", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1, 2, 3}}),
 		)
-		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee tx cannot contain fee credit reference")
+		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee transaction cannot contain fee credit reference")
 	})
 }
 

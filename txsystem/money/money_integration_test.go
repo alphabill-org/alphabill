@@ -81,7 +81,7 @@ func TestPartition_Ok(t *testing.T) {
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
-	require.NoError(t, err, "transfer fee credit tx failed")
+	require.NoError(t, err, "transfer fee credit transaction failed")
 	unitAndProof, err := testpartition.WaitUnitProof(t, moneyPrt, ib.ID, transferFC)
 	require.NoError(t, err)
 	var billState money.BillData
@@ -107,12 +107,12 @@ func TestPartition_Ok(t *testing.T) {
 
 	// before reading state make sure that node 2 has executed the transfer
 	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
-	require.NoError(t, err, "add fee credit tx failed")
+	require.NoError(t, err, "add fee credit transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
 
-	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer transaction cost" - "add transaction cost"
 	var feeBillState fcsdk.FeeCreditRecord
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance := fcrAmount - transferFCRecord.ServerMetadata.ActualFee - addTxRecord.ServerMetadata.ActualFee
@@ -137,7 +137,7 @@ func TestPartition_Ok(t *testing.T) {
 	tx := createSplitTx(t, ib.ID, fcrID, 2, []*money.TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, tx)
-	require.NoError(t, err, "money split tx failed")
+	require.NoError(t, err, "money split transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
@@ -208,7 +208,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
-	require.NoError(t, err, "transfer fee credit tx failed")
+	require.NoError(t, err, "transfer fee credit transaction failed")
 	// check that frcAmount is credited from initial bill
 	bill, err := txsState.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
@@ -226,8 +226,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
 	// before reading state make sure that node 2 has executed the transfer
 	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, addFC)
-	require.NoError(t, err, "add fee credit tx failed")
-	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
+	require.NoError(t, err, "add fee credit transaction failed")
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer transaction cost" - "add transaction cost"
 	feeCredit, err := txsState.GetUnit(fcrID, false)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
@@ -260,7 +260,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// wait for transaction to be added to block
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, splitTx)
-	require.NoError(t, err, "money split tx failed")
+	require.NoError(t, err, "money split transaction failed")
 	require.EqualValues(t, splitTx, txRecord.TransactionOrder)
 
 	// create dust payments from splits
@@ -278,7 +278,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	for i, dcTx := range dcTxs {
 		require.NoError(t, moneyPrt.SubmitTx(dcTx))
 		dcRecords[i], dcRecordsProofs[i], err = testpartition.WaitTxProof(t, moneyPrt, dcTx)
-		require.NoError(t, err, "dc tx failed")
+		require.NoError(t, err, "dc transaction failed")
 	}
 
 	// create swap order

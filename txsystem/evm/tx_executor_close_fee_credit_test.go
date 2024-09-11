@@ -67,7 +67,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
-			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
+			"invalid fee credit transaction: fee transaction cannot contain fee credit reference")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
@@ -85,7 +85,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
-			"invalid fee credit transaction: fee tx cannot contain fee authorization proof")
+			"invalid fee credit transaction: fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)

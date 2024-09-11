@@ -173,7 +173,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
-			m.log.Debug("tx execute failed", logger.Error(txExecErr))
+			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.UnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
 			result.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order

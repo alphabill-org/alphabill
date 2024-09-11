@@ -140,7 +140,7 @@ func Test_validate(t *testing.T) {
 					Nonce: 0,
 				},
 			},
-			wantErrStr: "invalid evm tx, from addr is nil",
+			wantErrStr: "invalid evm transaction, from addr is nil",
 		},
 		{
 			name: "err - value is nil",
@@ -152,7 +152,7 @@ func Test_validate(t *testing.T) {
 					Nonce: 0,
 				},
 			},
-			wantErrStr: "invalid evm tx, value is nil",
+			wantErrStr: "invalid evm transaction, value is nil",
 		},
 		{
 			name: "err - invalid negative value",
@@ -163,7 +163,7 @@ func Test_validate(t *testing.T) {
 					Gas:   0,
 				},
 			},
-			wantErrStr: "invalid evm tx, value is negative",
+			wantErrStr: "invalid evm transaction, value is negative",
 		},
 	}
 	for _, tt := range tests {

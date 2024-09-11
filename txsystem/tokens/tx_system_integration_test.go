@@ -153,7 +153,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	mintTx.Payload.UnitID = mintedTokenID
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
-	require.NoError(t, err, "token mint tx failed")
+	require.NoError(t, err, "token mint transaction failed")
 	require.NoError(t, types.VerifyTxProof(minTxProof, mintTxRecord, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
@@ -182,7 +182,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
 	split1TxRecord, split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx1)
-	require.NoError(t, err, "token split tx failed")
+	require.NoError(t, err, "token split transaction failed")
 	require.NoError(t, types.VerifyTxProof(split1TxProof, split1TxRecord, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
@@ -220,7 +220,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx2))
 	split2TxRecord, split2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx2)
-	require.NoError(t, err, "token split 2 tx failed")
+	require.NoError(t, err, "token split 2 transaction failed")
 	require.NoError(t, types.VerifyTxProof(split2TxProof, split2TxRecord, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
@@ -258,7 +258,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(transferTx))
 	transferTxRecord, transferTxProof, err := testpartition.WaitTxProof(t, tokenPrt, transferTx)
-	require.NoError(t, err, "token transfer tx failed")
+	require.NoError(t, err, "token transfer transaction failed")
 	require.NoError(t, types.VerifyTxProof(transferTxProof, transferTxRecord, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
@@ -288,7 +288,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx))
 	burnTxRecord, burnTxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx)
-	require.NoError(t, err, "token burn tx failed")
+	require.NoError(t, err, "token burn transaction failed")
 	require.NoError(t, types.VerifyTxProof(burnTxProof, burnTxRecord, trustBase, hashAlgorithm))
 
 	burnTx2 := testtransaction.NewTransactionOrder(t,
@@ -310,7 +310,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx2))
 	burn2TxRecord, burn2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx2)
-	require.NoError(t, err, "token burn 2 tx failed")
+	require.NoError(t, err, "token burn 2 transaction failed")
 	require.NoError(t, types.VerifyTxProof(burn2TxProof, burn2TxRecord, trustBase, hashAlgorithm))
 
 	// group txs with proofs, and sort by unit id
@@ -350,7 +350,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(joinTx))
 	joinTxRecord, joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, joinTx)
-	require.NoError(t, err, "token join tx failed")
+	require.NoError(t, err, "token join transaction failed")
 	require.NoError(t, types.VerifyTxProof(joinTxProof, joinTxRecord, trustBase, hashAlgorithm))
 
 	u, err := states[0].GetUnit(mintedTokenID, true)

@@ -57,7 +57,7 @@ func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr 
 
 func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if tx == nil {
-		return errors.New("tx is nil")
+		return errors.New("transaction is nil")
 	}
 	if attr == nil {
 		return errors.New("attributes is nil")

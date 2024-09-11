@@ -46,7 +46,7 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		option(options)
 	}
 	if options.state == nil {
-		return nil, errors.New("evm tx system init failed, state tree is nil")
+		return nil, errors.New("evm transaction system init failed, state tree is nil")
 	}
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")

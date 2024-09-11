@@ -97,16 +97,16 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	}
 
 	if attr.FeeCreditTransfer == nil {
-		return errors.New("transferFC tx record is nil")
+		return errors.New("transferFC transaction record is nil")
 	}
 	if attr.FeeCreditTransfer.TransactionOrder == nil {
-		return errors.New("transferFC tx order is nil")
+		return errors.New("transferFC transaction order is nil")
 	}
 	if attr.FeeCreditTransferProof == nil {
-		return errors.New("transferFC tx proof is nil")
+		return errors.New("transferFC transaction proof is nil")
 	}
 	if attr.FeeCreditTransfer.ServerMetadata == nil {
-		return errors.New("transferFC tx order is missing server metadata")
+		return errors.New("transferFC transaction order is missing server metadata")
 	}
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
 	transferTx := attr.FeeCreditTransfer.TransactionOrder

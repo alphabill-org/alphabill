@@ -36,7 +36,7 @@ const (
 func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
-		return nil, fmt.Errorf("tokens tx system default config: %w", err)
+		return nil, fmt.Errorf("tokens transaction system default config: %w", err)
 	}
 
 	for _, opt := range opts {

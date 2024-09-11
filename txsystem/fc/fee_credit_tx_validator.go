@@ -18,10 +18,10 @@ var (
 func ValidateGenericFeeCreditTx(tx *types.TransactionOrder) error {
 	// P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if tx.GetClientFeeCreditRecordID() != nil {
-		return errors.New("fee tx cannot contain fee credit reference")
+		return errors.New("fee transaction cannot contain fee credit reference")
 	}
 	if tx.FeeProof != nil {
-		return errors.New("fee tx cannot contain fee authorization proof")
+		return errors.New("fee transaction cannot contain fee authorization proof")
 	}
 	return nil
 }

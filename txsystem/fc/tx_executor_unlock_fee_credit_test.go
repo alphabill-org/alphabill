@@ -116,7 +116,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateUnlockFC(tx, &attr, &authProof, execCtx),
-			"invalid fee credit transaction: fee tx cannot contain fee credit reference")
+			"invalid fee credit transaction: fee transaction cannot contain fee credit reference")
 	})
 	t.Run("fee proof is not nil", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil, testtransaction.WithFeeProof(feeProof))
@@ -129,7 +129,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateUnlockFC(tx, &attr, &authProof, execCtx),
-			"invalid fee credit transaction: fee tx cannot contain fee authorization proof")
+			"invalid fee credit transaction: fee transaction cannot contain fee authorization proof")
 	})
 }
 

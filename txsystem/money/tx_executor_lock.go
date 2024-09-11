@@ -36,11 +36,11 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	unitID := tx.UnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
-		return fmt.Errorf("lock tx: get unit error: %w", err)
+		return fmt.Errorf("lock transaction: get unit error: %w", err)
 	}
 	billData, ok := unit.Data().(*money.BillData)
 	if !ok {
-		return errors.New("lock tx: invalid unit type")
+		return errors.New("lock transaction: invalid unit type")
 	}
 	if billData.IsLocked() {
 		return errors.New("bill is already locked")

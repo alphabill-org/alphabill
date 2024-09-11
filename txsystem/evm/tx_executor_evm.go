@@ -45,13 +45,13 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 
 func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, authProof *evmsdk.TxAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if attr.From == nil {
-		return fmt.Errorf("invalid evm tx, from addr is nil")
+		return fmt.Errorf("invalid evm transaction, from addr is nil")
 	}
 	if attr.Value == nil {
-		return fmt.Errorf("invalid evm tx, value is nil")
+		return fmt.Errorf("invalid evm transaction, value is nil")
 	}
 	if attr.Value.Sign() < 0 {
-		return fmt.Errorf("invalid evm tx, value is negative")
+		return fmt.Errorf("invalid evm transaction, value is negative")
 	}
 	unit, _ := exeCtx.GetUnit(tx.UnitID(), false)
 	if unit != nil {
@@ -169,13 +169,13 @@ func NewVMConfig() vm.Config {
 // validate - validate EVM call attributes
 func validate(attr *evmsdk.TxAttributes) error {
 	if attr.From == nil {
-		return fmt.Errorf("invalid evm tx, from addr is nil")
+		return fmt.Errorf("invalid evm transaction, from addr is nil")
 	}
 	if attr.Value == nil {
-		return fmt.Errorf("invalid evm tx, value is nil")
+		return fmt.Errorf("invalid evm transaction, value is nil")
 	}
 	if attr.Value.Sign() < 0 {
-		return fmt.Errorf("invalid evm tx, value is negative")
+		return fmt.Errorf("invalid evm transaction, value is negative")
 	}
 	return nil
 }

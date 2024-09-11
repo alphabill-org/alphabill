@@ -107,7 +107,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee credit reference")
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee credit reference")
 	})
 	t.Run("err - fee proof exists", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, nil,
@@ -117,7 +117,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee tx cannot contain fee authorization proof")
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("err - bearer predicate error", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, nil)

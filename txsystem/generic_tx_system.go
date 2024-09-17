@@ -71,13 +71,13 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 
 	for _, module := range modules {
 		if err := txs.handlers.Add(module.TxHandlers()); err != nil {
-			return nil, fmt.Errorf("registering tx handler: %w", err)
+			return nil, fmt.Errorf("registering transaction handler: %w", err)
 		}
 	}
 	// if fees are collected, then register fee tx handlers
 	if options.feeCredit != nil {
 		if err := txs.handlers.Add(options.feeCredit.TxHandlers()); err != nil {
-			return nil, fmt.Errorf("registering fee credit tx handler: %w", err)
+			return nil, fmt.Errorf("registering fee credit transaction handler: %w", err)
 		}
 
 	}
@@ -142,7 +142,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	}
 	// only handle fees if there is a fee module
 	if err := m.snFees(tx, exeCtx); err != nil {
-		return nil, fmt.Errorf("error tx snFees: %w", err)
+		return nil, fmt.Errorf("error transaction snFees: %w", err)
 	}
 	// all transactions that get this far will go into bock even if they fail and cost is credited from user FCR
 	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
@@ -157,7 +157,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// execute rest ordinary transactions
 	if err := m.fees.IsCredible(exeCtx, tx); err != nil {
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
-		return nil, fmt.Errorf("error tx not credible: %w", err)
+		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
 	sm, err := m.doExecute(tx, exeCtx)
 	if err != nil {
@@ -173,7 +173,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
-			m.log.Debug("tx execute failed", logger.Error(txExecErr))
+			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.UnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
 			result.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order
@@ -193,7 +193,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
 				sm = nil
-				retErr = fmt.Errorf("handling tx fee: %w", err)
+				retErr = fmt.Errorf("handling transaction fee: %w", err)
 			}
 			// add fee credit record unit log
 			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
@@ -229,7 +229,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
-		txExecErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
+		txExecErr = fmt.Errorf("transaction '%s' validation error: %w", tx.PayloadType(), err)
 		return result, nil
 	}
 	// either state lock or execute Tx
@@ -254,7 +254,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
 	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
 	if tx.Payload.StateLock != nil {
-		return nil, fmt.Errorf("error fc tx contains state lock")
+		return nil, fmt.Errorf("error fc transaction contains state lock")
 	}
 	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
 	// if we do no handle state locking and unlocking then lock state must be impossible state

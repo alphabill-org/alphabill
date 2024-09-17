@@ -42,14 +42,14 @@ func TestValidateSetFC(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, []byte{1}, nil)
 		require.NoError(t, err)
 		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
-		require.ErrorContains(t, err, "fee tx cannot contain fee credit reference")
+		require.ErrorContains(t, err, "fee transaction cannot contain fee credit reference")
 	})
 
 	t.Run("FeeProof is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, []byte{1})
 		require.NoError(t, err)
 		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
-		require.ErrorContains(t, err, "fee tx cannot contain fee authorization proof")
+		require.ErrorContains(t, err, "fee transaction cannot contain fee authorization proof")
 	})
 
 	t.Run("Invalid unit type byte", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Invalid signature", func(t *testing.T) {
-		// sign tx with random non-admin key
+		// sign transaction with random non-admin key
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx, attr, authProof, err := newSetFeeCreditTx(signer, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)

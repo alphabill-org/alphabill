@@ -28,7 +28,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
 	})
-	t.Run("transferFC tx record is nil", func(t *testing.T) {
+	t.Run("transferFC transaction record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil, FeeCreditTransferProof: &types.TxProof{}}),
@@ -41,9 +41,9 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: transferFC tx record is nil")
+			"add fee credit validation failed: transfer transaction attributes error: transferFC transaction record is nil")
 	})
-	t.Run("transferFC tx order is nil", func(t *testing.T) {
+	t.Run("transferFC transaction order is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
 				FeeCreditTransfer:      &types.TransactionRecord{TransactionOrder: nil},
@@ -59,7 +59,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: transferFC tx order is nil")
+			"add fee credit validation failed: transfer transaction attributes error: transferFC transaction order is nil")
 	})
 	t.Run("transferFC proof is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
@@ -76,7 +76,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transferFC tx proof is nil")
+			"add fee credit validation failed: transferFC transaction proof is nil")
 	})
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -96,7 +96,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transferFC tx order is missing server metadata")
+			"add fee credit validation failed: transferFC transaction order is missing server metadata")
 	})
 	t.Run("transferFC type not valid", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -116,7 +116,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: invalid transfer fee credit transaction payload type: addFC")
+			"add fee credit validation failed: transfer transaction attributes error: invalid transfer fee credit transaction payload type: addFC")
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -137,7 +137,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
+			"add fee credit validation failed: transfer transaction attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil,
@@ -150,7 +150,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"fee credit tx validation error: fee tx cannot contain fee credit reference")
+			"fee credit transaction validation error: fee transaction cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -303,7 +303,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
-	t.Run("Invalid tx fee", func(t *testing.T) {
+	t.Run("Invalid transaction fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
@@ -368,7 +368,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.ErrorContains(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))),
 			"invalid transferFC target unit counter (target counter must not be nil if updating existing fee credit record)")
 	})
-	t.Run("transferFC tx record is nil", func(t *testing.T) {
+	t.Run("transferFC transaction record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil, FeeCreditTransferProof: &types.TxProof{}}),
@@ -381,9 +381,9 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: transferFC tx record is nil")
+			"add fee credit validation failed: transfer transaction attributes error: transferFC transaction record is nil")
 	})
-	t.Run("transferFC tx order is nil", func(t *testing.T) {
+	t.Run("transferFC transaction order is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}, FeeCreditTransferProof: &types.TxProof{}}),
@@ -395,7 +395,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: transferFC tx order is nil")
+			"add fee credit validation failed: transfer transaction attributes error: transferFC transaction order is nil")
 	})
 	t.Run("transferFC proof is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
@@ -417,7 +417,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transferFC tx proof is nil")
+			"add fee credit validation failed: transferFC transaction proof is nil")
 	})
 	t.Run("transferFC server metadata is nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -437,7 +437,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transferFC tx order is missing server metadata")
+			"add fee credit validation failed: transferFC transaction order is missing server metadata")
 	})
 	t.Run("transferFC type not valid", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -457,7 +457,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: invalid transfer fee credit transaction payload type: addFC")
+			"add fee credit validation failed: transfer transaction attributes error: invalid transfer fee credit transaction payload type: addFC")
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -478,7 +478,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: transfer tx attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
+			"add fee credit validation failed: transfer transaction attributes error: failed to unmarshal transfer payload: cbor: cannot unmarshal array into Go value of type fc.TransferFeeCreditAttributes (cannot decode CBOR array to struct with different number of elements)")
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil,
@@ -491,7 +491,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"fee credit tx validation error: fee tx cannot contain fee credit reference")
+			"fee credit transaction validation error: fee transaction cannot contain fee credit reference")
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
@@ -650,7 +650,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			fmt.Sprintf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", 10, 11))
 
 	})
-	t.Run("ok target unit counter (tx target unit counter equals fee credit record counter)", func(t *testing.T) {
+	t.Run("ok target unit counter (transaction target unit counter equals fee credit record counter)", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(
@@ -713,7 +713,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx))
 	})
-	t.Run("Invalid tx fee", func(t *testing.T) {
+	t.Run("Invalid transaction fee", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCRecord(

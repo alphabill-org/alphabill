@@ -68,7 +68,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if dcMoneySupplyBill.V < attr.TargetValue {
 		return errors.New("insufficient DC-money supply")
 	}
-	// 3. tx unit id identifies an existing bill
+	// 3. transaction unit id identifies an existing bill
 	unitData, err := m.state.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return fmt.Errorf("target unit error: %w", err)
@@ -92,7 +92,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
 	}
 	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("swap tx predicate validation failed: %w", err)
+		return fmt.Errorf("swap transaction predicate validation failed: %w", err)
 	}
 	for i, dcTx := range dustTransfers {
 		// 4. transfers were in the money partition
@@ -107,7 +107,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 		}
 		// 7. bill transfer orders contain correct target unit ids
 		if !bytes.Equal(dcTx.attributes.TargetUnitID, tx.UnitID()) {
-			return errors.New("dust transfer order target unit id is not equal to swap tx unit id")
+			return errors.New("dust transfer order target unit id is not equal to swap transaction unit id")
 		}
 		// 8. bill transfer orders contain correct target counter values
 		if dcTx.attributes.TargetUnitCounter != billData.Counter {
@@ -124,12 +124,12 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 
 func getDCTransfers(attr *money.SwapDCAttributes) ([]*dustCollectorTransfer, error) {
 	if len(attr.DcTransfers) == 0 {
-		return nil, errors.New("tx does not contain any dust transfers")
+		return nil, errors.New("transaction does not contain any dust transfers")
 	}
 	transfers := make([]*dustCollectorTransfer, len(attr.DcTransfers))
 	for i, t := range attr.DcTransfers {
 		if t == nil {
-			return nil, fmt.Errorf("dc tx is nil: %d", i)
+			return nil, fmt.Errorf("dc transaction is nil: %d", i)
 		}
 		a := &money.TransferDCAttributes{}
 		if t.TransactionOrder.PayloadType() != money.PayloadTypeTransDC {

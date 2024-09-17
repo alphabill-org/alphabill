@@ -35,7 +35,7 @@ func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAt
 func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.DefineNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Symbol)
@@ -49,7 +49,7 @@ func txaCreateNonFungibleTokenTypeAttributes(txo *types.TransactionOrder, ver ui
 func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.MintNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Name)
@@ -67,7 +67,7 @@ func txaMintNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) 
 func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.TransferNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
@@ -78,7 +78,7 @@ func txaTransferNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint
 func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.UpdateNonFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Data)
@@ -89,7 +89,7 @@ func txaUpdateNonFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32
 func txaDefineFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.DefineFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Symbol)
@@ -103,7 +103,7 @@ func txaDefineFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) (
 func txaMintFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.MintFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
@@ -115,7 +115,7 @@ func txaMintFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]
 func txaTransferFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.TransferFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
@@ -127,7 +127,7 @@ func txaTransferFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32)
 func txaSplitFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.SplitFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
@@ -139,7 +139,7 @@ func txaSplitFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([
 func txaBurnFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.BurnFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TypeID)
@@ -153,7 +153,7 @@ func txaBurnFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]
 func txaJoinFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.JoinFungibleTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	// register and then return handles of the txR and proofs?
@@ -163,7 +163,7 @@ func txaJoinFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]
 func txaLockTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.LockTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Counter)
@@ -174,7 +174,7 @@ func txaLockTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, er
 func txaUnlockTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &tokens.UnlockTokenAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.Counter)

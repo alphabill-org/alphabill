@@ -257,7 +257,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		ownerProof := testsig.NewOwnerProof(t, tx, sig1)
 		tx.StateUnlock = append([]byte{byte(StateUnlockExecute)}, ownerProof...)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
-		require.EqualError(t, err, "failed to execute tx that was on hold: unknown transaction type trans")
+		require.EqualError(t, err, "failed to execute transaction that was on hold: unknown transaction type trans")
 		require.Nil(t, sm)
 	})
 }

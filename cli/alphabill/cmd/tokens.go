@@ -144,7 +144,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithFeelessMode(params.FeelessMode),
 	)
 	if err != nil {
-		return fmt.Errorf("creating tx system: %w", err)
+		return fmt.Errorf("creating transaction system: %w", err)
 	}
 	var ownerIndexer *partition.OwnerIndexer
 	if cfg.Node.WithOwnerIndex {

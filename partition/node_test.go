@@ -558,7 +558,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 	system.InitCount = 10000
 	tp.SubmitBlockProposal(bp)
-	ContainsError(t, tp, "tx system start state mismatch error, expected")
+	ContainsError(t, tp, "transaction system start state mismatch error, expected")
 }
 
 func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {

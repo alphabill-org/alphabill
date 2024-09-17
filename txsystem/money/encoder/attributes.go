@@ -38,7 +38,7 @@ func RegisterTxAttributeEncodersF(filter func(encoder.AttrEncID) bool) func(func
 func txaTransferAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &money.TransferAttributes{}
 	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading tx attributes: %w", err)
+		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}
 	buf.EncodeTagged(1, attr.TargetValue)

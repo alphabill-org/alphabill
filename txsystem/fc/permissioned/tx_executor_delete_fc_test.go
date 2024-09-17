@@ -51,14 +51,14 @@ func TestValidateDeleteFCR(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, []byte{1}, nil)
 		require.NoError(t, err)
 		err = m.validateDeleteFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
-		require.ErrorContains(t, err, "fee tx cannot contain fee credit reference")
+		require.ErrorContains(t, err, "fee transaction cannot contain fee credit reference")
 	})
 
 	t.Run("FeeProof is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, []byte{1})
 		require.NoError(t, err)
 		err = m.validateDeleteFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
-		require.ErrorContains(t, err, "fee tx cannot contain fee authorization proof")
+		require.ErrorContains(t, err, "fee transaction cannot contain fee authorization proof")
 	})
 
 	t.Run("Invalid unit type byte", func(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
-		return nil, fmt.Errorf("money tx system default configuration: %w", err)
+		return nil, fmt.Errorf("money transaction system default configuration: %w", err)
 	}
 	for _, option := range opts {
 		option(options)

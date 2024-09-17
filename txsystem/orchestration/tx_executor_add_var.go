@@ -33,7 +33,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	}
 	processingDetails, err := types.Cbor.Marshal(attr.Var)
 	if err != nil {
-		return nil, fmt.Errorf("addVar: failed to encode tx processing result: %w", err)
+		return nil, fmt.Errorf("addVar: failed to encode transaction processing result: %w", err)
 	}
 	return &types.ServerMetadata{
 		TargetUnits:       []types.UnitID{tx.UnitID()},

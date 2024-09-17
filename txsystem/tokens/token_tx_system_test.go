@@ -415,7 +415,7 @@ func TestExecuteDefineNFT_InvalidParentType(t *testing.T) {
 	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
 	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
-	require.EqualError(t, sm.ErrDetail(), fmt.Sprintf("tx 'defNT' validation error: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
+	require.EqualError(t, sm.ErrDetail(), fmt.Sprintf("transaction 'defNT' validation error: token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
 func TestExecuteDefineNFT_InvalidSystemIdentifier(t *testing.T) {
@@ -1063,7 +1063,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
-	require.ErrorContains(t, sm.ErrDetail(), "tx 'transNT' validation error: evaluating owner predicate: decoding predicate:")
+	require.ErrorContains(t, sm.ErrDetail(), "transaction 'transNT' validation error: evaluating owner predicate: decoding predicate:")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -1095,7 +1095,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
-	require.EqualError(t, sm.ErrDetail(), `tx 'transNT' validation error: evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`)
+	require.EqualError(t, sm.ErrDetail(), `transaction 'transNT' validation error: evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`)
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -1513,7 +1513,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
 	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
-	require.EqualError(t, sm.ErrDetail(), `tx 'updateNT' validation error: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
+	require.EqualError(t, sm.ErrDetail(), `transaction 'updateNT' validation error: data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {

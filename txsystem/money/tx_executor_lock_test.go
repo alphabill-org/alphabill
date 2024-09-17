@@ -29,14 +29,14 @@ func TestModule_validateLockTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier)
 		lockTx, _, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateLockTx(lockTx, nil, authProof, exeCtx), "lock tx: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
+		require.EqualError(t, module.validateLockTx(lockTx, nil, authProof, exeCtx), "lock transaction: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
 	})
 	t.Run("invalid unit type", func(t *testing.T) {
 		unitID := money.NewFeeCreditRecordID(nil, []byte{1, 2, 3})
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "lock tx: invalid unit type")
+		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "lock transaction: invalid unit type")
 	})
 	t.Run("bill is already locked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})

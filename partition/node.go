@@ -233,7 +233,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 		return fmt.Errorf("creating counter for processed tx: %w", err)
 	}
 	n.execTxDur, err = m.Float64Histogram("exec.tx.time",
-		metric.WithDescription("How long it took to process tx (validate and execute)"),
+		metric.WithDescription("How long it took to process transaction (validate and execute)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(200e-6, 400e-6, 800e-6, 0.0016, 0.003, 0.006, 0.015, 0.03))
 	if err != nil {
@@ -382,11 +382,11 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 		return errors.New("unicity certificate input record is nil")
 	}
 	if !bytes.Equal(ucIR.Hash, state.Root()) {
-		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
+		return fmt.Errorf("transaction system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
-		return fmt.Errorf("tx system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
+		return fmt.Errorf("transaction system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
 	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
-		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
+		return fmt.Errorf("transaction system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
 }
@@ -589,7 +589,7 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 	}
 	sm, err := n.transactionSystem.Execute(tx)
 	if err != nil {
-		return nil, fmt.Errorf("executing transaction in tx system: %w", err)
+		return nil, fmt.Errorf("executing transaction in transaction system: %w", err)
 	}
 	return sm, nil
 }
@@ -646,14 +646,14 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	prevHash := uc.InputRecord.Hash
 	txState, err := n.transactionSystem.StateSummary()
 	if err != nil {
-		return fmt.Errorf("tx system state error, %w", err)
+		return fmt.Errorf("transaction system state error, %w", err)
 	}
 	// check previous state matches before processing transactions
 	if !bytes.Equal(prevHash, txState.Root()) {
-		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
+		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
 	if err := n.transactionSystem.BeginBlock(n.currentRoundNumber()); err != nil {
-		return fmt.Errorf("tx system BeginBlock error, %w", err)
+		return fmt.Errorf("transaction system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
 		if err = n.process(ctx, tx.TransactionOrder); err != nil {
@@ -833,7 +833,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		state, err := n.transactionSystem.StateSummary()
 		if err != nil {
 			n.startRecovery(ctx)
-			return fmt.Errorf("recovery needed, failed to get tx system state: %w", err)
+			return fmt.Errorf("recovery needed, failed to get transaction system state: %w", err)
 		}
 		// if state hash does not match - start recovery
 		if !bytes.Equal(uc.GetStateHash(), state.Root()) {
@@ -1270,7 +1270,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
-		return fmt.Errorf("tx system failed to end block, %w", err)
+		return fmt.Errorf("transaction system failed to end block, %w", err)
 	}
 	stateHash := state.Root()
 	summary := state.Summary()

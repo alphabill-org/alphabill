@@ -1032,7 +1032,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				Proofs:           proofs,
 				Counter:          0,
 			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
-			wantErrStr: "burn tx orders are not listed in strictly increasing order of token identifiers",
+			wantErrStr: "burn transaction orders are not listed in strictly increasing order of token identifiers",
 		},
 		{
 			name: "source not burned - invalid target token id",
@@ -1041,7 +1041,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				Proofs:           []*types.TxProof{proofInvalidTargetTokenID},
 				Counter:          0,
 			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
-			wantErrStr: "burn tx target token id does not match with join transaction unit id",
+			wantErrStr: "burn transaction target token id does not match with join transaction unit id",
 		},
 		{
 			name: "source not burned - invalid target token counter",
@@ -1050,7 +1050,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				Proofs:           []*types.TxProof{proofInvalidTargetTokenCounter},
 				Counter:          1,
 			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
-			wantErrStr: "burn tx target token counter does not match with join transaction counter",
+			wantErrStr: "burn transaction target token counter does not match with join transaction counter",
 		},
 		{
 			name: "invalid source token type",

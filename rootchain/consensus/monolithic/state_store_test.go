@@ -24,7 +24,7 @@ var mockUc = &types.UnicityCertificate{
 	},
 	UnicityTreeCertificate: &types.UnicityTreeCertificate{
 		SystemIdentifier:         sysID3,
-		SiblingHashes:            nil,
+		HashSteps:                nil,
 		PartitionDescriptionHash: nil,
 	},
 	UnicitySeal: &types.UnicitySeal{

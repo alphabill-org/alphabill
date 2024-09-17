@@ -107,7 +107,7 @@ func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Ha
 			InputRecord: d.InputRecord,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         utCert.SystemIdentifier,
-				SiblingHashes:            utCert.SiblingHashes,
+				HashSteps:                utCert.HashSteps,
 				PartitionDescriptionHash: utCert.PartitionDescriptionHash,
 			},
 			UnicitySeal: seal,

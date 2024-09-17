@@ -49,7 +49,12 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key1, cert.SystemIdentifier)
-	root := imt.IndexTreeOutput(cert.SiblingHashes, key1.Bytes(), crypto.SHA256)
+
+	var hashSteps []*imt.PathItem
+	hashSteps = append(hashSteps, cert.FirstHashStep(inputRecord, crypto.SHA256))
+	hashSteps = append(hashSteps, cert.HashSteps...)
+
+	root := imt.IndexTreeOutput(hashSteps, key1.Bytes(), crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 	// system id 0 is illegal

@@ -298,7 +298,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 			InputRecord: ir,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         utCert.SystemIdentifier,
-				SiblingHashes:            utCert.SiblingHashes,
+				HashSteps:                utCert.HashSteps,
 				PartitionDescriptionHash: utCert.PartitionDescriptionHash,
 			},
 			UnicitySeal: uSeal,

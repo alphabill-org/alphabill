@@ -163,7 +163,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         systemIdentifier,
-				SiblingHashes:            []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
@@ -214,7 +214,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         systemIdentifier,
-				SiblingHashes:            []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,

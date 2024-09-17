@@ -679,7 +679,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 	}
 
 	luc := n.luc.Load()
-	if n.status.Load() == recovering && luc.GetRoundNumber() > uc.GetRoundNumber() {
+	if n.status.Load() == recovering && luc.GetRootRoundNumber() > uc.GetRootRoundNumber() {
 		// During recovery, UC from a recovered block is usually older than the LUC.
 		// Do not attempt to update LUC in that case.
 		return nil

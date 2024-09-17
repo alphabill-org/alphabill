@@ -107,6 +107,45 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	require.Equal(t, recovering, tp.partition.status.Load())
 }
 
+func TestNode_RecoverToOlderRootRound(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := RunSingleNodePartition(t, system)
+	uc1 := tp.GetCommittedUC(t)
+
+	// create a new block with a new UC which node does not know about
+	uc2Block := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	uc2 := uc2Block.UnicityCertificate
+
+	// create a repeat UC from uc2
+	repeatUC, err := tp.CreateUnicityCertificate(
+		copyIR(uc2.InputRecord),
+		uc2.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+
+	// submit repeatUC so that node starts recovery
+	tp.SubmitUnicityCertificate(repeatUC)
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, uint64(1), system.RevertCount)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure node has asked for uc2Block
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+
+	// send uc2Block
+	tp.eh.Reset()
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status: replication.Ok,
+		Blocks: []*types.Block{uc2Block},
+	})
+
+	// make sure node accepts uc2Block even though it already has a UC with newer root round (repeatUC)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	require.Equal(t, normal, tp.partition.status.Load())
+}
+
 // AB-714 If before shutting down nodes managed to send certification requests,
 // the proposal is valid and must be restored correctly since the latest UC will certify it
 // that is, node does not need to send replication request, but instead should restore proposal and accept UC to finalize the block

@@ -34,8 +34,8 @@ type (
 
 var ErrDuplicateChangeReq = errors.New("duplicate ir change request")
 
-func t2TimeoutToRootRounds(t2Timeout uint32, blockRate time.Duration) uint64 {
-	return uint64((time.Duration(t2Timeout)*time.Millisecond)/blockRate) + 1
+func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {
+	return uint64(t2Timeout/blockRate) + 1
 }
 
 func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*IRChangeReqVerifier, error) {

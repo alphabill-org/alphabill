@@ -22,13 +22,13 @@ type PartitionNode struct {
 	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
 	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
 	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
-	T2Timeout                 uint32                                   `json:"t2timeout,omitempty"`
 	Params                    []byte                                   `json:"params,omitempty"`
+	PartitionDescription      types.PartitionDescriptionRecord         `json:"partition_description"`
 }
 
 type MoneyPartitionParams struct {
-	_                        struct{} `cbor:",toarray"`
-	SystemDescriptionRecords []*types.SystemDescriptionRecord
+	_          struct{} `cbor:",toarray"`
+	Partitions []*types.PartitionDescriptionRecord
 }
 
 type EvmPartitionParams struct {

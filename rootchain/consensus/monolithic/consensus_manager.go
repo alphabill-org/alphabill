@@ -220,8 +220,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				log.Warn(fmt.Sprintf("read certificate for %s", id), logger.Error(err))
 				continue
 			}
-			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRate >
-				time.Duration(partInfo.T2Timeout)*time.Millisecond {
+			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRate > partInfo.T2Timeout {
 				// timeout
 				log.Info(fmt.Sprintf("partition %s T2 timeout", id))
 				repeatIR := lastCert.InputRecord.NewRepeatIR()
@@ -267,9 +266,9 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 		}
 		sdrh := sysDesc.Hash(x.params.HashAlgorithm)
 		utData = append(utData, &types.UnicityTreeData{
-			SystemIdentifier:            sysDesc.SystemIdentifier,
-			InputRecord:                 rec,
-			SystemDescriptionRecordHash: sdrh,
+			SystemIdentifier:         sysDesc.SystemIdentifier,
+			InputRecord:              rec,
+			PartitionDescriptionHash: sdrh,
 		})
 	}
 	certs := make(map[types.SystemID]*types.UnicityCertificate)
@@ -298,14 +297,14 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 		uc := &types.UnicityCertificate{
 			InputRecord: ir,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      utCert.SystemIdentifier,
-				SiblingHashes:         utCert.SiblingHashes,
-				SystemDescriptionHash: utCert.SystemDescriptionHash,
+				SystemIdentifier:         utCert.SystemIdentifier,
+				SiblingHashes:            utCert.SiblingHashes,
+				PartitionDescriptionHash: utCert.PartitionDescriptionHash,
 			},
 			UnicitySeal: uSeal,
 		}
 		// verify certificate
-		if err = uc.Verify(x.trustBase, x.params.HashAlgorithm, utCert.SystemIdentifier, utCert.SystemDescriptionHash); err != nil {
+		if err = uc.Verify(x.trustBase, x.params.HashAlgorithm, utCert.SystemIdentifier, utCert.PartitionDescriptionHash); err != nil {
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}

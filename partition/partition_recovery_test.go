@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -454,20 +453,20 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.Equal(t, uint64(3), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
+	require.Equal(t, latestBlock, newBlock3)
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
 	require.Nil(t, b)
 	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock1))
+	require.Equal(t, b, newBlock1)
 	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock2))
+	require.Equal(t, b, newBlock2)
 	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock3))
-	require.True(t, reflect.DeepEqual(b, latestBlock))
+	require.Equal(t, b, newBlock3)
+	require.Equal(t, b, latestBlock)
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
@@ -507,8 +506,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), nr)
 	latestBlock := tp.GetLatestBlock(t)
-	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
+	require.Equal(t, latestBlock, newBlock3)
 	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
 }
 
@@ -554,25 +552,25 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.Equal(t, uint64(5), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock5empty))
+	require.Equal(t, latestBlock, newBlock5empty)
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
 	require.Nil(t, b)
 	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock1))
+	require.Equal(t, b, newBlock1)
 	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock2))
+	require.Equal(t, b, newBlock2)
 	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
 	require.NotNil(t, b) // newBlock3empty
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock4))
+	require.Equal(t, b, newBlock4)
 	b, err = tp.partition.GetBlock(context.Background(), 5)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, latestBlock))
+	require.Equal(t, b, latestBlock)
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 6)
 	require.NoError(t, err)
@@ -1224,6 +1222,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	newBlock := &types.Block{
 		Header: &types.Header{
 			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
+			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",
 			PreviousBlockHash: uc.InputRecord.BlockHash,
 		},

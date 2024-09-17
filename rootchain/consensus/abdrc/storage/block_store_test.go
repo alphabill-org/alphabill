@@ -36,10 +36,10 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 	switch irChReq.CertReason {
 	case drctypes.Quorum:
 		// NB! there was at least one request, otherwise we would not be here
-		return &InputData{IR: irChReq.Requests[0].InputRecord, Sdrh: luc.UnicityTreeCertificate.SystemDescriptionHash}, nil
+		return &InputData{IR: irChReq.Requests[0].InputRecord, Sdrh: luc.UnicityTreeCertificate.PartitionDescriptionHash}, nil
 	case drctypes.QuorumNotPossible:
 	case drctypes.T2Timeout:
-		return &InputData{SysID: irChReq.SystemIdentifier, IR: luc.InputRecord, Sdrh: luc.UnicityTreeCertificate.SystemDescriptionHash}, nil
+		return &InputData{SysID: irChReq.SystemIdentifier, IR: luc.InputRecord, Sdrh: luc.UnicityTreeCertificate.PartitionDescriptionHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 }

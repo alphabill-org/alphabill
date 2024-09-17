@@ -3,6 +3,7 @@ package partition
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
@@ -13,15 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &types.SystemDescriptionRecord{
+var systemDescription = &types.PartitionDescriptionRecord{
 	SystemIdentifier: 1,
-	T2Timeout:        2500,
+	TypeIdLen:        8,
+	UnitIdLen:        256,
+	T2Timeout:        2500 * time.Millisecond,
 }
 
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *types.SystemDescriptionRecord
+		systemDescription *types.PartitionDescriptionRecord
 		rootTrustBase     types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
@@ -92,7 +95,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *types.SystemDescriptionRecord
+		systemDescription *types.PartitionDescriptionRecord
 		trustBase         types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}

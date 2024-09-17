@@ -3,6 +3,7 @@ package storage
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -23,9 +24,9 @@ var inputRecord1 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr1 = &types.SystemDescriptionRecord{
+var sdr1 = &types.PartitionDescriptionRecord{
 	SystemIdentifier: sysID1,
-	T2Timeout:        2500,
+	T2Timeout:        2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
 	PreviousHash: []byte{1, 1, 1},
@@ -34,15 +35,15 @@ var inputRecord2 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr2 = &types.SystemDescriptionRecord{
+var sdr2 = &types.PartitionDescriptionRecord{
 	SystemIdentifier: sysID2,
-	T2Timeout:        2500,
+	T2Timeout:        2500 * time.Millisecond,
 }
 
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: []byte{0xD4, 0xDC, 0xAB, 0x31, 0x55, 0xD5, 0x32, 0x2D, 0xC6, 0xCF, 0x8F, 0x32, 0x20, 0xF0, 0xF1, 0x82, 0xAB, 0x16, 0x79, 0x5B, 0xA8, 0x73, 0x67, 0xDA, 0x60, 0x6E, 0x86, 0x25, 0x4F, 0x0C, 0x8D, 0x2C},
+	CurrentRootHash: []byte{0x5a, 0xc8, 0xcd, 0x42, 0xcd, 0x37, 0xf7, 0x3c, 0x1b, 0x2a, 0xd2, 0x82, 0xd0, 0x60, 0xbf, 0x5b, 0xfd, 0xd3, 0x88, 0x78, 0xda, 0xa1, 0xc, 0x79, 0xe3, 0xf4, 0x53, 0x0, 0x5c, 0xa4, 0x46, 0x17},
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
@@ -50,8 +51,8 @@ var pg = []*genesis.GenesisPartitionRecord{
 		Certificate: &types.UnicityCertificate{
 			InputRecord: inputRecord1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID1,
-				SystemDescriptionHash: sdr1.Hash(gocrypto.SHA256),
+				SystemIdentifier:         sysID1,
+				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
 				RootChainRoundNumber: roundInfo.RoundNumber,
@@ -61,14 +62,14 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Signatures:           map[string][]byte{},
 			},
 		},
-		SystemDescriptionRecord: sdr1,
+		PartitionDescription: sdr1,
 	},
 	{
 		Certificate: &types.UnicityCertificate{
 			InputRecord: inputRecord2,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID2,
-				SystemDescriptionHash: sdr2.Hash(gocrypto.SHA256),
+				SystemIdentifier:         sysID2,
+				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
 				RootChainRoundNumber: roundInfo.RoundNumber,
@@ -78,7 +79,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Signatures:           map[string][]byte{},
 			},
 		},
-		SystemDescriptionRecord: sdr2,
+		PartitionDescription: sdr2,
 	},
 }
 

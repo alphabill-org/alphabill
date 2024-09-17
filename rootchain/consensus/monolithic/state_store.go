@@ -65,7 +65,7 @@ func (s *StateStore) Init(rg *genesis.RootGenesis) error {
 	}
 	certs := make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range rg.Partitions {
-		certs[partition.SystemDescriptionRecord.SystemIdentifier] = partition.Certificate
+		certs[partition.PartitionDescription.SystemIdentifier] = partition.Certificate
 	}
 	return s.save(rg.GetRoundNumber(), certs)
 }

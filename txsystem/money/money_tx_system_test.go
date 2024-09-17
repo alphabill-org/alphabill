@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -56,7 +57,7 @@ func TestNewTxSystem(t *testing.T) {
 		observability.Default(t),
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
-		WithSystemDescriptionRecords(sdrs),
+		WithPartitionDescriptionRecords(sdrs),
 		WithState(txsState),
 		WithTrustBase(trustBase),
 	)
@@ -87,7 +88,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	originalTxs, err := NewTxSystem(
 		observe,
 		WithSystemIdentifier(systemIdentifier),
-		WithSystemDescriptionRecords(sdrs),
+		WithPartitionDescriptionRecords(sdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
 	)
@@ -124,7 +125,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	recoveredTxs, err := NewTxSystem(
 		observe,
 		WithSystemIdentifier(systemIdentifier),
-		WithSystemDescriptionRecords(sdrs),
+		WithPartitionDescriptionRecords(sdrs),
 		WithState(recoveredState),
 		WithTrustBase(trustBase),
 	)
@@ -1068,7 +1069,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	mss, err := NewTxSystem(
 		observability.Default(t),
 		WithSystemIdentifier(systemIdentifier),
-		WithSystemDescriptionRecords(sdrs),
+		WithPartitionDescriptionRecords(sdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
 	)
@@ -1095,7 +1096,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 }
 
 // Duplicates txsystem/money/testutils/genesis_state.go
-func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.SystemDescriptionRecord) *state.State {
+func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.PartitionDescriptionRecord) *state.State {
 	s := state.NewEmptyState()
 	zeroHash := make([]byte, crypto.SHA256.Size())
 
@@ -1120,7 +1121,7 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.SystemDe
 	return s
 }
 
-func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.SystemDescriptionRecord) *state.State {
+func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.PartitionDescriptionRecord) *state.State {
 	s := genesisState(t, initialBill, sdrs)
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -1132,10 +1133,10 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Sy
 	return s
 }
 
-func createSDRs(fcbID types.UnitID) []*types.SystemDescriptionRecord {
-	return []*types.SystemDescriptionRecord{{
+func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
+	return []*types.PartitionDescriptionRecord{{
 		SystemIdentifier: moneySystemID,
-		T2Timeout:        2500,
+		T2Timeout:        2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),

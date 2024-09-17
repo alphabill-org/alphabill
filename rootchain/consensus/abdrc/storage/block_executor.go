@@ -84,9 +84,9 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 	data := make([]*InputData, len(pg))
 	for i, partition := range pg {
 		data[i] = &InputData{
-			SysID: partition.SystemDescriptionRecord.SystemIdentifier,
+			SysID: partition.PartitionDescription.SystemIdentifier,
 			IR:    partition.Certificate.InputRecord,
-			Sdrh:  partition.Certificate.UnicityTreeCertificate.SystemDescriptionHash,
+			Sdrh:  partition.Certificate.UnicityTreeCertificate.PartitionDescriptionHash,
 		}
 	}
 	qc := QcFromGenesisState(pg)
@@ -131,9 +131,9 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 	utData := make([]*types.UnicityTreeData, 0, len(irState))
 	for _, data := range irState {
 		utData = append(utData, &types.UnicityTreeData{
-			SystemIdentifier:            data.SysID,
-			InputRecord:                 data.IR,
-			SystemDescriptionRecordHash: data.Sdrh,
+			SystemIdentifier:         data.SysID,
+			InputRecord:              data.IR,
+			PartitionDescriptionHash: data.Sdrh,
 		})
 	}
 	ut, err := unicitytree.New(hash, utData)
@@ -177,9 +177,9 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &types.UnicityTreeData{
-			SystemIdentifier:            data.SysID,
-			InputRecord:                 data.IR,
-			SystemDescriptionRecordHash: data.Sdrh,
+			SystemIdentifier:         data.SysID,
+			InputRecord:              data.IR,
+			PartitionDescriptionHash: data.Sdrh,
 		})
 	}
 	ut, err := unicitytree.New(hash, utData)
@@ -201,9 +201,9 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &types.UnicityTreeData{
-			SystemIdentifier:            data.SysID,
-			InputRecord:                 data.IR,
-			SystemDescriptionRecordHash: data.Sdrh,
+			SystemIdentifier:         data.SysID,
+			InputRecord:              data.IR,
+			PartitionDescriptionHash: data.Sdrh,
 		})
 	}
 	return unicitytree.New(x.HashAlgo, utData)
@@ -248,9 +248,9 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map
 		certificate := &types.UnicityCertificate{
 			InputRecord: ir.IR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      utCert.SystemIdentifier,
-				SiblingHashes:         utCert.SiblingHashes,
-				SystemDescriptionHash: utCert.SystemDescriptionHash,
+				SystemIdentifier:         utCert.SystemIdentifier,
+				SiblingHashes:            utCert.SiblingHashes,
+				PartitionDescriptionHash: utCert.PartitionDescriptionHash,
 			},
 			UnicitySeal: uSeal,
 		}

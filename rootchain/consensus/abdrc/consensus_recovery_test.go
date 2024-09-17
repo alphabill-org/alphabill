@@ -792,9 +792,11 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
 	t.Helper()
 	record := &genesis.PartitionRecord{
-		SystemDescriptionRecord: &abtypes.SystemDescriptionRecord{
+		PartitionDescription: &abtypes.PartitionDescriptionRecord{
 			SystemIdentifier: systemID,
-			T2Timeout:        2500,
+			TypeIdLen:        8,
+			UnitIdLen:        256,
+			T2Timeout:        2500 * time.Millisecond,
 		},
 	}
 
@@ -813,6 +815,7 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,
 			BlockCertificationRequest: req,
+			PartitionDescription:      *record.PartitionDescription,
 		})
 	}
 

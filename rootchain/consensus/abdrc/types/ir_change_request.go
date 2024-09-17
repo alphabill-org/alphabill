@@ -110,8 +110,8 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 			return nil, fmt.Errorf("invalid partition %s quorum proof: contains proofs for different state hashes", x.SystemIdentifier)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
-		if count := getMaxHashCount(hashCnt); count < tb.GetQuorum() {
-			return nil, fmt.Errorf("invalid partition %s quorum proof: not enough requests to prove quorum", x.SystemIdentifier)
+		if count, q := getMaxHashCount(hashCnt), tb.GetQuorum(); count < q {
+			return nil, fmt.Errorf("invalid partition %s quorum proof: not enough requests to prove quorum (got %d, need %d)", x.SystemIdentifier, count, q)
 		}
 		// if any request did not extend previous state the whole IRChange request is rejected in validation step
 		// NB! there was at least one request, otherwise we would not be here
@@ -125,9 +125,8 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 		}
 		// initiate repeat UC
 		return luc.InputRecord.NewRepeatIR(), nil
-
 	case T2Timeout:
-		// timout does not carry proof in form of certification requests
+		// timeout does not carry proof in form of certification requests
 		// again this is not fatal in itself, but we should not encourage redundant info
 		if len(x.Requests) != 0 {
 			return nil, fmt.Errorf("invalid partition %s timeout proof: proof contains requests", x.SystemIdentifier)

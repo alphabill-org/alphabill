@@ -181,7 +181,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	// update partition genesis files
 	for _, pg := range partitionGenesisFiles {
 		for _, part := range nodePartitions {
-			if part.systemId == pg.SystemDescriptionRecord.SystemIdentifier {
+			if part.systemId == pg.PartitionDescription.SystemIdentifier {
 				part.partitionGenesis = pg
 			}
 		}
@@ -244,12 +244,12 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem, systemIdentifier types.SystemID, state *state.State) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem, pdr types.PartitionDescriptionRecord, state *state.State) (abPartition *NodePartition, err error) {
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	abPartition = &NodePartition{
-		systemId:     systemIdentifier,
+		systemId:     pdr.SystemIdentifier,
 		txSystemFunc: txSystemProvider,
 		genesisState: state,
 		Nodes:        make([]*partitionNode, nodeCount),
@@ -272,11 +272,10 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
 			state,
+			pdr,
 			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
 			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
-			partition.WithSystemIdentifier(systemIdentifier),
-			partition.WithT2Timeout(2500),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)
@@ -555,7 +554,7 @@ func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.Unicity
 	if !f {
 		return nil, fmt.Errorf("unknown partition %s", sysID)
 	}
-	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.SystemDescriptionRecord, a.RootPartition.TrustBase, crypto.SHA256)
+	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.PartitionDescription, a.RootPartition.TrustBase, crypto.SHA256)
 }
 
 // BroadcastTx sends transactions to all nodes.

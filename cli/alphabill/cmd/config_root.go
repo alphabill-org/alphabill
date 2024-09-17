@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 type (
@@ -183,8 +183,4 @@ func alphabillHomeDir() string {
 		panic("default user home dir not defined: " + err.Error())
 	}
 	return filepath.Join(dir, defaultAlphabillDir)
-}
-
-func addSystemIDFlag(cmd *cobra.Command, value *uint32, defaultValue types.SystemID) {
-	cmd.Flags().Uint32VarP(value, "system-identifier", "s", uint32(defaultValue), `system (aka partition) identifier. To use base 16 prefix the value with "0x" (ie "-s 0xFF"), for base 8 use "0o" or "0" prefix (ie "-s 0377" is the same as "-s 0xFF" or "-s 255")`)
 }

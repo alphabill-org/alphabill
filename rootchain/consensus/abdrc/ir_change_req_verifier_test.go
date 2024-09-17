@@ -68,9 +68,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: 1,
-				T2Timeout:        2000,
+				T2Timeout:        2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -255,9 +255,9 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: 1,
-				T2Timeout:        2600,
+				T2Timeout:        2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -301,9 +301,9 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: 1,
-				T2Timeout:        2600,
+				T2Timeout:        2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -345,9 +345,9 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: sysID1,
-				T2Timeout:        2500,
+				T2Timeout:        2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},

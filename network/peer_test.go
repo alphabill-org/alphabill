@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -236,14 +236,14 @@ func TestAnnounceAddrs(t *testing.T) {
 	require.Equal(t, announceAddrs[1], actualAddrs[1].String())
 }
 
-func createPeer(t *testing.T) *Peer {
-	return createBootstrappedPeer(t, nil, []peer.ID{})
-}
-
 /*
 createPeer returns new Peer configured with random port on localhost and registers
 cleanup for it (ie in the end of the test peer.Close is called).
 */
+func createPeer(t *testing.T) *Peer {
+	return createBootstrappedPeer(t, nil, []peer.ID{})
+}
+
 func createBootstrappedPeer(t *testing.T, bootstrapPeers []peer.AddrInfo, validators []peer.ID) *Peer {
 	keyPair := generateKeyPair(t)
 	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)

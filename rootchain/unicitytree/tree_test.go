@@ -19,9 +19,9 @@ var inputRecord = &types.InputRecord{
 func TestNewUnicityTree(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            1,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         1,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -33,14 +33,14 @@ func TestGetCertificate_Ok(t *testing.T) {
 	key2 := types.SystemID(2)
 	data := []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            key2,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{3, 4, 5, 6},
+			SystemIdentifier:         key2,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{3, 4, 5, 6},
 		},
 		{
-			SystemIdentifier:            key1,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         key1,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	}
 	unicityTree, err := New(crypto.SHA256, data)
@@ -61,9 +61,9 @@ func TestGetCertificate_Ok(t *testing.T) {
 func TestGetCertificate_InvalidKey(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            0x01020301,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         0x01020301,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -76,9 +76,9 @@ func TestGetCertificate_InvalidKey(t *testing.T) {
 func TestGetCertificate_KeyNotFound(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            0x01020301,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         0x01020301,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)

@@ -14,23 +14,23 @@ var (
 )
 
 type PartitionRecord struct {
-	_                       struct{}                       `cbor:",toarray"`
-	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
-	Validators              []*PartitionNode               `json:"validators,omitempty"`
+	_                    struct{}                          `cbor:",toarray"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
+	Validators           []*PartitionNode                  `json:"validators,omitempty"`
 }
 
-func (x *PartitionRecord) GetSystemDescriptionRecord() *types.SystemDescriptionRecord {
+func (x *PartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {
 	if x == nil {
 		return nil
 	}
-	return x.SystemDescriptionRecord
+	return x.PartitionDescription
 }
 
 func (x *PartitionRecord) IsValid() error {
 	if x == nil {
 		return errPartitionRecordIsNil
 	}
-	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
+	if err := x.PartitionDescription.IsValid(); err != nil {
 		return fmt.Errorf("invalid system description record, %w", err)
 	}
 	if len(x.Validators) == 0 {
@@ -63,7 +63,7 @@ func (x *PartitionRecord) IsValid() error {
 }
 
 func (x *PartitionRecord) GetSystemIdentifier() types.SystemID {
-	return x.SystemDescriptionRecord.SystemIdentifier
+	return x.PartitionDescription.SystemIdentifier
 }
 
 func (x *PartitionRecord) GetPartitionNode(id string) *PartitionNode {

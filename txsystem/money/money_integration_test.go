@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -45,6 +46,12 @@ func TestPartition_Ok(t *testing.T) {
 		Value: moneyInvariant,
 		Owner: templates.AlwaysTrueBytes(),
 	}
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: money.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 	sdrs := createSDRs(newBillID(2))
 	s := genesisState(t, ib, sdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
@@ -52,14 +59,14 @@ func TestPartition_Ok(t *testing.T) {
 		system, err := NewTxSystem(
 			observability.Default(t),
 			WithState(s),
-			WithSystemIdentifier(systemIdentifier),
+			WithSystemIdentifier(pdr.SystemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
-			WithSystemDescriptionRecords(sdrs),
+			WithPartitionDescriptionRecords(sdrs),
 			WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier, s)
+	}, pdr, s)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
 
@@ -89,7 +96,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.V)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(systemIdentifier)
+	ucv, err := abNet.GetValidator(pdr.SystemIdentifier)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
 
@@ -133,8 +140,7 @@ func TestPartition_Ok(t *testing.T) {
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
 	targetUnit := &money.TargetUnit{Amount: amountPK2, OwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
-	remainingValue := total - fcrAmount - amountPK2
-	tx := createSplitTx(t, ib.ID, fcrID, 2, []*money.TargetUnit{targetUnit}, remainingValue)
+	tx := createSplitTx(t, ib.ID, fcrID, 2, []*money.TargetUnit{targetUnit})
 	require.NoError(t, moneyPrt.SubmitTx(tx))
 	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, tx)
 	require.NoError(t, err, "money split transaction failed")
@@ -146,7 +152,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)
 
 	// wrong partition tx
-	tx = createSplitTx(t, ib.ID, fcrID, 3, []*money.TargetUnit{targetUnit}, remainingValue)
+	tx = createSplitTx(t, ib.ID, fcrID, 3, []*money.TargetUnit{targetUnit})
 	tx.Payload.SystemID = 0x01010101
 	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid transaction system identifier")
 	// and fee unit is not changed
@@ -171,6 +177,12 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			Owner: templates.AlwaysTrueBytes(),
 		}
 	)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: money.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 	total := moneyInvariant
 	sdrs := createSDRs(newBillID(99))
 	txsState = genesisState(t, initialBill, sdrs)
@@ -178,15 +190,15 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			observability.Default(t),
-			WithSystemIdentifier(systemIdentifier),
+			WithSystemIdentifier(pdr.SystemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
-			WithSystemDescriptionRecords(sdrs),
+			WithPartitionDescriptionRecords(sdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
 		)
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier, txsState)
+	}, pdr, txsState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
@@ -255,7 +267,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		total -= amount
 		amount++
 	}
-	splitTx := createSplitTx(t, initialBill.ID, fcrID, 2, targetUnits, total)
+	splitTx := createSplitTx(t, initialBill.ID, fcrID, 2, targetUnits)
 	require.NoError(t, moneyPrt.SubmitTx(splitTx))
 
 	// wait for transaction to be added to block
@@ -293,7 +305,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create swap tx
 	swapTx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:   systemIdentifier,
+			SystemID:   pdr.SystemIdentifier,
 			Type:       money.PayloadTypeSwapDC,
 			UnitID:     initialBill.ID,
 			Attributes: swapBytes,
@@ -319,7 +331,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 }
 
-func createSplitTx(t *testing.T, fromID []byte, fcrID types.UnitID, counter uint64, targetUnits []*money.TargetUnit, remaining uint64) *types.TransactionOrder {
+func createSplitTx(t *testing.T, fromID []byte, fcrID types.UnitID, counter uint64, targetUnits []*money.TargetUnit) *types.TransactionOrder {
 	tx, _, _ := createSplit(t, fromID, fcrID, targetUnits, counter)
 	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	require.NoError(t, err)

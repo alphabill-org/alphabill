@@ -115,9 +115,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 
 	txs, err := money.NewTxSystem(
 		obs,
-		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
+		money.WithSystemIdentifier(pg.PartitionDescription.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
-		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
+		money.WithPartitionDescriptionRecords(params.Partitions),
 		money.WithTrustBase(trustBase),
 		money.WithState(state),
 	)

@@ -29,7 +29,7 @@ type RootGenesis struct {
 }
 
 type SystemDescriptionRecordGetter interface {
-	GetSystemDescriptionRecord() *types.SystemDescriptionRecord
+	GetSystemDescriptionRecord() *types.PartitionDescriptionRecord
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
@@ -112,7 +112,7 @@ func (x *RootGenesis) Verify() error {
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
-				p.SystemDescriptionRecord.SystemIdentifier)
+				p.PartitionDescription.SystemIdentifier)
 		}
 	}
 	return nil
@@ -130,8 +130,8 @@ func (x *RootGenesis) GetPartitionRecords() []*PartitionRecord {
 	records := make([]*PartitionRecord, len(x.Partitions))
 	for i, partition := range x.Partitions {
 		records[i] = &PartitionRecord{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Validators:              partition.Nodes,
+			PartitionDescription: partition.PartitionDescription,
+			Validators:           partition.Nodes,
 		}
 	}
 	return records

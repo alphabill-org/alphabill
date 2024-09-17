@@ -3,6 +3,7 @@ package genesis
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -90,14 +91,14 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				},
 				Partitions: []*GenesisPartitionRecord{
 					{
-						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
-						Certificate:             nil,
-						SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
+						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Certificate:          nil,
+						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
-						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
-						Certificate:             nil,
-						SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 1000},
+						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Certificate:          nil,
+						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 				},
 			},
@@ -162,7 +163,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
-				SystemDescriptionRecord: systemDescription,
+				PartitionDescription: systemDescription,
 			},
 		},
 	}
@@ -171,8 +172,8 @@ func TestRootGenesis(t *testing.T) {
 	require.Equal(t, 1, len(rg.GetPartitionRecords()))
 	require.Equal(t,
 		&PartitionRecord{
-			SystemDescriptionRecord: systemDescription,
-			Validators:              []*PartitionNode{node},
+			PartitionDescription: systemDescription,
+			Validators:           []*PartitionNode{node},
 		},
 		rg.GetPartitionRecords()[0],
 	)
@@ -205,7 +206,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
-				SystemDescriptionRecord: systemDescription,
+				PartitionDescription: systemDescription,
 			},
 			{
 				Nodes: []*PartitionNode{node},
@@ -213,7 +214,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
-				SystemDescriptionRecord: systemDescription,
+				PartitionDescription: systemDescription,
 			},
 		},
 	}

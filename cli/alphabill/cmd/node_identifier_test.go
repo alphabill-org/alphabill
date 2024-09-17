@@ -12,7 +12,7 @@ import (
 )
 
 func TestIdentifier_KeysNotFound(t *testing.T) {
-	dir := setupTestHomeDir(t, "identifier")
+	dir := t.TempDir()
 	file := filepath.Join(dir, defaultKeysFileName)
 	cmd := New(testobserve.NewFactory(t))
 	args := "identifier -k" + file
@@ -22,7 +22,7 @@ func TestIdentifier_KeysNotFound(t *testing.T) {
 }
 
 func TestIdentifier_Ok(t *testing.T) {
-	dir := setupTestHomeDir(t, "identifier")
+	dir := t.TempDir()
 	file := filepath.Join(dir, defaultKeysFileName)
 
 	_, err := LoadKeys(file, true, false)

@@ -249,7 +249,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	feeProof := testsig.NewFeeProof(t, validTxOrder, signer)
 
 	execEnv := &mockTxContext{
-		spendGas:     func(gas uint64) error { return nil },
+		spendGas: func(gas uint64) error { return nil },
 	}
 
 	t.Run("txAuth success", func(t *testing.T) {
@@ -309,7 +309,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = executeP2PKH256TxAuth(hash.Sum256(signature.PubKey), ownerProof, validTxOrder, execEnv)
-		require.EqualError(t, err, `failed to create verifier: public key decompress faield`)
+		require.EqualError(t, err, `failed to create verifier: public key decompress failed`)
 		require.False(t, res)
 	})
 
@@ -332,7 +332,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	t.Run("out of gas", func(t *testing.T) {
 		execEnv := &mockTxContext{
-			spendGas:     func(gas uint64) error { return fmt.Errorf("out of gas") },
+			spendGas: func(gas uint64) error { return fmt.Errorf("out of gas") },
 		}
 		res, err := executeP2PKH256TxAuth(pubKeyHash, ownerProof, validTxOrder, execEnv)
 		require.EqualError(t, err, "out of gas")
@@ -353,7 +353,7 @@ func Benchmark_templateExecute(b *testing.B) {
 		}
 		pubKeyHash := hash.Sum256(pk)
 		execEnv := &mockTxContext{
-			spendGas:     func(gas uint64) error { return nil },
+			spendGas: func(gas uint64) error { return nil },
 		}
 
 		// valid data, the P2pkh256.Execute should not return any error

@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -31,12 +32,18 @@ var (
 )
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: tokens.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		system, err := NewTxSystem(observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
-	}, tokens.DefaultSystemID, genesisState)
+	}, pdr, genesisState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
@@ -45,7 +52,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithPayloadType(tokens.PayloadTypeDefineNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithSystemID(pdr.SystemIdentifier),
 		testtransaction.WithUnitID(tokens.NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
@@ -75,6 +82,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		splitValue2         uint64 = 10
 		trustBase           types.RootTrustBase
 	)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: tokens.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 
 	// setup network
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
@@ -85,7 +98,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		require.NoError(t, err)
 		states = append(states, genesisState)
 		return system
-	}, tokens.DefaultSystemID, genesisState)
+	}, pdr, genesisState)
 	require.NoError(t, err)
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started

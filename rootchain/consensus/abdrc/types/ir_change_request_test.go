@@ -375,7 +375,7 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
 		}
 		ir, err := x.Verify(tb, luc, 0, 0)
-		require.EqualError(t, err, "invalid partition 00000001 quorum proof: not enough requests to prove quorum")
+		require.EqualError(t, err, "invalid partition 00000001 quorum proof: not enough requests to prove quorum (got 1, need 2)")
 		require.Nil(t, ir)
 	})
 	t.Run("IR does not extend last certified state", func(t *testing.T) {

@@ -108,7 +108,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 
 	txs, err := orchestration.NewTxSystem(
 		obs,
-		orchestration.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
+		orchestration.WithSystemIdentifier(pg.PartitionDescription.GetSystemIdentifier()),
 		orchestration.WithHashAlgorithm(crypto.SHA256),
 		orchestration.WithTrustBase(trustBase),
 		orchestration.WithState(state),

@@ -6,15 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
-
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -24,18 +23,16 @@ const (
 )
 
 type orchestrationGenesisConfig struct {
-	Base             *baseConfiguration
-	SystemIdentifier types.SystemID
-	Keys             *keysConfig
-	Output           string
-	OutputState      string
-	T2Timeout        uint32 `validate:"gte=0"`
-	OwnerPredicate   []byte
+	Base           *baseConfiguration
+	Keys           *keysConfig
+	PDRFilename    string
+	Output         string
+	OutputState    string
+	OwnerPredicate []byte
 }
 
 // newOrchestrationGenesisCmd creates a new cobra command for the orchestration partition genesis.
 func newOrchestrationGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	var systemID uint32
 	config := &orchestrationGenesisConfig{
 		Base: baseConfig,
 		Keys: NewKeysConf(baseConfig, orchestrationPartitionDir),
@@ -44,17 +41,16 @@ func newOrchestrationGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "orchestration-genesis",
 		Short: "Generates a genesis file for the Orchestration partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.SystemIdentifier = types.SystemID(systemID)
 			return orchestrationGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	addSystemIDFlag(cmd, &systemID, orchestration.DefaultSystemID)
+	cmd.Flags().StringVar(&config.PDRFilename, "partition-description", "", "filename (full path) from where to read the Partition Description Record")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/orchestration/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/orchestration/node-genesis-state.cbor)")
-	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().BytesHexVar(&config.OwnerPredicate, "owner-predicate", nil, "the Proof-of-Authority owner predicate")
 	_ = cmd.MarkFlagRequired("owner-predicate")
+	_ = cmd.MarkFlagRequired("partition-description")
 	config.Keys.addCmdFlags(cmd)
 	return cmd
 }
@@ -78,6 +74,11 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(homeDir)
 	if util.FileExists(nodeGenesisStateFile) {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
+	}
+
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	if err != nil {
+		return fmt.Errorf("loading partition description: %w", err)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
@@ -104,11 +105,10 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 
 	nodeGenesis, err := partition.NewNodeGenesis(
 		genesisState,
+		*pdr,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
-		partition.WithSystemIdentifier(config.SystemIdentifier),
-		partition.WithT2Timeout(config.T2Timeout),
 		partition.WithParams(params),
 	)
 	if err != nil {

@@ -15,17 +15,17 @@ var (
 )
 
 type GenesisPartitionRecord struct {
-	_                       struct{}                       `cbor:",toarray"`
-	Nodes                   []*PartitionNode               `json:"nodes,omitempty"`
-	Certificate             *types.UnicityCertificate      `json:"certificate,omitempty"`
-	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	_                    struct{}                          `cbor:",toarray"`
+	Nodes                []*PartitionNode                  `json:"nodes,omitempty"`
+	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
 }
 
-func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.SystemDescriptionRecord {
+func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {
 	if x == nil {
 		return nil
 	}
-	return x.SystemDescriptionRecord
+	return x.PartitionDescription
 }
 
 func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
@@ -38,14 +38,14 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 	if len(x.Nodes) == 0 {
 		return ErrNodesAreMissing
 	}
-	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
+	if err := x.PartitionDescription.IsValid(); err != nil {
 		return fmt.Errorf("invalid system description record: %w", err)
 	}
 	if err := nodesUnique(x.Nodes); err != nil {
 		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
-	systemIdentifier := x.SystemDescriptionRecord.SystemIdentifier
-	systemDescriptionHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
+	systemIdentifier := x.PartitionDescription.SystemIdentifier
+	systemDescriptionHash := x.PartitionDescription.Hash(hashAlgorithm)
 	if err := x.Certificate.Verify(trustBase, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}

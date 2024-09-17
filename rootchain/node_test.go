@@ -53,7 +53,7 @@ type MockConsensusManager struct {
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
 	var c = make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range rg.Partitions {
-		c[partition.SystemDescriptionRecord.GetSystemIdentifier()] = partition.Certificate
+		c[partition.PartitionDescription.GetSystemIdentifier()] = partition.Certificate
 	}
 
 	return &MockConsensusManager{
@@ -474,7 +474,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate 2x subscriptions
-	id32 := rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier
+	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager

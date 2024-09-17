@@ -286,21 +286,22 @@ func envVarsStr(envVars []envVar) (out string) {
 }
 
 func TestRunMoneyNode_Ok(t *testing.T) {
-	homeDirMoney := setupTestHomeDir(t, "money")
+	homeDirMoney := t.TempDir()
 	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDirMoney, rootTrustBaseFileName)
+	pdrFilename, err := createPDRFile(homeDirMoney, defaultMoneyPDR)
+	require.NoError(t, err)
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
-
-		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
 		cmd := New(logF)
 		args := "money-genesis --home " + homeDirMoney +
+			" --partition-description " + pdrFilename +
 			" -o " + nodeGenesisFileLocation +
 			" --output-state " + nodeGenesisStateFileLocation +
 			" -g -k " + keysFileLocation
@@ -332,6 +333,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
+		appStoppedWg := sync.WaitGroup{}
 		appStoppedWg.Add(1)
 		go func() {
 			defer appStoppedWg.Done()

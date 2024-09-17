@@ -13,16 +13,16 @@ func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
 	ir *types.InputRecord,
-	systemDescription *types.SystemDescriptionRecord,
+	systemDescription *types.PartitionDescriptionRecord,
 	roundNumber uint64,
 	previousRoundRootHash []byte,
 
 ) *types.UnicityCertificate {
 	t.Helper()
 	data := []*types.UnicityTreeData{{
-		SystemIdentifier:            systemDescription.SystemIdentifier,
-		InputRecord:                 ir,
-		SystemDescriptionRecordHash: systemDescription.Hash(gocrypto.SHA256),
+		SystemIdentifier:         systemDescription.SystemIdentifier,
+		InputRecord:              ir,
+		PartitionDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
 	}}
 	ut, err := unicitytree.New(gocrypto.SHA256, data)
 	if err != nil {
@@ -41,9 +41,9 @@ func CreateUnicityCertificate(
 	return &types.UnicityCertificate{
 		InputRecord: ir,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier:      cert.SystemIdentifier,
-			SiblingHashes:         cert.SiblingHashes,
-			SystemDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
+			SystemIdentifier:         cert.SystemIdentifier,
+			SiblingHashes:            cert.SiblingHashes,
+			PartitionDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
 		},
 		UnicitySeal: unicitySeal,
 	}

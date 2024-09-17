@@ -135,7 +135,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 
 	txs, err := tokens.NewTxSystem(
 		obs,
-		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
+		tokens.WithSystemIdentifier(pg.PartitionDescription.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),

@@ -31,12 +31,21 @@ import (
 )
 
 func TestRunTokensNode(t *testing.T) {
-	homeDir := setupTestHomeDir(t, "tokens")
+	homeDir := t.TempDir()
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: tokens.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2500 * time.Millisecond,
+	}
+	pdrFilename := filepath.Join(homeDir, "pdr.json")
+	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
+
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
 		appStoppedWg := sync.WaitGroup{}
@@ -48,6 +57,7 @@ func TestRunTokensNode(t *testing.T) {
 		// generate node genesis
 		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir +
+			" --partition-description " + pdrFilename +
 			" -o " + nodeGenesisFileLocation +
 			" --output-state " + nodeGenesisStateFileLocation +
 			" -g -k " + keysFileLocation

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
@@ -50,6 +51,12 @@ const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t
 const systemIdentifier types.SystemID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: 0x00000402,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
 	blockDB, err := memorydb.New()
@@ -57,14 +64,14 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
-			systemIdentifier,
+			pdr.SystemIdentifier,
 			logger.New(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),
 		) // 1 ETH
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier, genesisState)
+	}, pdr, genesisState)
 	require.NoError(t, err)
 
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})

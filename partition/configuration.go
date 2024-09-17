@@ -32,6 +32,7 @@ var (
 
 type (
 	configuration struct {
+		shardID                     types.ShardID
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
@@ -190,13 +191,13 @@ func (c *configuration) initMissingDefaults() error {
 	}
 
 	if c.blockProposalValidator == nil {
-		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
+		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing block proposal validator: %w", err)
 		}
 	}
 	if c.unicityCertificateValidator == nil {
-		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
+		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing unicity certificate validator: %w", err)
 		}
@@ -217,11 +218,11 @@ func (c *configuration) initMissingDefaults() error {
 }
 
 func (c *configuration) GetSystemIdentifier() types.SystemID {
-	return c.genesis.SystemDescriptionRecord.SystemIdentifier
+	return c.genesis.PartitionDescription.SystemIdentifier
 }
 
 func (c *configuration) GetT2Timeout() time.Duration {
-	return time.Duration(c.genesis.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+	return c.genesis.PartitionDescription.T2Timeout
 }
 
 func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (abcrypto.Verifier, error) {

@@ -73,9 +73,9 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitionStore, err := partitions.NewPartitionStore(
 		testgenesis.NewGenesisStoreFromPartitions(
 			[]*genesis.GenesisPartitionRecord{
-				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500}},
-				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
-				{SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: sysID3, T2Timeout: 2500 * time.Millisecond}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500 * time.Millisecond}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500 * time.Millisecond}},
 			}))
 	require.NoError(t, err)
 	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))

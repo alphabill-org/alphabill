@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
@@ -22,9 +23,9 @@ var mockUc = &types.UnicityCertificate{
 		SummaryValue: []byte{0, 0, 0, 0},
 	},
 	UnicityTreeCertificate: &types.UnicityTreeCertificate{
-		SystemIdentifier:      sysID3,
-		SiblingHashes:         nil,
-		SystemDescriptionHash: nil,
+		SystemIdentifier:         sysID3,
+		SiblingHashes:            nil,
+		PartitionDescriptionHash: nil,
 	},
 	UnicitySeal: &types.UnicitySeal{
 		RootChainRoundNumber: 1,
@@ -38,17 +39,17 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: sysID3,
-				T2Timeout:        2500,
+				T2Timeout:        2500 * time.Millisecond,
 			},
 		},
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{
 				SystemIdentifier: sysID1,
-				T2Timeout:        2500,
+				T2Timeout:        2500 * time.Millisecond,
 			},
 		},
 	},

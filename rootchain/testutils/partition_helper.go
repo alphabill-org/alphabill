@@ -33,9 +33,11 @@ func NewTestNode(t *testing.T) *TestNode {
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
-		SystemDescriptionRecord: &types.SystemDescriptionRecord{
+		PartitionDescription: &types.PartitionDescriptionRecord{
 			SystemIdentifier: systemID,
-			T2Timeout:        2500,
+			TypeIdLen:        8,
+			UnitIdLen:        256,
+			T2Timeout:        2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{},
 	}

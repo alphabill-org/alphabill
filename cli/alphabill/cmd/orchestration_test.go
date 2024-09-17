@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	testutils "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -29,12 +29,20 @@ import (
 )
 
 func TestRunOrchestrationNode_Ok(t *testing.T) {
-	homeDir := setupTestHomeDir(t, "orchestration")
+	homeDir := t.TempDir()
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, orchestrationGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, orchestrationGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: orchestration.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2500 * time.Millisecond,
+	}
+	pdrFilename := filepath.Join(homeDir, "pdr.json")
+	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
 
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
@@ -45,6 +53,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		// generate node genesis
 		cmd := New(logF)
 		args := "orchestration-genesis --home " + homeDir +
+			" --partition-description " + pdrFilename +
 			" -o " + nodeGenesisFileLocation +
 			" --output-state " + nodeGenesisStateFileLocation +
 			" -g -k " + keysFileLocation +

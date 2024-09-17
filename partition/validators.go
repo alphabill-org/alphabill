@@ -53,6 +53,7 @@ type (
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
+var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
 func NewDefaultTxValidator(systemIdentifier types.SystemID) (TxValidator, error) {
@@ -89,7 +90,7 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *types.SystemDescriptionRecord,
+	systemDescription *types.PartitionDescriptionRecord,
 	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
@@ -114,7 +115,7 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *types.SystemDescriptionRecord,
+	systemDescription *types.PartitionDescriptionRecord,
 	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {

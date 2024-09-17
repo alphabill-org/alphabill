@@ -416,7 +416,7 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 
 	roundNo := uint64(1) // 1 is genesis
 	// run a loop of 11 rounds to produce a root chain timeout
-	for i := 0; i < int(rg.Partitions[0].SystemDescriptionRecord.T2Timeout/(rg.Root.Consensus.BlockRateMs/2)); i++ {
+	for i := 0; i < int(rg.Partitions[0].PartitionDescription.T2Timeout/(time.Duration(rg.Root.Consensus.BlockRateMs)*time.Millisecond/2)); i++ {
 		// proposal rounds 2..
 		roundNo++
 		lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -869,8 +869,8 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		for _, id := range sysID {
 			uc := &types.UnicityCertificate{
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					SystemIdentifier:      id,
-					SystemDescriptionHash: test.RandomBytes(32),
+					SystemIdentifier:         id,
+					PartitionDescriptionHash: test.RandomBytes(32),
 				},
 			}
 			rUC[id] = uc

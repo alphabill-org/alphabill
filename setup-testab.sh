@@ -67,23 +67,24 @@ moneySdrFlags=""
 
 # Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
-  tokensSdr='{"system_identifier": 2, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001200", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$tokensSdr" >testab/tokens-sdr.json
-  moneySdrFlags+=" -c testab/tokens-sdr.json"
-  generate_partition_node_genesis "tokens" "$token_nodes"
+  tokensPDR='{"system_identifier": 2, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001200", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  echo "$tokensPDR" >testab/tokens-pdr.json
+  moneySdrFlags+=" -c testab/tokens-pdr.json"
+  generate_partition_node_genesis "tokens" "$token_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
 fi
 # Generate EVM nodes genesis files.
 if [ "$evm_nodes" -ne 0 ]; then
-  evmSdr='{"system_identifier": 3, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$evmSdr" >testab/evm-sdr.json
-  moneySdrFlags+=" -c testab/evm-sdr.json"
-  generate_partition_node_genesis "evm" "$evm_nodes"
+  evmPDR='{"system_identifier": 3, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  echo "$evmPDR" >testab/evm-pdr.json
+  moneySdrFlags+=" -c testab/evm-pdr.json"
+  generate_partition_node_genesis "evm" "$evm_nodes" "--partition-description=$PWD/testab/evm-pdr.json"
 fi
 # Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
-  moneySdr='{"system_identifier": 1, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$moneySdr" >testab/money-sdr.json
-  moneySdrFlags+=" -c testab/money-sdr.json"
+  moneyPDR='{"system_identifier": 1, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  echo "$moneyPDR" >testab/money-pdr.json
+  moneySdrFlags+=" -c testab/money-pdr.json"
+  moneySdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
   customCliArgs=$moneySdrFlags
   if [ "$initial_bill_owner_predicate" != null ]; then
     customCliArgs+=" --initial-bill-owner-predicate $initial_bill_owner_predicate"
@@ -92,13 +93,15 @@ if [ "$money_nodes" -ne 0 ]; then
 fi
 # Generate orchestration nodes genesis files.
 if [ "$orchestration_nodes" -ne 0 ]; then
-  generate_partition_node_genesis "orchestration" "$orchestration_nodes" " --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+  orchestrationPDR='{"system_identifier": 4, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
+  echo "$orchestrationPDR" >testab/orchestration-pdr.json
+  generate_partition_node_genesis "orchestration" "$orchestration_nodes" "--partition-description=$PWD/testab/orchestration-pdr.json --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
 fi
 # Generate enterprise token partition genesis files
 if [ "$enterprise_token_nodes" -ne 0 ]; then
-  enterpriseTokensSdr='{"system_identifier": 5, "t2timeout": 2500}'
-  echo "$enterpriseTokensSdr" >testab/tokens-sdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--system-identifier 5 --admin-key 028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
+  enterpriseTokensPDR='{"system_identifier": 5, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
+  echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
+  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-key 028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
 fi
 
 # generate root node genesis files

@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -36,9 +37,11 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
-		SystemDescriptionRecord: &types.SystemDescriptionRecord{
+		PartitionDescription: &types.PartitionDescriptionRecord{
 			SystemIdentifier: systemIdentifier,
-			T2Timeout:        2500,
+			TypeIdLen:        8,
+			UnitIdLen:        256,
+			T2Timeout:        2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
 			NodeIdentifier:            nodeID,
@@ -60,7 +63,12 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
-		T2Timeout:                 2500,
+		PartitionDescription: types.PartitionDescriptionRecord{
+			SystemIdentifier: systemIdentifier,
+			TypeIdLen:        8,
+			UnitIdLen:        256,
+			T2Timeout:        2500 * time.Millisecond,
+		},
 	}
 }
 

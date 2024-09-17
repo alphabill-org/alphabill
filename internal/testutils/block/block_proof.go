@@ -3,6 +3,7 @@ package testblock
 import (
 	"crypto"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -13,13 +14,12 @@ import (
 )
 
 const (
-	DefaultT2Timeout   = 2500
 	DefaultRoundNumber = 1
 )
 
 type (
 	Options struct {
-		sdr *types.SystemDescriptionRecord
+		sdr *types.PartitionDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -31,10 +31,10 @@ func DefaultOptions() *Options {
 	}
 }
 
-func DefaultSDR() *types.SystemDescriptionRecord {
-	return &types.SystemDescriptionRecord{
+func DefaultSDR() *types.PartitionDescriptionRecord {
+	return &types.PartitionDescriptionRecord{
 		SystemIdentifier: money.DefaultSystemID,
-		T2Timeout:        DefaultT2Timeout,
+		T2Timeout:        2500 * time.Millisecond,
 	}
 }
 
@@ -83,7 +83,7 @@ func CreateProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.
 	return proofs
 }
 
-func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.SystemDescriptionRecord, signer abcrypto.Signer) *types.Block {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
 	b := &types.Block{
 		Header: &types.Header{
 			SystemID:          types.SystemID(1),

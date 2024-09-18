@@ -60,6 +60,6 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 	return &types.UnicityTreeCertificate{
 		SystemIdentifier:         sysID,
 		PartitionDescriptionHash: sdrh,
-		SiblingHashes:            path,
+		HashSteps:                path[1:], // drop redundant first hash step; path is guaranteed to have size > 0
 	}, nil
 }

@@ -239,7 +239,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		InputRecord: ir,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:         cert.SystemIdentifier,
-			SiblingHashes:            cert.SiblingHashes,
+			HashSteps:                cert.HashSteps,
 			PartitionDescriptionHash: sdrHash,
 		},
 		UnicitySeal: unicitySeal,

@@ -140,7 +140,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
-		tokens.WithAdminKey(params.AdminKey),
+		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),
 		tokens.WithFeelessMode(params.FeelessMode),
 	)
 	if err != nil {

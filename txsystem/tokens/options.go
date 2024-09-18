@@ -15,14 +15,14 @@ import (
 
 type (
 	Options struct {
-		systemID      types.SystemID
-		moneySystemID types.SystemID
-		hashAlgorithm gocrypto.Hash
-		trustBase     types.RootTrustBase
-		state         *state.State
-		exec          predicates.PredicateExecutor
-		adminKey      []byte
-		feelessMode   bool
+		systemID            types.SystemID
+		moneySystemID       types.SystemID
+		hashAlgorithm       gocrypto.Hash
+		trustBase           types.RootTrustBase
+		state               *state.State
+		exec                predicates.PredicateExecutor
+		adminOwnerPredicate []byte
+		feelessMode         bool
 	}
 
 	Option func(*Options)
@@ -72,9 +72,9 @@ func WithTrustBase(trustBase types.RootTrustBase) Option {
 	}
 }
 
-func WithAdminKey(adminKey []byte) Option {
+func WithAdminOwnerPredicate(adminOwnerPredicate []byte) Option {
 	return func(c *Options) {
-		c.adminKey = adminKey
+		c.adminOwnerPredicate = adminOwnerPredicate
 	}
 }
 

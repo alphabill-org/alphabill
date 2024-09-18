@@ -8,16 +8,17 @@ root_nodes=3
 enterprise_token_nodes=0
 reset_db_only=false
 initial_bill_owner_predicate=null
+admin_owner_predicate=830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f
 # exit on error
 set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
   exit 0
 }
 # handle arguments
-while getopts "chm:t:r:e:o:i:k:" o; do
+while getopts "chm:t:r:e:o:i:k:a:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -42,6 +43,9 @@ while getopts "chm:t:r:e:o:i:k:" o; do
     ;;
   k)
     enterprise_token_nodes=${OPTARG}
+    ;;
+  a)
+    admin_owner_predicate=${OPTARG}
     ;;
   h | *) # help.
     usage
@@ -101,7 +105,7 @@ fi
 if [ "$enterprise_token_nodes" -ne 0 ]; then
   enterpriseTokensPDR='{"system_identifier": 5, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
   echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-key 028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
+  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
 fi
 
 # generate root node genesis files

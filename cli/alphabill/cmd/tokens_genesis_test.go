@@ -87,12 +87,10 @@ func Test_TokensGenesis(t *testing.T) {
 
 	t.Run("PartitionParams", func(t *testing.T) {
 		homeDir := t.TempDir()
-		const adminKey = "028834d671a927762584091403259bff4bc972c917c7de8eb558118fabf9733384"
-		adminKeyBytes, err := hex.DecodeString(adminKey)
-		require.NoError(t, err)
+		adminOwnerPredicate := "830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f"
 
 		cmd := New(testobserve.NewFactory(t))
-		args := fmt.Sprintf("tokens-genesis -g --home %s %s --admin-key %s --feeless-mode true", homeDir, pdrArgument, adminKey)
+		args := fmt.Sprintf("tokens-genesis -g --home %s %s --admin-owner-predicate %s --feeless-mode true", homeDir, pdrArgument, adminOwnerPredicate)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
@@ -102,7 +100,7 @@ func Test_TokensGenesis(t *testing.T) {
 		var params *genesis.TokensPartitionParams
 		require.NoError(t, types.Cbor.Unmarshal(pn.Params, &params))
 		require.NotNil(t, params)
-		require.Equal(t, adminKeyBytes, params.AdminKey)
+		require.Equal(t, adminOwnerPredicate, hex.EncodeToString(params.AdminOwnerPredicate))
 		require.True(t, params.FeelessMode)
 	})
 

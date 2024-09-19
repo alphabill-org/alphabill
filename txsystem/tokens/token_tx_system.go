@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -63,10 +62,9 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	}
 
 	var feeCreditModule txtypes.FeeCreditModule
-	if len(options.adminKey) > 0 {
-		adminOwnerPredicate := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
+	if len(options.adminOwnerPredicate) > 0 {
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			options.systemID, options.state, tokens.FeeCreditRecordUnitType, adminOwnerPredicate,
+			options.systemID, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 			permissioned.WithFeelessMode(options.feelessMode),
 		)

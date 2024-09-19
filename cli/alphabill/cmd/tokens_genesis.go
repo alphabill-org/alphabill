@@ -23,13 +23,13 @@ const (
 )
 
 type userTokenPartitionGenesisConfig struct {
-	Base        *baseConfiguration
-	Keys        *keysConfig
-	PDRFilename string
-	Output      string
-	OutputState string
-	AdminKey    []byte
-	FeelessMode bool
+	Base                *baseConfiguration
+	Keys                *keysConfig
+	PDRFilename         string
+	Output              string
+	OutputState         string
+	AdminOwnerPredicate []byte
+	FeelessMode         bool
 }
 
 func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
@@ -46,7 +46,7 @@ func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/tokens/node-genesis-state.cbor)")
 	config.Keys.addCmdFlags(cmd)
-	cmd.Flags().BytesHexVar(&config.AdminKey, "admin-key", nil, "the admin public key for permissioned mode")
+	cmd.Flags().BytesHexVar(&config.AdminOwnerPredicate, "admin-owner-predicate", nil, "the admin owner predicate for permissioned mode")
 	cmd.Flags().BoolVar(&config.FeelessMode, "feeless-mode", false, "if true then fees are not charged, if false then fees are charged as normal; applies only for permissioned mode")
 	_ = cmd.MarkFlagRequired("partition-description")
 	return cmd
@@ -132,8 +132,8 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisStateFileLocation(utHome
 
 func (c *userTokenPartitionGenesisConfig) getPartitionParams() ([]byte, error) {
 	src := &genesis.TokensPartitionParams{
-		AdminKey:    c.AdminKey,
-		FeelessMode: c.FeelessMode,
+		AdminOwnerPredicate: c.AdminOwnerPredicate,
+		FeelessMode:         c.FeelessMode,
 	}
 	res, err := types.Cbor.Marshal(src)
 	if err != nil {

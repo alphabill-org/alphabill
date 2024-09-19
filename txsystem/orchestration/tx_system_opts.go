@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
@@ -14,12 +13,11 @@ import (
 
 type (
 	Options struct {
-		systemIdentifier types.SystemID
-		state            *state.State
-		hashAlgorithm    crypto.Hash
-		ownerPredicate   types.PredicateBytes
-		trustBase        types.RootTrustBase
-		exec             predicates.PredicateExecutor
+		state          *state.State
+		hashAlgorithm  crypto.Hash
+		ownerPredicate types.PredicateBytes
+		trustBase      types.RootTrustBase
+		exec           predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -32,16 +30,9 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemIdentifier: orchestration.DefaultSystemID,
-		hashAlgorithm:    crypto.SHA256,
-		exec:             predEng.Execute,
+		hashAlgorithm: crypto.SHA256,
+		exec:          predEng.Execute,
 	}, nil
-}
-
-func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
-	return func(g *Options) {
-		g.systemIdentifier = systemIdentifier
-	}
 }
 
 func WithState(s *state.State) Option {

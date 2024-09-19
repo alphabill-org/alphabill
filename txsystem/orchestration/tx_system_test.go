@@ -3,6 +3,7 @@ package orchestration
 import (
 	"crypto"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,9 +24,16 @@ func TestNewTxSystem_OK(t *testing.T) {
 	s := state.NewEmptyState()
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: orchestration.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 	txSystem, err := NewTxSystem(
+		pdr,
+		types.ShardID{},
 		observability.Default(t),
-		WithSystemIdentifier(orchestration.DefaultSystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(s),
 		WithOwnerPredicate(templates.NewP2pkh256BytesFromKey(pubKey)),

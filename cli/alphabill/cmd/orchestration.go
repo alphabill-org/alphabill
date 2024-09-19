@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	sdkorchestration "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	sdkorchestration "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
@@ -107,8 +107,9 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	}
 
 	txs, err := orchestration.NewTxSystem(
+		*pg.PartitionDescription,
+		types.ShardID{},
 		obs,
-		orchestration.WithSystemIdentifier(pg.PartitionDescription.GetSystemIdentifier()),
 		orchestration.WithHashAlgorithm(crypto.SHA256),
 		orchestration.WithTrustBase(trustBase),
 		orchestration.WithState(state),

@@ -20,6 +20,7 @@ var (
 type BlockCertificationRequest struct {
 	_                struct{}           `cbor:",toarray"`
 	SystemIdentifier types.SystemID     `json:"system_identifier,omitempty"`
+	Shard            types.ShardID      `json:"shard_identifier"`
 	NodeIdentifier   string             `json:"node_identifier,omitempty"`
 	InputRecord      *types.InputRecord `json:"input_record,omitempty"`
 	RootRoundNumber  uint64             `json:"root_round_number,omitempty"` // latest known RC's round number (AB-1155)
@@ -84,6 +85,7 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier.Bytes())
+	b.Write(x.Shard.Bytes())
 	b.WriteString(x.NodeIdentifier)
 	b.Write(x.InputRecord.PreviousHash)
 	b.Write(x.InputRecord.Hash)

@@ -59,12 +59,13 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 }
 
 func TestIRChangeReqMsg_BytesHash(t *testing.T) {
-	x := &IRChangeReq{
+	ircr := &IRChangeReq{
 		SystemIdentifier: sysId1,
 		CertReason:       QuorumNotPossible,
 		Requests: []*certification.BlockCertificationRequest{
 			{
 				SystemIdentifier: 1,
+				Shard:            types.ShardID{},
 				NodeIdentifier:   "1",
 				InputRecord: &types.InputRecord{
 					PreviousHash: []byte{0, 1},
@@ -79,13 +80,15 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 		},
 	}
 	irHasher := gocrypto.SHA256.New()
-	irHasher.Write(x.Bytes())
+	irHasher.Write(ircr.Bytes())
+
 	expectedHash := gocrypto.SHA256.New()
 	expectedHash.Write([]byte{
 		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg
 		0, 0, 0, 1, // cert reason quorum not possible
 		// Start of the BlockCertificationRequest
 		0, 0, 0, 1, // 4 byte system identifier
+		128,                                            // empty shard ID
 		'1',                                            // node identifier - string is encoded without '/0'
 		0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 3, // prev. hash, hash, block hash, summary value, round number
 		0, 0, 0, 0, 0, 0, 0, 2, //root round number

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
@@ -15,7 +14,6 @@ import (
 
 type (
 	Options struct {
-		systemID            types.SystemID
 		moneySystemID       types.SystemID
 		hashAlgorithm       gocrypto.Hash
 		trustBase           types.RootTrustBase
@@ -35,7 +33,6 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemID:      tokens.DefaultSystemID,
 		moneySystemID: money.DefaultSystemID,
 		hashAlgorithm: gocrypto.SHA256,
 		exec:          predEng.Execute,
@@ -45,12 +42,6 @@ func defaultOptions() (*Options, error) {
 func WithState(s *state.State) Option {
 	return func(c *Options) {
 		c.state = s
-	}
-}
-
-func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
-	return func(c *Options) {
-		c.systemID = systemIdentifier
 	}
 }
 

@@ -57,9 +57,10 @@ func TestPartition_Ok(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
+			pdr,
+			types.ShardID{},
 			observability.Default(t),
 			WithState(s),
-			WithSystemIdentifier(pdr.SystemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithPartitionDescriptionRecords(sdrs),
 			WithTrustBase(tb),
@@ -189,8 +190,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
+			pdr,
+			types.ShardID{},
 			observability.Default(t),
-			WithSystemIdentifier(pdr.SystemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithPartitionDescriptionRecords(sdrs),
 			WithTrustBase(tb),

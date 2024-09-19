@@ -1284,6 +1284,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		Transactions: n.proposedTransactions,
 		UnicityCertificate: &types.UnicityCertificate{
 			InputRecord: &types.InputRecord{
+				Epoch:           0, // todo: implement epoch change AB-1617
 				RoundNumber:     n.currentRoundNumber(),
 				PreviousHash:    prevStateHash,
 				Hash:            stateHash,
@@ -1308,6 +1309,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
+		Shard:            n.configuration.shardID,
 		NodeIdentifier:   n.peer.ID().String(),
 		InputRecord:      pendingProposal.UnicityCertificate.InputRecord,
 		RootRoundNumber:  luc.UnicitySeal.RootChainRoundNumber,

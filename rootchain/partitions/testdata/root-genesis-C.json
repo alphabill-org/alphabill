@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAmSPeUjKeANW5RCcvrENKQK7Y9PmYVQqmz5wndzi8YRxUV",
-        "signing_public_key": "At4iZGdvaAZ6ixxaKw4Lly6pBPA++hJf8ilj/digluEQ",
-        "encryption_public_key": "A8wVb5GOiF85G3g2xMpP/zOs2O0a7+dzTEZ4lWYAhq3G"
+        "node_identifier": "16Uiu2HAmHvnYFK3MH6ZsRc22BYbUTLb79dZoMYbwLiCe97NUNttc",
+        "signing_public_key": "AmUh1hTBNBFLhDDA/zL+qXxlMFEN7SwAVx809iBpt+O3",
+        "encryption_public_key": "A05WX2y1f95EqoQio3euF7VdxyYv1Hk/00MXbpVc8y51"
       }
     ],
     "consensus": {
@@ -13,7 +13,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAmSPeUjKeANW5RCcvrENKQK7Y9PmYVQqmz5wndzi8YRxUV": "F77yzLAxLUlHV0yBicTHCNz5mkbWQ6bx+JrW/ZE0w6lY2cC7rRb5zM7AtLp2V2M223ggyPmAVXytLakabnyM8wA="
+        "16Uiu2HAmHvnYFK3MH6ZsRc22BYbUTLb79dZoMYbwLiCe97NUNttc": "eQY9QxvNklgZXAAWoR659tWkP5l1Lm9HwMBCTkCKm7IKcdazB+B9MkHQ5Fc5AH3VLC7zXtfUBr3twdxVbIZ/NwE="
       }
     }
   },
@@ -21,19 +21,20 @@
     {
       "nodes": [
         {
-          "node_identifier": "16Uiu2HAky4WcXZn7LKtHmnErq9i8pu4v9c8DYYBq4fsX22qBsvgu",
-          "signing_public_key": "A6xtnjWb741kp33wyJGJfP7OCMEecjtDxNHxSDMMbuyW",
-          "encryption_public_key": "AjYC9bYVKNN1W79cKAkcKVmj4RVKoBnKYKPEOQKBckCu",
+          "node_identifier": "16Uiu2HAmLh7SXo7CAYu3wkY5oyc2Vp3Cv6WRyxaEtfcfQyEz5TuH",
+          "signing_public_key": "AqmOXv7jJabAjMcYiquyVa+S9Qt/LJYkebn08euw8DaI",
+          "encryption_public_key": "A3dorJS3RPkDFQgqSuA3xVhZ1vugWZHynzaNLrl1tE9Q",
           "block_certification_request": {
             "system_identifier": 1,
-            "node_identifier": "16Uiu2HAky4WcXZn7LKtHmnErq9i8pu4v9c8DYYBq4fsX22qBsvgu",
+            "shard_identifier": "0x80",
+            "node_identifier": "16Uiu2HAmLh7SXo7CAYu3wkY5oyc2Vp3Cv6WRyxaEtfcfQyEz5TuH",
             "input_record": {
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "hash": "D/rjG+SaEIxZJsyXe/hzndfYosc0Jg8peqwlA5sBeZM=",
-              "block_hash": "TK63BfggayriWLlYMTUpd/6U502Msj4BjewPsDjkrEE=",
+              "block_hash": "7n5fqQa8eqJsQQHv8BF9mI+6BQklfPsUmgtCDUv0pBc=",
               "summary_value": "G8FtZ07IAAA="
             },
-            "signature": "3i/zUYBVIhdYrWJuIijDBPnLcby8eVTw7uHwazVnCDhcNm3ZLJrbr7kHMiiqH9mS5swGpRGKQIzQbwfiXXgC9wA="
+            "signature": "/CfY5a+4QC0AcvEMhp+BmFQk6H+M7vLhTvQ0uJZjyJNxwc2aS3uF7x+7uD3ALGR1GEQzr+1cboEeM6F4Ri0PDgE="
           },
           "params": "gYGIAfYIGQEA9vYalQL5AIJYIQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAEWDAEEB9g==",
           "partition_description": {
@@ -53,26 +54,20 @@
         "input_record": {
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "hash": "D/rjG+SaEIxZJsyXe/hzndfYosc0Jg8peqwlA5sBeZM=",
-          "block_hash": "TK63BfggayriWLlYMTUpd/6U502Msj4BjewPsDjkrEE=",
+          "block_hash": "7n5fqQa8eqJsQQHv8BF9mI+6BQklfPsUmgtCDUv0pBc=",
           "summary_value": "G8FtZ07IAAA="
         },
         "unicity_tree_certificate": {
           "system_identifier": 1,
-          "sibling_hashes": [
-            {
-              "Key": "AAAAAQ==",
-              "Hash": "6cuesgv84wtiDBcn1QXgRQhJPSyOTP5sEp8lIxGdy3g="
-            }
-          ],
           "partition_description_hash": "579ZU0h4z/HNMTHjq0cPNfmurktCN10v5uNwAXbRgp0="
         },
         "unicity_seal": {
           "root_chain_round_number": 1,
           "timestamp": 1681971084,
-          "previous_hash": "v96+21ZQ5OXyIKIqsiIvtbPxAtDH5glEgOkOGo0ERjE=",
-          "hash": "UhP7IR+NXNKC6X1XdPmwNjrMncXvyVCmPmGR5uPULsc=",
+          "previous_hash": "66FvMY9hanxGThBtCxcXzOVtT1FCLkOMEgo4ifNLVmo=",
+          "hash": "fOn2NgLmwvRmhr4FuQkVNt7yoH1+9eOsWdvlGWomI5M=",
           "signatures": {
-            "16Uiu2HAmSPeUjKeANW5RCcvrENKQK7Y9PmYVQqmz5wndzi8YRxUV": "tj9HgXmWVy+aj7hQqNZMBSC2kiOXJbJNcmu0zaIhBgxGfYodHPkO1SP2YEfJkQ2VztE1aPKfZ4+4ybgY9ji50QE="
+            "16Uiu2HAmHvnYFK3MH6ZsRc22BYbUTLb79dZoMYbwLiCe97NUNttc": "KRAMs3vxp8KPaWHCltW8B/1ndo5gYAOII4EiinOmYFVg2NqfgrmLRAL1RXHKZCIWwBPa6NEAy0j/UCvILtn1kgA="
           }
         }
       },

@@ -6,10 +6,9 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var _ txtypes.Module = (*Module)(nil)
@@ -17,7 +16,6 @@ var _ txtypes.Module = (*Module)(nil)
 type (
 	Module struct {
 		state          *state.State
-		systemID       types.SystemID
 		ownerPredicate types.PredicateBytes
 		hashAlgorithm  crypto.Hash
 		execPredicate  predicates.PredicateRunner
@@ -36,7 +34,6 @@ func NewModule(options *Options) (*Module, error) {
 	}
 	m := &Module{
 		state:          options.state,
-		systemID:       options.systemIdentifier,
 		ownerPredicate: options.ownerPredicate,
 		hashAlgorithm:  options.hashAlgorithm,
 		execPredicate:  predicates.NewPredicateRunner(options.exec),

@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
 	"github.com/alphabill-org/alphabill/predicates"
@@ -14,7 +13,6 @@ import (
 
 type (
 	Options struct {
-		systemIdentifier         types.SystemID
 		state                    *state.State
 		hashAlgorithm            crypto.Hash
 		trustBase                types.RootTrustBase
@@ -32,16 +30,9 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		systemIdentifier: money.DefaultSystemID,
-		hashAlgorithm:    crypto.SHA256,
-		exec:             predEng.Execute,
+		hashAlgorithm: crypto.SHA256,
+		exec:          predEng.Execute,
 	}, nil
-}
-
-func WithSystemIdentifier(systemIdentifier types.SystemID) Option {
-	return func(g *Options) {
-		g.systemIdentifier = systemIdentifier
-	}
 }
 
 func WithState(s *state.State) Option {

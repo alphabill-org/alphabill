@@ -54,8 +54,9 @@ func TestNewTxSystem(t *testing.T) {
 		trustBase   = testtb.NewTrustBase(t, verifier)
 	)
 	txSystem, err := NewTxSystem(
+		*sdrs[0],
+		types.ShardID{},
 		observability.Default(t),
-		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithPartitionDescriptionRecords(sdrs),
 		WithState(txsState),
@@ -86,8 +87,9 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
+		*sdrs[0],
+		types.ShardID{},
 		observe,
-		WithSystemIdentifier(systemIdentifier),
 		WithPartitionDescriptionRecords(sdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
@@ -123,8 +125,9 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	recoveredState, err := state.NewRecoveredState(buf, money.NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
+		*sdrs[0],
+		types.ShardID{},
 		observe,
-		WithSystemIdentifier(systemIdentifier),
 		WithPartitionDescriptionRecords(sdrs),
 		WithState(recoveredState),
 		WithTrustBase(trustBase),
@@ -1067,8 +1070,9 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
 
 	mss, err := NewTxSystem(
+		*sdrs[0],
+		types.ShardID{},
 		observability.Default(t),
-		WithSystemIdentifier(systemIdentifier),
 		WithPartitionDescriptionRecords(sdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
@@ -1135,7 +1139,9 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		SystemIdentifier: moneySystemID,
+		SystemIdentifier: money.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
 		T2Timeout:        2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
@@ -1174,7 +1180,7 @@ func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(options)
+	module, err := NewMoneyModule(money.DefaultSystemID, options)
 	require.NoError(t, err)
 	return module
 }

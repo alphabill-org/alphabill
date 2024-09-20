@@ -40,7 +40,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
-		system, err := NewTxSystem(observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
+		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
 	}, pdr, genesisState)
@@ -94,7 +94,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		trustBase = tb
 		genesisState = genesisState.Clone()
-		system, err := NewTxSystem(observability.Default(t), WithState(genesisState), WithTrustBase(tb))
+		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithState(genesisState), WithTrustBase(tb))
 		require.NoError(t, err)
 		states = append(states, genesisState)
 		return system

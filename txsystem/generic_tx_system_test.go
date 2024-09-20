@@ -6,12 +6,14 @@ import (
 	"hash"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -42,14 +44,24 @@ func (t *MockData) Copy() types.UnitData {
 }
 
 func Test_NewGenericTxSystem(t *testing.T) {
+	validPDR := types.PartitionDescriptionRecord{
+		SystemIdentifier: mockTxSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2500 * time.Millisecond,
+	}
+	require.NoError(t, validPDR.IsValid())
+
 	t.Run("system ID param is mandatory", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(0, nil, nil, nil, nil)
+		pdr := validPDR
+		pdr.SystemIdentifier = 0
+		txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, nil, nil, nil)
 		require.Nil(t, txSys)
-		require.EqualError(t, err, `system ID must be assigned`)
+		require.EqualError(t, err, `invalid Partition Description: invalid system identifier: 00000000`)
 	})
 
 	t.Run("observability must not be nil", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(mockTxSystemID, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(validPDR, types.ShardID{}, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, "observability must not be nil")
 	})
@@ -57,13 +69,14 @@ func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		obs := observability.Default(t)
 		txSys, err := NewGenericTxSystem(
-			mockTxSystemID,
+			validPDR,
+			types.ShardID{},
 			nil,
 			nil,
 			obs,
 		)
 		require.NoError(t, err)
-		require.EqualValues(t, mockTxSystemID, txSys.systemIdentifier)
+		require.EqualValues(t, mockTxSystemID, txSys.pdr.SystemIdentifier)
 		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.fees)
 		// default is no fee handling, which will give you a huge gas budget
@@ -96,9 +109,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		)
 		// no modules, no tx handlers
 		md, err := txSys.Execute(txo)
+		require.NoError(t, err)
 		require.NotNil(t, md)
 		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
-		require.Nil(t, err)
 	})
 
 	t.Run("tx validate returns error", func(t *testing.T) {
@@ -116,9 +129,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
+		require.NoError(t, err)
 		require.NotNil(t, md)
 		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
-		require.Nil(t, err)
 	})
 
 	t.Run("tx validate returns out of gas", func(t *testing.T) {
@@ -137,9 +150,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
+		require.NoError(t, err)
 		require.NotNil(t, md)
 		require.EqualValues(t, types.TxErrOutOfGas, md.SuccessIndicator)
-		require.Nil(t, err)
 	})
 
 	t.Run("tx execute returns error", func(t *testing.T) {
@@ -156,15 +169,15 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		md, err := txSys.Execute(txo)
+		require.NoError(t, err)
 		require.NotNil(t, md)
 		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
-		require.Nil(t, err)
 	})
 
 	t.Run("locked unit - unlock fails", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
-		unitID := []byte{1, 2, 3}
+		unitID := test.RandomBytes(33)
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
@@ -206,7 +219,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	t.Run("locked unit - unlocked, but execution fails", func(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
-		unitID := []byte{1, 2, 3}
+		unitID := test.RandomBytes(33)
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
@@ -290,7 +303,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("lock success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
-		unitID := []byte{2}
+		unitID := test.RandomBytes(33)
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
 			withStateUnit(unitID,
@@ -345,7 +358,8 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
 		return &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID: txs.systemIdentifier,
+				SystemID: txs.pdr.SystemIdentifier,
+				UnitID:   test.RandomBytes(33),
 				ClientMetadata: &types.ClientMetadata{
 					Timeout: txs.currentRoundNumber + 1,
 				},
@@ -364,7 +378,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("system ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
-		txo.Payload.SystemID = txSys.systemIdentifier + 1
+		txo.Payload.SystemID = txSys.pdr.SystemIdentifier + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
 	})
 
@@ -456,8 +470,14 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 }
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: mockTxSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        8 * 32,
+		T2Timeout:        2500 * time.Millisecond,
+	}
 	// default configuration has no fee handling
-	txSys, err := NewGenericTxSystem(mockTxSystemID, nil, modules, observability.Default(t))
+	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))
 	require.NoError(t, err)
 	return txSys
 }

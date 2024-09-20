@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -47,13 +48,25 @@ var (
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
-	txs, err := NewTxSystem(nil, WithSystemIdentifier(0))
-	require.ErrorContains(t, err, ErrStrInvalidSystemID)
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: 0,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
+	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(state.NewEmptyState()))
+	require.ErrorContains(t, err, `system identifier is missing`)
 	require.Nil(t, txs)
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
-	txs, err := NewTxSystem(nil, WithState(nil))
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: tokens.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
+	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
 	require.Nil(t, txs)
 }
@@ -284,12 +297,8 @@ func TestExecuteDefineNFT_UnitIDIsNil(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.NoError(t, err)
-	require.NotNil(t, sm)
-	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
-	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
-	require.Equal(t, []types.UnitID{feeCreditID}, sm.TargetUnits)
-	require.True(t, sm.ActualFee > 0)
+	require.EqualError(t, err, `invalid transaction: expected 33 byte unit ID, got 0 bytes`)
+	require.Nil(t, sm)
 }
 
 func TestExecuteDefineNFT_UnitIDHasWrongType(t *testing.T) {
@@ -662,10 +671,8 @@ func TestMintNFT_UnitIDIsNil(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	sm, err := txs.Execute(tx)
-	require.NoError(t, err)
-	require.NotNil(t, sm)
-	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
-	require.ErrorContains(t, sm.ErrDetail(), ErrStrInvalidUnitID)
+	require.EqualError(t, err, `invalid transaction: expected 33 byte unit ID, got 0 bytes`)
+	require.Nil(t, sm)
 }
 
 func TestMintNFT_UnitIDHasWrongType(t *testing.T) {
@@ -1716,8 +1723,16 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
+	pdr := types.PartitionDescriptionRecord{
+		SystemIdentifier: tokens.DefaultSystemID,
+		TypeIdLen:        8,
+		UnitIdLen:        256,
+		T2Timeout:        2000 * time.Millisecond,
+	}
 
 	txs, err := NewTxSystem(
+		pdr,
+		types.ShardID{},
 		observability.Default(t),
 		WithTrustBase(testtb.NewTrustBase(t, verifier)),
 		WithState(s),

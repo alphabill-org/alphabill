@@ -40,7 +40,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	// verify token does not exist yet
 	token, err := m.state.GetUnit(tokenID, false)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
-		return fmt.Errorf("faild to load token: %w", err)
+		return fmt.Errorf("failed to load token: %w", err)
 	}
 	if token != nil {
 		return fmt.Errorf("token already exists: %s", tokenID)

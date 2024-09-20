@@ -193,9 +193,12 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
-	_, pTrustBase, err := v.partitions.GetInfo(sysID, req.RootRound())
+	pdr, pTrustBase, err := v.partitions.GetInfo(sysID, req.RootRound())
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
+	}
+	if err := pdr.IsValidShard(req.Shard); err != nil {
+		return fmt.Errorf("invalid shard: %w", err)
 	}
 	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
 		return fmt.Errorf("partition %s node %v rejected: %w", sysID, req.NodeIdentifier, err)

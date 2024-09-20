@@ -24,7 +24,7 @@ var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 type (
 	GenericTxSystem struct {
-		systemIdentifier    types.SystemID
+		pdr                 types.PartitionDescriptionRecord
 		hashAlgorithm       crypto.Hash
 		state               *state.State
 		currentRoundNumber  uint64
@@ -36,6 +36,7 @@ type (
 		roundCommitted      bool
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
+		unitIdValidator     func(types.UnitID) error
 	}
 
 	Observability interface {
@@ -44,9 +45,12 @@ type (
 	}
 )
 
-func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
-	if systemID == 0 {
-		return nil, errors.New("system ID must be assigned")
+func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+	if err := pdr.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid Partition Description: %w", err)
+	}
+	if err := pdr.IsValidShard(shardID); err != nil {
+		return nil, fmt.Errorf("invalid shard ID: %w", err)
 	}
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
@@ -56,10 +60,11 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 		option(options)
 	}
 	txs := &GenericTxSystem{
-		systemIdentifier:    systemID,
+		pdr:                 pdr,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		trustBase:           trustBase,
+		unitIdValidator:     pdr.UnitIdValidator(shardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -305,11 +310,14 @@ implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// 1. P.α = S.α – transaction is sent to this system
-	if m.systemIdentifier != tx.SystemID() {
+	if m.pdr.SystemIdentifier != tx.SystemID() {
 		return ErrInvalidSystemIdentifier
 	}
 
 	// 2. fSH(P.ι)=S.σ–target unit is in this shard
+	if err := m.unitIdValidator(tx.UnitID()); err != nil {
+		return err
+	}
 
 	// 3. n < T0 – transaction has not expired
 	if m.currentRoundNumber >= tx.Timeout() {

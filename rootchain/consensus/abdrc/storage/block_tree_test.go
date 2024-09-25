@@ -54,13 +54,13 @@ var pg = []*genesis.GenesisPartitionRecord{
 				SystemIdentifier:         sysID1,
 				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{
-				RootChainRoundNumber: roundInfo.RoundNumber,
-				Hash:                 roundInfo.CurrentRootHash,
-				Timestamp:            roundInfo.Timestamp,
-				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
-			},
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = roundInfo.RoundNumber
+				seal.Hash = roundInfo.CurrentRootHash
+				seal.Timestamp = roundInfo.Timestamp
+				seal.PreviousHash = roundInfo.Hash(gocrypto.SHA256)
+				seal.Signatures = map[string][]byte{}
+			}),
 		},
 		PartitionDescription: sdr1,
 	},
@@ -71,13 +71,13 @@ var pg = []*genesis.GenesisPartitionRecord{
 				SystemIdentifier:         sysID2,
 				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{
-				RootChainRoundNumber: roundInfo.RoundNumber,
-				Hash:                 roundInfo.CurrentRootHash,
-				Timestamp:            roundInfo.Timestamp,
-				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
-			},
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = roundInfo.RoundNumber
+				seal.Hash = roundInfo.CurrentRootHash
+				seal.Timestamp = roundInfo.Timestamp
+				seal.PreviousHash = roundInfo.Hash(gocrypto.SHA256)
+				seal.Signatures = map[string][]byte{}
+			}),
 		},
 		PartitionDescription: sdr2,
 	},
@@ -94,9 +94,9 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{
-					Hash: zeroHash,
-				},
+				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+					seal.Hash = zeroHash
+				}),
 			},
 		},
 	}
@@ -350,10 +350,10 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
-			Hash:         gBlock.RootHash,
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = voteInfoB2.Hash(gocrypto.SHA256)
+			seal.Hash = gBlock.RootHash
+		}),
 	}
 	// create a new block
 	block2 := &ExecutedBlock{
@@ -410,10 +410,10 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
-			Hash:         gBlock.RootHash,
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = voteInfoB2.Hash(gocrypto.SHA256)
+			seal.Hash = gBlock.RootHash
+		}),
 	}
 	bTree, err := NewBlockTreeFromRecovery(gBlock, db)
 	require.NoError(t, err)
@@ -524,10 +524,10 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash: []byte{1, 2, 3},
-			Hash:         zeroHash,
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = []byte{1, 2, 3}
+			seal.Hash = zeroHash
+		}),
 	}
 	cBlock, err := bTree.Commit(commitQc)
 	require.NoError(t, err)

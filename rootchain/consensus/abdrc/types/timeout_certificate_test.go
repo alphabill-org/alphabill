@@ -36,9 +36,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Epoch: 0,
 			Round: 10,
 			HighQc: &QuorumCert{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-				Signatures:       map[string][]byte{"1": {1, 2, 1}},
+				VoteInfo: voteInfo,
+				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+					seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+				}),
+				Signatures: map[string][]byte{"1": {1, 2, 1}},
 			},
 		},
 		Signatures: make(map[string]*TimeoutVote),
@@ -47,9 +49,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
-			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			VoteInfo: voteInfo,
+			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+			}),
+			Signatures: map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err := timeoutCert.Add("1", t1, []byte{0, 1, 2})
@@ -67,9 +71,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
-			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			VoteInfo: voteInfo,
+			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+			}),
+			Signatures: map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("2", t2, []byte{1, 2, 2})
@@ -88,9 +94,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
-			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			VoteInfo: voteInfo,
+			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+			}),
+			Signatures: map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("3", t3, []byte{1, 2, 2})
@@ -108,9 +116,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch: 0,
 		Round: timeoutCert.Timeout.Round + 1,
 		HighQc: &QuorumCert{
-			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			VoteInfo: voteInfo,
+			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+			}),
+			Signatures: map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("4", t4, []byte{1, 2, 3})

@@ -23,8 +23,11 @@ func TestBlockDataHash(t *testing.T) {
 				Timestamp:         0x0010670314583523,
 				ParentRoundNumber: 0,
 				CurrentRootHash:   []byte{0, 1, 3}},
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 1, 2}, Hash: []byte{1, 2, 3}},
-			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
+			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.PreviousHash = []byte{0, 1, 2}
+				seal.Hash = []byte{1, 2, 3}
+			}),
+			Signatures: map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
 	serializedBlock := []byte{
@@ -54,9 +57,11 @@ func TestBlockData_IsValid(t *testing.T) {
 			Timestamp: 123456789000,
 			Payload:   &Payload{}, // empty payload is OK
 			Qc: &QuorumCert{
-				VoteInfo:         &RoundInfo{ParentRoundNumber: 6, RoundNumber: 7, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 2, 1}},
-				Signatures:       map[string][]byte{"1": {0, 1, 2}},
+				VoteInfo: &RoundInfo{ParentRoundNumber: 6, RoundNumber: 7, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
+				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+					seal.PreviousHash = []byte{0, 2, 1}
+				}),
+				Signatures: map[string][]byte{"1": {0, 1, 2}},
 			},
 		}
 	}

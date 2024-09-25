@@ -87,15 +87,21 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		sysID3: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 3}}, // no timeout (5 - 3) * 900 = 1800 ms
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = 3
+			})}, // no timeout (5 - 3) * 900 = 1800 ms
 		sysID1: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 2}}, // timeout (5 - 2) * 900 = 2700 ms
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = 2
+			})}, // timeout (5 - 2) * 900 = 2700 ms
 		sysID2: {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = 4
+			})}, // no timeout
 	}
 	// shortcut, to avoid generating root genesis file
 	require.NoError(t, store.save(4, certs))

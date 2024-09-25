@@ -27,11 +27,11 @@ var mockUc = &types.UnicityCertificate{
 		HashSteps:                nil,
 		PartitionDescriptionHash: nil,
 	},
-	UnicitySeal: &types.UnicitySeal{
-		RootChainRoundNumber: 1,
-		Hash:                 make([]byte, gocrypto.SHA256.Size()),
-		Signatures:           types.SignatureMap{},
-	},
+	UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+		seal.RootChainRoundNumber = 1
+		seal.Hash = make([]byte, gocrypto.SHA256.Size())
+		seal.Signatures = types.SignatureMap{}
+	}),
 }
 
 var testGenesis = &genesis.RootGenesis{

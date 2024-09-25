@@ -33,9 +33,12 @@ func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.Unicity
 
 func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) *QuorumCert {
 	return &QuorumCert{
-		VoteInfo:         voteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
-		Signatures:       map[string][]byte{},
+		VoteInfo: voteInfo,
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
+			seal.Hash = commitHash
+		}),
+		Signatures: map[string][]byte{},
 	}
 }
 

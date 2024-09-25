@@ -61,7 +61,9 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 				RoundNumber: 1,
 				Hash:        []byte{0, 0, 0, 0},
 			},
-			UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 0},
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = 0
+			}),
 		}
 		require.EqualError(t, CheckBlockCertificationRequest(req, luc), "request root round number 1 does not match luc root round 0")
 	})

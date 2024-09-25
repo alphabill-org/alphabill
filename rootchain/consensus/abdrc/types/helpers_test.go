@@ -87,7 +87,9 @@ QC returns valid QC (with random data) for round "round"
 */
 func (sb structBuilder) QC(t *testing.T, round uint64) *QuorumCert {
 	voteInfo := &RoundInfo{RoundNumber: round, ParentRoundNumber: round - 1, Epoch: 0, Timestamp: 1670314583523, CurrentRootHash: test.RandomBytes(32)}
-	commitInfo := &types.UnicitySeal{PreviousHash: voteInfo.Hash(crypto.SHA256)}
+	commitInfo := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+		seal.PreviousHash = voteInfo.Hash(crypto.SHA256)
+	})
 	qc := &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: commitInfo,

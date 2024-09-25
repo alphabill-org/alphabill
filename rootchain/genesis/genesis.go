@@ -197,12 +197,12 @@ func NewRootGenesis(
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
-		uSeal := &types.UnicitySeal{
-			RootChainRoundNumber: genesis.RootRound,
-			Timestamp:            types.GenesisTime,
-			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),
-			Hash:                 rootHash,
-		}
+		uSeal := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.RootChainRoundNumber = genesis.RootRound
+			seal.Timestamp = types.GenesisTime
+			seal.PreviousHash = roundMeta.Hash(gocrypto.SHA256)
+			seal.Hash = rootHash
+		})
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
 	}
 	// calculate unicity tree

@@ -106,14 +106,16 @@ func (s *SafetyModule) isSafeToVote(block *drctypes.BlockData, lastRoundTC *drct
 func (s *SafetyModule) constructCommitInfo(block *drctypes.BlockData, voteInfoHash []byte) *types.UnicitySeal {
 	committedRound := s.isCommitCandidate(block)
 	if committedRound == nil {
-		return &types.UnicitySeal{PreviousHash: voteInfoHash}
+		return types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = voteInfoHash
+		})
 	}
-	return &types.UnicitySeal{
-		PreviousHash:         voteInfoHash,
-		RootChainRoundNumber: committedRound.RoundNumber,
-		Timestamp:            committedRound.Timestamp,
-		Hash:                 committedRound.CurrentRootHash,
-	}
+	return types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+		seal.PreviousHash = voteInfoHash
+		seal.RootChainRoundNumber = committedRound.RoundNumber
+		seal.Timestamp = committedRound.Timestamp
+		seal.Hash = committedRound.CurrentRootHash
+	})
 }
 
 func (s *SafetyModule) MakeVote(block *drctypes.BlockData, execStateID []byte, highQC *drctypes.QuorumCert, lastRoundTC *drctypes.TimeoutCert) (*abdrc.VoteMsg, error) {

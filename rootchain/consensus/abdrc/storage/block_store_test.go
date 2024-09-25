@@ -97,30 +97,30 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	b10 := fakeBlock(10, &drctypes.QuorumCert{
 		VoteInfo: vInfo9,
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash: vInfo9.Hash(gocrypto.SHA256),
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = vInfo9.Hash(gocrypto.SHA256)
+		}),
 	})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
 	b9 := fakeBlock(9, &drctypes.QuorumCert{
 		VoteInfo: vInfo8,
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash:         vInfo8.Hash(gocrypto.SHA256),
-			RootChainRoundNumber: 8,
-			Hash:                 test.RandomBytes(32),
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = vInfo8.Hash(gocrypto.SHA256)
+			seal.RootChainRoundNumber = 8
+			seal.Hash = test.RandomBytes(32)
+		}),
 	})
 	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
 	b8 := fakeBlock(8, &drctypes.QuorumCert{
 		VoteInfo: vInfo7,
-		LedgerCommitInfo: &types.UnicitySeal{
-			PreviousHash:         vInfo7.Hash(gocrypto.SHA256),
-			RootChainRoundNumber: 7,
-			Hash:                 test.RandomBytes(32),
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.PreviousHash = vInfo7.Hash(gocrypto.SHA256)
+			seal.RootChainRoundNumber = 7
+			seal.Hash = test.RandomBytes(32)
+		}),
 	})
 	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
 	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
@@ -246,9 +246,9 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc := &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Hash: rBlock.RootHash,
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.Hash = rBlock.RootHash
+		}),
 	}
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
@@ -274,9 +274,9 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc = &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Hash: rBlock.RootHash,
-		},
+		LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+			seal.Hash = rBlock.RootHash
+		}),
 	}
 	// qc for round 2, does not commit a round
 	block = &drctypes.BlockData{

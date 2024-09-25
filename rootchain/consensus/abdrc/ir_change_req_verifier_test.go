@@ -38,9 +38,9 @@ func (s *MockState) GetCertificates() map[types.SystemID]*types.UnicityCertifica
 		types.SystemID(1): {
 			InputRecord:            irSysID1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal: &types.UnicitySeal{
-				RootChainRoundNumber: 1,
-			},
+			UnicitySeal: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
+				seal.RootChainRoundNumber = 1
+			}),
 		},
 	}
 }

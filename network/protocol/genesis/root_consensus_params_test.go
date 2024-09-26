@@ -44,6 +44,7 @@ func TestConsensusParams_HashFieldsIncluded(t *testing.T) {
 	}
 	// serialized form
 	serialized := []byte{
+		0, 0, 0, 0, 0, 0, 0, 1, // version as uint64
 		0, 0, 0, 4, // total 4 nodes as uint32
 		0, 0, 0x03, 0x84, // block rate 900 as uint32
 		0, 0, 0x27, 0x10, // local timeout 10000 as uint32

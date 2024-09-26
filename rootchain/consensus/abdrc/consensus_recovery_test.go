@@ -811,6 +811,7 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 		require.NoError(t, req.Sign(signer))
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
+			Version:                   1,
 			NodeIdentifier:            nodeID.String(),
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,

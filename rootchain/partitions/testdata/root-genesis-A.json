@@ -23,8 +23,10 @@
   },
   "partitions": [
     {
+      "version": 1,
       "nodes": [
         {
+          "version": 1,
           "node_identifier": "16Uiu2HAm9pTHtS5f4PkDSa992KcusTNY3oi6HW8iaeRjeFTPA1N8",
           "signing_public_key": "AjrvtInopPN9VY61tAdmIcOmOfnErXyy5LFVqaPjLCaR",
           "encryption_public_key": "AtXZoRF0rIrDQLCRVtldrzDO56mQydAts40rN11/KcPR",

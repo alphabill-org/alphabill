@@ -53,6 +53,9 @@ func (x *PartitionNode) IsValid() error {
 	if x == nil {
 		return ErrPartitionNodeIsNil
 	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
+	}
 	if x.NodeIdentifier == "" {
 		return ErrNodeIdentifierIsEmpty
 	}
@@ -102,4 +105,22 @@ func nodesUnique(x []*PartitionNode) error {
 		encryptionKeys[encPubKey] = node.EncryptionPublicKey
 	}
 	return nil
+}
+
+func (x *PartitionNode) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *PartitionNode) GetTag() types.ABTag {
+	return types.PartitionNodeTag
+}
+
+func (x *PartitionNode) MarshalCBOR() ([]byte, error) {
+	type alias PartitionNode
+	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+}
+
+func (x *PartitionNode) UnmarshalCBOR(data []byte) error {
+	type alias PartitionNode
+	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
 }

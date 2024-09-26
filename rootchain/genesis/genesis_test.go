@@ -44,6 +44,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 			T2Timeout:        2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
+			Version:                   1,
 			NodeIdentifier:            nodeID,
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,

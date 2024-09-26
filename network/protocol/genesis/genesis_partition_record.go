@@ -33,6 +33,9 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 	if x == nil {
 		return ErrGenesisPartitionRecordIsNil
 	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
+	}
 	if trustBase == nil {
 		return ErrTrustBaseIsNil
 	}
@@ -51,4 +54,22 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
 	return nil
+}
+
+func (x *GenesisPartitionRecord) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *GenesisPartitionRecord) GetTag() types.ABTag {
+	return types.GenesisPartitionRecordTag
+}
+
+func (x *GenesisPartitionRecord) MarshalCBOR() ([]byte, error) {
+	type alias GenesisPartitionRecord
+	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+}
+
+func (x *GenesisPartitionRecord) UnmarshalCBOR(data []byte) error {
+	type alias GenesisPartitionRecord
+	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
 }

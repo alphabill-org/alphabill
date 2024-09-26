@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -42,6 +43,7 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisRootRecord{
+				Version:        1,
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      nil,
 			}
@@ -81,6 +83,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 	pubKey2, err := verifier2.MarshalPublicKey()
 	require.NoError(t, err)
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -119,6 +122,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 				Consensus: &ConsensusParams{
+					Version:             1,
 					TotalRootValidators: totalNodes,
 					BlockRateMs:         0,
 					ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -130,6 +134,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 				Consensus: &ConsensusParams{
+					Version:             1,
 					TotalRootValidators: totalNodes,
 					BlockRateMs:         blockRate,
 					ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -169,6 +174,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisRootRecord{
+				Version:        1,
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      tt.fields.Consensus,
 			}
@@ -181,6 +187,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	signer2, _ := testsig.CreateSignerAndVerifier(t)
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -193,6 +200,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	x := &GenesisRootRecord{
+		Version:        1,
 		RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 		Consensus:      consensus,
 	}
@@ -208,6 +216,7 @@ func TestGenesisRootRecord_Verify_Nil(t *testing.T) {
 // Must be signed by total root validators as specified by consensus structure
 func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -223,14 +232,24 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		pubKeyInfo[i] = &PublicKeyInfo{NodeIdentifier: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
 	}
 	x := &GenesisRootRecord{
+		Version:        1,
 		RootValidators: pubKeyInfo,
 		Consensus:      consensus,
 	}
 	require.NoError(t, x.Verify())
+
+	// serialize and verify again
+	bs, err := types.Cbor.Marshal(x)
+	require.NoError(t, err)
+	x2 := &GenesisRootRecord{}
+	err = types.Cbor.Unmarshal(bs, x2)
+	require.NoError(t, err)
+	require.NoError(t, x2.Verify())
 }
 
 func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -248,6 +267,7 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 	// remove one signature
 	delete(consensus.Signatures, pubKeyInfo[0].NodeIdentifier)
 	x := &GenesisRootRecord{
+		Version:        1,
 		RootValidators: pubKeyInfo,
 		Consensus:      consensus,
 	}
@@ -256,6 +276,7 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 
 func TestGenesisRootRecord_Verify(t *testing.T) {
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: totalNodes + 1,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -306,6 +327,7 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisRootRecord{
+				Version:        1,
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      tt.fields.Consensus,
 			}

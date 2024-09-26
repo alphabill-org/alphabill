@@ -50,6 +50,9 @@ func (x *RootGenesis) IsValid() error {
 	if x == nil {
 		return ErrRootGenesisIsNil
 	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
+	}
 	if x.Root == nil {
 		return ErrRootGenesisRecordIsNil
 	}

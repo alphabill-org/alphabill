@@ -21,6 +21,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 		EncryptionPublicKey: pubKey,
 	}
 	rootConsensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -86,16 +87,19 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			},
 			fields: fields{
 				Root: &GenesisRootRecord{
+					Version:        1,
 					RootValidators: []*PublicKeyInfo{rootKeyInfo},
 					Consensus:      rootConsensus,
 				},
 				Partitions: []*GenesisPartitionRecord{
 					{
+						Version:              1,
 						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
+						Version:              1,
 						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
@@ -108,6 +112,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &RootGenesis{
+				Version:    1,
 				Root:       tt.fields.Root,
 				Partitions: tt.fields.Partitions,
 			}

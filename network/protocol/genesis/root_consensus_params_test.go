@@ -35,6 +35,7 @@ func TestConsensusParams_HashSignaturesAreIgnored(t *testing.T) {
 // Probably too pointless, maybe remove
 func TestConsensusParams_HashFieldsIncluded(t *testing.T) {
 	x := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  consensusTimeout,
@@ -105,6 +106,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &ConsensusParams{
+				Version:             1,
 				TotalRootValidators: tt.fields.TotalRootValidators,
 				BlockRateMs:         tt.fields.BlockRateMs,
 				ConsensusTimeoutMs:  tt.fields.ConsensusTimeoutMs,

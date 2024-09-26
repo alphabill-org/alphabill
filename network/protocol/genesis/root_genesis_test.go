@@ -219,4 +219,11 @@ func TestRootGenesis(t *testing.T) {
 		},
 	}
 	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "root genesis duplicate partition error")
+
+	// test CBOR marshalling
+	rgBytes, err := types.Cbor.Marshal(rg)
+	require.NoError(t, err)
+	rg2 := &RootGenesis{}
+	require.NoError(t, types.Cbor.Unmarshal(rgBytes, rg2))
+	require.Equal(t, rg, rg2)
 }

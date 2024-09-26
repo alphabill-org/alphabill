@@ -18,6 +18,7 @@ var (
 
 type PartitionNode struct {
 	_                         struct{}                                 `cbor:",toarray"`
+	Version                   types.ABVersion                          `json:"version,omitempty"`
 	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
 	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
 	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`

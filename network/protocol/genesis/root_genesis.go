@@ -24,6 +24,7 @@ var (
 
 type RootGenesis struct {
 	_          struct{}                  `cbor:",toarray"`
+	Version    types.ABVersion           `json:"version,omitempty"`
 	Root       *GenesisRootRecord        `json:"root,omitempty"`
 	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
 }
@@ -177,4 +178,22 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 		return nil, fmt.Errorf("failed to create new genesis trust base")
 	}
 	return trustBase, nil
+}
+
+func (x *RootGenesis) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *RootGenesis) GetTag() types.ABTag {
+	return types.RootGenesisTag
+}
+
+func (x *RootGenesis) MarshalCBOR() ([]byte, error) {
+	type alias RootGenesis
+	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+}
+
+func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
+	type alias RootGenesis
+	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
 }

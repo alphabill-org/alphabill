@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -29,6 +30,7 @@ const (
 
 type ConsensusParams struct {
 	_                   struct{}          `cbor:",toarray"`
+	Version             types.ABVersion   `json:"version,omitempty"`
 	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
 	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate (round time t3 in monolithic root chain)
 	ConsensusTimeoutMs  uint32            `json:"consensus_timeout_ms,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)

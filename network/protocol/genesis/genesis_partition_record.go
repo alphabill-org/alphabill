@@ -16,6 +16,7 @@ var (
 
 type GenesisPartitionRecord struct {
 	_                    struct{}                          `cbor:",toarray"`
+	Version              types.ABVersion                   `json:"version,omitempty"`
 	Nodes                []*PartitionNode                  `json:"nodes,omitempty"`
 	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
 	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`

@@ -3,6 +3,8 @@ package genesis
 import (
 	"errors"
 	"fmt"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -14,6 +16,7 @@ var (
 
 type GenesisRootRecord struct {
 	_              struct{}         `cbor:",toarray"`
+	Version        types.ABVersion  `json:"version,omitempty"`
 	RootValidators []*PublicKeyInfo `json:"root_validators,omitempty"`
 	Consensus      *ConsensusParams `json:"consensus,omitempty"`
 }

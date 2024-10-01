@@ -287,10 +287,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		if pr := config.Base.observe.PrometheusRegisterer(); pr != nil {
 			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		}
-		// there is a race - the partitionCfg.AddConfiguration is only safe to call after
-		// the partitionCfg.Reset has been called which happens once the Consensus Manager
-		// is running (ie node is "fully running").
-		// The request must have start-round=n query parameter (the round when the genesis
+		// The request must have start-round=n query parameter (the round when the configuration
 		// in the body must take effect)
 		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(genesisStore.AddConfiguration))
 		return httpsrv.Run(ctx,

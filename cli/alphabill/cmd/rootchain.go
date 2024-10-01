@@ -215,7 +215,10 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("creating genesis store: %w", err)
 	}
-	genesisStore.AddConfiguration(rootGenesis, rootGenesis.GetRoundNumber())
+	err = genesisStore.AddConfiguration(rootGenesis, rootGenesis.GetRoundNumber())
+	if err != nil {
+		return fmt.Errorf("adding genesis configuration: %w", err)
+	}
 
 	partitionStore, err := partitions.NewPartitionStore(genesisStore)
 	if err != nil {

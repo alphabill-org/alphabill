@@ -91,6 +91,10 @@ func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*
 	return luc, nil
 }
 
+func (m *MockConsensusManager) GetCurrentRound() uint64 {
+	return 0
+}
+
 func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	t.Helper()
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
@@ -103,7 +107,6 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	require.NoError(t, err)
 	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
 	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
 
@@ -125,16 +128,16 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	mockNet := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
+	cfgStore := testgenesis.NewGenesisStore(rootGenesis)
+	partitionStore, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	log := testlogger.New(t).With(logger.NodeID(id))
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
 	cm, err := monolithic.NewMonolithicConsensusManager(
 		node.PeerConf.ID.String(),
 		trustBase,
-		rootGenesis,
+		cfgStore,
 		partitionStore,
 		node.Signer,
 		log,
@@ -160,16 +163,16 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
+	cfgStore := testgenesis.NewGenesisStore(rootGenesis)
+	partitionStore, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	trustBase, err := createTrustBaseFromRootGenesis(rootGenesis)
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
 	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
 	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
-		rootGenesis,
 		trustBase,
+		cfgStore,
 		partitionStore,
 		rootNetMock,
 		rootHost.Signer,

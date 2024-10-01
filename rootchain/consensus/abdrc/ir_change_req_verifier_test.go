@@ -33,7 +33,7 @@ var irSysID1 = &types.InputRecord{
 	SumOfEarnedFees: 0,
 }
 
-func (s *MockState) GetCertificates() map[types.SystemID]*types.UnicityCertificate {
+func (s *MockState) GetCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error) {
 	return map[types.SystemID]*types.UnicityCertificate{
 		types.SystemID(1): {
 			InputRecord:            irSysID1,
@@ -42,11 +42,14 @@ func (s *MockState) GetCertificates() map[types.SystemID]*types.UnicityCertifica
 				RootChainRoundNumber: 1,
 			},
 		},
-	}
+	}, nil
 }
 
-func (s *MockState) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	cm := s.GetCertificates()
+func (s *MockState) GetCertificate(id types.SystemID, round uint64) (*types.UnicityCertificate, error) {
+	cm, err := s.GetCertificates(round)
+	if err != nil {
+		return nil, err
+	}
 	if uc, ok := cm[id]; ok {
 		return uc, nil
 	}
@@ -77,9 +80,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			},
 		},
 	}
-	pConf, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
+	cfgStore := testgenesis.NewGenesisStoreFromPartitions(genesisPartitions)
+	pConf, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
-	require.NoError(t, pConf.Reset(func() uint64 { return 1 }))
 
 	t.Run("ir change request nil", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
@@ -268,7 +271,6 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	}
 	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
 	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
 
 	t.Run("partition store is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, nil, &MockState{})
@@ -312,7 +314,6 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	}
 	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
 	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
 
 	t.Run("state monitor is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, pInfo, nil)
@@ -356,7 +357,6 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	}
 	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
 	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
 	state := &MockState{}
 	tmoGen := &PartitionTimeoutGenerator{
 		params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},

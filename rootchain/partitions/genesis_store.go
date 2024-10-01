@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -15,36 +16,33 @@ import (
 var rootGenesisBucket = []byte("root-genesis")
 
 /*
-genesisStore is persistent storage for root genesis files.
+genesisStore is persistent storage for root chain configuration files.
 
 Bucket "root-genesis" maps round number (uint64) to root genesis file. The idea
 is that starting with given round number the configuration described by the genesis
 should be used.
 */
 type genesisStore struct {
-	db *bolt.DB
+	db         *bolt.DB
+	mu         sync.RWMutex
+	currentCfg *genesis.RootGenesis
+	lastUpdate uint64
+	nextUpdate uint64
 }
 
 /*
   - dbFile is filename (full path) to the Bolt DB file to use for storage, if the
     file does not exist it will be created;
-  - seed is stored into the DB only if the DB is empty, it should be the initial genesis
-    of the rootchain (ie for round 1, the round number used is what is reported by the
-    genesis, ie it's GetRoundNumber method. At this time our tooling always generates root
-    genesis for round 1);
 */
-func NewGenesisStore(dbFile string, seed *genesis.RootGenesis) (*genesisStore, error) {
+func NewGenesisStore(dbFile string) (*genesisStore, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt DB: %w", err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists(rootGenesisBucket)
+		_, err := tx.CreateBucketIfNotExists(rootGenesisBucket)
 		if err != nil {
 			return fmt.Errorf("creating the %q bucket: %w", rootGenesisBucket, err)
-		}
-		if k, v := b.Cursor().First(); k == nil && v == nil && seed != nil {
-			return saveConfiguration(b, seed.GetRoundNumber(), seed)
 		}
 		return nil
 	})
@@ -52,42 +50,85 @@ func NewGenesisStore(dbFile string, seed *genesis.RootGenesis) (*genesisStore, e
 		return nil, fmt.Errorf("initializing the DB: %w", err)
 	}
 
-	return &genesisStore{db: db}, nil
-}
-
-/*
-AddConfiguration adds or overrides genesis (configuration) for the given round.
-*/
-func (gs *genesisStore) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
-	return gs.db.Update(func(tx *bolt.Tx) error {
-		return saveConfiguration(tx.Bucket(rootGenesisBucket), round, cfg)
-	})
+	return &genesisStore{
+		db: db,
+		lastUpdate: 0,
+		nextUpdate: 0, // ensures configuration is loaded on next GetConfiguration call
+	}, nil
 }
 
 /*
 Returns:
-  - the configurations for partitions in effect on round "round";
-  - the round number when next configuration change should take effect (after "round"), if
-    there is no next config registered max uint64 is returned;
+  - the configuration in effect on round "round";
+  - the round number when the configuration took effect
   - error if any - in case of non nil error the other return values are invalid!
 */
-func (gs *genesisStore) PartitionRecords(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
-	rg, next, err := gs.activeGenesis(round)
+func (gs *genesisStore) GetConfiguration(round uint64) (*genesis.RootGenesis, uint64, error) {
+	gs.mu.RLock()
+	if gs.lastUpdate <= round && round < gs.nextUpdate {
+		// currentCfg is valid for the round
+		defer gs.mu.RUnlock()
+		return gs.currentCfg, gs.lastUpdate, nil
+	}
+	gs.mu.RUnlock()
+
+	// currentCfg was not valid for the round, let's load and cache the correct one
+	gs.mu.Lock()
+	defer gs.mu.Unlock()
+
+	// double-check to see if someone else already loaded it while we acquired lock
+	if gs.lastUpdate <= round && round < gs.nextUpdate {
+		return gs.currentCfg, gs.lastUpdate, nil
+	}
+
+	cfg, lastUpdate, nextUpdate, err := gs.loadConfiguration(round)
 	if err != nil {
 		return nil, 0, err
 	}
-	return rg.Partitions, next, nil
+
+	gs.currentCfg = cfg
+	gs.lastUpdate = lastUpdate
+	gs.nextUpdate = nextUpdate
+
+	return gs.currentCfg, gs.lastUpdate, nil
+}
+
+/*
+   AddConfiguration registers new configuration taking effect from round "round".
+*/
+func (gs *genesisStore) AddConfiguration(cfg *genesis.RootGenesis, round uint64) error {
+	err := gs.db.Update(func(tx *bolt.Tx) error {
+		return saveConfiguration(tx.Bucket(rootGenesisBucket), round, cfg)
+	})
+	if err != nil {
+		return fmt.Errorf("storing configurations for round %d: %w", round, err)
+	}
+
+	// Just in case we need to change nextUpdate
+	gs.mu.Lock()
+	defer gs.mu.Unlock()
+
+	if gs.lastUpdate < round && round < gs.nextUpdate {
+		// This configuration potentially (we don't know the current round)
+		// invalidates the currently cached one. In any case, set nextUpdate to
+		// the given round number. If it happens to be in the past, the correct
+		// configuration is just reloaded.
+		gs.nextUpdate = round
+	}
+
+	return nil
 }
 
 /*
 Returns:
-  - the "genesis configuration" in effect on round "round";
+  - the root chain configuration in effect on round "round";
+  - the round number when the returend configuration took effect
   - the round number when next configuration change should take effect (after "round"), if
     there is no next config registered max uint64 is returned;
   - error if any - in case of non nil error the other return values are invalid!
 */
-func (gs *genesisStore) activeGenesis(round uint64) (rg *genesis.RootGenesis, next uint64, _ error) {
-	return rg, next, gs.db.View(func(tx *bolt.Tx) error {
+func (gs *genesisStore) loadConfiguration(round uint64) (rg *genesis.RootGenesis, last, next uint64, _ error) {
+	return rg, last, next, gs.db.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket(rootGenesisBucket).Cursor()
 		k, v := c.Seek(roundToKey(round))
 		if k == nil {
@@ -96,19 +137,22 @@ func (gs *genesisStore) activeGenesis(round uint64) (rg *genesis.RootGenesis, ne
 				// db is empty? shouldn't really happen, something is very wrong!
 				return fmt.Errorf("no configuration for round %d, empty DB", round)
 			}
+			last = keyToRound(k)
 			next = math.MaxUint64
 		} else {
 			if kr := keyToRound(k); kr > round {
 				// not exact match, we're on the next one...
-				next = keyToRound(k)
+				next = kr
 				//...so previous record must be the one active for the "round"
 				if k, v = c.Prev(); k == nil {
 					// if k is nil then there is no prev item - should not happen as the initial genesis
 					// is for round 1 (ie this node does not have full genesis history?)
 					return fmt.Errorf("no configuration for round %d, missing initial genesis", round)
 				}
+				last = keyToRound(k)
 			} else {
 				// must have landed on the exact key is there next conf?
+				last = keyToRound(k)
 				if k, _ = c.Next(); k != nil {
 					next = keyToRound(k)
 				} else {
@@ -118,7 +162,7 @@ func (gs *genesisStore) activeGenesis(round uint64) (rg *genesis.RootGenesis, ne
 		}
 
 		if err := types.Cbor.Unmarshal(v, &rg); err != nil {
-			return fmt.Errorf("decoding root genesis: %w", err)
+			return fmt.Errorf("decoding configuration: %w", err)
 		}
 		return nil
 	})

@@ -82,6 +82,7 @@ type (
 		trustBase      types.RootTrustBase
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
+		cfgStore       partitions.ConfigurationStore
 		blockStore     *storage.BlockStore
 		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
@@ -113,8 +114,8 @@ type (
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(
 	nodeID peer.ID,
-	rg *genesis.RootGenesis,
 	trustBase types.RootTrustBase,
+	cfgStore partitions.ConfigurationStore,
 	partitionStore partitions.PartitionConfiguration,
 	net RootNet,
 	signer crypto.Signer,
@@ -122,8 +123,12 @@ func NewDistributedAbConsensusManager(
 	opts ...consensus.Option,
 ) (*ConsensusManager, error) {
 	// Sanity checks
-	if rg == nil {
-		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
+	genesisCfg, _, err := cfgStore.GetConfiguration(genesis.RootRound)
+	if err != nil {
+		return nil, fmt.Errorf("loading genesis configuration: %w", err)
+	}
+	if genesisCfg == nil {
+		return nil, errors.New("cannot start distributed consensus, missing genesis configuration")
 	}
 	if net == nil {
 		return nil, errors.New("network is nil")
@@ -137,9 +142,9 @@ func NewDistributedAbConsensusManager(
 		return nil, fmt.Errorf("loading optional configuration: %w", err)
 	}
 	// load consensus configuration from genesis
-	cParams := consensus.NewConsensusParams(rg.Root)
+	cParams := consensus.NewConsensusParams(genesisCfg.Root)
 	// init storage
-	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
+	bStore, err := storage.New(cParams.HashAlgorithm, cfgStore, optional.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -155,7 +160,7 @@ func NewDistributedAbConsensusManager(
 	if err != nil {
 		return nil, err
 	}
-	ls, err := leaderSelector(rg)
+	ls, err := leaderSelector(genesisCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
@@ -175,6 +180,7 @@ func NewDistributedAbConsensusManager(
 		trustBase:      trustBase,
 		irReqBuffer:    NewIrReqBuffer(observe.Logger()),
 		safety:         safetyModule,
+		cfgStore:       cfgStore,
 		blockStore:     bStore,
 		partitions:     partitionStore,
 		irReqVerifier:  reqVerifier,
@@ -288,7 +294,11 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	return x.blockStore.GetCertificate(id)
+	return x.blockStore.GetCertificate(id, x.pacemaker.GetCurrentRound())
+}
+
+func (x *ConsensusManager) GetCurrentRound() uint64 {
+	return x.pacemaker.GetCurrentRound()
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
@@ -306,9 +316,6 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to read last TC from block store: %w", err)
 		}
 		x.pacemaker.Reset(ctx, hQc.GetRound(), lastTC, vote)
-		if err := x.partitions.Reset(x.pacemaker.GetCurrentRound); err != nil {
-			return fmt.Errorf("resetting partition store: %w", err)
-		}
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
@@ -908,7 +915,11 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMs
 		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
 	// read state
-	stateMsg := x.blockStore.GetState()
+	stateMsg, err := x.blockStore.GetState(x.pacemaker.GetCurrentRound())
+	if err != nil {
+		return fmt.Errorf("failed to get current state: %w", err)
+
+	}
 	if err = x.net.Send(ctx, stateMsg, peerID); err != nil {
 		return fmt.Errorf("failed to send state response message: %w", err)
 	}
@@ -933,7 +944,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB())
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, x.cfgStore, x.blockStore.GetDB(), rsp)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}

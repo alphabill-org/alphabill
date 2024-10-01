@@ -14,8 +14,8 @@ import (
 
 type (
 	State interface {
-		GetCertificate(id types.SystemID) (*types.UnicityCertificate, error)
-		GetCertificates() map[types.SystemID]*types.UnicityCertificate
+		GetCertificate(id types.SystemID, round uint64) (*types.UnicityCertificate, error)
+		GetCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error)
 		IsChangeInProgress(id types.SystemID) *types.InputRecord
 	}
 
@@ -62,7 +62,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	sysID := irChReq.SystemIdentifier
 	// verify certification Request
-	luc, err := x.state.GetCertificate(sysID)
+	luc, err := x.state.GetCertificate(sysID, round)
 	if err != nil {
 		return nil, fmt.Errorf("reading partition certificate: %w", err)
 	}
@@ -109,9 +109,11 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 }
 
 func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID, error) {
-	ucs := x.state.GetCertificates()
+	ucs, err := x.state.GetCertificates(currentRound)
+	if err != nil {
+		return []types.SystemID{}, err
+	}
 	timeoutIds := make([]types.SystemID, 0, len(ucs))
-	var err error
 	for id, cert := range ucs {
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(id); ir != nil {

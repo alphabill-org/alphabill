@@ -778,10 +778,11 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	for _, v := range rootG.Root.RootValidators {
 		nodeID, err := peer.Decode(v.NodeIdentifier)
 		require.NoError(t, err)
-		pStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootG))
+		cfgStore := testgenesis.NewGenesisStore(rootG)
+		pStore, err := partitions.NewPartitionStore(cfgStore)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, trustBase, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewDistributedAbConsensusManager(nodeID, trustBase, cfgStore, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

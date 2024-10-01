@@ -19,15 +19,15 @@ func Test_NewGenesisStore(t *testing.T) {
 	t.Run("directory not exist", func(t *testing.T) {
 		// attempt to create file in a not existing directory should fail
 		dbFN := filepath.Join(t.TempDir(), "notExist", "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN)
 		require.ErrorIs(t, err, fs.ErrNotExist)
 		require.Nil(t, gs)
 	})
 
-	t.Run("seed is nil", func(t *testing.T) {
-		// empty DB but nil seed will result in empty DB
+	t.Run("empty db created", func(t *testing.T) {
+		// empty DB
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -39,6 +39,29 @@ func Test_NewGenesisStore(t *testing.T) {
 			}),
 		)
 		require.NoError(t, gs.db.Close())
+	})
+}
+
+func testCfg(t *testing.T) *genesis.RootGenesis {
+	var cfg *genesis.RootGenesis
+	f, err := genesisFiles.Open("testdata/root-genesis-A.json")
+	require.NoError(t, err)
+	require.NoError(t, json.NewDecoder(f).Decode(&cfg))
+	require.NoError(t, f.Close())
+	return cfg
+}
+
+func Test_genesisStore_AddConfiguration(t *testing.T) {
+	t.Run("invalid config", func(t *testing.T) {
+		dbFN := filepath.Join(t.TempDir(), "root.db")
+		gs, err := NewGenesisStore(dbFN)
+		require.NoError(t, err)
+
+		err = gs.AddConfiguration(&genesis.RootGenesis{}, 100)
+		require.ErrorContains(t, err, "verifying configuration")
+		require.Nil(t, gs.currentCfg)
+		require.EqualValues(t, 0, gs.lastUpdate, "last update marker mustn't change")
+		require.EqualValues(t, 0, gs.nextUpdate, "next update marker mustn't change")
 	})
 
 	t.Run("seed is saved", func(t *testing.T) {
@@ -53,9 +76,10 @@ func Test_NewGenesisStore(t *testing.T) {
 		require.NoError(t, f.Close())
 
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, rgA)
+		gs, err := NewGenesisStore(dbFN)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
+		require.NoError(t, gs.AddConfiguration(rgA, genesis.RootRound))
 		require.NoError(t, gs.db.View(
 			func(tx *bbolt.Tx) error {
 				b := tx.Bucket(rootGenesisBucket)
@@ -72,7 +96,9 @@ func Test_NewGenesisStore(t *testing.T) {
 
 		// if we now reopen the DB with different seed the original
 		// data must be preserved and new seed ignored
-		gs, err = NewGenesisStore(dbFN, rgB)
+		// TODO: why not allow overwriting configurations? would make reverting configuration uploads much easier
+		gs, err = NewGenesisStore(dbFN)
+		gs.AddConfiguration(rgB, genesis.RootRound)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -87,54 +113,85 @@ func Test_NewGenesisStore(t *testing.T) {
 				return nil
 			}),
 		)
-		rg, next, err := gs.activeGenesis(1)
+		rg, version, err := gs.GetConfiguration(1)
 		require.NoError(t, err)
-		if next != math.MaxUint64 {
-			t.Errorf("expected next to be max uint64, got %d", next)
-		}
-		require.Equal(t, rgA, rg)
+		require.EqualValues(t, 1, version)
+		require.Equal(t, rgB, rg)
 		require.NoError(t, gs.db.Close())
+	})
+
+	t.Run("success, new config is NOT next", func(t *testing.T) {
+		dbFN := filepath.Join(t.TempDir(), "root.db")
+		gs, err := NewGenesisStore(dbFN)
+		require.NoError(t, err)
+		gs.lastUpdate = 50
+		gs.nextUpdate = 100
+
+		cfg := testCfg(t)
+		err = gs.AddConfiguration(cfg, gs.nextUpdate+1)
+		require.NoError(t, err)
+		require.EqualValues(t, 100, gs.nextUpdate, "next config round marker mustn't change")
+	})
+
+	t.Run("success, new config is next", func(t *testing.T) {
+		dbFN := filepath.Join(t.TempDir(), "root.db")
+		gs, err := NewGenesisStore(dbFN)
+		require.NoError(t, err)
+		gs.lastUpdate = 50
+		gs.nextUpdate = 100
+
+		cfg := testCfg(t)
+		err = gs.AddConfiguration(cfg, gs.nextUpdate+1)
+		require.NoError(t, err)
+		require.EqualValues(t, 100, gs.nextUpdate, "next config round marker mustn't change")
+
+		err = gs.AddConfiguration(cfg, gs.nextUpdate-1)
+		require.NoError(t, err)
+		require.EqualValues(t, 99, gs.nextUpdate, "next config round marker must be updated")
 	})
 }
 
-func Test_genesisStore_activeGenesis(t *testing.T) {
-	var rgA, rgB, rgC *genesis.RootGenesis
+func Test_genesisStore_loadConfiguration(t *testing.T) {
+	var cfgA, cfgB, cfgC *genesis.RootGenesis
 	f, err := genesisFiles.Open("testdata/root-genesis-A.json")
 	require.NoError(t, err)
-	require.NoError(t, json.NewDecoder(f).Decode(&rgA))
+	require.NoError(t, json.NewDecoder(f).Decode(&cfgA))
 	require.NoError(t, f.Close())
 	f, err = genesisFiles.Open("testdata/root-genesis-B.json")
 	require.NoError(t, err)
-	require.NoError(t, json.NewDecoder(f).Decode(&rgB))
+	require.NoError(t, json.NewDecoder(f).Decode(&cfgB))
 	require.NoError(t, f.Close())
 	f, err = genesisFiles.Open("testdata/root-genesis-C.json")
 	require.NoError(t, err)
-	require.NoError(t, json.NewDecoder(f).Decode(&rgC))
+	require.NoError(t, json.NewDecoder(f).Decode(&cfgC))
 	require.NoError(t, f.Close())
 
 	dbFN := filepath.Join(t.TempDir(), "root.db")
-	gs, err := NewGenesisStore(dbFN, nil)
+	gs, err := NewGenesisStore(dbFN)
 	require.NoError(t, err)
 	require.NotNil(t, gs)
-	// we used nil seed so DB must be empty and any query should fail
-	rg, _, err := gs.activeGenesis(3)
+	// DB must be empty and any query should fail
+	rg, _, err := gs.GetConfiguration(3)
 	require.EqualError(t, err, `no configuration for round 3, empty DB`)
 	require.Nil(t, rg)
 
-	// add genesis for round 100, any query for earlier round should fail
-	require.NoError(t, gs.AddConfiguration(100, rgB))
-	rg, _, err = gs.activeGenesis(3)
+	// add configuration for round 100, any query for earlier round should fail
+	require.NoError(t, gs.AddConfiguration(cfgB, 100))
+	rg, _, err = gs.GetConfiguration(3)
 	require.EqualError(t, err, `no configuration for round 3, missing initial genesis`)
 	require.Nil(t, rg)
+
 	// but past 100 should return "genesis B"
-	rg, next, err := gs.activeGenesis(123456)
+	cfg, version, err := gs.GetConfiguration(123456)
 	require.NoError(t, err)
-	require.Equal(t, uint64(math.MaxUint64), next, "round of the next config change")
-	require.Equal(t, rgB, rg)
+	require.NotNil(t, cfg)
+	require.Equal(t, uint64(100), version)
+	require.Equal(t, uint64(math.MaxUint64), gs.nextUpdate, "round of the next config change")
+	require.Equal(t, cfgB, cfg)
 
 	// add initial genesis and another one starting with round 200
-	require.NoError(t, gs.AddConfiguration(1, rgA))
-	require.NoError(t, gs.AddConfiguration(200, rgC))
+	require.NoError(t, gs.AddConfiguration(cfgA, 1))
+	require.NoError(t, gs.AddConfiguration(cfgC, 200))
 	// verify that we have DB in expected state
 	require.NoError(t, gs.db.View(
 		func(tx *bbolt.Tx) error {
@@ -150,29 +207,29 @@ func Test_genesisStore_activeGenesis(t *testing.T) {
 	)
 
 	var testCases = []struct {
-		query uint64               // round number to query
-		rg    *genesis.RootGenesis // expected genesis data
-		next  uint64               // expected next config change round
+		round   uint64               // round number to query
+		cfg     *genesis.RootGenesis // expected configuration
+		version  uint64              // expected version (first active round)
 	}{
-		{query: 1, rg: rgA, next: 100},
-		{query: 2, rg: rgA, next: 100},
-		{query: 99, rg: rgA, next: 100},
-		{query: 100, rg: rgB, next: 200},
-		{query: 101, rg: rgB, next: 200},
-		{query: 199, rg: rgB, next: 200},
-		{query: 200, rg: rgC, next: math.MaxUint64},
-		{query: 201, rg: rgC, next: math.MaxUint64},
-		{query: 300, rg: rgC, next: math.MaxUint64},
-		{query: math.MaxUint64, rg: rgC, next: math.MaxUint64},
-		{query: 150, rg: rgB, next: 200},
-		{query: 50, rg: rgA, next: 100},
+		{round: 1, cfg: cfgA, version: 1},
+		{round: 2, cfg: cfgA, version: 1},
+		{round: 99, cfg: cfgA, version: 1},
+		{round: 100, cfg: cfgB, version: 100},
+		{round: 101, cfg: cfgB, version: 100},
+		{round: 199, cfg: cfgB, version: 100},
+		{round: 200, cfg: cfgC, version: 200},
+		{round: 201, cfg: cfgC, version: 200},
+		{round: 300, cfg: cfgC, version: 200},
+		{round: math.MaxUint64, cfg: cfgC, version: 200},
+		{round: 150, cfg: cfgB, version: 100},
+		{round: 50, cfg: cfgA, version: 1},
 	}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("query %d", tc.query), func(t *testing.T) {
-			rg, next, err := gs.activeGenesis(tc.query)
+		t.Run(fmt.Sprintf("query %d", tc.round), func(t *testing.T) {
+			cfg, version, err := gs.GetConfiguration(tc.round)
 			require.NoError(t, err)
-			require.EqualValues(t, tc.next, next, "round of the next config change")
-			require.Equal(t, tc.rg, rg)
+			require.EqualValues(t, tc.version, version, "returned configuration version")
+			require.Equal(t, tc.cfg, cfg)
 		})
 	}
 

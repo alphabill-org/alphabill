@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -19,16 +20,22 @@ import (
 )
 
 type (
+	ConfigurationStore interface {
+		GetConfiguration(round uint64) (*genesis.RootGenesis, uint64, error)
+	}
+
 	BlockStore struct {
+		mu           sync.RWMutex
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
 		storage      keyvaluedb.KeyValueDB
-		certificates map[types.SystemID]*types.UnicityCertificate // cashed
-		lock         sync.RWMutex
+		cfgStore     ConfigurationStore
+		cfgVersion   atomic.Uint64
+		certificates map[types.SystemID]*types.UnicityCertificate
 	}
 )
 
-func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[types.SystemID]*types.UnicityCertificate {
+func unicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[types.SystemID]*types.UnicityCertificate {
 	var certs = make(map[types.SystemID]*types.UnicityCertificate)
 	for _, partition := range pg {
 		identifier := partition.GetSystemDescriptionRecord().GetSystemIdentifier()
@@ -40,12 +47,6 @@ func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[ty
 func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	// nil is returned if no value is in DB
 	genesisBlock := NewGenesisBlock(hash, pg)
-	ucs := UnicityCertificatesFromGenesis(pg)
-	for id, cert := range ucs {
-		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
-			return fmt.Errorf("certificate %X write failed, %w", id, err)
-		}
-	}
 	if err := blockStoreGenesisInit(genesisBlock, db); err != nil {
 		return fmt.Errorf("block store genesis init failed, %w", err)
 	}
@@ -67,25 +68,29 @@ func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[types.SystemID]*types.U
 	return ucs, err
 }
 
-func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
-	// Initiate store
-	if pg == nil {
-		return nil, errors.New("genesis record is nil")
-	}
+func New(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
+	if cfgStore == nil {
+		return nil, errors.New("configuration store is nil")
+	}
+
 	// First start, initiate from genesis data
 	empty, err := keyvaluedb.IsEmpty(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read block store, %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, db); err != nil {
+		genesisCfg, _, err := cfgStore.GetConfiguration(genesis.RootRound)
+		if err != nil {
+			return nil, fmt.Errorf("loading genesis configuration failed, %w", err)
+		}
+		if err = storeGenesisInit(hash, genesisCfg.Partitions, db); err != nil {
 			return nil, fmt.Errorf("block store init failed, %w", err)
 		}
 	}
-	// read certificates from storage
+	// read certificates from storage, empty for genesis
 	ucs, err := readCertificates(db)
 	if err != nil {
 		return nil, fmt.Errorf("init failed, %w", err)
@@ -94,19 +99,26 @@ func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb
 	if err != nil {
 		return nil, fmt.Errorf("init failed, %w", err)
 	}
+	// cfgVersion is set to 0, which means certificates will be
+	// updated according to cfg with the next call to GetCertificate(s)
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
-		certificates: ucs,
 		storage:      db,
+		cfgStore:     cfgStore,
+		certificates: ucs,
 	}, nil
 }
 
-func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB) (*BlockStore, error) {
+func NewFromState(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, stateMsg *abdrc.StateMsg) (*BlockStore, error) {
 	// Initiate store
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
+	if cfgStore == nil {
+		return nil, errors.New("configuration store is nil")
+	}
+
 	certificates := make(map[types.SystemID]*types.UnicityCertificate)
 	for _, cert := range stateMsg.Certificates {
 		id := cert.UnicityTreeCertificate.SystemIdentifier
@@ -128,11 +140,14 @@ func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.Ke
 	if err != nil {
 		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
 	}
+	// cfgVersion is set to 0, which means certificates will be
+	// updated according to cfg with the next call to GetCertificate(s)
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
-		certificates: certificates,
 		storage:      db,
+		cfgStore:     cfgStore,
+		certificates: certificates,
 	}, nil
 }
 
@@ -248,8 +263,8 @@ func (x *BlockStore) GetLastTC() (*drctypes.TimeoutCert, error) {
 }
 
 func (x *BlockStore) updateCertificateCache(certs map[types.SystemID]*types.UnicityCertificate) error {
-	x.lock.Lock()
-	defer x.lock.Unlock()
+	x.mu.Lock()
+	defer x.mu.Unlock()
 	for id, uc := range certs {
 		// persist changes
 		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
@@ -263,9 +278,13 @@ func (x *BlockStore) updateCertificateCache(certs map[types.SystemID]*types.Unic
 	return nil
 }
 
-func (x *BlockStore) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	x.lock.RLock()
-	defer x.lock.RUnlock()
+func (x *BlockStore) GetCertificate(id types.SystemID, round uint64) (*types.UnicityCertificate, error) {
+	if err := x.loadConfig(round); err != nil {
+		return nil, fmt.Errorf("loading new configuration: %w", err)
+	}
+
+	x.mu.RLock()
+	defer x.mu.RUnlock()
 	uc, f := x.certificates[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %s", id)
@@ -273,14 +292,21 @@ func (x *BlockStore) GetCertificate(id types.SystemID) (*types.UnicityCertificat
 	return uc, nil
 }
 
-func (x *BlockStore) GetCertificates() map[types.SystemID]*types.UnicityCertificate {
-	x.lock.RLock()
-	defer x.lock.RUnlock()
-	return maps.Clone(x.certificates)
+func (x *BlockStore) GetCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error) {
+	if err := x.loadConfig(round); err != nil {
+		return nil, fmt.Errorf("loading new configuration: %w", err)
+	}
+
+	x.mu.RLock()
+	defer x.mu.RUnlock()
+	return maps.Clone(x.certificates), nil
 }
 
-func (x *BlockStore) GetState() *abdrc.StateMsg {
-	certs := x.GetCertificates()
+func (x *BlockStore) GetState(currentRound uint64) (*abdrc.StateMsg, error) {
+	certs, err := x.GetCertificates(currentRound)
+	if err != nil {
+		return nil, fmt.Errorf("loading certificates: %w", err)
+	}
 	ucs := make([]*types.UnicityCertificate, 0, len(certs))
 	for _, c := range certs {
 		ucs = append(ucs, c)
@@ -304,7 +330,7 @@ func (x *BlockStore) GetState() *abdrc.StateMsg {
 			CommitQc: committedBlock.CommitQc,
 		},
 		BlockData: pending,
-	}
+	}, nil
 }
 
 /*
@@ -323,6 +349,52 @@ func (x *BlockStore) StoreLastVote(vote any) error {
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
+}
+
+/*
+loadConfig loads the root chain configuration for round "round" and
+updates the list of Unicity Certificates with those of added and removed partitions.
+*/
+func (x *BlockStore) loadConfig(round uint64) error {
+	cfg, version, err := x.cfgStore.GetConfiguration(round)
+	if err != nil {
+		return fmt.Errorf("loading root chain configuration: %w", err)
+	}
+	if x.cfgVersion.Load() == version {
+		// Correct configuration already loaded
+		return nil
+	}
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
+
+	// double-check to see if someone else already loaded it while we waited on lock
+	if x.cfgVersion.Load() == version {
+		return nil
+	}
+
+	newUcs := unicityCertificatesFromGenesis(cfg.Partitions)
+	// find deleted partitions
+	for systemID := range x.certificates {
+		if _, ok := newUcs[systemID]; !ok {
+			if err := x.storage.Delete(certKey(systemID.Bytes())); err != nil {
+				return fmt.Errorf("failed to delete certificate from storage: %w", err)
+			}
+			delete(x.certificates, systemID)
+		}
+	}
+	// find added partitions
+	for systemID, newUc := range newUcs {
+		if _, ok := x.certificates[systemID]; !ok {
+			if err := x.storage.Write(certKey(systemID.Bytes()), newUc); err != nil {
+				return fmt.Errorf("failed to write certificate into storage: %w", err)
+			}
+			x.certificates[systemID] = newUc
+		}
+	}
+
+	x.cfgVersion.Store(version)
+	return nil
 }
 
 // ToRecoveryInputData function for type conversion

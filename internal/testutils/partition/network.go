@@ -214,8 +214,8 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
-
-		partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(r.rcGenesis))
+		gs := testgenesis.NewGenesisStore(r.rcGenesis)
+		partitionStore, err := partitions.NewPartitionStore(gs)
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
@@ -224,7 +224,7 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitionStore, rootConsensusNet, rn.RootSigner, obs)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.TrustBase, gs, partitionStore, rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}

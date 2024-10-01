@@ -211,11 +211,13 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root trust base init failed: %w", err)
 	}
 
-	gs, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"), rootGenesis)
+	genesisStore, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"))
 	if err != nil {
 		return fmt.Errorf("creating genesis store: %w", err)
 	}
-	partitionCfg, err := partitions.NewPartitionStore(gs)
+	genesisStore.AddConfiguration(rootGenesis, rootGenesis.GetRoundNumber())
+
+	partitionStore, err := partitions.NewPartitionStore(genesisStore)
 	if err != nil {
 		return fmt.Errorf("creating partition store: %w", err)
 	}
@@ -226,8 +228,8 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		cm, err = monolithic.NewMonolithicConsensusManager(
 			host.ID().String(),
 			trustBase,
-			rootGenesis,
-			partitionCfg,
+			genesisStore,
+			partitionStore,
 			keys.SigningPrivateKey,
 			log,
 			consensus.WithStorage(rootStore),
@@ -243,9 +245,9 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		// Create distributed consensus manager function
 		cm, err = abdrc.NewDistributedAbConsensusManager(
 			host.ID(),
-			rootGenesis,
 			trustBase,
-			partitionCfg,
+			genesisStore,
+			partitionStore,
 			rootNet,
 			keys.SigningPrivateKey,
 			obs,
@@ -261,7 +263,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	node, err := rootchain.New(
 		host,
 		partitionNet,
-		partitionCfg,
+		partitionStore,
 		cm,
 		obs,
 	)
@@ -287,7 +289,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		// is running (ie node is "fully running").
 		// The request must have start-round=n query parameter (the round when the genesis
 		// in the body must take effect)
-		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(partitionCfg.AddConfiguration))
+		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(genesisStore.AddConfiguration))
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.RPCServerAddress,
@@ -360,7 +362,7 @@ func initTrustBase(store keyvaluedb.KeyValueDB, trustBaseFile string) (types.Roo
 }
 
 // The request must have start-round=n query parameter to send the round when configuration takes effect.
-func cfgHandler(addConfiguration func(round uint64, cfg *genesis.RootGenesis) error) http.HandlerFunc {
+func cfgHandler(addConfiguration func(cfg *genesis.RootGenesis, round uint64) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		round, err := strconv.ParseUint(r.URL.Query().Get("start-round"), 10, 64)
 		if err != nil {
@@ -378,7 +380,7 @@ func cfgHandler(addConfiguration func(round uint64, cfg *genesis.RootGenesis) er
 		// should we verify that the node is in the genesis? ie call
 		// verifyKeyPresentInGenesis as done on bootstrap?
 
-		if err := addConfiguration(round, rootGenesis); err != nil {
+		if err := addConfiguration(rootGenesis, round); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "registering configurations: %v", err)
 			return

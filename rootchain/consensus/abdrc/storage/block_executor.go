@@ -39,14 +39,16 @@ type (
 	}
 )
 
-func (data InputRecords) Update(newInputData *InputData) error {
-	for i, d := range data {
+func (data *InputRecords) Update(newInputData *InputData) {
+	for i, d := range *data {
 		if d.SysID == newInputData.SysID {
-			data[i] = newInputData
-			return nil
+			(*data)[i] = newInputData
+			return
 		}
 	}
-	return fmt.Errorf("input record with system id %X was not found", newInputData.SysID)
+
+	// No previous InputRecord, must be a new partition
+	*data = append(*data, newInputData)
 }
 
 func (data InputRecords) Find(sysID types.SystemID) *InputData {
@@ -167,9 +169,7 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 	irState := make(InputRecords, len(parent.CurrentIR))
 	copy(irState, parent.CurrentIR)
 	for _, d := range changed {
-		if err := irState.Update(d); err != nil {
-			return nil, fmt.Errorf("block execution failed, system id %X was not found in input records", d.SysID)
-		}
+		irState.Update(d)
 	}
 	// calculate root hash
 	utData := make([]*types.UnicityTreeData, 0, len(irState))

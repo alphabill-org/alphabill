@@ -371,7 +371,7 @@ func Test_cfgHandler(t *testing.T) {
 	// helper to set up handler for the case where we expect that the addConfig
 	// callback is not called (ie handler fails before there is a reason to call it)
 	setupNoCallbackHandler := func(t *testing.T) (http.HandlerFunc, *httptest.ResponseRecorder) {
-		return cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+		return cfgHandler(func(cfg *genesis.RootGenesis, round uint64) error {
 				err := fmt.Errorf("unexpected call of addConfig callback with %d, %v", round, cfg)
 				t.Error(err)
 				return err
@@ -426,7 +426,7 @@ func Test_cfgHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("config registration fails", func(t *testing.T) {
-		hf := cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+		hf := cfgHandler(func(cfg *genesis.RootGenesis, round uint64) error {
 			return fmt.Errorf("nope, can't add this conf")
 		})
 		w := httptest.NewRecorder()
@@ -442,7 +442,7 @@ func Test_cfgHandler(t *testing.T) {
 		cbCall := false
 		rg := genesis.RootGenesis{}
 		require.NoError(t, json.Unmarshal(rootGenesisData, &rg))
-		hf := cfgHandler(func(round uint64, cfg *genesis.RootGenesis) error {
+		hf := cfgHandler(func(cfg *genesis.RootGenesis, round uint64) error {
 			cbCall = true
 			require.EqualValues(t, 55, round)
 			require.Equal(t, &rg, cfg)

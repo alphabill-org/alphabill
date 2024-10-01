@@ -42,6 +42,8 @@ type (
 		CertificationResult() <-chan *types.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
 		GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error)
+		// GetCurrentRound get the current root round number
+		GetCurrentRound() uint64
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
@@ -193,7 +195,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
-	pdr, pTrustBase, err := v.partitions.GetInfo(sysID, req.RootRound())
+	pdr, pTrustBase, err := v.partitions.GetInfo(sysID, v.consensusManager.GetCurrentRound())
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
 	}

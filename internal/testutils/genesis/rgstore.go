@@ -2,7 +2,6 @@ package genesis
 
 import (
 	"errors"
-	"math"
 
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 )
@@ -34,6 +33,6 @@ func (gs *RootGenesisStore) AddConfiguration(round uint64, cfg *genesis.RootGene
 	return errors.New("this genesis store does not support adding configurations")
 }
 
-func (gs *RootGenesisStore) PartitionRecords(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
-	return gs.cfg.Partitions, math.MaxUint64, nil
+func (gs *RootGenesisStore) GetConfiguration(round uint64) (*genesis.RootGenesis, uint64, error) {
+	return gs.cfg, genesis.RootRound, nil
 }

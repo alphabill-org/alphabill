@@ -60,11 +60,12 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
+	cfgStore := testgenesis.NewGenesisStore(rootGenesis)
+	partitionStore, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	cm, err := NewMonolithicConsensusManager(rootNode.PeerConf.ID.String(), trustBase, rootGenesis, partitionStore, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
+	cm, err := NewMonolithicConsensusManager(rootNode.PeerConf.ID.String(), trustBase, cfgStore, partitionStore, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -78,7 +79,6 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 				{PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500 * time.Millisecond}},
 			}))
 	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	store := NewStateStore(db)

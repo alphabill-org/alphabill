@@ -12,10 +12,10 @@ replace (
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-base v0.0.0-20240919150118-6b53d5a228dc
+	github.com/alphabill-org/alphabill-go-base v0.0.0-20241001105141-98d690f23182
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.14.0
-	github.com/fxamacker/cbor/v2 v2.6.0
+	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/holiman/uint256 v1.2.4

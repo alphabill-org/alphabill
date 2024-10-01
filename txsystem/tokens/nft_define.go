@@ -14,7 +14,7 @@ import (
 
 func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, _ *tokens.DefineNonFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// update state
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
 		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenTypeData(attr)),
 	); err != nil {
@@ -24,7 +24,7 @@ func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, a
 }
 
 func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, authProof *tokens.DefineNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
 	}
@@ -54,7 +54,7 @@ func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, 
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationProofs,
 		n.execPredicate,

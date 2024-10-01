@@ -19,14 +19,13 @@ import (
 // TestTransferNFT_StateLock locks NFT with a transfer tx to pk1, then unlocks it with an update tx
 func TestTransferNFT_StateLock(t *testing.T) {
 	w1Signer, w1PubKey := createSigner(t)
-	_ = w1Signer
 	txs, _ := newTokenTxSystem(t)
 	unitID := defineNFTAndMintToken(t, txs, nftTypeID2)
 
 	// transfer NFT to pk1 with state lock
 	transferTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(tokens.PayloadTypeTransferNFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
@@ -62,7 +61,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// try to update nft without state unlocking
 	updateTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(tokens.PayloadTypeUpdateNFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
@@ -83,7 +82,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	}
 	updateTx = testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(tokens.PayloadTypeUpdateNFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithAttributes(attr),
@@ -93,8 +92,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 			tokens.UpdateNonFungibleTokenAuthProof{TokenTypeDataUpdateProofs: [][]byte{templates.EmptyArgument()}},
 		),
 	)
-
-	ownerProof := testsig.NewOwnerProof(t, updateTx, w1Signer)
+	ownerProof := testsig.NewStateLockProofSignature(t, updateTx, w1Signer)
 	updateTx.StateUnlock = append([]byte{byte(txsystem.StateUnlockExecute)}, ownerProof...)
 
 	_, err = txs.Execute(updateTx)

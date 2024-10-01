@@ -38,7 +38,7 @@ func Test_isFeeCreditTx(t *testing.T) {
 		},
 		{
 			name: "nil - false",
-			args: args{tx: &types.TransactionOrder{Payload: nil}},
+			args: args{tx: &types.TransactionOrder{}},
 			want: false,
 		},
 	}

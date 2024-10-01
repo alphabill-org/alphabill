@@ -26,7 +26,7 @@ Parameters:
 */
 func runChainedPredicates[T types.UnitData](
 	env txtypes.ExecutionContext,
-	tx *types.TransactionOrder,
+	sigBytesFn func() ([]byte, error),
 	parentID types.UnitID,
 	args [][]byte,
 	exec predicates.PredicateRunner,
@@ -46,7 +46,7 @@ func runChainedPredicates[T types.UnitData](
 		if parentID, predicate = iter(parentData); predicate == nil {
 			return fmt.Errorf("unexpected nil predicate")
 		}
-		if err := exec(predicate, args[idx], tx, env); err != nil {
+		if err := exec(predicate, args[idx], sigBytesFn, env); err != nil {
 			return fmt.Errorf("executing predicate [%d] in the chain: %w", idx, err)
 		}
 	}

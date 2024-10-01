@@ -55,7 +55,7 @@ func (f *feeCreditTxRecorder) recordTransferFC(tx *transferFeeCreditTx) {
 }
 
 func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
-	sid := tx.attr.CloseFeeCreditTransfer.TransactionOrder.SystemID()
+	sid := tx.attr.CloseFeeCreditProof.TxRecord.TransactionOrder.SystemID
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
 }
 

@@ -142,7 +142,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, stateRead
 
 		// generate and store unit proofs for all updated units
 		txrHash := tx.Hash(p.hashAlgorithm)
-		for _, unitID := range tx.ServerMetadata.TargetUnits {
+		for _, unitID := range tx.TargetUnits() {
 			var unit *state.Unit
 			unit, err = stateReader.GetUnit(unitID, true)
 			if err != nil {

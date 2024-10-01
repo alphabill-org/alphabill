@@ -77,12 +77,12 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 	return maxTxCost * GasUnitsPerTema
 }
 
-func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
-		fc.PayloadTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes, fc.LockFeeCreditAuthProof](f.validateLockFC, f.executeLockFC),
-		fc.PayloadTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes, fc.UnlockFeeCreditAuthProof](f.validateUnlockFC, f.executeUnlockFC),
+func (f *FeeCreditModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		fc.TransactionTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
+		fc.TransactionTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
+		fc.TransactionTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes, fc.LockFeeCreditAuthProof](f.validateLockFC, f.executeLockFC),
+		fc.TransactionTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes, fc.UnlockFeeCreditAuthProof](f.validateUnlockFC, f.executeUnlockFC),
 	}
 }
 

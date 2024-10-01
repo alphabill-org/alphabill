@@ -57,12 +57,12 @@ func TestFC_Validation(t *testing.T) {
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
 		require.Len(t, fcExecutors, 4)
-		require.Contains(t, fcExecutors, fcsdk.PayloadTypeAddFeeCredit)
-		require.Contains(t, fcExecutors, fcsdk.PayloadTypeCloseFeeCredit)
-		require.Contains(t, fcExecutors, fcsdk.PayloadTypeLockFeeCredit)
-		require.Contains(t, fcExecutors, fcsdk.PayloadTypeUnlockFeeCredit)
-		require.NotContains(t, fcExecutors, fcsdk.PayloadTypeTransferFeeCredit)
-		require.NotContains(t, fcExecutors, fcsdk.PayloadTypeReclaimFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.TransactionTypeAddFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.TransactionTypeCloseFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.TransactionTypeLockFeeCredit)
+		require.Contains(t, fcExecutors, fcsdk.TransactionTypeUnlockFeeCredit)
+		require.NotContains(t, fcExecutors, fcsdk.TransactionTypeTransferFeeCredit)
+		require.NotContains(t, fcExecutors, fcsdk.TransactionTypeReclaimFeeCredit)
 	})
 
 }

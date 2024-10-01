@@ -24,7 +24,7 @@ func NewTransferFC(t *testing.T, signer abcrypto.Signer, attr *fc.TransferFeeCre
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(DefaultMoneyUnitID()),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(fc.PayloadTypeTransferFeeCredit),
+		testtransaction.WithTransactionType(fc.TransactionTypeTransferFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,

@@ -104,10 +104,10 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 	return maxTxCost * feeModule.GasUnitsPerTema
 }
 
-func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		permissioned.PayloadTypeSetFeeCredit:    txtypes.NewTxHandler[permissioned.SetFeeCreditAttributes, permissioned.SetFeeCreditAuthProof](f.validateSetFC, f.executeSetFC),
-		permissioned.PayloadTypeDeleteFeeCredit: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes, permissioned.DeleteFeeCreditAuthProof](f.validateDeleteFC, f.executeDeleteFC),
+func (f *FeeCreditModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		permissioned.TransactionTypeSetFeeCredit:    txtypes.NewTxHandler[permissioned.SetFeeCreditAttributes, permissioned.SetFeeCreditAuthProof](f.validateSetFC, f.executeSetFC),
+		permissioned.TransactionTypeDeleteFeeCredit: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes, permissioned.DeleteFeeCreditAuthProof](f.validateDeleteFC, f.executeDeleteFC),
 	}
 }
 

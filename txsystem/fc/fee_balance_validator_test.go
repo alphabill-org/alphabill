@@ -35,13 +35,13 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	}{
 		{
 			name:          "fee credit record missing",
-			tx:            testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("trans")),
+			tx:            testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(22)),
 			expectedError: "fee credit record missing",
 		},
 		{
 			name: "fee credit record unit is nil",
 			tx: testtransaction.NewTransactionOrder(t,
-				testtransaction.WithPayloadType("trans"),
+				testtransaction.WithTransactionType(22),
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}),
 			),
 			expectedError: "fee credit record unit is nil",
@@ -49,7 +49,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 		{
 			name: "invalid fee proof",
 			tx: testtransaction.NewTransactionOrder(t,
-				testtransaction.WithPayloadType("trans"),
+				testtransaction.WithTransactionType(22),
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 				testtransaction.WithFeeProof(bearer),
 			),

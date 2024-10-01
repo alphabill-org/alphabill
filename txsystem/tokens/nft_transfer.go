@@ -12,7 +12,7 @@ import (
 )
 
 func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, _ *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
 		state.SetOwner(unitID, attr.NewOwnerPredicate),
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -31,7 +31,7 @@ func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder,
 }
 
 func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, authProof *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -54,12 +54,12 @@ func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.TypeID)
 	}
 
-	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		tokenTypeID,
 		authProof.TokenTypeOwnerProofs,
 		n.execPredicate,

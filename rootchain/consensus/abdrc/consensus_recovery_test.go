@@ -160,7 +160,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 						err = errors.Join(err, fmt.Errorf("expected receiver %s got %s", nodeID.String(), m.NodeId))
 					}
 				} else {
-					err = errors.Join(err, fmt.Errorf("unexpected message payload type %T", msg))
+					err = errors.Join(err, fmt.Errorf("unexpected message transaction type %T", msg))
 				}
 				authorErr <- err
 			case <-time.After(time.Second):

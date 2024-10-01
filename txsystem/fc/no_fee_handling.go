@@ -23,8 +23,8 @@ func (f *NoFeeHandling) BuyGas(_ uint64) uint64 {
 	return math.MaxUint64
 }
 
-func (f *NoFeeHandling) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{}
+func (f *NoFeeHandling) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{}
 }
 
 func (f *NoFeeHandling) IsCredible(_ txtypes.ExecutionContext, _ *types.TransactionOrder) error {

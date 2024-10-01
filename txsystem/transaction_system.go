@@ -8,7 +8,11 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
+var (
+	ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
+	ErrTransactionExpired              = errors.New("transaction timeout must be greater than current block number")
+	ErrInvalidSystemIdentifier         = errors.New("error invalid system identifier")
+)
 
 type (
 	// TransactionSystem is a set of rules and logic for defining units and performing transactions with them.

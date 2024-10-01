@@ -170,9 +170,9 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		},
 		Transactions: []*types.TransactionRecord{{
 			TransactionOrder: &types.TransactionOrder{
-				Payload: &types.Payload{
+				Payload: types.Payload{
 					SystemID:       0,
-					Type:           "test",
+					Type:           22,
 					UnitID:         nil,
 					Attributes:     nil,
 					ClientMetadata: nil,
@@ -220,9 +220,9 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			UnicitySeal: seal,
 		},
 		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID:       0,
-				Type:           "test",
+				Type:           22,
 				UnitID:         nil,
 				Attributes:     nil,
 				ClientMetadata: nil,

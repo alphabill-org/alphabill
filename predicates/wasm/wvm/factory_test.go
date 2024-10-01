@@ -35,9 +35,9 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 
 	t.Run("TransactionOrder ok", func(t *testing.T) {
 		txo := types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID: 1,
-				Type:     "txt",
+				Type:     22,
 			},
 			AuthProof: []byte{1},
 			FeeProof:  []byte{2},
@@ -53,8 +53,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 
 	t.Run("TransactionRecord ok", func(t *testing.T) {
 		txr := types.TransactionRecord{
-			TransactionOrder: &types.TransactionOrder{
-			},
+			TransactionOrder: &types.TransactionOrder{},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,
 				SuccessIndicator: types.TxStatusSuccessful,

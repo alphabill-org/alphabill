@@ -53,7 +53,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 	serverMetadata, err := txSystem.Execute(txo)
 	require.NoError(t, err)
 	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{txo.UnitID()}, serverMetadata.TargetUnits)
+	require.Equal(t, []types.UnitID{txo.UnitID}, serverMetadata.TargetUnits)
 	require.True(t, serverMetadata.ActualFee == 0)
 
 	stateSummary, err := txSystem.EndBlock()

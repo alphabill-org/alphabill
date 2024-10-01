@@ -26,14 +26,14 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	attr := testfc.NewCloseFCAttr()
 	authProof := &fc.CloseFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewCloseFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 	// execute closeFC transaction
-	require.NoError(t, feeCreditModule.validateCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))))
-	sm, err := feeCreditModule.executeCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+	require.NoError(t, feeCreditModule.validateCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))))
+	sm, err := feeCreditModule.executeCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	// verify closeFC updated the FCR.Counter
-	fcrUnit, err := feeCreditModule.state.GetUnit(tx.UnitID(), false)
+	fcrUnit, err := feeCreditModule.state.GetUnit(tx.UnitID, false)
 	require.NoError(t, err)
 	fcr, ok := fcrUnit.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
@@ -46,24 +46,24 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 
 	t.Run("Ok", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.NoError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx))
 	})
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 		)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"invalid fee credit transaction: fee transaction cannot contain fee credit reference")
 	})
@@ -72,102 +72,102 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 			testtransaction.WithUnitID([]byte{8}))
 		feeModule := newTestFeeModule(t, trustBase,
 			withFeeCreditType([]byte{0xFF}),
-			withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+			withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"fee credit error: invalid unit identifier: type is not fee credit record")
 	})
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithFeeProof(feeProof))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"invalid fee credit transaction: fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &testData{}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &testData{}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"fee credit error: invalid unit type: unit is not fee credit record")
 	})
 	t.Run("Invalid amount", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: invalid amount: amount=51 fcr.Balance=50")
 	})
 	t.Run("Invalid counter", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(50), testfc.WithCloseFCCounter(10)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: invalid counter: counter=10 fcr.Counter=11")
 	})
 	t.Run("Nil target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID([]byte{})))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: TargetUnitID is empty")
 	})
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"not enough funds: max fee cannot exceed fee credit record balance: tx.maxFee=51 fcr.Balance=50")
 	})
 	t.Run("Close locked credit", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID(), nil, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
+		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(5))
+		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"validation error: fee credit record is locked")
 	})
@@ -203,7 +203,7 @@ func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOptio
 		systemIdentifier:      moneySystemID,
 		moneySystemIdentifier: moneySystemID,
 		trustBase:             tb,
-		execPredicate: func(predicate types.PredicateBytes, args []byte, tx *types.TransactionOrder, env predicates.TxContext) error {
+		execPredicate: func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
 			return nil
 		},
 		feeCreditRecordUnitType: money.FeeCreditRecordUnitType,

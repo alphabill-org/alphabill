@@ -126,8 +126,8 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
-			Payload: &types.Payload{
-				Type:           orchestration.PayloadTypeAddVAR,
+			Payload: types.Payload{
+				Type:           orchestration.TransactionTypeAddVAR,
 				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 				SystemID:       orchestration.DefaultSystemID,

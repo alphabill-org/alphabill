@@ -55,13 +55,13 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 
 	var proof []byte
 	var unmarshalErr error
-	switch txo.PayloadType() {
-	case tokens.PayloadTypeTransferNFT:
+	switch txo.Type {
+	case tokens.TransactionTypeTransferNFT:
 		var authProof tokens.TransferNonFungibleTokenAuthProof
 		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
 			proof = authProof.OwnerProof
 		}
-	case tokens.PayloadTypeUpdateNFT:
+	case tokens.TransactionTypeUpdateNFT:
 		var authProof tokens.UpdateNonFungibleTokenAuthProof
 		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
 			proof = authProof.TokenDataUpdateProof
@@ -76,7 +76,8 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
+	ok, err := vec.engines(ctx, predicate, proof, txo.AuthProofSigBytes, vec.curPrg.env)
+	//ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -90,7 +91,7 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 
 func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	// args: handle of txProof, handle of txRec
-	proof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
+	txProof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
 	if err != nil {
 		return fmt.Errorf("tx proof: %w", err)
 	}
@@ -103,7 +104,11 @@ func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)
 	}
-	if err := types.VerifyTxProof(proof, txRec, tb, crypto.SHA256); err != nil {
+	txRecordProof := &types.TxRecordProof{
+		TxRecord: txRec,
+		TxProof:  txProof,
+	}
+	if err := types.VerifyTxProof(txRecordProof, tb, crypto.SHA256); err != nil {
 		vec.log.Debug(fmt.Sprintf("%s.verifyTxProof: %v", mod.Name(), err))
 		stack[0] = 1
 	} else {
@@ -138,7 +143,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
 	}
-	var txs []types.TxRecordProof
+	var txs []*types.TxRecordProof
 	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
@@ -168,11 +173,11 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+func amountTransferredSum(trustBase types.RootTrustBase, proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
-		sum, err := transferredSum(trustBase, v.TxRecord, v.TxProof, receiverPKH, refNo)
+		sum, err := transferredSum(trustBase, v, receiverPKH, refNo)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
 		}
@@ -192,22 +197,24 @@ Arguments:
 
 unknown / invalid transactions are ignored (not error)?
 */
-func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecord, txProof *types.TxProof, receiverPKH []byte, refNo []byte) (uint64, error) {
-	if txRec == nil || txProof == nil || txRec.TransactionOrder == nil || trustBase == nil {
-		return 0, errors.New("invalid input: either trustbase, tx proof, tx record or tx order is unassigned")
+func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+	if err := txRecordProof.IsValid(); err != nil {
+		return 0, fmt.Errorf("invalid input: %w", err)
 	}
-
-	txo := txRec.TransactionOrder
-	if txo.SystemID() != money.DefaultSystemID {
-		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID())
+	if trustBase == nil {
+		return 0, errors.New("invalid input: trustbase is unassigned")
 	}
-	if refNo != nil && (txo.Payload == nil || txo.Payload.ClientMetadata == nil || !bytes.Equal(refNo, txo.Payload.ClientMetadata.ReferenceNumber)) {
+	txo := txRecordProof.TransactionOrder()
+	if txo.SystemID != money.DefaultSystemID {
+		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID)
+	}
+	if refNo != nil && !bytes.Equal(refNo, txo.ReferenceNumber()) {
 		return 0, errors.New("reference number mismatch")
 	}
 
 	var sum uint64
-	switch txo.PayloadType() {
-	case money.PayloadTypeTransfer:
+	switch txo.Type {
+	case money.TransactionTypeTransfer:
 		attr := money.TransferAttributes{}
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding transfer attributes: %w", err)
@@ -220,7 +227,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 			return 0, nil
 		}
 		sum = attr.TargetValue
-	case money.PayloadTypeSplit:
+	case money.TransactionTypeSplit:
 		attr := money.SplitAttributes{}
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding split attributes: %w", err)
@@ -240,7 +247,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 	}
 
 	// potentially costly operation so we do it last
-	if err := types.VerifyTxProof(txProof, txRec, trustBase, crypto.SHA256); err != nil {
+	if err := types.VerifyTxProof(txRecordProof, trustBase, crypto.SHA256); err != nil {
 		return 0, fmt.Errorf("verification of transaction: %w", err)
 	}
 

@@ -14,15 +14,15 @@ import (
 
 func (n *NonFungibleTokensModule) executeMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *tokens.MintNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if err := n.state.Apply(
-		state.AddUnit(tx.UnitID(), attr.OwnerPredicate, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
+		state.AddUnit(tx.UnitID, attr.OwnerPredicate, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, authProof *tokens.MintNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenID := tx.UnitID()
+	tokenID := tx.GetUnitID()
 	tokenTypeID := attr.TypeID
 
 	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
@@ -84,7 +84,7 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	}
 
 	// verify token minting predicate of the type
-	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx, exeCtx); err != nil {
+	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf(`executing NFT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

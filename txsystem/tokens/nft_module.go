@@ -25,11 +25,11 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 	}, nil
 }
 
-func (n *NonFungibleTokensModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		tokens.PayloadTypeDefineNFT:   txtypes.NewTxHandler[tokens.DefineNonFungibleTokenAttributes, tokens.DefineNonFungibleTokenAuthProof](n.validateDefineNFT, n.executeDefineNFT),
-		tokens.PayloadTypeMintNFT:     txtypes.NewTxHandler[tokens.MintNonFungibleTokenAttributes, tokens.MintNonFungibleTokenAuthProof](n.validateMintNFT, n.executeMintNFT),
-		tokens.PayloadTypeTransferNFT: txtypes.NewTxHandler[tokens.TransferNonFungibleTokenAttributes, tokens.TransferNonFungibleTokenAuthProof](n.validateTransferNFT, n.executeTransferNFT),
-		tokens.PayloadTypeUpdateNFT:   txtypes.NewTxHandler[tokens.UpdateNonFungibleTokenAttributes, tokens.UpdateNonFungibleTokenAuthProof](n.validateUpdateNFT, n.executeUpdateNFT),
+func (n *NonFungibleTokensModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		tokens.TransactionTypeDefineNFT:   txtypes.NewTxHandler[tokens.DefineNonFungibleTokenAttributes, tokens.DefineNonFungibleTokenAuthProof](n.validateDefineNFT, n.executeDefineNFT),
+		tokens.TransactionTypeMintNFT:     txtypes.NewTxHandler[tokens.MintNonFungibleTokenAttributes, tokens.MintNonFungibleTokenAuthProof](n.validateMintNFT, n.executeMintNFT),
+		tokens.TransactionTypeTransferNFT: txtypes.NewTxHandler[tokens.TransferNonFungibleTokenAttributes, tokens.TransferNonFungibleTokenAuthProof](n.validateTransferNFT, n.executeTransferNFT),
+		tokens.TransactionTypeUpdateNFT:   txtypes.NewTxHandler[tokens.UpdateNonFungibleTokenAttributes, tokens.UpdateNonFungibleTokenAuthProof](n.validateUpdateNFT, n.executeUpdateNFT),
 	}
 }

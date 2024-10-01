@@ -9,39 +9,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SignBytes(t *testing.T, sigData []byte) ([]byte, []byte) {
-	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+// NewAuthProofSignature creates a P2PKH predicate signature for AuthProof.
+func NewAuthProofSignature(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
+	sigBytes, err := txo.AuthProofSigBytes()
 	require.NoError(t, err)
-
-	sig, err := signer.SignBytes(sigData)
-	require.NoError(t, err)
-
-	verifier, err := signer.Verifier()
-	require.NoError(t, err)
-
-	pubKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-
-	return sig, pubKey
+	return NewP2pkhSignature(t, signer, sigBytes)
 }
 
-// NewOwnerProof creates a P2PKH predicate signature aka the "OwnerProof"
-func NewOwnerProof(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
-	sigBytes, err := txo.PayloadBytes()
-	require.NoError(t, err)
-	signedBytes, err := signer.SignBytes(sigBytes)
-	require.NoError(t, err)
-	verifier, err := signer.Verifier()
-	require.NoError(t, err)
-	publicKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	return templates.NewP2pkh256SignatureBytes(signedBytes, publicKey)
-}
-
-// NewFeeProof creates a P2PKH fee predicate signature aka the "FeeProof"
-func NewFeeProof(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
+// NewFeeProofSignature creates a P2PKH fee predicate signature for FeeProof.
+func NewFeeProofSignature(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
 	sigBytes, err := txo.FeeProofSigBytes()
 	require.NoError(t, err)
+	return NewP2pkhSignature(t, signer, sigBytes)
+}
+
+// NewStateLockProofSignature creates a P2PKH fee predicate signature for StateLock.
+func NewStateLockProofSignature(t *testing.T, txo *types.TransactionOrder, signer abcrypto.Signer) []byte {
+	sigBytes, err := txo.StateLockProofSigBytes()
+	require.NoError(t, err)
+	return NewP2pkhSignature(t, signer, sigBytes)
+}
+
+func NewP2pkhSignature(t *testing.T, signer abcrypto.Signer, sigBytes []byte) []byte {
 	signedBytes, err := signer.SignBytes(sigBytes)
 	require.NoError(t, err)
 	verifier, err := signer.Verifier()

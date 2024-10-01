@@ -130,9 +130,9 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID:       tokens.DefaultSystemID,
-				Type:           tokens.PayloadTypeDefineNFT,
+				Type:           tokens.TransactionTypeDefineNFT,
 				UnitID:         id[:],
 				Attributes:     attrBytes,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
@@ -147,7 +147,7 @@ func TestRunTokensNode(t *testing.T) {
 
 		// failing case
 		var res2 types.Bytes
-		tx.Payload.SystemID = 0x01000000 // incorrect system id
+		tx.SystemID = 0x01000000 // incorrect system id
 		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))

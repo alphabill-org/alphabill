@@ -13,25 +13,25 @@ import (
 )
 
 func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, _ *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
-	// calculate actual tx fee cost
+	unitID := tx.GetUnitID()
 	fee := exeCtx.CalculateCost()
+
 	// find net value of credit
-	_, transferFC, err := getTransferFc(attr)
+	transferProof := attr.FeeCreditTransferProof
+	transferAttributes, err := getTransferFC(transferProof)
 	if err != nil {
 		return nil, err
 	}
+	newBalance := transferAttributes.Amount - transferProof.ActualFee() - fee
 
-	v := transferFC.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
-
-	err = f.state.Apply(unit.IncrCredit(unitID, v, transferFC.LatestAdditionTime))
+	err = f.state.Apply(unit.IncrCredit(unitID, newBalance, transferAttributes.LatestAdditionTime))
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
 		// add credit
 		fcr := &fc.FeeCreditRecord{
-			Balance: v,
+			Balance: newBalance,
 			Counter: 0,
-			Timeout: transferFC.LatestAdditionTime,
+			Timeout: transferAttributes.LatestAdditionTime,
 			Locked:  0,
 		}
 		err = f.state.Apply(unit.AddCredit(unitID, attr.FeeCreditOwnerPredicate, fcr))
@@ -48,12 +48,12 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	}
 
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	fcr, fcrOwnerPredicate, err := parseFeeCreditRecord(tx.UnitID(), f.feeCreditRecordUnitType, f.state)
+	fcr, fcrOwnerPredicate, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
 	createFC := errors.Is(err, avl.ErrNotFound)
-	transTxr, transAttr, err := f.checkTransferFc(tx, attr, exeCtx)
+	transAttr, err := f.checkTransferFC(tx, attr, exeCtx)
 	if err != nil {
 		return fmt.Errorf("add fee credit validation failed: %w", err)
 	}
@@ -61,16 +61,16 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	if createFC {
 		// try to create free credit
 		// 3. S.N[P.ι] != ⊥ ∨ ExtrUnit(P.ι) = PrndSh(ExtrUnit(P.ι), P.A.φ|P′.A.t′) – if the target does not exist, the identifier must agree with the owner predicate
-		fcrID := f.NewFeeCreditRecordID(tx.UnitID(), attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
-		if !fcrID.Eq(tx.UnitID()) {
-			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID(), fcrID)
+		fcrID := f.NewFeeCreditRecordID(tx.UnitID, attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
+		if !fcrID.Eq(tx.UnitID) {
+			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID, fcrID)
 		}
 		// on first create the transfer counter must not be present
 		if transAttr.TargetUnitCounter != nil {
 			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 		}
 		// 4. S.N[P.ι] != ⊥ ∨ VerifyOwner(P.A.φ, P, P.s) = 1 – if the target does not exist, the owner proof must verify
-		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
+		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 			return fmt.Errorf("executing fee credit predicate: %w", err)
 		}
 	} else {
@@ -89,69 +89,63 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		}
 	}
 	// 5. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, transTxr, f.trustBase, f.hashAlgorithm); err != nil {
+	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, f.trustBase, f.hashAlgorithm); err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}
-	addCreditCost := attr.FeeCreditTransfer.ServerMetadata.ActualFee + exeCtx.CalculateCost()
-	if transAttr.Amount < attr.FeeCreditTransfer.ServerMetadata.ActualFee+addCreditCost {
+	transferCreditCost := attr.FeeCreditTransferProof.ActualFee()
+	addCreditCost := transferCreditCost + exeCtx.CalculateCost()
+	if transAttr.Amount < transferCreditCost+addCreditCost {
 		return fmt.Errorf("add fee credit costs more %v than amount transfered %v", addCreditCost, transAttr.Amount)
 	}
 	return nil
 }
 
-func (f *FeeCreditModule) checkTransferFc(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
-	if attr.FeeCreditTransferProof == nil {
-		return nil, nil, errors.New("transferFC transaction proof is nil")
+func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, exeCtx txtypes.ExecutionContext) (*fc.TransferFeeCreditAttributes, error) {
+	transProof := attr.FeeCreditTransferProof
+	if err := transProof.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid transferFC transaction record proof: %w", err)
 	}
-	transTxr, transAttr, err := getTransferFc(attr)
+	transAttr, err := getTransferFC(transProof)
 	if err != nil {
-		return nil, nil, fmt.Errorf("transfer transaction attributes error: %w", err)
-	}
-	if transTxr.ServerMetadata == nil {
-		return nil, nil, errors.New("transferFC transaction order is missing server metadata")
+		return nil, fmt.Errorf("transfer transaction attributes error: %w", err)
 	}
 	// 6. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
-	if transTxr.TransactionOrder.SystemID() != f.moneySystemIdentifier {
-		return nil, nil, fmt.Errorf("invalid transferFC money system identifier %s (expected %s)", transTxr.TransactionOrder.SystemID(), f.moneySystemIdentifier)
+	systemID := transProof.TransactionOrder().SystemID
+	if systemID != f.moneySystemIdentifier {
+		return nil, fmt.Errorf("invalid transferFC money system identifier %s (expected %s)", systemID, f.moneySystemIdentifier)
 	}
 	// 7. P.A.P.A.α = P.α – bill was transferred to fee credits for this system
 	if transAttr.TargetSystemIdentifier != f.systemIdentifier {
-		return nil, nil, fmt.Errorf("invalid transferFC target system identifier: expected_target_system_id: %s actual_target_system_id=%s", f.systemIdentifier, transAttr.TargetSystemIdentifier)
+		return nil, fmt.Errorf("invalid transferFC target system identifier: expected_target_system_id: %s actual_target_system_id=%s", f.systemIdentifier, transAttr.TargetSystemIdentifier)
 	}
 	// 8. P.A.P.A.ιf = P.ι – bill was transferred to fee credits of the target record
-	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID()) {
-		return nil, nil, fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%s tx.UnitId=%s", types.UnitID(transAttr.TargetRecordID), tx.UnitID())
+	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID) {
+		return nil, fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%s tx.UnitId=%s", types.UnitID(transAttr.TargetRecordID), tx.UnitID)
 	}
 
 	// 10. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
 	if exeCtx.CurrentRound() > transAttr.LatestAdditionTime {
-		return nil, nil, fmt.Errorf("invalid transferFC timeout: latestAdditionTime=%d currentRoundNumber=%d", transAttr.LatestAdditionTime, exeCtx.CurrentRound())
+		return nil, fmt.Errorf("invalid transferFC timeout: latestAdditionTime=%d currentRoundNumber=%d", transAttr.LatestAdditionTime, exeCtx.CurrentRound())
 	}
 	// 11. P.MC.fa + P.MC.fm ≤ P.A.P.A.v – the transaction fees can’t exceed the transferred value
-	feeLimit := tx.Payload.ClientMetadata.MaxTransactionFee + transTxr.ServerMetadata.ActualFee
+	feeLimit := tx.MaxFee() + transProof.ActualFee()
 	if feeLimit > transAttr.Amount {
-		return nil, nil, fmt.Errorf("invalid transferFC fee: max_fee+actual_fee=%d transferFC.Amount=%d", feeLimit, transAttr.Amount)
+		return nil, fmt.Errorf("invalid transferFC fee: max_fee+actual_fee=%d transferFC.Amount=%d", feeLimit, transAttr.Amount)
 	}
-	return transTxr, transAttr, nil
+	return transAttr, nil
 }
 
-func getTransferFc(addAttr *fc.AddFeeCreditAttributes) (*types.TransactionRecord, *fc.TransferFeeCreditAttributes, error) {
-	transTxr := addAttr.FeeCreditTransfer
-	if transTxr == nil {
-		return nil, nil, errors.New("transferFC transaction record is nil")
+func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCreditAttributes, error) {
+	txo := addFeeCreditProof.TransactionOrder()
+	txType := txo.Type
+	if txType != fc.TransactionTypeTransferFeeCredit {
+		return nil, fmt.Errorf("invalid transfer fee credit transaction transaction type: %d", txType)
 	}
-	transTxo := transTxr.TransactionOrder
-	if transTxo == nil {
-		return nil, nil, errors.New("transferFC transaction order is nil")
+	transferAttributes := &fc.TransferFeeCreditAttributes{}
+	if err := txo.UnmarshalAttributes(transferAttributes); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal transfer payload: %w", err)
 	}
-	if transTxo.PayloadType() != fc.PayloadTypeTransferFeeCredit {
-		return nil, nil, fmt.Errorf("invalid transfer fee credit transaction payload type: %s", transTxo.PayloadType())
-	}
-	transferPayload := &fc.TransferFeeCreditAttributes{}
-	if err := transTxo.UnmarshalAttributes(transferPayload); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal transfer payload: %w", err)
-	}
-	return transTxr, transferPayload, nil
+	return transferAttributes, nil
 }
 
 func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) types.UnitID {

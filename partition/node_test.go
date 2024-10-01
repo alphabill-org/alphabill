@@ -145,7 +145,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.True(t, ContainsTransaction(block3, tx2))
 	require.False(t, ContainsTransaction(block3, transfer))
 
-	_, _, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(33))
+	_, err := tp.partition.GetTransactionRecordProof(context.Background(), test.RandomBytes(33))
 	require.ErrorIs(t, err, ErrIndexNotFound)
 }
 
@@ -601,27 +601,27 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	require.NoError(t, err)
 	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
-	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
+	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(21))
 	hash := txo.Hash(tp.partition.configuration.hashAlgorithm)
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 
-	order2 := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test22"))
-	hash2 := order2.Hash(tp.partition.configuration.hashAlgorithm)
-	require.NoError(t, tp.SubmitTxFromRPC(order2))
+	txo2 := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(22))
+	hash2 := txo2.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, tp.SubmitTxFromRPC(txo2))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash)
+		proof, err := tp.partition.GetTransactionRecordProof(context.Background(), hash)
 		require.NoError(t, err)
-		return record != nil && proof != nil
+		return proof != nil
 	}, test.WaitDuration, test.WaitTick)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash2)
+		proof, err := tp.partition.GetTransactionRecordProof(context.Background(), hash2)
 		require.NoError(t, err)
-		return record != nil && proof != nil
+		return proof != nil
 	}, test.WaitDuration, test.WaitTick)
 }
 
@@ -630,8 +630,7 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	tp := RunSingleNodePartition(t, system, WithProofIndex(db, 0))
-	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
+	proof, err := tp.partition.GetTransactionRecordProof(context.Background(), test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrIndexNotFound)
-	require.Nil(t, record)
 	require.Nil(t, proof)
 }

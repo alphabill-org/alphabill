@@ -14,7 +14,7 @@ import (
 )
 
 func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, _ *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 
 	// 1. SetOwner(ι, DC)
 	setOwnerFn := state.SetOwner(unitID, templates.AlwaysFalseBytes())
@@ -39,7 +39,7 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, authProof *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
+	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
@@ -56,13 +56,12 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
 
-	err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx)
-	if err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		tokenData.TokenType,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,

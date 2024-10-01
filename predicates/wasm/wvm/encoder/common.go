@@ -16,7 +16,7 @@ type UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
 // tx attribute encoder ID
 type AttrEncID struct {
 	TxSys types.SystemID
-	Attr  string // tx attributes type id (payload type name)
+	Attr  uint16 // tx type id
 }
 
 /*
@@ -80,19 +80,18 @@ func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandl
 
 func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, error) {
 	var buf TVEnc
-	buf.EncodeTagged(1, uint32(txo.SystemID()))
-	buf.EncodeTagged(2, txo.Payload.Type)
-	buf.EncodeTagged(3, txo.Payload.UnitID)
-	if txo.Payload.ClientMetadata != nil {
-		buf.EncodeTagged(4, txo.Payload.ClientMetadata.ReferenceNumber)
-	}
+	buf.EncodeTagged(1, uint16(txo.NetworkID))
+	buf.EncodeTagged(2, uint32(txo.SystemID))
+	buf.EncodeTagged(3, txo.UnitID)
+	buf.EncodeTagged(4, txo.Type)
+	buf.EncodeTagged(5, txo.ReferenceNumber())
 	return buf.Bytes()
 }
 
 func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID(), Attr: txo.PayloadType()}]
+	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID, Attr: txo.Type}]
 	if !ok {
-		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.Payload.SystemID, txo.PayloadType())
+		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.SystemID, txo.Type)
 	}
 	return encoder(txo, ver)
 }

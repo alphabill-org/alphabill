@@ -12,7 +12,7 @@ import (
 )
 
 func NewFeeCreditRecordID(t *testing.T, signer abcrypto.Signer) types.UnitID {
-	ownerPredicate := NewP2pkhFeeAuthPredicate(t, signer)
+	ownerPredicate := NewP2pkhPredicate(t, signer)
 	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, latestAdditionTime)
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
@@ -23,12 +23,12 @@ func NewFeeCreditRecordIDAlwaysTrue() types.UnitID {
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
 
-func NewP2pkhFeeAuthPredicate(t *testing.T, signer abcrypto.Signer) types.PredicateBytes {
+func NewP2pkhPredicate(t *testing.T, signer abcrypto.Signer) types.PredicateBytes {
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
 	publicKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	return templates.NewP2pkh256FeeAuthBytesFromKey(publicKey)
+	return templates.NewP2pkh256BytesFromKey(publicKey)
 }
 
 func DefaultMoneyUnitID() types.UnitID {

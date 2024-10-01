@@ -402,8 +402,8 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
 		if err != nil {
-			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
-			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.TransactionOrder.UnitID(), err)
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.UnitID(), err)
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
@@ -573,15 +573,15 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr er
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
-	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID()))
+	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID))
 	return nil
 }
 
 func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.ServerMetadata, rErr error) {
 	defer func(start time.Time) {
-		txtattr := attribute.String("tx", tx.PayloadType())
-		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txtattr, attribute.String("status", statusCodeOfTxError(rErr)))))
-		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txtattr)))
+		txTypeAttr := attribute.Int("tx", int(tx.Type))
+		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
+		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)))
 	}(time.Now())
 
 	if err := n.txValidator.Validate(tx, round); err != nil {
@@ -1368,25 +1368,25 @@ func (n *Node) LatestBlockNumber() (uint64, error) {
 	return n.committedUC().GetRoundNumber(), nil
 }
 
-func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*types.TxRecordProof, error) {
 	proofs := n.proofIndexer.GetDB()
-	index, err := ReadTransactionIndex(proofs, hash)
+	index, err := ReadTransactionIndex(proofs, txoHash)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
+		return nil, fmt.Errorf("unable to query tx index: %w", err)
 	}
 	b, err := n.GetBlock(ctx, index.RoundNumber)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to load block: %w", err)
+		return nil, fmt.Errorf("unable to load block: %w", err)
 	}
-	proof, record, err := types.NewTxProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
+	txRecordProof, err := types.NewTxRecordProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
+		return nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
 	}
-	h := record.TransactionOrder.Hash(n.configuration.hashAlgorithm)
-	if !bytes.Equal(h, hash) {
-		return nil, nil, errors.New("transaction index is invalid: hash mismatch")
+	h := txRecordProof.TransactionOrder().Hash(n.configuration.hashAlgorithm)
+	if !bytes.Equal(h, txoHash) {
+		return nil, errors.New("transaction index is invalid: hash mismatch")
 	}
-	return record, proof, nil
+	return txRecordProof, nil
 }
 
 /*

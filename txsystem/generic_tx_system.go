@@ -139,7 +139,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// First, check transaction credible and that there are enough fee credits on the FRC?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.GetClientMaxTxFee())
+	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {
@@ -150,7 +150,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		return nil, fmt.Errorf("error transaction snFees: %w", err)
 	}
 	// all transactions that get this far will go into bock even if they fail and cost is credited from user FCR
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
 		sm, err := m.executeFc(tx, exeCtx)
@@ -178,7 +178,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
-			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.UnitID()), logger.Round(m.currentRoundNumber))
+			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
 			result.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order
@@ -191,7 +191,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		sm.ActualFee = exeCtx.CalculateCost()
 		if sm.ActualFee > 0 {
 			// credit the cost from
-			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+			feeCreditRecordID := tx.FeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				// Tx must not be added to block - FCR could not be credited.
 				// Otherwise, Tx would be for free, and there are no funds taken to pay validators
@@ -234,11 +234,11 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
-		txExecErr = fmt.Errorf("transaction '%s' validation error: %w", tx.PayloadType(), err)
+		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
 		return result, nil
 	}
 	// either state lock or execute Tx
-	if tx.Payload.HasStateLock() {
+	if tx.HasStateLock() {
 		// handle conditional lock of units
 		sm, err = m.executeLockUnitState(tx, exeCtx)
 		result = appendServerMetadata(result, sm)
@@ -258,7 +258,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
 	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
-	if tx.Payload.StateLock != nil {
+	if tx.StateLock != nil {
 		return nil, fmt.Errorf("error fc transaction contains state lock")
 	}
 	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
@@ -310,12 +310,12 @@ implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// 1. P.α = S.α – transaction is sent to this system
-	if m.pdr.SystemIdentifier != tx.SystemID() {
+	if m.pdr.SystemIdentifier != tx.SystemID {
 		return ErrInvalidSystemIdentifier
 	}
 
 	// 2. fSH(P.ι)=S.σ–target unit is in this shard
-	if err := m.unitIdValidator(tx.UnitID()); err != nil {
+	if err := m.unitIdValidator(tx.UnitID); err != nil {
 		return err
 	}
 

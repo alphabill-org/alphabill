@@ -11,7 +11,7 @@ import (
 )
 
 func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, _ *money.TransferDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	// 1. SetOwner(ι, DC)
 	setOwnerFn := state.SetOwner(unitID, DustCollectorPredicate)
 
@@ -57,14 +57,14 @@ func (m *Module) executeTransferDCTx(tx *types.TransactionOrder, attr *money.Tra
 }
 
 func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.TransferDCAttributes, authProof *money.TransferDCAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unit, err := m.state.GetUnit(tx.UnitID(), false)
+	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return err
 	}
 	if err = validateTransferDC(unit.Data(), attr); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("validateTransferDC error: %w", err)
 	}
 	return nil

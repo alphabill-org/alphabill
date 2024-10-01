@@ -33,19 +33,21 @@ func (t *testData) Copy() types.UnitData { return &testData{} }
 // test
 func TestValidateGenericFeeCreditTx(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
-			&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}))
+		tx := testtransaction.NewTransactionOrder(t,
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{}),
+		)
 		require.NoError(t, ValidateGenericFeeCreditTx(tx))
 	})
 	t.Run("Fee credit transactions must not have fee proof", func(t *testing.T) {
-		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
-			&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}))
+		tx := testtransaction.NewTransactionOrder(t,
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{}),
+		)
 		tx.FeeProof = []byte{1, 2, 3}
 		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("Fee credit transactions must not contain FeeCreditRecordID", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
-			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{}),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1, 2, 3}}),
 		)
 		require.EqualError(t, ValidateGenericFeeCreditTx(tx), "fee transaction cannot contain fee credit reference")
@@ -55,7 +57,7 @@ func TestValidateGenericFeeCreditTx(t *testing.T) {
 func TestVerifyMaxTxFeeDoesNotExceedFRCBalance(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
-			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{}),
 			testtransaction.WithClientMetadata(
 				&types.ClientMetadata{
 					FeeCreditRecordID: []byte{1, 2, 3},
@@ -66,7 +68,7 @@ func TestVerifyMaxTxFeeDoesNotExceedFRCBalance(t *testing.T) {
 	})
 	t.Run("not enough max fee is more than FCR balance", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
-			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransfer: nil}),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{}),
 			testtransaction.WithClientMetadata(
 				&types.ClientMetadata{
 					FeeCreditRecordID: []byte{1, 2, 3},

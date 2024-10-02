@@ -148,12 +148,12 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	unicitySeal := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.PreviousHash = make([]byte, 32)
-		seal.RootChainRoundNumber = 2
-		seal.Timestamp = 1000
-		seal.Hash = hash
-	})
+	unicitySeal := &types.UnicitySeal{
+		PreviousHash:         make([]byte, 32),
+		RootChainRoundNumber: 2,
+		Timestamp:            1000,
+		Hash:                 hash,
+	}
 	require.NoError(t, unicitySeal.Sign(rootID, rSigner))
 	rg := &RootGenesis{
 		Partitions: []*GenesisPartitionRecord{

@@ -50,10 +50,10 @@ func CreateUnicityCertificate(
 }
 
 func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
-	return types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.RootChainRoundNumber = roundNumber
-		seal.Timestamp = types.NewTimestamp()
-		seal.PreviousHash = previousRoundRootHash
-		seal.Hash = rootHash
-	})
+	return &types.UnicitySeal{
+		RootChainRoundNumber: roundNumber,
+		Timestamp:            types.NewTimestamp(),
+		PreviousHash:         previousRoundRootHash,
+		Hash:                 rootHash,
+	}
 }

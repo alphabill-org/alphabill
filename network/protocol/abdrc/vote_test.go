@@ -34,12 +34,10 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 		{
 			name: "Sign ok",
 			fields: fields{
-				VoteInfo: voteInfo,
-				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-					seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
-				}),
-				HighQc: &drctypes.QuorumCert{},
-				Author: "test",
+				VoteInfo:         voteInfo,
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+				HighQc:           &drctypes.QuorumCert{},
+				Author:           "test",
 			},
 			args:       args{signer: s1},
 			wantErrStr: "",
@@ -47,11 +45,10 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 		{
 			name: "Vote info hash is nil",
 			fields: fields{
-				VoteInfo: nil,
-				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-				}),
-				HighQc: &drctypes.QuorumCert{},
-				Author: "test",
+				VoteInfo:         nil,
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
+				HighQc:           &drctypes.QuorumCert{},
+				Author:           "test",
 			},
 			args:       args{signer: s1},
 			wantErrStr: "invalid round info hash",
@@ -59,11 +56,10 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 		{
 			name: "Signer is nil",
 			fields: fields{
-				VoteInfo: nil,
-				LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-				}),
-				HighQc: &drctypes.QuorumCert{},
-				Author: "test",
+				VoteInfo:         nil,
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
+				HighQc:           &drctypes.QuorumCert{},
+				Author:           "test",
 			},
 			args:       args{signer: nil},
 			wantErrStr: "signer is nil",
@@ -108,9 +104,9 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
 		vote := &VoteMsg{
 			VoteInfo: voteMsgInfo,
-			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-				seal.PreviousHash = voteMsgInfo.Hash(gocrypto.SHA256)
-			}),
+			LedgerCommitInfo: &types.UnicitySeal{
+				PreviousHash: voteMsgInfo.Hash(gocrypto.SHA256),
+			},
 			HighQc: &drctypes.QuorumCert{
 				VoteInfo:         commitQcInfo,
 				LedgerCommitInfo: commitInfo,

@@ -144,13 +144,13 @@ func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.RootChainRoundNumber = 1
-		seal.Timestamp = 10000
-		seal.PreviousHash = test.RandomBytes(32)
-		seal.Hash = test.RandomBytes(32)
-		seal.Signatures = map[string][]byte{"1": test.RandomBytes(32)}
-	})
+	seal := &types.UnicitySeal{
+		RootChainRoundNumber: 1,
+		Timestamp:            10000,
+		PreviousHash:         test.RandomBytes(32),
+		Hash:                 test.RandomBytes(32),
+		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
@@ -195,13 +195,13 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 func TestBlockProposal_InvalidSignature(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.RootChainRoundNumber = 1
-		seal.PreviousHash = test.RandomBytes(32)
-		seal.Hash = test.RandomBytes(32)
-		seal.Timestamp = 10000
-		seal.Signatures = map[string][]byte{"1": test.RandomBytes(32)}
-	})
+	seal := &types.UnicitySeal{
+		RootChainRoundNumber: 1,
+		PreviousHash:         test.RandomBytes(32),
+		Hash:                 test.RandomBytes(32),
+		Timestamp:            10000,
+		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",

@@ -382,7 +382,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier: partitionID,
 		},
-		UnicitySeal: types.NewUnicitySealV1(nil),
+		UnicitySeal: &types.UnicitySeal{},
 	}
 	rootValidator.onCertificationResult(ctx, uc)
 	subscribed = rootValidator.subscription.Get(partitionID)
@@ -471,7 +471,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier: partitionID,
 		},
-		UnicitySeal: types.NewUnicitySealV1(nil),
+		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate 2x subscriptions
 	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
@@ -507,7 +507,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier: unknownID,
 		},
-		UnicitySeal: types.NewUnicitySealV1(nil),
+		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(ctx, uc)

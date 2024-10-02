@@ -34,10 +34,10 @@ func NewDummyVoteInfo(round uint64, rootHash []byte) *drctypes.RoundInfo {
 }
 
 func NewDummyLedgerCommitInfo(voteInfo *drctypes.RoundInfo) *types.UnicitySeal {
-	return types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.PreviousHash = voteInfo.Hash(gocrypto.SHA256)
-		seal.Hash = nil
-	})
+	return &types.UnicitySeal{
+		PreviousHash: voteInfo.Hash(gocrypto.SHA256),
+		Hash:         nil,
+	}
 }
 
 func NewDummyVote(author string, round uint64, rootHash []byte) *abdrc.VoteMsg {

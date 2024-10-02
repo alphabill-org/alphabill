@@ -68,12 +68,12 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *drc
 				ParentRoundNumber: 0,
 				CurrentRootHash:   p.Certificate.UnicitySeal.Hash,
 			},
-			LedgerCommitInfo: types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-				seal.PreviousHash = p.Certificate.UnicitySeal.PreviousHash
-				seal.RootChainRoundNumber = p.Certificate.UnicitySeal.RootChainRoundNumber
-				seal.Hash = p.Certificate.UnicitySeal.Hash
-				seal.Timestamp = p.Certificate.UnicitySeal.Timestamp
-			}),
+			LedgerCommitInfo: &types.UnicitySeal{
+				PreviousHash:         p.Certificate.UnicitySeal.PreviousHash,
+				RootChainRoundNumber: p.Certificate.UnicitySeal.RootChainRoundNumber,
+				Hash:                 p.Certificate.UnicitySeal.Hash,
+				Timestamp:            p.Certificate.UnicitySeal.Timestamp,
+			},
 			Signatures: p.Certificate.UnicitySeal.Signatures,
 		}
 	}
@@ -225,13 +225,13 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map
 	}
 	// Commit pending state if it has the same root hash as committed state
 	// create UnicitySeal for pending certificates
-	uSeal := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.RootChainRoundNumber = commitQc.LedgerCommitInfo.RootChainRoundNumber
-		seal.Hash = commitQc.LedgerCommitInfo.Hash
-		seal.Timestamp = commitQc.LedgerCommitInfo.Timestamp
-		seal.PreviousHash = commitQc.LedgerCommitInfo.PreviousHash
-		seal.Signatures = commitQc.Signatures
-	})
+	uSeal := &types.UnicitySeal{
+		RootChainRoundNumber: commitQc.LedgerCommitInfo.RootChainRoundNumber,
+		Hash:                 commitQc.LedgerCommitInfo.Hash,
+		Timestamp:            commitQc.LedgerCommitInfo.Timestamp,
+		PreviousHash:         commitQc.LedgerCommitInfo.PreviousHash,
+		Signatures:           commitQc.Signatures,
+	}
 	ucs := map[types.SystemID]*types.UnicityCertificate{}
 	// copy parent certificates and extract changed certificates from this round
 	for _, sysID := range x.Changed {

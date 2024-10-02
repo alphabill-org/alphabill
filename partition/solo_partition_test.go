@@ -247,11 +247,11 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 }
 
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
-	u := types.NewUnicitySealV1(func(seal *types.UnicitySeal) {
-		seal.RootChainRoundNumber = roundNumber
-		seal.Timestamp = types.NewTimestamp()
-		seal.Hash = rootHash
-	})
+	u := &types.UnicitySeal{
+		RootChainRoundNumber: roundNumber,
+		Timestamp:            types.NewTimestamp(),
+		Hash:                 rootHash,
+	}
 	return u, u.Sign("test", sn.rootSigner)
 }
 

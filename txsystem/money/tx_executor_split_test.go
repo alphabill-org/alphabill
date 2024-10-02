@@ -42,7 +42,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "item 000000000000000000000000000000000000000000000000000000000000000200 does not exist: not found")
+		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "item 000000000000000000000000000000000000000000000000000000000000000201 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})

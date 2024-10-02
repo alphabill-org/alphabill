@@ -33,7 +33,7 @@ func TestModule_validateTransferDCTx(t *testing.T) {
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "item 000000000000000000000000000000000000000000000000000000000000000200 does not exist: not found")
+		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "item 000000000000000000000000000000000000000000000000000000000000000201 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})

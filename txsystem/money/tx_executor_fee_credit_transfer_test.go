@@ -52,7 +52,7 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000000")
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000001")
 	})
 	t.Run("err - TargetSystemIdentifier is zero", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetSystemID(0)))

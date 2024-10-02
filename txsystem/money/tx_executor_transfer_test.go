@@ -30,7 +30,7 @@ func TestModule_validateTransferTx(t *testing.T) {
 		tx, attr, authProof := createBillTransfer(t, unitID, fcrID, value, templates.AlwaysTrueBytes(), counter)
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferTx(tx, attr, authProof, exeCtx), "transfer validation error: item 000000000000000000000000000000000000000000000000000000000000000200 does not exist: not found")
+		require.EqualError(t, module.validateTransferTx(tx, attr, authProof, exeCtx), "transfer validation error: item 000000000000000000000000000000000000000000000000000000000000000201 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})

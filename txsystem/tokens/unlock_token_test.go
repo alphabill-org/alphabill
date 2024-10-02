@@ -62,7 +62,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		{
 			name:       "unit ID has wrong type",
 			tx:         createTxOrder(t, existingTokenTypeID, tokens.TransactionTypeUnlockToken, nil),
-			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
+			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000101' is not of fungible nor non-fungible token type",
 		},
 		{
 			name:       "fungible token does not exists",
@@ -173,7 +173,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		{
 			name:       "unit ID has wrong type",
 			tx:         createTxOrder(t, existingTokenTypeID, tokens.TransactionTypeUnlockToken, nil),
-			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
+			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000101' is not of fungible nor non-fungible token type",
 		},
 		{
 			name:       "fungible token does not exists",

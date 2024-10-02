@@ -29,7 +29,7 @@ func TestModule_validateUnlockTx(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
 		lockTx, attr, authProof := createUnlockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock transaction: get unit error: item 000000000000000000000000000000000000000000000000000000000001020300 does not exist: not found")
+		require.EqualError(t, module.validateUnlockTx(lockTx, attr, authProof, exeCtx), "unlock transaction: get unit error: item 000000000000000000000000000000000000000000000000000000000001020301 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})

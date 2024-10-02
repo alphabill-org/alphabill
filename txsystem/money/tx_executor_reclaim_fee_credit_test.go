@@ -39,7 +39,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx),
-			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000000 does not exist: not found")
+			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000001 does not exist: not found")
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, signer, nil)

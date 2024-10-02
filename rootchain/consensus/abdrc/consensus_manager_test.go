@@ -513,7 +513,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
-			LedgerCommitInfo: &types.UnicitySeal{
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
 			},
 			HighQc: highQc,

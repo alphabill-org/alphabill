@@ -69,6 +69,7 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *drc
 				CurrentRootHash:   p.Certificate.UnicitySeal.Hash,
 			},
 			LedgerCommitInfo: &types.UnicitySeal{
+				Version:              1,
 				PreviousHash:         p.Certificate.UnicitySeal.PreviousHash,
 				RootChainRoundNumber: p.Certificate.UnicitySeal.RootChainRoundNumber,
 				Hash:                 p.Certificate.UnicitySeal.Hash,
@@ -226,6 +227,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) (map
 	// Commit pending state if it has the same root hash as committed state
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: commitQc.LedgerCommitInfo.RootChainRoundNumber,
 		Hash:                 commitQc.LedgerCommitInfo.Hash,
 		Timestamp:            commitQc.LedgerCommitInfo.Timestamp,

@@ -279,6 +279,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 	}
 	rootHash := ut.GetRootHash()
 	uSeal := &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: round,
 		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,

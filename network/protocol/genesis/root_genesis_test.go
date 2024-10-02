@@ -148,7 +148,7 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	unicitySeal := &types.UnicitySeal{
+	unicitySeal := &types.UnicitySeal{Version: 1,
 		PreviousHash:         make([]byte, 32),
 		RootChainRoundNumber: 2,
 		Timestamp:            1000,

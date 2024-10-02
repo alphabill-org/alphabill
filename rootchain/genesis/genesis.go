@@ -198,6 +198,7 @@ func NewRootGenesis(
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &types.UnicitySeal{
+			Version:              1,
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            types.GenesisTime,
 			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),

@@ -28,6 +28,7 @@ var mockUc = &types.UnicityCertificate{
 		PartitionDescriptionHash: nil,
 	},
 	UnicitySeal: &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: 1,
 		Hash:                 make([]byte, gocrypto.SHA256.Size()),
 		Signatures:           types.SignatureMap{},

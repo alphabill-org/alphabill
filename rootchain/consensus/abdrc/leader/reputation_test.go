@@ -61,7 +61,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		slotIdx := rl.curIdx
 
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 		}
 		err := rl.Update(qc, 3, loadBlock)
@@ -86,7 +86,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		require.NotNil(t, rl)
 
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
@@ -110,7 +110,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		require.NotNil(t, rl)
 
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
@@ -212,7 +212,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			windowSize:  1,
 			excludeSize: 1,
 		}
-		id, err := rl.electLeader(&types.QuorumCert{LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}}}, loadBlock)
+		id, err := rl.electLeader(&types.QuorumCert{LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}}}, loadBlock)
 		require.ErrorIs(t, err, expErr)
 		require.EqualValues(t, UnknownLeader, id)
 	})
@@ -242,7 +242,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			excludeSize: 1,
 		}
 		id, err := rl.electLeader(&types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{"signer": {1, 2, 3}},
 		}, loadBlock)
@@ -260,7 +260,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			excludeSize: 0,
 		}
 		id, err := rl.electLeader(&types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
@@ -277,7 +277,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			excludeSize: 1,
 		}
 		id, err := rl.electLeader(&types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, "oh deer": {4, 5, 6}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
@@ -297,7 +297,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			excludeSize: 1,
 		}
 		id, err := rl.electLeader(&types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
@@ -317,7 +317,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 			excludeSize: 2,
 		}
 		id, err := rl.electLeader(&types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 5, ParentRoundNumber: 4},
 			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}, signerCkey: {7, 8, 9}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
@@ -475,7 +475,7 @@ func Test_ReputationBased(t *testing.T) {
 	processRound := func(rl *ReputationBased, round uint64) error {
 		// create QC for the previous round
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{PreviousHash: []byte{0, 0, 0, 0}},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: round - 1, ParentRoundNumber: round - 2},
 			Signatures:       make(map[string][]byte),
 		}

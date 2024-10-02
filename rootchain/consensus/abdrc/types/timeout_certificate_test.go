@@ -37,7 +37,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Round: 10,
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 1}},
 			},
 		},
@@ -48,7 +48,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -68,7 +68,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -89,7 +89,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -109,7 +109,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: timeoutCert.Timeout.Round + 1,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}

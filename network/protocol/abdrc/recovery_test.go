@@ -177,6 +177,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -185,6 +186,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -223,14 +225,14 @@ func TestStateMsg_Verify(t *testing.T) {
 							CurrentRootHash:   test.RandomBytes(32),
 							Timestamp:         types.NewTimestamp(),
 						},
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: test.RandomBytes(32),
 						},
 					},
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -238,7 +240,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -272,7 +274,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
@@ -281,7 +283,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -289,7 +291,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -327,7 +329,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
@@ -336,7 +338,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -344,7 +346,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -356,7 +358,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Payload: &drctypes.Payload{},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash:         r5vInfo.Hash(gocrypto.SHA256),
 						RootChainRoundNumber: 5,
 						Hash:                 test.RandomBytes(32),
@@ -385,7 +387,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -406,7 +408,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -452,7 +454,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash: test.RandomBytes(32),
 						Timestamp:       types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -486,7 +488,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -520,7 +522,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -555,7 +557,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},

@@ -72,7 +72,7 @@ func (x *ConsensusParams) Bytes() []byte {
 	if x == nil {
 		return b.Bytes()
 	}
-	b.Write(util.Uint64ToBytes(x.Version))
+	b.Write(util.Uint32ToBytes(x.GetVersion()))
 	b.Write(util.Uint32ToBytes(x.TotalRootValidators))
 	b.Write(util.Uint32ToBytes(x.BlockRateMs))
 	b.Write(util.Uint32ToBytes(x.ConsensusTimeoutMs))

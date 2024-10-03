@@ -94,16 +94,12 @@ func (x *GenesisRootRecord) GetVersion() types.ABVersion {
 	return x.Version
 }
 
-func (x *GenesisRootRecord) GetTag() types.ABTag {
-	return types.GenesisRootRecordTag
-}
-
 func (x *GenesisRootRecord) MarshalCBOR() ([]byte, error) {
 	type alias GenesisRootRecord
-	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+	return types.Cbor.MarshalTaggedValue(types.GenesisRootRecordTag, (*alias)(x))
 }
 
 func (x *GenesisRootRecord) UnmarshalCBOR(data []byte) error {
 	type alias GenesisRootRecord
-	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
+	return types.Cbor.UnmarshalTaggedValue(types.GenesisRootRecordTag, data, (*alias)(x))
 }

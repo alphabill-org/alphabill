@@ -130,16 +130,12 @@ func (x *ConsensusParams) GetVersion() types.ABVersion {
 	return x.Version
 }
 
-func (x *ConsensusParams) GetTag() types.ABTag {
-	return types.ConsensusParamsTag
-}
-
 func (x *ConsensusParams) MarshalCBOR() ([]byte, error) {
 	type alias ConsensusParams
-	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+	return types.Cbor.MarshalTaggedValue(types.ConsensusParamsTag, (*alias)(x))
 }
 
 func (x *ConsensusParams) UnmarshalCBOR(data []byte) error {
 	type alias ConsensusParams
-	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
+	return types.Cbor.UnmarshalTaggedValue(types.ConsensusParamsTag, data, (*alias)(x))
 }

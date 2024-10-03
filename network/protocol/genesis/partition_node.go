@@ -111,16 +111,12 @@ func (x *PartitionNode) GetVersion() types.ABVersion {
 	return x.Version
 }
 
-func (x *PartitionNode) GetTag() types.ABTag {
-	return types.PartitionNodeTag
-}
-
 func (x *PartitionNode) MarshalCBOR() ([]byte, error) {
 	type alias PartitionNode
-	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+	return types.Cbor.MarshalTaggedValue(types.PartitionNodeTag, (*alias)(x))
 }
 
 func (x *PartitionNode) UnmarshalCBOR(data []byte) error {
 	type alias PartitionNode
-	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
+	return types.Cbor.UnmarshalTaggedValue(types.PartitionNodeTag, data, (*alias)(x))
 }

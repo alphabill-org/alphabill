@@ -60,16 +60,12 @@ func (x *GenesisPartitionRecord) GetVersion() types.ABVersion {
 	return x.Version
 }
 
-func (x *GenesisPartitionRecord) GetTag() types.ABTag {
-	return types.GenesisPartitionRecordTag
-}
-
 func (x *GenesisPartitionRecord) MarshalCBOR() ([]byte, error) {
 	type alias GenesisPartitionRecord
-	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+	return types.Cbor.MarshalTaggedValue(types.GenesisPartitionRecordTag, (*alias)(x))
 }
 
 func (x *GenesisPartitionRecord) UnmarshalCBOR(data []byte) error {
 	type alias GenesisPartitionRecord
-	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
+	return types.Cbor.UnmarshalTaggedValue(types.GenesisPartitionRecordTag, data, (*alias)(x))
 }

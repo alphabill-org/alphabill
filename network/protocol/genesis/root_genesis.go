@@ -187,16 +187,12 @@ func (x *RootGenesis) GetVersion() types.ABVersion {
 	return x.Version
 }
 
-func (x *RootGenesis) GetTag() types.ABTag {
-	return types.RootGenesisTag
-}
-
 func (x *RootGenesis) MarshalCBOR() ([]byte, error) {
 	type alias RootGenesis
-	return types.Cbor.MarshalTaggedValue(x.GetTag(), (*alias)(x))
+	return types.Cbor.MarshalTaggedValue(types.RootGenesisTag, (*alias)(x))
 }
 
 func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
 	type alias RootGenesis
-	return types.Cbor.UnmarshalTaggedValue(x.GetTag(), data, (*alias)(x))
+	return types.Cbor.UnmarshalTaggedValue(types.RootGenesisTag, data, (*alias)(x))
 }

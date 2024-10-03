@@ -250,6 +250,7 @@ func TestBlockStoreAdd(t *testing.T) {
 			Hash: rBlock.RootHash,
 		},
 	}
+	fmt.Printf("qcHash=%x\n", rBlock.RootHash)
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)

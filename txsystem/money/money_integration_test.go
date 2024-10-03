@@ -45,10 +45,11 @@ func TestPartition_Ok(t *testing.T) {
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  money.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	sdrs := createSDRs(newBillID(2))
 	s := genesisState(t, ib, sdrs)
@@ -176,10 +177,11 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		}
 	)
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: networkID,
+		SystemIdentifier:  money.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	total := moneyInvariant
 	sdrs := createSDRs(newBillID(99))
@@ -300,6 +302,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create swap tx
 	swapTx := &types.TransactionOrder{
 		Payload: types.Payload{
+			NetworkID:  pdr.NetworkIdentifier,
 			SystemID:   pdr.SystemIdentifier,
 			Type:       money.TransactionTypeSwapDC,
 			UnitID:     initialBill.ID,

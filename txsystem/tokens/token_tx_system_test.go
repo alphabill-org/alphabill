@@ -49,10 +49,11 @@ var (
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: 0,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  0,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(state.NewEmptyState()))
 	require.ErrorContains(t, err, `system identifier is missing`)
@@ -61,10 +62,11 @@ func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: tokens.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  tokens.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
@@ -1724,10 +1726,11 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: tokens.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  tokens.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 
 	txs, err := NewTxSystem(

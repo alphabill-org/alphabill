@@ -8,10 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultSystemID types.SystemID = 1
+const (
+	defaultNetworkID types.NetworkID = 5
+	defaultSystemID  types.SystemID  = 1
+)
 
 func defaultTx() *types.TransactionOrder {
 	payload := types.Payload{
+		NetworkID:      defaultNetworkID,
 		SystemID:       defaultSystemID,
 		Type:           22,
 		UnitID:         test.RandomBytes(33),
@@ -25,6 +29,13 @@ func defaultClientMetadata() *types.ClientMetadata {
 }
 
 type Option func(*types.TransactionOrder) error
+
+func WithNetworkID(id types.NetworkID) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.NetworkID = id
+		return nil
+	}
+}
 
 func WithSystemID(id types.SystemID) Option {
 	return func(tx *types.TransactionOrder) error {

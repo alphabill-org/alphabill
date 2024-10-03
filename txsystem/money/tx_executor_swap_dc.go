@@ -129,9 +129,10 @@ func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransf
 	if err := dcTxo.UnmarshalAttributes(&dcAttr); err != nil {
 		return 0, fmt.Errorf("invalid TransferDC attributes: %w", err)
 	}
-
-	// TODO verify transfers were in this network
-
+	// transfers were in this network
+	if dcTxo.NetworkID != m.networkID {
+		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", m.networkID, dcTxo.SystemID)
+	}
 	// transfers were in the money partition
 	if dcTxo.SystemID != m.systemID {
 		return 0, fmt.Errorf("dust transfer system id is not money partition system id: expected %d vs provided %d",

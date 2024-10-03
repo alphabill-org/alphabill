@@ -27,10 +27,11 @@ func TestValidateSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
+	networkID := types.NetworkID(5)
 	systemID := types.SystemID(5)
 	fcrUnitType := tokens.FeeCreditRecordUnitType
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(networkID, systemID, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -154,10 +155,11 @@ func TestExecuteSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
+	networkID := types.NetworkID(5)
 	systemID := types.SystemID(5)
 	fcrUnitType := []byte{1}
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(networkID, systemID, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// create tx

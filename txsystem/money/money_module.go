@@ -18,6 +18,7 @@ var _ txtypes.Module = (*Module)(nil)
 type (
 	Module struct {
 		state               *state.State
+		networkID           types.NetworkID
 		systemID            types.SystemID
 		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
@@ -27,7 +28,7 @@ type (
 	}
 )
 
-func NewMoneyModule(systemID types.SystemID, options *Options) (*Module, error) {
+func NewMoneyModule(networkID types.NetworkID, systemID types.SystemID, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -37,6 +38,7 @@ func NewMoneyModule(systemID types.SystemID, options *Options) (*Module, error) 
 
 	m := &Module{
 		state:               options.state,
+		networkID:           networkID,
 		systemID:            systemID,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,

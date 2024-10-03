@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/types"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
@@ -17,43 +18,34 @@ func TestFC_Validation(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
+	systemID := moneySystemID
+	networkID := types.NetworkID(5)
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
-		fcModule, err := NewFeeCreditModule()
-		require.Nil(t, fcModule)
+		_, err := NewFeeCreditModule(0, systemID, systemID, s, trustBase)
+		require.ErrorIs(t, err, ErrNetworkIdentifierMissing)
+
+		_, err = NewFeeCreditModule(networkID, 0, systemID, s, trustBase)
 		require.ErrorIs(t, err, ErrSystemIdentifierMissing)
 
-		_, err = NewFeeCreditModule(WithSystemID(moneySystemID))
+		_, err = NewFeeCreditModule(networkID, systemID, 0, s, trustBase)
 		require.ErrorIs(t, err, ErrMoneySystemIdentifierMissing)
 
-		_, err = NewFeeCreditModule(WithSystemID(moneySystemID),
-			WithMoneySystemID(moneySystemID))
+		_, err = NewFeeCreditModule(networkID, systemID, systemID, nil, trustBase)
 		require.ErrorIs(t, err, ErrStateIsNil)
 
-		_, err = NewFeeCreditModule(WithSystemID(moneySystemID),
-			WithMoneySystemID(moneySystemID),
-			WithState(s))
+		_, err = NewFeeCreditModule(networkID, systemID, systemID, s, nil)
 		require.ErrorIs(t, err, ErrTrustBaseIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(
-			WithSystemID(moneySystemID),
-			WithMoneySystemID(moneySystemID),
-			WithState(s),
-			WithTrustBase(trustBase),
-		)
+		fc, err := NewFeeCreditModule(networkID, systemID, systemID, s, trustBase)
 		require.NoError(t, err)
 		require.NotNil(t, fc)
 	})
 
 	t.Run("new fc module executors", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(
-			WithSystemID(moneySystemID),
-			WithMoneySystemID(moneySystemID),
-			WithState(s),
-			WithTrustBase(trustBase),
-		)
+		fc, err := NewFeeCreditModule(networkID, systemID, systemID, s, trustBase)
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
 		require.Len(t, fcExecutors, 4)
@@ -70,8 +62,7 @@ func TestFC_Validation(t *testing.T) {
 func TestFC_CalculateCost(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	fcModule, err := NewFeeCreditModule(WithSystemID(10), WithMoneySystemID(1),
-		WithState(state.NewEmptyState()), WithTrustBase(trustBase))
+	fcModule, err := NewFeeCreditModule(5, 10, 1, state.NewEmptyState(), trustBase)
 	require.NoError(t, err)
 	require.NotNil(t, fcModule)
 	gas := fcModule.BuyGas(10)

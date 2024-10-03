@@ -33,8 +33,9 @@ func DefaultOptions() *Options {
 
 func DefaultSDR() *types.PartitionDescriptionRecord {
 	return &types.PartitionDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemID,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  money.DefaultSystemID,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 }
 

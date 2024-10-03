@@ -136,7 +136,7 @@ func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.Exec
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
-	// First, check transaction credible and that there are enough fee credits on the FRC?
+	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
 	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
@@ -309,17 +309,22 @@ The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
 implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
-	// 1. P.α = S.α – transaction is sent to this system
+	// T.α = S.α – transaction is sent to this network
+	if m.pdr.NetworkIdentifier != tx.NetworkID {
+		return ErrInvalidNetworkIdentifier
+	}
+
+	// T.β = S.β – transaction is sent to this partition
 	if m.pdr.SystemIdentifier != tx.SystemID {
 		return ErrInvalidSystemIdentifier
 	}
 
-	// 2. fSH(P.ι)=S.σ–target unit is in this shard
+	// fSH(T.ι) = S.σ – target unit is in this shard
 	if err := m.unitIdValidator(tx.UnitID); err != nil {
 		return err
 	}
 
-	// 3. n < T0 – transaction has not expired
+	// S.n < T0 – transaction has not expired
 	if m.currentRoundNumber >= tx.Timeout() {
 		return ErrTransactionExpired
 	}

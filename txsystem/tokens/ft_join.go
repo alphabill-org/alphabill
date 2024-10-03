@@ -64,8 +64,14 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if !bytes.Equal(btxAttr.TypeID, tokenData.TokenType) {
 			return fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", tokenData.TokenType, btxAttr.TypeID)
 		}
+		if btx.NetworkID() != tx.NetworkID {
+			return fmt.Errorf("burn transaction network id does not match with join transaction network id: burn transaction %d join transaction %d", btx.NetworkID(), tx.NetworkID)
+		}
+		if btx.SystemID() != tx.SystemID {
+			return fmt.Errorf("burn transaction system id does not match with join transaction system id: burn transaction %d, join transaction %d", btx.SystemID(), tx.SystemID)
+		}
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID) {
-			return fmt.Errorf("burn transaction target token id does not match with join transaction unit id: burn transaction %X, join transaction %X", btxAttr.TargetTokenID, tx.UnitID)
+			return fmt.Errorf("burn transaction target token id does not match with join transaction unit id: burn transaction %s, join transaction %s", btxAttr.TargetTokenID, tx.UnitID)
 		}
 		if btxAttr.TargetTokenCounter != tokenData.Counter {
 			return fmt.Errorf("burn transaction target token counter does not match with target unit counter: burn transaction counter %d, unit counter %d", btxAttr.TargetTokenCounter, tokenData.Counter)

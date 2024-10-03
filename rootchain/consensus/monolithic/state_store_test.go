@@ -40,16 +40,18 @@ var testGenesis = &genesis.RootGenesis{
 			Nodes:       nil,
 			Certificate: mockUc,
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				SystemIdentifier: sysID3,
-				T2Timeout:        2500 * time.Millisecond,
+				NetworkIdentifier: 5,
+				SystemIdentifier:  sysID3,
+				T2Timeout:         2500 * time.Millisecond,
 			},
 		},
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				SystemIdentifier: sysID1,
-				T2Timeout:        2500 * time.Millisecond,
+				NetworkIdentifier: 5,
+				SystemIdentifier:  sysID1,
+				T2Timeout:         2500 * time.Millisecond,
 			},
 		},
 	},

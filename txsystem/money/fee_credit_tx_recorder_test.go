@@ -44,11 +44,11 @@ func TestTxRecording(t *testing.T) {
 	newReclaimFCAttr := testutils.NewReclaimFCAttr(t, signer, closureTx)
 	f.recordReclaimFC(
 		&reclaimFeeCreditTx{
-			tx:                  testutils.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithSystemID(moneySystemID)),
-			attr:                newReclaimFCAttr,
-			closeFCTransferAttr: closeFCAttr,
-			reclaimFee:          reclaimFCFee,
-			closeFee:            closeFCFee,
+			tx:            testutils.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithSystemID(moneySystemID)),
+			attr:          newReclaimFCAttr,
+			reclaimAmount: closeFCAttr.Amount - closeFCFee,
+			reclaimFee:    reclaimFCFee,
+			closeFee:      closeFCFee,
 		},
 	)
 

@@ -17,6 +17,7 @@ import (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
+	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
 	ErrMissingSystemIdentifier        = errors.New("system identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
@@ -38,6 +39,7 @@ In normal mode the non-fee transaction costs are calculated normally.
 In feeless mode the non-fee transactions are "free" i.e. no actual fees are charged.
 */
 type FeeCreditModule struct {
+	networkID               types.NetworkID
 	systemIdentifier        types.SystemID
 	state                   *state.State
 	hashAlgorithm           crypto.Hash
@@ -48,7 +50,10 @@ type FeeCreditModule struct {
 	feelessMode             bool
 }
 
-func NewFeeCreditModule(systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+	if networkID == 0 {
+		return nil, ErrMissingSystemIdentifier
+	}
 	if systemID == 0 {
 		return nil, ErrMissingSystemIdentifier
 	}

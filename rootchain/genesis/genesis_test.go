@@ -38,10 +38,11 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 
 	return &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
-			SystemIdentifier: systemIdentifier,
-			TypeIdLen:        8,
-			UnitIdLen:        256,
-			T2Timeout:        2500 * time.Millisecond,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemIdentifier,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
 			NodeIdentifier:            nodeID,
@@ -64,10 +65,11 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
 		PartitionDescription: types.PartitionDescriptionRecord{
-			SystemIdentifier: systemIdentifier,
-			TypeIdLen:        8,
-			UnitIdLen:        256,
-			T2Timeout:        2500 * time.Millisecond,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemIdentifier,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 	}
 }

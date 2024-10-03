@@ -21,6 +21,7 @@ import (
 )
 
 const mockTxType uint16 = 22
+const mockNetworkID types.NetworkID = 5
 const mockTxSystemID types.SystemID = 10
 
 type MockData struct {
@@ -45,10 +46,11 @@ func (t *MockData) Copy() types.UnitData {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-		SystemIdentifier: mockTxSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: mockNetworkID,
+		SystemIdentifier:  mockTxSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
@@ -358,8 +360,9 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
 		return &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: txs.pdr.SystemIdentifier,
-				UnitID:   make(types.UnitID, 33),
+				NetworkID: txs.pdr.NetworkIdentifier,
+				SystemID:  txs.pdr.SystemIdentifier,
+				UnitID:    make(types.UnitID, 33),
 				ClientMetadata: &types.ClientMetadata{
 					Timeout: txs.currentRoundNumber + 1,
 				},
@@ -471,10 +474,11 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: mockTxSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        8 * 32,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: mockNetworkID,
+		SystemIdentifier:  mockTxSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         8 * 32,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))

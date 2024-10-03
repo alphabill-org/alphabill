@@ -980,6 +980,20 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	})
+	invalidNetworkID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
+		TypeID:             existingTokenTypeID,
+		Value:              existingTokenValue,
+		TargetTokenID:      test.RandomBytes(32),
+		TargetTokenCounter: 0,
+		Counter:            0,
+	}, testtransaction.WithNetworkID(10))
+	invalidSystemID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
+		TypeID:             existingTokenTypeID,
+		Value:              existingTokenValue,
+		TargetTokenID:      test.RandomBytes(32),
+		TargetTokenCounter: 0,
+		Counter:            0,
+	}, testtransaction.WithSystemID(10))
 	proofInvalidTargetTokenID := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenID, signer)
 	proofInvalidTargetTokenCounter := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenCounter, signer)
 	proofBurnTx2 := testblock.CreateTxRecordProof(t, burnTx2, signer)
@@ -1031,6 +1045,24 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				&tokens.JoinFungibleTokenAttributes{BurnTokenProofs: burnTxRecordProofs},
 				testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
 			wantErrStr: "burn transaction orders are not listed in strictly increasing order of token identifiers",
+		},
+		{
+			name: "source not burned - invalid target token network id",
+			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{
+				BurnTokenProofs: []*types.TxRecordProof{
+					{TxRecord: invalidNetworkID, TxProof: proofInvalidTargetTokenID.TxProof},
+				},
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
+			wantErrStr: "burn transaction network id does not match with join transaction network id",
+		},
+		{
+			name: "source not burned - invalid target token system id",
+			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{
+				BurnTokenProofs: []*types.TxRecordProof{
+					{TxRecord: invalidSystemID, TxProof: proofInvalidTargetTokenID.TxProof},
+				},
+			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
+			wantErrStr: "burn transaction system id does not match with join transaction system id",
 		},
 		{
 			name: "source not burned - invalid target token id",

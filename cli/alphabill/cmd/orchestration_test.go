@@ -36,10 +36,11 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: orchestration.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  orchestration.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))

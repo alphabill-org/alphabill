@@ -793,10 +793,11 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
-			SystemIdentifier: systemID,
-			TypeIdLen:        8,
-			UnitIdLen:        256,
-			T2Timeout:        2500 * time.Millisecond,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemID,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 	}
 

@@ -8,6 +8,8 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
@@ -91,10 +93,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		}
 		tx := testutils.NewReclaimFC(t, signer,
 			testutils.NewReclaimFCAttr(t, signer,
-				testutils.WithReclaimFCClosureProof(&types.TxRecordProof{
-					TxRecord: closeFC,
-					TxProof:  nil,
-				}),
+				testutils.WithReclaimFCClosureProof(testblock.CreateTxRecordProof(t, closeFC, signer)),
 			),
 		)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
@@ -145,7 +144,8 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 	module := newTestMoneyModule(t, verifier,
 		withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: amount, Counter: counter}))
-	exeCtx := testctx.NewMockExecutionContext()
+	reclaimAmount := uint64(40)
+	exeCtx := testctx.NewMockExecutionContext(testctx.WithData(util.Uint64ToBytes(reclaimAmount)))
 	authProof := &fcsdk.ReclaimFeeCreditAuthProof{OwnerProof: nil}
 	sm, err := module.executeReclaimFCTx(tx, attr, authProof, exeCtx)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
 	// target bill is credited correct amount (using default values from testutils)
-	v := 50 - 10 - sm.ActualFee
+	v := reclaimAmount - sm.ActualFee
 	require.EqualValues(t, bill.V, amount+v)
 	// counter is incremented
 	require.EqualValues(t, bill.Counter, counter+1)

@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 
 	"github.com/alphabill-org/alphabill/state"
@@ -21,15 +22,11 @@ var (
 
 func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, _ *fc.ReclaimFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
-	// calculate actual tx fee cost
 	fee := exeCtx.CalculateCost()
-	closeFCAttr := &fc.CloseFeeCreditAttributes{}
-	closeFCRecord := attr.CloseFeeCreditProof.TxRecord
-	if err := closeFCRecord.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
-		return nil, fmt.Errorf("reclaimFC: failed to unmarshal close fee credit attributes: %w", err)
-	}
+
 	// add reclaimed value to source unit
-	v := closeFCAttr.Amount - closeFCRecord.ServerMetadata.ActualFee - fee
+	reclaimAmount := util.BytesToUint64(exeCtx.GetData())
+	v := reclaimAmount - fee
 	updateFunc := func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
 		if !ok {
@@ -48,17 +45,17 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 	}
 	m.feeCreditTxRecorder.recordReclaimFC(
 		&reclaimFeeCreditTx{
-			tx:                  tx,
-			attr:                attr,
-			closeFCTransferAttr: closeFCAttr,
-			reclaimFee:          fee,
-			closeFee:            closeFCRecord.ServerMetadata.ActualFee,
+			tx:            tx,
+			attr:          attr,
+			reclaimAmount: reclaimAmount,
+			reclaimFee:    fee,
+			closeFee:      attr.CloseFeeCreditProof.ActualFee(),
 		},
 	)
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, authProof *fc.ReclaimFeeCreditAuthProof, execCtx txtypes.ExecutionContext) error {
+func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.ReclaimFeeCreditAttributes, authProof *fc.ReclaimFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -74,31 +71,40 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if attr.CloseFeeCreditProof == nil {
-		return errors.New("close fee credit proof is nil")
+	closeFcProof := attr.CloseFeeCreditProof
+	if err = closeFcProof.IsValid(); err != nil {
+		return fmt.Errorf("close fee credit proof is invalid: %w", err)
 	}
-	closeFeeCreditTx := attr.CloseFeeCreditProof.TxRecord
 	closeFCAttr := &fc.CloseFeeCreditAttributes{}
-	if err = closeFeeCreditTx.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
+	if err = closeFcProof.TransactionOrder().UnmarshalAttributes(closeFCAttr); err != nil {
 		return fmt.Errorf("invalid close fee credit attributes: %w", err)
 	}
-
+	if m.networkID != closeFcProof.NetworkID() {
+		return fmt.Errorf("invalid network id: %d (expected %d)", closeFcProof.NetworkID(), m.networkID)
+	}
 	if !bytes.Equal(tx.UnitID, closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit
 	}
 	if bd.Counter != closeFCAttr.TargetUnitCounter {
 		return ErrReclaimFCInvalidTargetUnitCounter
 	}
-	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.MaxFee() > closeFCAttr.Amount {
+	feeLimit, ok := util.SafeAdd(tx.MaxFee(), closeFcProof.ActualFee())
+	if !ok {
+		return errors.New("failed to add Tx.MaxFee and CloseFC.ActualFee: overflow")
+	}
+	if closeFCAttr.Amount < feeLimit {
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, execCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return err
 	}
 	// verify proof
-	if err = types.VerifyTxProof(attr.CloseFeeCreditProof, m.trustBase, m.hashAlgorithm); err != nil {
+	if err = types.VerifyTxProof(closeFcProof, m.trustBase, m.hashAlgorithm); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
+	// store reclaimed amount to execution context to not have to calculate it again later
+	reclaimAmount := closeFCAttr.Amount - closeFcProof.ActualFee()
+	exeCtx.SetData(util.Uint64ToBytes(reclaimAmount))
 	return nil
 }

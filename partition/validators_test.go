@@ -15,10 +15,11 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
-	SystemIdentifier: 1,
-	TypeIdLen:        8,
-	UnitIdLen:        256,
-	T2Timeout:        2500 * time.Millisecond,
+	NetworkIdentifier: 5,
+	SystemIdentifier:  1,
+	TypeIdLen:         8,
+	UnitIdLen:         256,
+	T2Timeout:         2500 * time.Millisecond,
 }
 
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {

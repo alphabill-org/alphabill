@@ -26,10 +26,11 @@ const (
 
 func Test_OrchestrationGenesis(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: 123,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        5 * time.Second,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  123,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         5 * time.Second,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)
@@ -108,10 +109,11 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "not-default-name.json")
 
 		sdr := types.PartitionDescriptionRecord{
-			SystemIdentifier: 55,
-			TypeIdLen:        4,
-			UnitIdLen:        300,
-			T2Timeout:        10 * time.Second,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  55,
+			TypeIdLen:         4,
+			UnitIdLen:         300,
+			T2Timeout:         10 * time.Second,
 		}
 		sdrFile, err := createPDRFile(homeDir, &sdr)
 		require.NoError(t, err)

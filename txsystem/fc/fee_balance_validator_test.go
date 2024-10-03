@@ -20,12 +20,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1}
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
-	fcModule, err := NewFeeCreditModule(
-		WithSystemID(moneySystemID),
-		WithMoneySystemID(moneySystemID),
-		WithState(sharedState),
-		WithTrustBase(trustBase),
-	)
+	fcModule, err := NewFeeCreditModule(5, moneySystemID, moneySystemID, sharedState, trustBase)
 	require.NoError(t, err)
 
 	tests := []struct {

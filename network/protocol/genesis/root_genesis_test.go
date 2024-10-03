@@ -93,12 +93,12 @@ func TestRootGenesis_IsValid(t *testing.T) {
 					{
 						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
 						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 				},
 			},

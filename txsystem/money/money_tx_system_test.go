@@ -44,6 +44,7 @@ var (
 	}
 	fcrAmount     = uint64(1e8)
 	moneySystemID = money.DefaultSystemID
+	networkID     = types.NetworkID(5)
 )
 
 func TestNewTxSystem(t *testing.T) {
@@ -990,9 +991,10 @@ func createDCTransferAndSwapTxs(
 
 	tx := &types.TransactionOrder{
 		Payload: types.Payload{
-			SystemID: moneySystemID,
-			UnitID:   targetID,
-			Type:     money.TransactionTypeSwapDC,
+			NetworkID: networkID,
+			SystemID:  moneySystemID,
+			UnitID:    targetID,
+			Type:      money.TransactionTypeSwapDC,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
 				MaxTransactionFee: 10,
@@ -1045,6 +1047,7 @@ func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUn
 func createTx(fromID types.UnitID, fcrID types.UnitID, transactionType uint16) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
 		Payload: types.Payload{
+			NetworkID:  networkID,
 			SystemID:   moneySystemID,
 			UnitID:     fromID,
 			Type:       transactionType,
@@ -1138,10 +1141,11 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		SystemIdentifier: money.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  money.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -1179,7 +1183,7 @@ func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(money.DefaultSystemID, options)
+	module, err := NewMoneyModule(5, money.DefaultSystemID, options)
 	require.NoError(t, err)
 	return module
 }

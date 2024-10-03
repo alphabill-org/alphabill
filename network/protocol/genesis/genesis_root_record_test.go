@@ -231,20 +231,24 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		require.NoError(t, err)
 		pubKeyInfo[i] = &PublicKeyInfo{NodeIdentifier: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
 	}
-	x := &GenesisRootRecord{
-		Version:        1,
-		RootValidators: pubKeyInfo,
-		Consensus:      consensus,
-	}
-	require.NoError(t, x.Verify())
+	var x *GenesisRootRecord
+	t.Run("Verify", func(t *testing.T) {
+		x = &GenesisRootRecord{
+			Version:        1,
+			RootValidators: pubKeyInfo,
+			Consensus:      consensus,
+		}
+		require.NoError(t, x.Verify())
+	})
 
-	// serialize and verify again
-	bs, err := types.Cbor.Marshal(x)
-	require.NoError(t, err)
-	x2 := &GenesisRootRecord{}
-	err = types.Cbor.Unmarshal(bs, x2)
-	require.NoError(t, err)
-	require.NoError(t, x2.Verify())
+	t.Run("Serialize and verify", func(t *testing.T) {
+		bs, err := types.Cbor.Marshal(x)
+		require.NoError(t, err)
+		x2 := &GenesisRootRecord{}
+		err = types.Cbor.Unmarshal(bs, x2)
+		require.NoError(t, err)
+		require.NoError(t, x2.Verify())
+	})
 }
 
 func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {

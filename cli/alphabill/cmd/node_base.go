@@ -67,6 +67,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 		}
 		routers := []rpc.Registrar{
 			rpc.MetricsEndpoints(obs.PrometheusRegisterer()),
+			rpc.NodeEndpoints(node, obs),
 		}
 		if rpcServerConf.Router != nil {
 			routers = append(routers, rpcServerConf.Router)

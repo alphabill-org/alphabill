@@ -39,7 +39,7 @@ var partitionInputRecord = &types.InputRecord{
 	RoundNumber:  1,
 }
 
-func readResult(ch <-chan *types.UnicityCertificate, timeout time.Duration) (*types.UnicityCertificate, error) {
+func readResult(ch <-chan *certification.CertificationResponse, timeout time.Duration) (*certification.CertificationResponse, error) {
 	select {
 	case result, ok := <-ch:
 		if !ok {
@@ -83,19 +83,28 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	require.NoError(t, err)
 	store := NewStateStore(db)
 	// store mock state
-	certs := map[types.SystemID]*types.UnicityCertificate{
-		sysID3: {
-			InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 3, Hash: test.RandomBytes(32)}}, // no timeout (5 - 3) * 900 = 1800 ms
-		sysID1: {
-			InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2, Hash: test.RandomBytes(32)}}, // timeout (5 - 2) * 900 = 2700 ms
-		sysID2: {
-			InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 4, Hash: test.RandomBytes(32)}}, // no timeout
+	certs := []*certification.CertificationResponse{
+		{
+			Partition: sysID3,
+			UC: types.UnicityCertificate{
+				InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 3, Hash: []byte{1}}}, // no timeout (5 - 3) * 900 = 1800 ms,
+		},
+		{
+			Partition: sysID1,
+			UC: types.UnicityCertificate{
+				InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2, Hash: []byte{1}}}, // timeout (5 - 2) * 900 = 2700 ms
+		},
+		{
+			Partition: sysID2,
+			UC: types.UnicityCertificate{
+				InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 4, Hash: []byte{1}}}, // no timeout
+		},
 	}
 	// shortcut, to avoid generating root genesis file
 	require.NoError(t, store.save(4, certs))
@@ -146,27 +155,27 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	req := consensus.IRChangeRequest{
-		SystemIdentifier: partitionID,
-		Reason:           consensus.Quorum,
-		Requests:         requests}
+		Partition: partitionID,
+		Reason:    consensus.Quorum,
+		Requests:  requests}
 	// submit IR change request from partition with quorum
 	require.NoError(t, cm.RequestCertification(ctx, req))
 	// require, that certificates are received for partition ID
 	result, err := readResult(cm.CertificationResult(), 2000*time.Millisecond)
 	require.NoError(t, err)
-	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
-	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
-	require.NotNil(t, result.UnicitySeal.Hash)
+	require.Equal(t, partitionInputRecord.Hash, result.UC.InputRecord.PreviousHash)
+	require.Equal(t, uint64(2), result.UC.UnicitySeal.RootChainRoundNumber)
+	require.NotNil(t, result.UC.UnicitySeal.Hash)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	require.NoError(t, result.UC.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	cert, err := cm.GetLatestUnicityCertificate(partitionID, types.ShardID{})
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
 
 	// ask for non-existing cert
-	cert, err = cm.GetLatestUnicityCertificate(types.SystemID(10))
+	cert, err = cm.GetLatestUnicityCertificate(types.SystemID(10), types.ShardID{})
 	require.EqualError(t, err, "loading certificate for partition 0000000A from state store: no certificate for partition 0000000A in DB")
 	require.Nil(t, cert)
 }
@@ -190,21 +199,21 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	req := &consensus.IRChangeRequest{
-		SystemIdentifier: partitionID,
-		Reason:           consensus.Quorum,
-		Requests:         requests}
+		Partition: partitionID,
+		Reason:    consensus.Quorum,
+		Requests:  requests}
 	// set db to simulate error
 	db.MockWriteError(fmt.Errorf("db write failed"))
 	// submit IR change request from partition with quorum
 	require.NoError(t, cm.onIRChangeReq(req))
 	require.Equal(t, uint64(1), cm.round)
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	cert, err := cm.GetLatestUnicityCertificate(partitionID, types.ShardID{})
 	require.NoError(t, err)
 	// simulate T3 timeout
 	cm.onT3Timeout(context.Background())
 	// due to DB persist error round is not incremented and will be repeated
 	require.Equal(t, uint64(1), cm.round)
-	certNow, err := cm.GetLatestUnicityCertificate(partitionID)
+	certNow, err := cm.GetLatestUnicityCertificate(partitionID, types.ShardID{})
 	require.NoError(t, err)
 
 	require.Equal(t, cert, certNow)
@@ -222,13 +231,13 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	// require, that certificates are received for partition ID
 	result, err := readResult(cm.CertificationResult(), 2*cm.params.BlockRate)
 	require.NoError(t, err)
-	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
-	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
-	require.NotNil(t, result.UnicitySeal.Hash)
+	require.Equal(t, partitionInputRecord.Hash, result.UC.InputRecord.PreviousHash)
+	require.Equal(t, uint64(2), result.UC.UnicitySeal.RootChainRoundNumber)
+	require.NotNil(t, result.UC.UnicitySeal.Hash)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.UC.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
@@ -243,19 +252,19 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	cert, err := cm.GetLatestUnicityCertificate(partitionID, types.ShardID{})
 	require.NoError(t, err)
 	require.NotNil(t, cert)
-	require.Equal(t, cert.InputRecord.Bytes(), partitionInputRecord.Bytes())
+	require.Equal(t, cert.UC.InputRecord.Bytes(), partitionInputRecord.Bytes())
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * block rate (900))
 	result, err := readResult(cm.CertificationResult(), 4*cm.params.BlockRate)
 	require.NoError(t, err)
-	require.Equal(t, cert.InputRecord.Bytes(), result.InputRecord.Bytes())
-	require.NotNil(t, result.UnicitySeal.Hash)
+	require.Equal(t, cert.UC.InputRecord.Bytes(), result.UC.InputRecord.Bytes())
+	require.NotNil(t, result.UC.UnicitySeal.Hash)
 	// ensure repeat UC is created in a different rc round
-	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
+	require.GreaterOrEqual(t, result.UC.UnicitySeal.RootChainRoundNumber, cert.UC.UnicitySeal.RootChainRoundNumber)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.UC.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 }

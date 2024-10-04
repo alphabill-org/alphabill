@@ -33,22 +33,25 @@ var irSysID1 = &types.InputRecord{
 	SumOfEarnedFees: 0,
 }
 
-func (s *MockState) GetCertificates() map[types.SystemID]*types.UnicityCertificate {
-	return map[types.SystemID]*types.UnicityCertificate{
-		types.SystemID(1): {
+func (s *MockState) GetCertificates() []*certification.CertificationResponse {
+	return []*certification.CertificationResponse{{
+		Partition: 1,
+		Shard:     types.ShardID{},
+		UC: types.UnicityCertificate{
 			InputRecord:            irSysID1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal: &types.UnicitySeal{Version: 1,
 				RootChainRoundNumber: 1,
 			},
 		},
-	}
+	}}
 }
 
-func (s *MockState) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	cm := s.GetCertificates()
-	if uc, ok := cm[id]; ok {
-		return uc, nil
+func (s *MockState) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+	for _, cr := range s.GetCertificates() {
+		if cr.Partition == id && shard.Equal(cr.Shard) {
+			return cr, nil
+		}
 	}
 	return nil, fmt.Errorf("no UC for partition %s", id)
 }
@@ -107,16 +110,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1,
-			NodeIdentifier:   "node1",
-			InputRecord:      newIR,
-			RootRoundNumber:  1,
+			Partition:       sysID1,
+			NodeIdentifier:  "node1",
+			InputRecord:     newIR,
+			RootRoundNumber: 1,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
-			SystemIdentifier: sysID1,
-			CertReason:       abtypes.Quorum,
-			Requests:         []*certification.BlockCertificationRequest{request},
+			Partition:  sysID1,
+			CertReason: abtypes.Quorum,
+			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
@@ -138,16 +141,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID2,
-			NodeIdentifier:   "node1",
-			InputRecord:      newIR,
-			RootRoundNumber:  1,
+			Partition:       sysID2,
+			NodeIdentifier:  "node1",
+			InputRecord:     newIR,
+			RootRoundNumber: 1,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
-			SystemIdentifier: sysID2,
-			CertReason:       abtypes.Quorum,
-			Requests:         []*certification.BlockCertificationRequest{request},
+			Partition:  sysID2,
+			CertReason: abtypes.Quorum,
+			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
@@ -169,16 +172,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			partitions: pConf,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1,
-			NodeIdentifier:   "node1",
-			InputRecord:      newIR,
-			RootRoundNumber:  1,
+			Partition:       sysID1,
+			NodeIdentifier:  "node1",
+			InputRecord:     newIR,
+			RootRoundNumber: 1,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
-			SystemIdentifier: sysID1,
-			CertReason:       abtypes.Quorum,
-			Requests:         []*certification.BlockCertificationRequest{request},
+			Partition:  sysID1,
+			CertReason: abtypes.Quorum,
+			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(1, irChReq)
 		require.Nil(t, data)
@@ -200,16 +203,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1,
-			NodeIdentifier:   "node1",
-			InputRecord:      newIR,
-			RootRoundNumber:  1,
+			Partition:       sysID1,
+			NodeIdentifier:  "node1",
+			InputRecord:     newIR,
+			RootRoundNumber: 1,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
-			SystemIdentifier: sysID1,
-			CertReason:       abtypes.Quorum,
-			Requests:         []*certification.BlockCertificationRequest{request},
+			Partition:  sysID1,
+			CertReason: abtypes.Quorum,
+			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(0, irChReq)
 		require.Nil(t, data)
@@ -231,20 +234,20 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			SystemIdentifier: sysID1,
-			NodeIdentifier:   "node1",
-			InputRecord:      newIR,
-			RootRoundNumber:  1,
+			Partition:       sysID1,
+			NodeIdentifier:  "node1",
+			InputRecord:     newIR,
+			RootRoundNumber: 1,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
-			SystemIdentifier: sysID1,
-			CertReason:       abtypes.Quorum,
-			Requests:         []*certification.BlockCertificationRequest{request},
+			Partition:  sysID1,
+			CertReason: abtypes.Quorum,
+			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Equal(t, newIR, data.IR)
-		require.Equal(t, sysID1, data.SysID)
+		require.Equal(t, sysID1, data.Partition)
 		require.NoError(t, err)
 	})
 }

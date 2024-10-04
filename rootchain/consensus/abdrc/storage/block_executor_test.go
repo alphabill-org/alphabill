@@ -33,7 +33,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 type mockIRVerifier struct{}
 
 func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*InputData, error) {
-	return &InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
+	return &InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
 func generateBlockData(round uint64, req ...*drctypes.IRChangeReq) *drctypes.BlockData {
@@ -61,9 +61,9 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	b := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, data.SysID)
+	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
-	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PartitionDescriptionHash, data.Sdrh)
+	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PartitionDescriptionHash, data.PDRHash)
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
@@ -91,8 +91,8 @@ func TestExecutedBlock(t *testing.T) {
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	parent := NewGenesisBlock(hash, rootGenesis.Partitions)
 	certReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: partitionID1,
-		NodeIdentifier:   "1",
+		Partition:      partitionID1,
+		NodeIdentifier: "1",
 		InputRecord: &types.InputRecord{
 			PreviousHash:    []byte{1, 1, 1, 1},
 			Hash:            []byte{2, 2, 2, 2},
@@ -103,9 +103,9 @@ func TestExecutedBlock(t *testing.T) {
 		},
 	}
 	req := &drctypes.IRChangeReq{
-		SystemIdentifier: partitionID1,
-		CertReason:       drctypes.Quorum,
-		Requests:         []*certification.BlockCertificationRequest{certReq},
+		Partition:  partitionID1,
+		CertReason: drctypes.Quorum,
+		Requests:   []*certification.BlockCertificationRequest{certReq},
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
@@ -137,7 +137,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		},
 		CurrentIR: InputRecords{
 			{
-				SysID: partitionID1,
+				Partition: partitionID1,
 				IR: &types.InputRecord{
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{2, 2, 2, 2},
@@ -146,10 +146,10 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					RoundNumber:     3,
 					SumOfEarnedFees: 4,
 				},
-				Sdrh: []byte{1, 2, 3, 4},
+				PDRHash: []byte{1, 2, 3, 4},
 			},
 			{
-				SysID: partitionID2,
+				Partition: partitionID2,
 				IR: &types.InputRecord{
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{4, 4, 4, 4},
@@ -158,7 +158,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					RoundNumber:     3,
 					SumOfEarnedFees: 6,
 				},
-				Sdrh: []byte{4, 5, 6, 7},
+				PDRHash: []byte{4, 5, 6, 7},
 			},
 		},
 		Changed:  []types.SystemID{partitionID1, partitionID2},

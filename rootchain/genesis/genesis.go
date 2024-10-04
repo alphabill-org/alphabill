@@ -123,7 +123,7 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 		if err := n.IsValid(); err != nil {
 			return nil, fmt.Errorf("partition node %s validation failed: %w", n.NodeIdentifier, err)
 		}
-		si := n.BlockCertificationRequest.SystemIdentifier
+		si := n.BlockCertificationRequest.Partition
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 

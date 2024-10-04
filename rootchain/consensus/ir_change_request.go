@@ -18,9 +18,11 @@ const (
 
 type (
 	IRChangeRequest struct {
-		SystemIdentifier types.SystemID
-		Reason           CertReqReason
-		Requests         []*certification.BlockCertificationRequest
+		Partition types.SystemID
+		Shard     types.ShardID
+		Reason    CertReqReason
+		Requests  []*certification.BlockCertificationRequest
+		Technical certification.TechnicalRecord
 	}
 
 	CertRequestVerifier interface {

@@ -61,7 +61,7 @@ func (x *IrChangeReqMsg) Verify(tb types.RootTrustBase) error {
 func (x *IrChangeReqMsg) bytes() []byte {
 	var b bytes.Buffer
 	b.Write([]byte(x.Author))
-	b.Write(x.IrChangeReq.SystemIdentifier.Bytes())
+	b.Write(x.IrChangeReq.Partition.Bytes())
 	b.Write(util.Uint32ToBytes(uint32(x.IrChangeReq.CertReason)))
 	return b.Bytes()
 }

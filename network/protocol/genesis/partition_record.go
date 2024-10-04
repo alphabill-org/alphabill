@@ -42,8 +42,8 @@ func (x *PartitionRecord) IsValid() error {
 		if err := node.IsValid(); err != nil {
 			return fmt.Errorf("validators list error, %w", err)
 		}
-		if id != node.BlockCertificationRequest.SystemIdentifier {
-			return fmt.Errorf("invalid system id: expected %s, got %s", id, node.BlockCertificationRequest.SystemIdentifier)
+		if id != node.BlockCertificationRequest.Partition {
+			return fmt.Errorf("invalid system id: expected %s, got %s", id, node.BlockCertificationRequest.Partition)
 		}
 		// Input record of different validator nodes must match
 		// remember first

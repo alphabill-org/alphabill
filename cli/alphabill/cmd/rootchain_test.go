@@ -184,8 +184,8 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemID,
-				NodeIdentifier:   moneyPeer.ID().String(),
+				Partition:      money.DefaultSystemID,
+				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 2*time.Second, test.WaitTick)
@@ -320,8 +320,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemID,
-				NodeIdentifier:   moneyPeer.ID().String(),
+				Partition:      money.DefaultSystemID,
+				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 4*time.Second, test.WaitTick)

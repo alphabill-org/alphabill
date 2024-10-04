@@ -10,4 +10,6 @@ test-coverage.html
 gosec_report.json
 .trivycache/
 /testab/
+
 go.work
+go.work.sum

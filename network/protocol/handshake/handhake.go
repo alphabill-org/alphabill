@@ -13,16 +13,17 @@ var (
 )
 
 type Handshake struct {
-	_                struct{} `cbor:",toarray"`
-	SystemIdentifier types.SystemID
-	NodeIdentifier   string
+	_              struct{} `cbor:",toarray"`
+	Partition      types.SystemID
+	Shard          types.ShardID
+	NodeIdentifier string
 }
 
 func (h *Handshake) IsValid() error {
 	if h == nil {
 		return ErrHandshakeIsNil
 	}
-	if h.SystemIdentifier == 0 {
+	if h.Partition == 0 {
 		return ErrInvalidSystemIdentifier
 	}
 	if len(h.NodeIdentifier) == 0 {

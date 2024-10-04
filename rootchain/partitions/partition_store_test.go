@@ -50,12 +50,12 @@ func Test_PartitionStore_Init(t *testing.T) {
 	ps, err = NewPartitionStore(gs)
 	require.NoError(t, err)
 	require.NotNil(t, ps)
-	require.Equal(t, uint64(0), ps.cfgVersion.Load(), "loaded configuration version")
+	require.Equal(t, uint64(0), ps.cfgVersion, "loaded configuration version")
 	require.Empty(t, ps.partitions)
 
 	_, _, err = ps.GetInfo(1, 150)
 	require.NoError(t, err)
-	require.EqualValues(t, 100, ps.cfgVersion.Load())
+	require.EqualValues(t, 100, ps.cfgVersion)
 	require.Len(t, ps.partitions, 1)
 
 	// Reset might return error when loading from genesis store fail

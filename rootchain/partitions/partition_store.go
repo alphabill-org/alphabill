@@ -3,7 +3,6 @@ package partitions
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -28,7 +27,7 @@ type (
 	PartitionStore struct {
 		mu           sync.RWMutex
 		cfgStore     ConfigurationStore
-		cfgVersion   atomic.Uint64
+		cfgVersion   uint64
 		// cached configuration of partitions from the latest
 		// GetInfo call, usually does not change
 		partitions   map[types.SystemID]*PartitionInfo
@@ -71,13 +70,29 @@ func NewPartitionStore(cfgStore ConfigurationStore) (*PartitionStore, error) {
 }
 
 func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
-	if err := ps.loadConfig(round); err != nil {
-		return nil, nil, fmt.Errorf("loading new configuration: %w", err)
+	cfg, version, err := ps.cfgStore.GetConfiguration(round)
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading from configuration store: %w", err)
 	}
 
 	ps.mu.RLock()
-	defer ps.mu.RUnlock()
+	if ps.cfgVersion != version {
+		ps.mu.RUnlock()
+		ps.mu.Lock()
+		defer ps.mu.Unlock()
 
+		// Cache the loaded configuration
+		if err := ps.cacheConfig(cfg, version); err != nil {
+			return nil, nil, fmt.Errorf("loading new configuration: %w", err)
+		}
+		return ps.getInfo(id)
+	}
+
+	defer ps.mu.RUnlock()
+	return ps.getInfo(id)
+}
+
+func (ps *PartitionStore) getInfo(id types.SystemID) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
 	info, f := ps.partitions[id]
 	if !f {
 		return nil, nil, fmt.Errorf("unknown partition identifier %s", id)
@@ -86,24 +101,14 @@ func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.Parti
 }
 
 /*
-loadConfig loads the root chain configuration for round "round" and
-updates the partition info cache.
+cacheConfig caches the loaded rootchain configuration and its
+version. In a normal rootchain operation there should be a cache miss
+only when new configuration takes effect. Supposed to be called only
+while holding write lock.
 */
-func (ps *PartitionStore) loadConfig(round uint64) error {
-	cfg, version, err := ps.cfgStore.GetConfiguration(round)
-	if err != nil {
-		return fmt.Errorf("loading from configuration store: %w", err)
-	}
-	if ps.cfgVersion.Load() == version {
-		// Correct configuration already loaded
-		return nil
-	}
-
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	// double-check to see if someone else already loaded it while we acquired lock
-	if ps.cfgVersion.Load() == version {
+func (ps *PartitionStore) cacheConfig(cfg *genesis.RootGenesis, version uint64) error {
+	// double-check to see if the correct version is already cached
+	if ps.cfgVersion == version {
 		return nil
 	}
 
@@ -124,7 +129,7 @@ func (ps *PartitionStore) loadConfig(round uint64) error {
 	}
 
 	ps.partitions = partitions
-	ps.cfgVersion.Store(version)
+	ps.cfgVersion = version
 
 	return nil
 }

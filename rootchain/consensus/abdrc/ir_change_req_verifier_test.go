@@ -33,7 +33,7 @@ var irSysID1 = &types.InputRecord{
 	SumOfEarnedFees: 0,
 }
 
-func (s *MockState) GetCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error) {
+func (s *MockState) GetCertificates() (map[types.SystemID]*types.UnicityCertificate, error) {
 	return map[types.SystemID]*types.UnicityCertificate{
 		types.SystemID(1): {
 			InputRecord:            irSysID1,
@@ -45,8 +45,8 @@ func (s *MockState) GetCertificates(round uint64) (map[types.SystemID]*types.Uni
 	}, nil
 }
 
-func (s *MockState) GetCertificate(id types.SystemID, round uint64) (*types.UnicityCertificate, error) {
-	cm, err := s.GetCertificates(round)
+func (s *MockState) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+	cm, err := s.GetCertificates()
 	if err != nil {
 		return nil, err
 	}

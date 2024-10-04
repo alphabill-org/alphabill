@@ -31,6 +31,7 @@ type (
 		storage      keyvaluedb.KeyValueDB
 		cfgStore     ConfigurationStore
 		cfgVersion   atomic.Uint64
+		currentRound func() uint64
 		certificates map[types.SystemID]*types.UnicityCertificate
 	}
 )
@@ -68,12 +69,15 @@ func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[types.SystemID]*types.U
 	return ucs, err
 }
 
-func New(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
+func New(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, currentRound func() uint64) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 	if cfgStore == nil {
 		return nil, errors.New("configuration store is nil")
+	}
+	if currentRound == nil {
+		return nil, errors.New("current round provider is nil")
 	}
 
 	// First start, initiate from genesis data
@@ -106,17 +110,21 @@ func New(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValue
 		blockTree:    blTree,
 		storage:      db,
 		cfgStore:     cfgStore,
+		currentRound: currentRound,
 		certificates: ucs,
 	}, nil
 }
 
-func NewFromState(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, stateMsg *abdrc.StateMsg) (*BlockStore, error) {
+func NewFromState(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, currentRound func() uint64, stateMsg *abdrc.StateMsg) (*BlockStore, error) {
 	// Initiate store
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 	if cfgStore == nil {
 		return nil, errors.New("configuration store is nil")
+	}
+	if currentRound == nil {
+		return nil, errors.New("current round provider is nil")
 	}
 
 	certificates := make(map[types.SystemID]*types.UnicityCertificate)
@@ -147,6 +155,7 @@ func NewFromState(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb
 		blockTree:    blTree,
 		storage:      db,
 		cfgStore:     cfgStore,
+		currentRound: currentRound,
 		certificates: certificates,
 	}, nil
 }
@@ -278,8 +287,8 @@ func (x *BlockStore) updateCertificateCache(certs map[types.SystemID]*types.Unic
 	return nil
 }
 
-func (x *BlockStore) GetCertificate(id types.SystemID, round uint64) (*types.UnicityCertificate, error) {
-	if err := x.loadConfig(round); err != nil {
+func (x *BlockStore) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+	if err := x.loadConfig(); err != nil {
 		return nil, fmt.Errorf("loading new configuration: %w", err)
 	}
 
@@ -292,8 +301,8 @@ func (x *BlockStore) GetCertificate(id types.SystemID, round uint64) (*types.Uni
 	return uc, nil
 }
 
-func (x *BlockStore) GetCertificates(round uint64) (map[types.SystemID]*types.UnicityCertificate, error) {
-	if err := x.loadConfig(round); err != nil {
+func (x *BlockStore) GetCertificates() (map[types.SystemID]*types.UnicityCertificate, error) {
+	if err := x.loadConfig(); err != nil {
 		return nil, fmt.Errorf("loading new configuration: %w", err)
 	}
 
@@ -302,8 +311,8 @@ func (x *BlockStore) GetCertificates(round uint64) (map[types.SystemID]*types.Un
 	return maps.Clone(x.certificates), nil
 }
 
-func (x *BlockStore) GetState(currentRound uint64) (*abdrc.StateMsg, error) {
-	certs, err := x.GetCertificates(currentRound)
+func (x *BlockStore) GetState() (*abdrc.StateMsg, error) {
+	certs, err := x.GetCertificates()
 	if err != nil {
 		return nil, fmt.Errorf("loading certificates: %w", err)
 	}
@@ -352,16 +361,17 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 }
 
 /*
-loadConfig loads the root chain configuration for round "round" and
+loadConfig loads the root chain configuration for the current round and
 updates the list of Unicity Certificates with those of added and removed partitions.
 */
-func (x *BlockStore) loadConfig(round uint64) error {
+func (x *BlockStore) loadConfig() error {
+	round := x.currentRound()
 	cfg, version, err := x.cfgStore.GetConfiguration(round)
 	if err != nil {
 		return fmt.Errorf("loading root chain configuration: %w", err)
 	}
-	if x.cfgVersion.Load() == version {
-		// Correct configuration already loaded
+	if x.cfgVersion.Load() >= version {
+		// Latest configuration already loaded
 		return nil
 	}
 
@@ -369,7 +379,7 @@ func (x *BlockStore) loadConfig(round uint64) error {
 	defer x.mu.Unlock()
 
 	// double-check to see if someone else already loaded it while we waited on lock
-	if x.cfgVersion.Load() == version {
+	if x.cfgVersion.Load() >= version {
 		return nil
 	}
 

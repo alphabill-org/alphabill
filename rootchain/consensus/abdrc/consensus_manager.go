@@ -143,8 +143,12 @@ func NewDistributedAbConsensusManager(
 	}
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(genesisCfg.Root)
+	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating Pacemaker: %w", err)
+	}
 	// init storage
-	bStore, err := storage.New(cParams.HashAlgorithm, cfgStore, optional.Storage)
+	bStore, err := storage.New(cParams.HashAlgorithm, cfgStore, optional.Storage, pm.GetCurrentRound)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -163,10 +167,6 @@ func NewDistributedAbConsensusManager(
 	ls, err := leaderSelector(genesisCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
-	}
-	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
-	if err != nil {
-		return nil, fmt.Errorf("creating Pacemaker: %w", err)
 	}
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan certRequest),
@@ -294,7 +294,7 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	return x.blockStore.GetCertificate(id, x.pacemaker.GetCurrentRound())
+	return x.blockStore.GetCertificate(id)
 }
 
 func (x *ConsensusManager) GetCurrentRound() uint64 {
@@ -915,7 +915,7 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMs
 		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
 	// read state
-	stateMsg, err := x.blockStore.GetState(x.pacemaker.GetCurrentRound())
+	stateMsg, err := x.blockStore.GetState()
 	if err != nil {
 		return fmt.Errorf("failed to get current state: %w", err)
 
@@ -944,7 +944,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, x.cfgStore, x.blockStore.GetDB(), rsp)
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, x.cfgStore, x.blockStore.GetDB(), x.GetCurrentRound, rsp)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}

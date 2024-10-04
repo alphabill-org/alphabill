@@ -1210,7 +1210,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// init DB from genesis
-	_, err = storage.New(gocrypto.SHA256, cfgStore, db)
+	_, err = storage.New(gocrypto.SHA256, cfgStore, db, func() uint64 {return genesis.RootRound})
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 2}, Author: "test"}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))

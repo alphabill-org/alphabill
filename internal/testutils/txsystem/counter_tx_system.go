@@ -67,6 +67,10 @@ func (m *CounterTxSystem) State() txsystem.StateReader {
 	return state.NewEmptyState().Clone()
 }
 
+func (m *CounterTxSystem) StateSize() (uint64, error) {
+	return 0, nil
+}
+
 func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

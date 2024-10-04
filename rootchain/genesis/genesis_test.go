@@ -77,8 +77,8 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   nodeID,
+		Partition:      systemIdentifier,
+		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),

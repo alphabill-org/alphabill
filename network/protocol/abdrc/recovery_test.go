@@ -157,7 +157,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
+						Partition: 1,
 						Ir: &types.InputRecord{
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
@@ -203,7 +203,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
+						Partition: 1,
 						Ir: &types.InputRecord{
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
@@ -257,7 +257,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
+						Partition: 1,
 						Ir: &types.InputRecord{
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
@@ -312,7 +312,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
+						Partition: 1,
 						Ir: &types.InputRecord{
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
@@ -415,9 +415,9 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir:    nil,
-					Sdrh:  make([]byte, 32),
+					Partition: 1,
+					Ir:        nil,
+					Sdrh:      make([]byte, 32),
 				},
 			},
 		}
@@ -428,7 +428,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Block: nil,
 			Ir: []*InputData{
 				{
-					SysID: 1,
+					Partition: 1,
 					Ir: &types.InputRecord{
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
@@ -461,7 +461,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
+					Partition: 1,
 					Ir: &types.InputRecord{
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
@@ -495,7 +495,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
+					Partition: 1,
 					Ir: &types.InputRecord{
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
@@ -529,7 +529,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
+					Partition: 1,
 					Ir: &types.InputRecord{
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
@@ -564,7 +564,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
+					Partition: 1,
 					Ir: &types.InputRecord{
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
@@ -586,15 +586,15 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 func TestInputData_IsValid(t *testing.T) {
 	t.Run("input record is nil", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
-			Ir:    nil,
-			Sdrh:  nil,
+			Partition: 0,
+			Ir:        nil,
+			Sdrh:      nil,
 		}
 		require.ErrorContains(t, i.IsValid(), "input record is nil")
 	})
 	t.Run("system description hash is not set", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
+			Partition: 0,
 			Ir: &types.InputRecord{
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
@@ -609,7 +609,7 @@ func TestInputData_IsValid(t *testing.T) {
 	})
 	t.Run("ok", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
+			Partition: 0,
 			Ir: &types.InputRecord{
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),

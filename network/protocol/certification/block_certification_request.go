@@ -18,13 +18,19 @@ var (
 )
 
 type BlockCertificationRequest struct {
-	_                struct{}           `cbor:",toarray"`
-	SystemIdentifier types.SystemID     `json:"system_identifier,omitempty"`
-	Shard            types.ShardID      `json:"shard_identifier"`
-	NodeIdentifier   string             `json:"node_identifier,omitempty"`
-	InputRecord      *types.InputRecord `json:"input_record,omitempty"`
-	RootRoundNumber  uint64             `json:"root_round_number,omitempty"` // latest known RC's round number (AB-1155)
-	Signature        []byte             `json:"signature,omitempty"`
+	_               struct{}           `cbor:",toarray"`
+	Partition       types.SystemID     `json:"system_identifier"`
+	Shard           types.ShardID      `json:"shard_identifier"`
+	NodeIdentifier  string             `json:"node_identifier"`
+	InputRecord     *types.InputRecord `json:"input_record"`
+	RootRoundNumber uint64             `json:"root_round_number"` // latest known RC's round number (AB-1155)
+	BlockSize       uint64             `json:"block_size"`
+	StateSize       uint64             `json:"state_size"`
+	Signature       []byte             `json:"signature"`
+	// hack - RootChain needs to know the round leader of the shard in order to
+	// keep track of fees etc. In the future it's the RC which selects the leader
+	// of the next round and sends it as part of Certification Response. (AB-1719)
+	Leader string `json:"round_leader"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -55,7 +61,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if v == nil {
 		return errVerifierIsNil
 	}
-	if x.SystemIdentifier == 0 {
+	if x.Partition == 0 {
 		return errInvalidSystemIdentifier
 	}
 	if x.NodeIdentifier == "" {
@@ -84,7 +90,7 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 
 func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.SystemIdentifier.Bytes())
+	b.Write(x.Partition.Bytes())
 	b.Write(x.Shard.Bytes())
 	b.WriteString(x.NodeIdentifier)
 	b.Write(x.InputRecord.PreviousHash)
@@ -93,5 +99,8 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	b.Write(x.InputRecord.SummaryValue)
 	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
 	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
+	b.Write(util.Uint64ToBytes(x.BlockSize))
+	b.Write(util.Uint64ToBytes(x.StateSize))
+	b.WriteString(x.Leader)
 	return b.Bytes()
 }

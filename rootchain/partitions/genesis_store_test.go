@@ -19,7 +19,7 @@ func Test_NewGenesisStore(t *testing.T) {
 	t.Run("directory not exist", func(t *testing.T) {
 		// attempt to create file in a not existing directory should fail
 		dbFN := filepath.Join(t.TempDir(), "notExist", "root.db")
-		gs, err := NewGenesisStore(dbFN)
+		gs, err := NewGenesisStore(dbFN, nil)
 		require.ErrorIs(t, err, fs.ErrNotExist)
 		require.Nil(t, gs)
 	})
@@ -27,7 +27,7 @@ func Test_NewGenesisStore(t *testing.T) {
 	t.Run("empty db created", func(t *testing.T) {
 		// empty DB
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN)
+		gs, err := NewGenesisStore(dbFN, nil)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -54,14 +54,9 @@ func testCfg(t *testing.T) *genesis.RootGenesis {
 func Test_genesisStore_AddConfiguration(t *testing.T) {
 	t.Run("invalid config", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN)
-		require.NoError(t, err)
-
-		err = gs.AddConfiguration(&genesis.RootGenesis{}, 100)
+		gs, err := NewGenesisStore(dbFN, &genesis.RootGenesis{})
 		require.ErrorContains(t, err, "verifying configuration")
-		require.Nil(t, gs.currentCfg)
-		require.EqualValues(t, 0, gs.lastUpdate, "last update marker mustn't change")
-		require.EqualValues(t, 0, gs.nextUpdate, "next update marker mustn't change")
+		require.Nil(t, gs)
 	})
 
 	t.Run("seed is saved", func(t *testing.T) {
@@ -76,10 +71,9 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 		require.NoError(t, f.Close())
 
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN)
+		gs, err := NewGenesisStore(dbFN, rgA)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
-		require.NoError(t, gs.AddConfiguration(rgA, genesis.RootRound))
 		require.NoError(t, gs.db.View(
 			func(tx *bbolt.Tx) error {
 				b := tx.Bucket(rootGenesisBucket)
@@ -96,9 +90,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 
 		// if we now reopen the DB with different seed the original
 		// data must be preserved and new seed ignored
-		// TODO: why not allow overwriting configurations? would make reverting configuration uploads much easier
-		gs, err = NewGenesisStore(dbFN)
-		gs.AddConfiguration(rgB, genesis.RootRound)
+		gs, err = NewGenesisStore(dbFN, rgB)
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -116,13 +108,13 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 		rg, version, err := gs.GetConfiguration(1)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, version)
-		require.Equal(t, rgB, rg)
+		require.Equal(t, rgA, rg)
 		require.NoError(t, gs.db.Close())
 	})
 
 	t.Run("success, new config is NOT next", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN)
+		gs, err := NewGenesisStore(dbFN, nil)
 		require.NoError(t, err)
 		gs.lastUpdate = 50
 		gs.nextUpdate = 100
@@ -135,7 +127,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 
 	t.Run("success, new config is next", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN)
+		gs, err := NewGenesisStore(dbFN, nil)
 		require.NoError(t, err)
 		gs.lastUpdate = 50
 		gs.nextUpdate = 100
@@ -167,7 +159,7 @@ func Test_genesisStore_loadConfiguration(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	dbFN := filepath.Join(t.TempDir(), "root.db")
-	gs, err := NewGenesisStore(dbFN)
+	gs, err := NewGenesisStore(dbFN, nil)
 	require.NoError(t, err)
 	require.NotNil(t, gs)
 	// DB must be empty and any query should fail

@@ -34,15 +34,18 @@ type genesisStore struct {
   - dbFile is filename (full path) to the Bolt DB file to use for storage, if the
     file does not exist it will be created;
 */
-func NewGenesisStore(dbFile string) (*genesisStore, error) {
+func NewGenesisStore(dbFile string, genesisCfg *genesis.RootGenesis) (*genesisStore, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt DB: %w", err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(rootGenesisBucket)
+		b, err := tx.CreateBucketIfNotExists(rootGenesisBucket)
 		if err != nil {
 			return fmt.Errorf("creating the %q bucket: %w", rootGenesisBucket, err)
+		}
+		if k, v := b.Cursor().First(); k == nil && v == nil && genesisCfg != nil {
+			return saveConfiguration(b, genesis.RootRound, genesisCfg)
 		}
 		return nil
 	})

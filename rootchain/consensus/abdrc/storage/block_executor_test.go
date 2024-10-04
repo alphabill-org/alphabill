@@ -171,7 +171,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
 			Hash:         make([]byte, gocrypto.SHA256.Size()),
 		},
@@ -187,7 +187,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
 			Hash:         []byte{0x9b, 0x98, 0xf9, 0x3b, 0xcf, 0x8d, 0xd8, 0x74, 0x88, 0xe6, 0x2c, 0xd5, 0x2f, 0x15, 0x10, 0xa5, 0xc6, 0xd1, 0xad, 0xc, 0xc3, 0x8f, 0xf8, 0xca, 0x87, 0x9b, 0x85, 0x66, 0x99, 0x6b, 0xef, 0xa3},
 		},

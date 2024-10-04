@@ -24,6 +24,7 @@ var (
 
 type RootGenesis struct {
 	_          struct{}                  `cbor:",toarray"`
+	Version    types.ABVersion           `json:"version,omitempty"`
 	Root       *GenesisRootRecord        `json:"root,omitempty"`
 	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
 }
@@ -48,6 +49,9 @@ func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](reco
 func (x *RootGenesis) IsValid() error {
 	if x == nil {
 		return ErrRootGenesisIsNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if x.Root == nil {
 		return ErrRootGenesisRecordIsNil
@@ -177,4 +181,18 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 		return nil, fmt.Errorf("failed to create new genesis trust base")
 	}
 	return trustBase, nil
+}
+
+func (x *RootGenesis) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *RootGenesis) MarshalCBOR() ([]byte, error) {
+	type alias RootGenesis
+	return types.Cbor.MarshalTaggedValue(types.RootGenesisTag, (*alias)(x))
+}
+
+func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
+	type alias RootGenesis
+	return types.Cbor.UnmarshalTaggedValue(types.RootGenesisTag, data, (*alias)(x))
 }

@@ -23,7 +23,7 @@ func TestBlockDataHash(t *testing.T) {
 				Timestamp:         0x0010670314583523,
 				ParentRoundNumber: 0,
 				CurrentRootHash:   []byte{0, 1, 3}},
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 1, 2}, Hash: []byte{1, 2, 3}},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: []byte{0, 1, 2}, Hash: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
@@ -55,7 +55,7 @@ func TestBlockData_IsValid(t *testing.T) {
 			Payload:   &Payload{}, // empty payload is OK
 			Qc: &QuorumCert{
 				VoteInfo:         &RoundInfo{ParentRoundNumber: 6, RoundNumber: 7, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 2, 1}},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: []byte{0, 2, 1}},
 				Signatures:       map[string][]byte{"1": {0, 1, 2}},
 			},
 		}

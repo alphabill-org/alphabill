@@ -198,6 +198,7 @@ func NewRootGenesis(
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &types.UnicitySeal{
+			Version:              1,
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            types.GenesisTime,
 			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),
@@ -249,6 +250,7 @@ func NewRootGenesis(
 			return nil, nil, fmt.Errorf("missing UnicityCertificate for partition %s", partition.PartitionDescription.SystemIdentifier)
 		}
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
+			Version:              1,
 			Nodes:                partition.Validators,
 			Certificate:          certificate,
 			PartitionDescription: partition.PartitionDescription,
@@ -260,6 +262,7 @@ func NewRootGenesis(
 	})
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
+		Version:             1,
 		TotalRootValidators: c.totalValidators,
 		BlockRateMs:         c.blockRateMs,
 		ConsensusTimeoutMs:  c.consensusTimeoutMs,
@@ -270,10 +273,12 @@ func NewRootGenesis(
 		return nil, nil, fmt.Errorf("consensus parameter sign error: %w", err)
 	}
 	genesisRoot := &genesis.GenesisRootRecord{
+		Version:        1,
 		RootValidators: rootValidatorInfo,
 		Consensus:      consensusParams,
 	}
 	rootGenesis := &genesis.RootGenesis{
+		Version:    1,
 		Root:       genesisRoot,
 		Partitions: genesisPartitions,
 	}

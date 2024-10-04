@@ -25,7 +25,7 @@ func CalcTimeoutSig(t *testing.T, s abcrypto.Signer, round, epoch, hQcRound uint
 
 func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *abtypes.RoundInfo) *types.UnicitySeal {
 	hash := voteInfo.Hash(algo)
-	return &types.UnicitySeal{PreviousHash: hash, Hash: nil}
+	return &types.UnicitySeal{Version: 1, PreviousHash: hash, Hash: nil}
 }
 
 type RoundInfoOption func(info *abtypes.RoundInfo)

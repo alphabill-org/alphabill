@@ -1,5 +1,7 @@
 {
+  "version": 1,
   "root": {
+    "version": 1,
     "root_validators": [
       {
         "node_identifier": "test_root_node",
@@ -8,6 +10,7 @@
       }
     ],
     "consensus": {
+      "version": 1,
       "total_root_validators": 1,
       "block_rate_ms": 900,
       "consensus_timeout_ms": 10000,
@@ -19,8 +22,10 @@
   },
   "partitions": [
     {
+      "version": 1,
       "nodes": [
         {
+          "version": 1,
           "node_identifier": "B",
           "signing_public_key": "AwsyNOSVAY8bM7htv+rpMnbAkncVK8LuCZUCQSh6i0WM",
           "encryption_public_key": "AwsyNOSVAY8bM7htv+rpMnbAkncVK8LuCZUCQSh6i0WM",
@@ -32,8 +37,13 @@
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "summary_value": "AQAA"
+              "summary_value": "AQAA",
+              "round_number": 1
             },
+            "root_round_number": 0,
+            "block_size": 0,
+            "state_size": 0,
+            "round_leader": "",
             "signature": "6pu3sCHNQ8NB04Ii6oZSig7ppqAwN5dBWANAznCluNceEFlsWcLuALbzI+nbIU9S9ITenUm3zSHV6twGIFB+1QE="
           },
           "partition_description": {
@@ -55,13 +65,17 @@
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "summary_value": "AQAA"
+          "summary_value": "AQAA",
+          "round_number": 1
         },
+        "technical_record_hash": null,
+        "shard_tree_certificate": null,
         "unicity_tree_certificate": {
           "system_identifier": 1,
           "partition_description_hash": "5Dxu7e2A+TzTJApnTi2xmHl0x30IhD8y0t7ucmcw9UY="
         },
         "unicity_seal": {
+          "version": 1,
           "root_chain_round_number": 1,
           "timestamp": 1681971084,
           "previous_hash": "cwlG/Mehzaa3zce1vQ6taqmsTfd6+0MT6XgM1BT6VIw=",

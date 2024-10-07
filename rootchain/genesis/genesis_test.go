@@ -45,6 +45,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 			T2Timeout:         2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
+			Version:                   1,
 			NodeIdentifier:            nodeID,
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,
@@ -60,6 +61,7 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            nodeID,
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
@@ -77,8 +79,8 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   nodeID,
+		Partition:      systemIdentifier,
+		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
@@ -258,6 +260,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            "2",
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,

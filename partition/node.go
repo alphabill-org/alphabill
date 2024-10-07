@@ -360,17 +360,18 @@ func (n *Node) currentRoundNumber() uint64 {
 
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "sending handshake to root chain")
-	// select two random root nodes
+	// select some random root nodes
 	rootIDs, err := randomNodeSelector(n.rootNodes, defaultHandshakeNodes)
-	// error should only happen in case the root nodes are not initialized
 	if err != nil {
+		// error should only happen in case the root nodes are not initialized
 		n.log.WarnContext(ctx, "selecting root nodes for handshake", logger.Error(err))
 		return
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.peer.ID().String(),
+			Partition:      n.configuration.GetSystemIdentifier(),
+			Shard:          n.configuration.shardID,
+			NodeIdentifier: n.peer.ID().String(),
 		},
 		rootIDs...); err != nil {
 		n.log.WarnContext(ctx, "error sending handshake", logger.Error(err))
@@ -1267,7 +1268,6 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	luc := n.luc.Load()
-	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return fmt.Errorf("transaction system failed to end block, %w", err)
@@ -1284,9 +1284,9 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		Transactions: n.proposedTransactions,
 		UnicityCertificate: &types.UnicityCertificate{
 			InputRecord: &types.InputRecord{
-				Epoch:           0, // todo: implement epoch change AB-1617
+				Epoch:           0, // todo: implement epoch change AB-1617, AB-1725
 				RoundNumber:     n.currentRoundNumber(),
-				PreviousHash:    prevStateHash,
+				PreviousHash:    luc.InputRecord.Hash,
 				Hash:            stateHash,
 				SummaryValue:    summary,
 				SumOfEarnedFees: n.sumOfEarnedFees,
@@ -1308,14 +1308,21 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		Shard:            n.configuration.shardID,
-		NodeIdentifier:   n.peer.ID().String(),
-		InputRecord:      pendingProposal.UnicityCertificate.InputRecord,
-		RootRoundNumber:  luc.UnicitySeal.RootChainRoundNumber,
+		Partition:       systemIdentifier,
+		Shard:           n.configuration.shardID,
+		NodeIdentifier:  n.peer.ID().String(),
+		Leader:          blockAuthor,
+		InputRecord:     pendingProposal.UnicityCertificate.InputRecord,
+		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
+	}
+	if req.BlockSize, err = pendingProposal.Size(); err != nil {
+		return fmt.Errorf("calculating block size: %w", err)
+	}
+	if req.StateSize, err = n.transactionSystem.StateSize(); err != nil {
+		return fmt.Errorf("calculating state size: %w", err)
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {
-		return fmt.Errorf("failed to sign certification req, %w", err)
+		return fmt.Errorf("failed to sign certification request: %w", err)
 	}
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
 		pendingProposal.GetRoundNumber(), stateHash, blockHash, pendingProposal.GetBlockFees()))
@@ -1420,6 +1427,7 @@ func (n *Node) IsValidatorNode() bool {
 
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	// TODO verify epoch number after epoch switching is implemented
+	// fast-track solution is to restart all partition nodes with new config on epoch change
 	trustBase := n.configuration.trustBase
 	if trustBase == nil {
 		return nil, fmt.Errorf("trust base for epoch %d does not exist", epochNumber)

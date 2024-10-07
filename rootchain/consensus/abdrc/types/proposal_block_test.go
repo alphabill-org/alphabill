@@ -23,7 +23,7 @@ func TestBlockDataHash(t *testing.T) {
 				Timestamp:         0x0010670314583523,
 				ParentRoundNumber: 0,
 				CurrentRootHash:   []byte{0, 1, 3}},
-			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 1, 2}, Hash: []byte{1, 2, 3}},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: []byte{0, 1, 2}, Hash: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
@@ -55,7 +55,7 @@ func TestBlockData_IsValid(t *testing.T) {
 			Payload:   &Payload{}, // empty payload is OK
 			Qc: &QuorumCert{
 				VoteInfo:         &RoundInfo{ParentRoundNumber: 6, RoundNumber: 7, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: []byte{0, 2, 1}},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: []byte{0, 2, 1}},
 				Signatures:       map[string][]byte{"1": {0, 1, 2}},
 			},
 		}
@@ -148,7 +148,7 @@ func TestPayload_IsEmpty(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{Requests: []*IRChangeReq{
-				{SystemIdentifier: 1, CertReason: T2Timeout},
+				{Partition: 1, CertReason: T2Timeout},
 			}},
 			want: false,
 		},
@@ -187,7 +187,7 @@ func TestPayload_IsValid(t *testing.T) {
 		{
 			name: "valid timeout",
 			fields: fields{Requests: []*IRChangeReq{
-				{SystemIdentifier: 1, CertReason: T2Timeout},
+				{Partition: 1, CertReason: T2Timeout},
 			}},
 			wantErrStr: "",
 		},
@@ -246,9 +246,9 @@ func TestBlockData_String(t *testing.T) {
 			Epoch:     0,
 			Timestamp: types.GenesisTime,
 			Payload: &Payload{Requests: []*IRChangeReq{
-				{SystemIdentifier: 3, CertReason: Quorum},
-				{SystemIdentifier: 1, CertReason: T2Timeout},
-				{SystemIdentifier: 0xFF000002, CertReason: QuorumNotPossible},
+				{Partition: 3, CertReason: Quorum},
+				{Partition: 1, CertReason: T2Timeout},
+				{Partition: 0xFF000002, CertReason: QuorumNotPossible},
 			}},
 		}
 		require.Equal(t, "round: 6, time: 1681971084, payload: 00000003->quorum, 00000001->timeout, FF000002->no-quorum", x.String())

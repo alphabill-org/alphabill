@@ -89,6 +89,13 @@ func (m *TxSystem) State() txsystem.StateReader {
 	return m.state.Clone()
 }
 
+func (m *TxSystem) StateSize() (uint64, error) {
+	if !m.state.IsCommitted() {
+		return 0, txsystem.ErrStateContainsUncommittedChanges
+	}
+	return m.state.Size()
+}
+
 func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges

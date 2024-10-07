@@ -98,6 +98,13 @@ func (m *GenericTxSystem) FeesEnabled() bool {
 	return m.fees != nil
 }
 
+func (m *GenericTxSystem) StateSize() (uint64, error) {
+	if !m.state.IsCommitted() {
+		return 0, ErrStateContainsUncommittedChanges
+	}
+	return m.state.Size()
+}
+
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	if !m.state.IsCommitted() {
 		return nil, ErrStateContainsUncommittedChanges

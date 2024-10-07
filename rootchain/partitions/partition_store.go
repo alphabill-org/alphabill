@@ -2,7 +2,9 @@ package partitions
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"sync"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -55,6 +57,10 @@ func (v *TrustBase) GetQuorum() uint64 {
 // GetTotalNodes returns total number of registered validator nodes
 func (v *TrustBase) GetTotalNodes() uint64 {
 	return uint64(len(v.PartitionTrustBase))
+}
+
+func (v *TrustBase) NodeIDs() []string {
+	return slices.Collect(maps.Keys(v.PartitionTrustBase))
 }
 
 func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {

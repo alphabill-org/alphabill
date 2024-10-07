@@ -114,7 +114,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
 	require.Equal(t, pubKey, pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
-	require.Equal(t, pdr.SystemIdentifier, blockCertificationRequestRequest.SystemIdentifier)
+	require.Equal(t, pdr.SystemIdentifier, blockCertificationRequestRequest.Partition)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord

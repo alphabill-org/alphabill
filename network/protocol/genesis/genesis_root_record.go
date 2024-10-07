@@ -3,6 +3,8 @@ package genesis
 import (
 	"errors"
 	"fmt"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 var (
@@ -14,6 +16,7 @@ var (
 
 type GenesisRootRecord struct {
 	_              struct{}         `cbor:",toarray"`
+	Version        types.ABVersion  `json:"version,omitempty"`
 	RootValidators []*PublicKeyInfo `json:"root_validators,omitempty"`
 	Consensus      *ConsensusParams `json:"consensus,omitempty"`
 }
@@ -22,6 +25,9 @@ type GenesisRootRecord struct {
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if len(x.RootValidators) == 0 {
 		return ErrNoRootValidators
@@ -82,4 +88,18 @@ func (x *GenesisRootRecord) FindPubKeyById(id string) *PublicKeyInfo {
 		}
 	}
 	return nil
+}
+
+func (x *GenesisRootRecord) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *GenesisRootRecord) MarshalCBOR() ([]byte, error) {
+	type alias GenesisRootRecord
+	return types.Cbor.MarshalTaggedValue(types.GenesisRootRecordTag, (*alias)(x))
+}
+
+func (x *GenesisRootRecord) UnmarshalCBOR(data []byte) error {
+	type alias GenesisRootRecord
+	return types.Cbor.UnmarshalTaggedValue(types.GenesisRootRecordTag, data, (*alias)(x))
 }

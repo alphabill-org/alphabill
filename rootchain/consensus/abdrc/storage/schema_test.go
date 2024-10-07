@@ -3,6 +3,7 @@ package storage
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
@@ -11,10 +12,10 @@ import (
 
 func TestCertKey(t *testing.T) {
 	// appends to prefix
-	require.Equal(t, []byte("cert_test"), certKey([]byte("test")))
-	require.Equal(t, []byte("cert_00000001"), certKey([]byte("00000001")))
-	// nil case
-	require.Equal(t, []byte(certPrefix), certKey(nil))
+	require.Equal(t, []byte{'c', 'e', 'r', 't', '_', 0, 0, 0, 1, 0b1000_0000}, certKey(1, types.ShardID{}))
+	// non-empty shard id
+	_, sid1 := types.ShardID{}.Split()
+	require.Equal(t, []byte{'c', 'e', 'r', 't', '_', 0, 0, 0, 2, 0b1100_0000}, certKey(2, sid1))
 }
 
 func TestBlockKey(t *testing.T) {

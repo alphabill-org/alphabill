@@ -21,6 +21,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 		EncryptionPublicKey: pubKey,
 	}
 	rootConsensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
@@ -60,6 +61,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			},
 			fields: fields{
 				Root: &GenesisRootRecord{
+					Version:        1,
 					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
 					Consensus:      rootConsensus},
 			},
@@ -72,6 +74,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			},
 			fields: fields{
 				Root: &GenesisRootRecord{
+					Version:        1,
 					RootValidators: []*PublicKeyInfo{rootKeyInfo},
 					Consensus:      rootConsensus,
 				},
@@ -86,17 +89,20 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			},
 			fields: fields{
 				Root: &GenesisRootRecord{
+					Version:        1,
 					RootValidators: []*PublicKeyInfo{rootKeyInfo},
 					Consensus:      rootConsensus,
 				},
 				Partitions: []*GenesisPartitionRecord{
 					{
-						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Version:              1,
+						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
-						Nodes:                []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Version:              1,
+						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
 					},
@@ -108,6 +114,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &RootGenesis{
+				Version:    1,
 				Root:       tt.fields.Root,
 				Partitions: tt.fields.Partitions,
 			}
@@ -135,6 +142,7 @@ func TestRootGenesis(t *testing.T) {
 	hash := []byte{2}
 	node := createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
 	consensus := &ConsensusParams{
+		Version:             1,
 		TotalRootValidators: 1,
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  MinBlockRateMs + MinConsensusTimeout,
@@ -148,7 +156,7 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	unicitySeal := &types.UnicitySeal{
+	unicitySeal := &types.UnicitySeal{Version: 1,
 		PreviousHash:         make([]byte, 32),
 		RootChainRoundNumber: 2,
 		Timestamp:            1000,
@@ -156,9 +164,11 @@ func TestRootGenesis(t *testing.T) {
 	}
 	require.NoError(t, unicitySeal.Sign(rootID, rSigner))
 	rg := &RootGenesis{
+		Version: 1,
 		Partitions: []*GenesisPartitionRecord{
 			{
-				Nodes: []*PartitionNode{node},
+				Version: 1,
+				Nodes:   []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
@@ -180,6 +190,7 @@ func TestRootGenesis(t *testing.T) {
 	require.ErrorIs(t, rg.Verify(), ErrRootGenesisRecordIsNil)
 	// add root record
 	rg.Root = &GenesisRootRecord{
+		Version: 1,
 		RootValidators: []*PublicKeyInfo{
 			{NodeIdentifier: rootID, SigningPublicKey: rVerifyPubKey, EncryptionPublicKey: rEncPubKey},
 		},
@@ -192,16 +203,19 @@ func TestRootGenesis(t *testing.T) {
 	require.ErrorContains(t, rg.Verify(), "root genesis partition record 0 error:")
 	// no partitions
 	rgNoPartitions := &RootGenesis{
+		Version:    1,
 		Root:       rg.Root,
 		Partitions: []*GenesisPartitionRecord{},
 	}
 	require.ErrorIs(t, rgNoPartitions.Verify(), ErrPartitionsNotFound)
 	// duplicate partition
 	rgDuplicatePartitions := &RootGenesis{
-		Root: rg.Root,
+		Version: 1,
+		Root:    rg.Root,
 		Partitions: []*GenesisPartitionRecord{
 			{
-				Nodes: []*PartitionNode{node},
+				Version: 1,
+				Nodes:   []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
@@ -209,7 +223,8 @@ func TestRootGenesis(t *testing.T) {
 				PartitionDescription: systemDescription,
 			},
 			{
-				Nodes: []*PartitionNode{node},
+				Version: 1,
+				Nodes:   []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
@@ -219,4 +234,11 @@ func TestRootGenesis(t *testing.T) {
 		},
 	}
 	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "root genesis duplicate partition error")
+
+	// test CBOR marshalling
+	rgBytes, err := types.Cbor.Marshal(rg)
+	require.NoError(t, err)
+	rg2 := &RootGenesis{}
+	require.NoError(t, types.Cbor.Unmarshal(rgBytes, rg2))
+	require.Equal(t, rg, rg2)
 }

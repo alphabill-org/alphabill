@@ -805,13 +805,14 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 		nodeID, signer, _, pubKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
-			SystemIdentifier: systemID,
-			NodeIdentifier:   nodeID.String(),
-			InputRecord:      ir,
+			Partition:      systemID,
+			NodeIdentifier: nodeID.String(),
+			InputRecord:    ir,
 		}
 		require.NoError(t, req.Sign(signer))
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
+			Version:                   1,
 			NodeIdentifier:            nodeID.String(),
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,

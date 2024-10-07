@@ -16,6 +16,7 @@ var (
 
 type GenesisPartitionRecord struct {
 	_                    struct{}                          `cbor:",toarray"`
+	Version              types.ABVersion                   `json:"version,omitempty"`
 	Nodes                []*PartitionNode                  `json:"nodes,omitempty"`
 	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
 	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
@@ -31,6 +32,9 @@ func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.PartitionDe
 func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
 	if x == nil {
 		return ErrGenesisPartitionRecordIsNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if trustBase == nil {
 		return ErrTrustBaseIsNil
@@ -50,4 +54,18 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
 	return nil
+}
+
+func (x *GenesisPartitionRecord) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *GenesisPartitionRecord) MarshalCBOR() ([]byte, error) {
+	type alias GenesisPartitionRecord
+	return types.Cbor.MarshalTaggedValue(types.GenesisPartitionRecordTag, (*alias)(x))
+}
+
+func (x *GenesisPartitionRecord) UnmarshalCBOR(data []byte) error {
+	type alias GenesisPartitionRecord
+	return types.Cbor.UnmarshalTaggedValue(types.GenesisPartitionRecordTag, data, (*alias)(x))
 }

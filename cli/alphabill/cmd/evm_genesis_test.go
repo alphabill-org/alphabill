@@ -148,7 +148,7 @@ func Test_EvmGenesis(t *testing.T) {
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescription)
-		require.EqualValues(t, pdr.SystemIdentifier, pn.BlockCertificationRequest.SystemIdentifier)
+		require.EqualValues(t, pdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)
 	})
 }
 

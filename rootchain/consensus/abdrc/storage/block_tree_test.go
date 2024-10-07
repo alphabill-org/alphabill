@@ -56,7 +56,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				SystemIdentifier:         sysID1,
 				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{
+			UnicitySeal: &types.UnicitySeal{Version: 1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -73,7 +73,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				SystemIdentifier:         sysID2,
 				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{
+			UnicitySeal: &types.UnicitySeal{Version: 1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -96,7 +96,7 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 					Hash: zeroHash,
 				},
 			},
@@ -352,7 +352,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -412,7 +412,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -526,7 +526,7 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{1, 2, 3},
 			Hash:         zeroHash,
 		},

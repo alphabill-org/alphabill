@@ -338,6 +338,15 @@ func (s *State) Prune() error {
 	return pruner.Err()
 }
 
+func (s *State) Size() (uint64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	ss := stateSize{}
+	s.latestSavepoint().Traverse(&ss)
+	return ss.size, ss.err
+}
+
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
 func (s *State) Serialize(writer io.Writer, committed bool) error {

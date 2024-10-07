@@ -27,6 +27,8 @@ type (
 		// current state contains uncommitted changes.
 		StateSummary() (StateSummary, error)
 
+		StateSize() (uint64, error)
+
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64) error
 

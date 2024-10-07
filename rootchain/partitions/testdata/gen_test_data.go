@@ -45,13 +45,13 @@ func writeRootGenesisFile(filename string, partitionNodeID string, rootNodeID st
 	}
 }
 
-func createPartition(systemIdentifier types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
-	req := createInputRequest(systemIdentifier, nodeID, partitionSigner)
+func createPartition(systemID types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
+	req := createInputRequest(systemID, nodeID, partitionSigner)
 	pubKey := getPubKey(partitionSigner)
 
 	pdr := &types.PartitionDescriptionRecord{
 		NetworkIdentifier: 5,
-		SystemIdentifier:  systemIdentifier,
+		SystemIdentifier:  systemID,
 		TypeIdLen:         8,
 		UnitIdLen:         256,
 		T2Timeout:         2500 * time.Millisecond,
@@ -64,6 +64,7 @@ func createPartition(systemIdentifier types.SystemID, nodeID string, partitionSi
 		PartitionDescription: pdr,
 		Validators: []*genesis.PartitionNode{
 			{
+				Version:                   1,
 				NodeIdentifier:            nodeID,
 				SigningPublicKey:          pubKey,
 				EncryptionPublicKey:       pubKey,
@@ -74,10 +75,10 @@ func createPartition(systemIdentifier types.SystemID, nodeID string, partitionSi
 	}
 }
 
-func createInputRequest(systemIdentifier types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(systemID types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   nodeID,
+		Partition:      systemID,
+		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),

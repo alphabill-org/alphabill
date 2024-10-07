@@ -27,10 +27,11 @@ func TestValidateSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
+	networkID := types.NetworkID(5)
 	systemID := types.SystemID(5)
 	fcrUnitType := tokens.FeeCreditRecordUnitType
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(networkID, systemID, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -41,14 +42,14 @@ func TestValidateSetFC(t *testing.T) {
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, []byte{1}, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "fee transaction cannot contain fee credit reference")
 	})
 
 	t.Run("FeeProof is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, []byte{1})
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "fee transaction cannot contain fee authorization proof")
 	})
 
@@ -58,7 +59,7 @@ func TestValidateSetFC(t *testing.T) {
 		fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "invalid unit type for unitID")
 	})
 
@@ -67,14 +68,14 @@ func TestValidateSetFC(t *testing.T) {
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx, attr, authProof, err := newSetFeeCreditTx(signer, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "invalid owner proof")
 	})
 
 	t.Run("Add FCR: ok", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.NoError(t, err)
 	})
 
@@ -83,7 +84,7 @@ func TestValidateSetFC(t *testing.T) {
 		timeout := uint64(11)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "tx.unitID is not equal to expected fee credit record id")
 	})
 
@@ -91,13 +92,13 @@ func TestValidateSetFC(t *testing.T) {
 		counter := uint64(0)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
 		require.NoError(t, err)
-		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 		require.ErrorContains(t, err, "invalid counter: must be nil when creating a new fee credit record")
 	})
 
 	t.Run("Update FCR: ok", func(t *testing.T) {
 		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
-		exeCtx := testctx.NewMockExecutionContext(t, testctx.WithUnit(fcrUnit))
+		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
 		require.NoError(t, err)
@@ -107,7 +108,7 @@ func TestValidateSetFC(t *testing.T) {
 
 	t.Run("Update FCR: counter is nil", func(t *testing.T) {
 		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
-		exeCtx := testctx.NewMockExecutionContext(t, testctx.WithUnit(fcrUnit))
+		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
 		err = m.validateSetFC(tx, attr, authProof, exeCtx)
@@ -116,7 +117,7 @@ func TestValidateSetFC(t *testing.T) {
 
 	t.Run("Update FCR: invalid counter", func(t *testing.T) {
 		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
-		exeCtx := testctx.NewMockExecutionContext(t, testctx.WithUnit(fcrUnit))
+		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(1)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
 		require.NoError(t, err)
@@ -126,7 +127,7 @@ func TestValidateSetFC(t *testing.T) {
 
 	t.Run("Update FCR: invalid target owner predicate", func(t *testing.T) {
 		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
-		exeCtx := testctx.NewMockExecutionContext(t, testctx.WithUnit(fcrUnit))
+		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 
 		// calculate owner predicate for random key
@@ -154,10 +155,11 @@ func TestExecuteSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
+	networkID := types.NetworkID(5)
 	systemID := types.SystemID(5)
 	fcrUnitType := []byte{1}
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(systemID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(networkID, systemID, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// create tx
@@ -169,7 +171,7 @@ func TestExecuteSetFC(t *testing.T) {
 	require.NoError(t, err)
 
 	// execute tx
-	sm, err := m.executeSetFC(tx, attr, authProof, testctx.NewMockExecutionContext(t))
+	sm, err := m.executeSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -204,41 +206,29 @@ func newSetFeeCreditTx(adminKey crypto.Signer, systemID types.SystemID, unitID, 
 		Counter:        counter,
 		Amount:         1e8,
 	}
-	payload, err := newTxPayload(systemID, permissioned.PayloadTypeSetFeeCredit, unitID, fcrID, timeout, nil, attr)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	payloadSig, err := signPayload(payload, adminKey)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	adminKeyVerifier, err := adminKey.Verifier()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	adminPublicKey, err := adminKeyVerifier.MarshalPublicKey()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	authProof := &permissioned.SetFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256SignatureBytes(payloadSig, adminPublicKey)}
-	authProofCBOR, err := types.Cbor.Marshal(authProof)
+	payload, err := newTxPayload(systemID, permissioned.TransactionTypeSetFeeCredit, unitID, fcrID, timeout, nil, attr)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	txo := &types.TransactionOrder{
-		Payload:   payload,
-		FeeProof:  feeProof,
-		AuthProof: authProofCBOR,
+		Payload:  payload,
+		FeeProof: feeProof,
+	}
+	authProof, err := signAuthProof(txo, adminKey, func(ownerProof []byte) *permissioned.SetFeeCreditAuthProof {
+		return &permissioned.SetFeeCreditAuthProof{OwnerProof: ownerProof}
+	})
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	return txo, attr, authProof, nil
 }
 
-func newTxPayload(systemID types.SystemID, txType string, unitID, fcrID types.UnitID, timeout uint64, refNo []byte, attr interface{}) (*types.Payload, error) {
+func newTxPayload(systemID types.SystemID, txType uint16, unitID, fcrID types.UnitID, timeout uint64, refNo []byte, attr interface{}) (types.Payload, error) {
 	attrBytes, err := types.Cbor.Marshal(attr)
 	if err != nil {
-		return nil, err
+		return types.Payload{}, err
 	}
-	return &types.Payload{
+	return types.Payload{
 		SystemID:   systemID,
 		Type:       txType,
 		UnitID:     unitID,
@@ -250,16 +240,4 @@ func newTxPayload(systemID types.SystemID, txType string, unitID, fcrID types.Un
 			ReferenceNumber:   refNo,
 		},
 	}, nil
-}
-
-func signPayload(payload *types.Payload, signer crypto.Signer) ([]byte, error) {
-	payloadBytes, err := payload.Bytes()
-	if err != nil {
-		return nil, err
-	}
-	payloadSig, err := signer.SignBytes(payloadBytes)
-	if err != nil {
-		return nil, err
-	}
-	return payloadSig, nil
 }

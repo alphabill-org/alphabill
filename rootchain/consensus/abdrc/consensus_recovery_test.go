@@ -160,7 +160,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 						err = errors.Join(err, fmt.Errorf("expected receiver %s got %s", nodeID.String(), m.NodeId))
 					}
 				} else {
-					err = errors.Join(err, fmt.Errorf("unexpected message payload type %T", msg))
+					err = errors.Join(err, fmt.Errorf("unexpected message transaction type %T", msg))
 				}
 				authorErr <- err
 			case <-time.After(time.Second):
@@ -793,10 +793,11 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
-			SystemIdentifier: systemID,
-			TypeIdLen:        8,
-			UnitIdLen:        256,
-			T2Timeout:        2500 * time.Millisecond,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemID,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 	}
 

@@ -7,40 +7,36 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/state"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-type (
-	dustCollectorTransfer struct {
-		id         types.UnitID
-		tx         *types.TransactionRecord
-		attributes *money.TransferDCAttributes
-	}
-)
+func (m *Module) executeSwapTx(tx *types.TransactionOrder, _ *money.SwapDCAttributes, _ *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	// get DC-sum from execution context to avoid parsing swap tx attributes twice
+	dcSum := util.BytesToUint64(exeCtx.GetData())
 
-func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, _ *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	// reduce dc-money supply by target value and update timeout and backlink
+	// reduce DC-money supply by sum of dust transfer values and update timeout and backlink
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
 			bd, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 			}
-			bd.V -= attr.TargetValue
+			bd.V -= dcSum
 			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			return bd, nil
 		},
 	)
 	// increase target unit value by swap amount
-	updateTargetUnitFn := state.UpdateUnitData(tx.UnitID(),
+	updateTargetUnitFn := state.UpdateUnitData(tx.UnitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			bd, ok := data.(*money.BillData)
 			if !ok {
-				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID())
+				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID)
 			}
-			bd.V += attr.TargetValue
+			bd.V += dcSum
 			bd.T = exeCtx.CurrentRound()
 			bd.Counter += 1
 			bd.Locked = 0
@@ -50,26 +46,14 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAtt
 		return nil, fmt.Errorf("unit update failed: %w", err)
 	}
 	return &types.ServerMetadata{
-		TargetUnits:      []types.UnitID{tx.UnitID(), DustCollectorMoneySupplyID},
+		TargetUnits:      []types.UnitID{tx.UnitID, DustCollectorMoneySupplyID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }
 
 func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, authProof *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) error {
-	// 2. there is sufficient DC-money supply
-	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
-	if err != nil {
-		return fmt.Errorf("DC-money supply unit error: %w", err)
-	}
-	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*money.BillData)
-	if !ok {
-		return errors.New("DC-money supply invalid data type")
-	}
-	if dcMoneySupplyBill.V < attr.TargetValue {
-		return errors.New("insufficient DC-money supply")
-	}
-	// 3. transaction unit id identifies an existing bill
-	unitData, err := m.state.GetUnit(tx.UnitID(), false)
+	// transaction unit id identifies an existing bill
+	unitData, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return fmt.Errorf("target unit error: %w", err)
 	}
@@ -78,79 +62,100 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if !ok {
 		return fmt.Errorf("target unit invalid data type")
 	}
-	// 5. bills were transferred to DC
-	dustTransfers, err := getDCTransfers(attr)
-	if err != nil {
-		return fmt.Errorf("failed to extract DC transfers: %w", err)
-	}
-	// 1. target value is the sum of the values of the transDC payments
-	sum := sumDcTransferValues(dustTransfers)
-	if attr.TargetValue != sum {
-		return fmt.Errorf("target value must be equal to the sum of dust transfer values: expected %d vs provided %d", sum, attr.TargetValue)
-	}
-	if len(dustTransfers) != len(attr.DcTransferProofs) {
-		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(attr.DcTransferProofs))
-	}
-	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+
+	// the owner proof satisfies the bill's owner predicate
+	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("swap transaction predicate validation failed: %w", err)
 	}
-	for i, dcTx := range dustTransfers {
-		// 4. transfers were in the money partition
-		if dcTx.tx.TransactionOrder.SystemID() != m.systemID {
-			return fmt.Errorf("dust transfer system id is not money partition system id: expected %s vs provided %s",
-				m.systemID, dcTx.tx.TransactionOrder.SystemID())
-		}
-		// 6. transfer orders are listed in strictly increasing order of bill identifiers
-		// (this ensures that no source bill can be included multiple times
-		if i > 0 && bytes.Compare(dcTx.id, dustTransfers[i-1].id) != 1 {
-			return errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
-		}
-		// 7. bill transfer orders contain correct target unit ids
-		if !bytes.Equal(dcTx.attributes.TargetUnitID, tx.UnitID()) {
-			return errors.New("dust transfer order target unit id is not equal to swap transaction unit id")
-		}
-		// 8. bill transfer orders contain correct target counter values
-		if dcTx.attributes.TargetUnitCounter != billData.Counter {
-			return fmt.Errorf("dust transfer target counter is not equal to target unit counter: "+
-				"expected %X vs provided %X", billData.Counter, dcTx.attributes.TargetUnitCounter)
-		}
-		// 9. transaction proofs of the bill transfer orders verify
-		if err = types.VerifyTxProof(attr.DcTransferProofs[i], dcTx.tx, m.trustBase, m.hashAlgorithm); err != nil {
-			return fmt.Errorf("proof is not valid: %w", err)
+
+	// verify individual dust transfers (without proofs, proofs are check as the last step)
+	dcSum, err := m.verifyDustTransfers(attr.DustTransferProofs, tx.UnitID, billData.Counter)
+	if err != nil {
+		return fmt.Errorf("dust transaction verification failed: %w", err)
+	}
+
+	// there is sufficient DC-money supply
+	dcMoneySupply, err := m.state.GetUnit(DustCollectorMoneySupplyID, false)
+	if err != nil {
+		return fmt.Errorf("DC-money supply unit error: %w", err)
+	}
+	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*money.BillData)
+	if !ok {
+		return errors.New("DC-money supply invalid data type")
+	}
+	if dcMoneySupplyBill.V < dcSum {
+		return errors.New("insufficient DC-money supply")
+	}
+
+	// verify dust transfer proofs
+	for i, proof := range attr.DustTransferProofs {
+		if err = types.VerifyTxProof(proof, m.trustBase, m.hashAlgorithm); err != nil {
+			return fmt.Errorf("dust transfer proof is not valid at index %d: %w", i, err)
 		}
 	}
+
+	// add DC-sum to the execution context to avoid parsing the dust transfers again at execution step
+	exeCtx.SetData(util.Uint64ToBytes(dcSum))
+
 	return nil
 }
 
-func getDCTransfers(attr *money.SwapDCAttributes) ([]*dustCollectorTransfer, error) {
-	if len(attr.DcTransfers) == 0 {
-		return nil, errors.New("transaction does not contain any dust transfers")
-	}
-	transfers := make([]*dustCollectorTransfer, len(attr.DcTransfers))
-	for i, t := range attr.DcTransfers {
-		if t == nil {
-			return nil, fmt.Errorf("dc transaction is nil: %d", i)
+func (m *Module) verifyDustTransfers(dustTransferProofs []*types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
+	var dcSum uint64
+	var prevDcProof *types.TxRecordProof
+	for i, dcProof := range dustTransferProofs {
+		if i > 0 {
+			prevDcProof = dustTransferProofs[i-1]
 		}
-		a := &money.TransferDCAttributes{}
-		if t.TransactionOrder.PayloadType() != money.PayloadTypeTransDC {
-			return nil, fmt.Errorf("invalid transfer DC payload type: %s", t.TransactionOrder.PayloadType())
+		dcVal, err := m.verifyDustTransfer(dcProof, prevDcProof, targetUnitID, targetUnitCounter)
+		if err != nil {
+			return 0, fmt.Errorf("failed to verify dust transfer at index %d: %w", i, err)
 		}
-		if err := t.TransactionOrder.UnmarshalAttributes(a); err != nil {
-			return nil, fmt.Errorf("invalid DC transfer: %w", err)
-		}
-		transfers[i] = &dustCollectorTransfer{
-			id:         t.TransactionOrder.UnitID(),
-			tx:         t,
-			attributes: a,
+		var ok bool
+		dcSum, ok = util.SafeAdd(dcSum, dcVal)
+		if !ok {
+			return 0, fmt.Errorf("dust transfer transaction sum overflow")
 		}
 	}
-	return transfers, nil
+	return dcSum, nil
 }
 
-func sumDcTransferValues(txs []*dustCollectorTransfer) uint64 {
-	var sum uint64
-	for _, dcTx := range txs {
-		sum += dcTx.attributes.Value
+func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransfer *types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
+	if err := dcProof.IsValid(); err != nil {
+		return 0, err
 	}
-	return sum
+	dcTxo := dcProof.TransactionOrder()
+	var dcAttr money.TransferDCAttributes
+	if err := dcTxo.UnmarshalAttributes(&dcAttr); err != nil {
+		return 0, fmt.Errorf("invalid TransferDC attributes: %w", err)
+	}
+	// transfers were in this network
+	if dcTxo.NetworkID != m.networkID {
+		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", m.networkID, dcTxo.SystemID)
+	}
+	// transfers were in the money partition
+	if dcTxo.SystemID != m.systemID {
+		return 0, fmt.Errorf("dust transfer system id is not money partition system id: expected %d vs provided %d",
+			m.systemID, dcTxo.SystemID)
+	}
+	// bills were transferred to DC
+	if dcTxo.Type != money.TransactionTypeTransDC {
+		return 0, fmt.Errorf("invalid transfer DC transaction type: %d", dcTxo.Type)
+	}
+	// transfer orders are listed in strictly increasing order of bill identifiers
+	// (this ensures that no source bill can be included multiple times
+	if prevDustTransfer != nil && bytes.Compare(dcTxo.UnitID, prevDustTransfer.TxRecord.UnitID()) != 1 {
+		return 0, errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
+	}
+	// bill transfer orders contain correct target unit ids
+	if !bytes.Equal(dcAttr.TargetUnitID, targetUnitID) {
+		return 0, errors.New("dust transfer order target unit id is not equal to swap transaction unit id")
+	}
+	// bill transfer orders contain correct target counter values
+	if dcAttr.TargetUnitCounter != targetUnitCounter {
+		return 0, fmt.Errorf("dust transfer target counter is not equal to target unit counter: "+
+			"expected %d vs provided %d", targetUnitCounter, dcAttr.TargetUnitCounter)
+	}
+	// proofs are verifier later
+	return dcAttr.Value, nil
 }

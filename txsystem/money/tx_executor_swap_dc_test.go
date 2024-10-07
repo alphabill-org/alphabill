@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -14,6 +15,8 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
+
+const dustTransferValue = 100
 
 func TestModule_validateSwapTx(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -23,104 +26,96 @@ func TestModule_validateSwapTx(t *testing.T) {
 	t.Run("Ok", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx))
 	})
 	t.Run("DC money supply < transaction target value", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 99, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "insufficient DC-money supply")
 	})
 	t.Run("target unit does not exist", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "target unit error: item FF does not exist: not found")
-	})
-	t.Run("InvalidTargetValue", func(t *testing.T) {
-		swapTx, swapAttr, authProof := newInvalidTargetValueSwap(t, signer)
-		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "target value must be equal to the sum of dust transfer values: expected 90 vs provided 100")
 	})
 	t.Run("DustTransfersInDescBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDescBillOrderSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
 	})
 	t.Run("DustTransfersInEqualBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEqualBillIdsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
 	})
 	t.Run("DustTransfersInvalidTargetSystemID", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapOrderWithInvalidTargetSystemID(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer system id is not money partition system id: expected 00000001 vs provided 00000000")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer system id is not money partition system id: expected 1 vs provided 0")
 	})
 	t.Run("invalid target unit id", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetUnitIDSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer order target unit id is not equal to swap transaction unit id")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer order target unit id is not equal to swap transaction unit id")
 	})
 	t.Run("invalid target counter", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetCounterSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer target counter is not equal to target unit counter: expected 0 vs provided 7")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer target counter is not equal to target unit counter: expected 0 vs provided 7")
 	})
 	t.Run("InvalidProofsNil", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDcProofsNilSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "invalid count of proofs: expected 1 vs provided 0")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transaction verification failed: failed to verify dust transfer at index 0: transaction proof is nil")
 	})
 	t.Run("InvalidEmptyDcProof", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEmptyDcProofsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "proof is not valid: invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil")
 	})
 	t.Run("InvalidDcProofInvalid", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidDcProofsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "proof is not valid: invalid unicity certificate: unicity seal signature validation failed: quorum not reached, signed_votes=0 quorum_threshold=1")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: invalid unicity certificate: unicity seal signature validation failed: quorum not reached, signed_votes=0 quorum_threshold=1")
 	})
 	t.Run("owner proof error", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(test.RandomBytes(10)), &money.BillData{V: 0, T: 0, Counter: 0}),
+			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(test.RandomBytes(10)), &money.BillData{V: 0, T: 0, Counter: 0}),
 			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), `swap transaction predicate validation failed: predicate evaluated to "false"`)
 	})
 }
@@ -133,19 +128,22 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.NoError(t, err)
 	swapTx, swapAttr, authProof := newSwapDC(t, signer)
 	module := newTestMoneyModule(t, verifier,
-		withStateUnit(swapTx.UnitID(), templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: targetBillValue, T: 0, Counter: 0}),
+		withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: targetBillValue, T: 0, Counter: 0}),
 		withStateUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &money.BillData{V: dustAmount, T: 0, Counter: 0}))
-	exeCtx := testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(6))
+	exeCtx := testctx.NewMockExecutionContext(
+		testctx.WithCurrentRound(6),
+		testctx.WithData(util.Uint64ToBytes(dustTransferValue)),
+	)
 	sm, err := module.executeSwapTx(swapTx, swapAttr, authProof, exeCtx)
 	require.NoError(t, err)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.EqualValues(t, []types.UnitID{swapTx.UnitID(), DustCollectorMoneySupplyID}, sm.TargetUnits)
-	u, err := module.state.GetUnit(swapTx.UnitID(), false)
+	require.EqualValues(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID}, sm.TargetUnits)
+	u, err := module.state.GetUnit(swapTx.UnitID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, u.Owner(), templates.NewP2pkh256BytesFromKey(pubKey))
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, bill.V, targetBillValue+swapAttr.TargetValue)
+	require.EqualValues(t, bill.V, targetBillValue+dustTransferValue)
 	// counter was 0,
 	require.EqualValues(t, bill.Counter, 1)
 	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
@@ -156,7 +154,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.EqualValues(t, d.Owner(), DustCollectorPredicate)
 	dustBill, ok := d.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, dustBill.V, dustAmount-swapAttr.TargetValue)
+	require.EqualValues(t, dustBill.V, dustAmount-dustTransferValue)
 	// counter was 0,
 	require.EqualValues(t, dustBill.Counter, 1)
 	require.EqualValues(t, dustBill.T, exeCtx.CurrentRound())
@@ -167,7 +165,7 @@ func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *mo
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeTransDC),
+		testtransaction.WithTransactionType(money.TransactionTypeTransDC),
 		testtransaction.WithUnitID(transferID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -177,38 +175,6 @@ func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *mo
 		}),
 	)
 	return transferDCRecord
-}
-
-func newInvalidTargetValueSwap(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
-	transferId := newBillID(1)
-	swapId := newBillID(255)
-
-	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &money.TransferDCAttributes{
-		TargetUnitID: swapId,
-		Value:        90,
-		Counter:      6,
-	})
-	attr := &money.SwapDCAttributes{
-		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
-		DcTransferProofs: []*types.TxProof{nil},
-		TargetValue:      100,
-	}
-	txo := testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
-		testtransaction.WithUnitID(swapId),
-		testtransaction.WithAttributes(attr),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           100,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: []byte{0},
-		}),
-	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
-	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
-	require.NoError(t, txo.SetAuthProof(authProof))
-	return txo, attr, authProof
 }
 
 func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
@@ -221,14 +187,14 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) (*types.Tr
 		Counter:      6,
 	})
 	attr := &money.SwapDCAttributes{
-		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
-		DcTransferProofs: []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-		TargetValue:      100,
+		DustTransferProofs: []*types.TxRecordProof{
+			testblock.CreateTxRecordProof(t, transferDCRecord, signer),
+		},
 	}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -237,7 +203,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) (*types.Tr
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attr, authProof
@@ -258,27 +224,20 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 	// create swap transaction with two dust transfers in descending order of bill ids
 	billIds := []types.UnitID{newBillID(2), newBillID(1)}
 	swapId := newBillID(255)
-	dcTransfers := make([]*types.TransactionRecord, len(billIds))
-	transferIds := make([][]byte, len(billIds))
-	proofs := make([]*types.TxProof, len(billIds))
+	proofs := make([]*types.TxRecordProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		transferIds[i] = billIds[i]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &money.TransferDCAttributes{
+		dustTransferRecord := createTransferDCTransactionRecord(t, billIds[i], &money.TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
 			Counter:      6,
 		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
+		proofs[i] = testblock.CreateTxRecordProof(t, dustTransferRecord, signer)
 	}
-	attr := &money.SwapDCAttributes{
-		DcTransfers:      dcTransfers,
-		DcTransferProofs: proofs,
-		TargetValue:      200,
-	}
+	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -287,7 +246,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attr, authProof
@@ -297,27 +256,20 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transacti
 	// create swap transaction with two dust transfers with equal bill ids
 	billIds := []types.UnitID{newBillID(1), newBillID(1)}
 	swapId := newBillID(255)
-	dcTransfers := make([]*types.TransactionRecord, len(billIds))
-	transferIds := make([][]byte, len(billIds))
-	proofs := make([]*types.TxProof, len(billIds))
+	txrProofs := make([]*types.TxRecordProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		transferIds[i] = billIds[i]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &money.TransferDCAttributes{
+		dustTransferRecord := createTransferDCTransactionRecord(t, billIds[i], &money.TransferDCAttributes{
 			TargetUnitID: swapId,
-			Value:        100,
+			Value:        dustTransferValue,
 			Counter:      6,
 		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
+		txrProofs[i] = testblock.CreateTxRecordProof(t, dustTransferRecord, signer)
 	}
-	attr := &money.SwapDCAttributes{
-		DcTransfers:      dcTransfers,
-		DcTransferProofs: proofs,
-		TargetValue:      200,
-	}
+	attr := &money.SwapDCAttributes{DustTransferProofs: txrProofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -326,7 +278,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transacti
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attr, authProof
@@ -338,7 +290,7 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
 		testtransaction.WithSystemID(0),
-		testtransaction.WithPayloadType(money.PayloadTypeTransDC),
+		testtransaction.WithTransactionType(money.TransactionTypeTransDC),
 		testtransaction.WithUnitID(transferId),
 		testtransaction.WithAttributes(&money.TransferDCAttributes{
 			TargetUnitID: swapId,
@@ -363,15 +315,14 @@ func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) (*types.Transactio
 		Value:        100,
 		Counter:      6,
 	})
-	attr := &money.SwapDCAttributes{
-		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
-		DcTransferProofs: nil,
-		TargetValue:      100,
+	proofs := []*types.TxRecordProof{
+		{TxRecord: transferDCRecord, TxProof: nil},
 	}
+	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -380,7 +331,7 @@ func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) (*types.Transactio
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attr, authProof
@@ -394,15 +345,17 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 		Value:        100,
 		Counter:      6,
 	})
-	attr := &money.SwapDCAttributes{
-		DcTransfers:      []*types.TransactionRecord{transferDCRecord},
-		DcTransferProofs: []*types.TxProof{{BlockHeaderHash: []byte{0}}},
-		TargetValue:      100,
+	proofs := []*types.TxRecordProof{
+		{
+			TxRecord: transferDCRecord,
+			TxProof:  &types.TxProof{BlockHeaderHash: []byte{0}},
+		},
 	}
+	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -411,7 +364,7 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attr, authProof
@@ -421,7 +374,7 @@ func newInvalidDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transa
 	UCSigner, _ := testsig.CreateSignerAndVerifier(t)
 	txo, attr, _ := newSwapDC(t, UCSigner)
 
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 
@@ -431,28 +384,23 @@ func newInvalidDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transa
 func newSwapDC(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
 	transferId := newBillID(1)
 	swapId := []byte{255}
-
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &money.TransferDCAttributes{
 		TargetUnitID: swapId,
-		Value:        100,
+		Value:        dustTransferValue,
 		Counter:      0,
 	}))
 }
 
 func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId []byte, transferDCRecords ...*types.TransactionRecord) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
-	var proofs []*types.TxProof
+	var proofs []*types.TxRecordProof
 	for _, dcTx := range transferDCRecords {
-		proofs = append(proofs, testblock.CreateProof(t, dcTx, signer))
+		proofs = append(proofs, testblock.CreateTxRecordProof(t, dcTx, signer))
 	}
-	attrs := &money.SwapDCAttributes{
-		DcTransfers:      transferDCRecords,
-		DcTransferProofs: proofs,
-		TargetValue:      100,
-	}
+	attrs := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attrs),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -461,7 +409,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 			FeeCreditRecordID: []byte{0},
 		}),
 	)
-	ownerProof := testsig.NewOwnerProof(t, txo, signer)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
 	authProof := &money.SwapDCAuthProof{OwnerProof: ownerProof}
 	require.NoError(t, txo.SetAuthProof(authProof))
 	return txo, attrs, authProof

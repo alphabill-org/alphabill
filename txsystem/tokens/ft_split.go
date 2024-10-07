@@ -12,7 +12,7 @@ import (
 )
 
 func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		return nil, err
@@ -20,7 +20,11 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	ftData := u.Data().(*tokens.FungibleTokenData)
 
 	// add new token unit
-	newTokenID := tokens.NewFungibleTokenID(unitID, tx.HashForNewUnitID(m.hashAlgorithm))
+	unitPart, err := tokens.HashForNewTokenID(tx, m.hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	newTokenID := tokens.NewFungibleTokenID(unitID, unitPart)
 
 	// update state
 	if err = m.state.Apply(
@@ -56,7 +60,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 }
 
 func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
+	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
@@ -76,12 +80,12 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		tokenData.TokenType,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,

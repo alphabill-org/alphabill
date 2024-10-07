@@ -181,6 +181,7 @@ type mockTxContext struct {
 	trustBase    func() (types.RootTrustBase, error)
 	GasRemaining uint64
 	calcCost     func() uint64
+	txo          *types.TransactionOrder
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
@@ -206,6 +207,8 @@ func (env *mockTxContext) SpendGas(gas uint64) error {
 }
 
 func (env *mockTxContext) CalculateCost() uint64 { return env.calcCost() }
+
+func (env *mockTxContext) TransactionOrder() (*types.TransactionOrder, error) { return env.txo, nil }
 
 type mockRootTrustBase struct {
 	verifyQuorumSignatures func(data []byte, signatures map[string][]byte) (error, []error)

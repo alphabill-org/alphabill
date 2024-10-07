@@ -25,10 +25,11 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	validPDR := types.PartitionDescriptionRecord{
-		SystemIdentifier: 1,
-		TypeIdLen:        8,
-		UnitIdLen:        128,
-		T2Timeout:        5 * time.Second,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  1,
+		TypeIdLen:         8,
+		UnitIdLen:         128,
+		T2Timeout:         5 * time.Second,
 	}
 
 	type args struct {
@@ -93,7 +94,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	// invalid system identifier
 	got, err := NewNodeGenesis(
 		state.NewEmptyState(),
-		types.PartitionDescriptionRecord{SystemIdentifier: 0},
+		types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 0},
 		WithPeerID("1"),
 		WithSigningKey(signer),
 		WithEncryptionPubKey(pubKeyBytes),
@@ -107,7 +108,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pdr := types.PartitionDescriptionRecord{SystemIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
 	pn := createPartitionNode(t, signer, verifier, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)

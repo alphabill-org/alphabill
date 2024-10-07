@@ -24,7 +24,7 @@ var (
 )
 
 func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, _ *fc.TransferFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	// remove value from source unit, zero value bills get removed later
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
@@ -48,14 +48,14 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 		attr: attr,
 		fee:  fee,
 	})
-	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
 func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, authProof *fc.TransferFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
-		return fmt.Errorf("unit not found %s", tx.UnitID())
+		return fmt.Errorf("unit not found %s", tx.UnitID)
 	}
 	billData, ok := unit.Data().(*money.BillData)
 	if !ok {
@@ -73,19 +73,19 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if attr.Amount > billData.V {
 		return ErrInvalidFCValue
 	}
-	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {
+	if tx.MaxFee() > attr.Amount {
 		return ErrInvalidFeeValue
 	}
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if tx.GetClientFeeCreditRecordID() != nil {
+	if tx.FeeCreditRecordID() != nil {
 		return ErrRecordIDExists
 	}
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("verify owner proof: %w", err)
 	}
 	return nil

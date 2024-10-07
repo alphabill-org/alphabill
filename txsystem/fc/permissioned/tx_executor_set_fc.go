@@ -22,7 +22,7 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 	}
 
 	// verify unit id has the correct type byte
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(f.feeCreditRecordUnitType) {
 		return fmt.Errorf("invalid unit type for unitID: %s", unitID)
 	}
@@ -60,32 +60,32 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 	}
 
 	// verify tx is signed by admin key
-	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil
 }
 
 func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permissioned.SetFeeCreditAttributes, _ *permissioned.SetFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	fcrUnit, err := exeCtx.GetUnit(tx.UnitID(), false)
+	fcrUnit, err := exeCtx.GetUnit(tx.UnitID, false)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return nil, fmt.Errorf("failed to get unit: %w", err)
 	}
 	var actionFn state.Action
 	if fcrUnit != nil {
-		actionFn = unit.IncrCredit(tx.UnitID(), attr.Amount, tx.Timeout())
+		actionFn = unit.IncrCredit(tx.UnitID, attr.Amount, tx.Timeout())
 	} else {
 		fcr := &fc.FeeCreditRecord{
 			Balance: attr.Amount,
 			Timeout: tx.Timeout(),
 		}
-		actionFn = state.AddUnit(tx.UnitID(), attr.OwnerPredicate, fcr)
+		actionFn = state.AddUnit(tx.UnitID, attr.OwnerPredicate, fcr)
 	}
 	if err := f.state.Apply(actionFn); err != nil {
 		return nil, fmt.Errorf("failed to set fee credit record: %w", err)
 	}
 	return &types.ServerMetadata{
-		TargetUnits:      []types.UnitID{tx.UnitID()},
+		TargetUnits:      []types.UnitID{tx.UnitID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }

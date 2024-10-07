@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 )
@@ -33,7 +32,7 @@ func (TemplateRunner) ID() uint64 {
 	return templates.TemplateStartByte
 }
 
-func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func (TemplateRunner) Execute(_ context.Context, p *sdkpredicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
 	if p.Tag != templates.TemplateStartByte {
 		return false, fmt.Errorf("expected predicate template tag %d but got %d", templates.TemplateStartByte, p.Tag)
 	}
@@ -43,9 +42,7 @@ func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, a
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return executeP2PKH256TxAuth(p.Params, args, txo, env)
-	case templates.P2pkh256FeeAuthID:
-		return executeP2PKH256FeeAuth(p.Params, args, txo, env)
+		return executeP2PKH256TxAuth(p.Params, args, sigBytesFn, env)
 	case templates.AlwaysTrueID:
 		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
@@ -79,26 +76,11 @@ func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, er
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func executeP2PKH256TxAuth(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
-	sigBytes, err := txo.PayloadBytes()
+func executeP2PKH256TxAuth(pubKeyHash, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
+	sigBytes, err := sigBytesFn()
 	if err != nil {
 		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
 	}
-	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
-}
-
-func executeP2PKH256FeeAuth(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
-	var sigBytes []byte
-	var err error
-	if fc.IsFeeCreditTx(txo) {
-		sigBytes, err = txo.PayloadBytes()
-	} else {
-		sigBytes, err = txo.FeeProofSigBytes()
-	}
-	if err != nil {
-		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
-	}
-
 	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
 }
 

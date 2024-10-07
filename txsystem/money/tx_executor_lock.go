@@ -15,7 +15,7 @@ var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero va
 
 func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, _ *money.LockAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// lock the unit
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
 		if !ok {
@@ -33,7 +33,7 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 }
 
 func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, authProof *money.LockAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		return fmt.Errorf("lock transaction: get unit error: %w", err)
@@ -51,7 +51,7 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

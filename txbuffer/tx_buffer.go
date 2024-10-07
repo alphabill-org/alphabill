@@ -82,9 +82,9 @@ func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byt
 	}
 
 	txHash := tx.Hash(buf.hashAlgorithm)
-	buf.log.DebugContext(ctx, fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
+	buf.log.DebugContext(ctx, fmt.Sprintf("received transaction (type=%d), hash %X", tx.Type, txHash), logger.UnitID(tx.UnitID))
 	txId := string(txHash)
-	span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID()), observability.TxTypeKey.String(tx.PayloadType()))
+	span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID), observability.TxTypeKey.Int(int(tx.Type)))
 
 	buf.mutex.Lock()
 	defer buf.mutex.Unlock()
@@ -112,7 +112,7 @@ func (buf *TxBuffer) Remove(ctx context.Context) (*types.TransactionOrder, error
 		return nil, ctx.Err()
 	case tx := <-buf.transactionsCh:
 		txHash := tx.Hash(buf.hashAlgorithm)
-		span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID()), observability.TxTypeKey.String(tx.PayloadType()))
+		span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID), observability.TxTypeKey.Int(int(tx.Type)))
 		buf.removeFromIndex(ctx, string(txHash))
 		return tx, nil
 	}

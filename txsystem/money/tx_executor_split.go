@@ -13,14 +13,17 @@ import (
 )
 
 func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
 	var actions []state.Action
 	var sum uint64
-	var err error
 	for i, targetUnit := range attr.TargetUnits {
-		newUnitID := money.NewBillID(unitID, tx.HashForNewUnitID(m.hashAlgorithm, util.Uint32ToBytes(uint32(i))))
+		newUnitPart, err := money.HashForNewBillID(tx, uint32(i), m.hashAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate hash for new bill id: %w", err)
+		}
+		newUnitID := money.NewBillID(unitID, newUnitPart)
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		actions = append(actions, state.AddUnit(
 			newUnitID,
@@ -57,14 +60,14 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 }
 
 func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, authProof *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unit, err := m.state.GetUnit(tx.UnitID(), false)
+	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return err
 	}
 	if err = validateSplit(unit.Data(), attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

@@ -385,8 +385,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
-		Payload: &types.Payload{
-			Type:           money.PayloadTypeTransfer,
+		Payload: types.Payload{
+			Type:           money.TransactionTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       money.DefaultSystemID,
@@ -412,8 +412,8 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
-		Payload: &types.Payload{
-			Type:           money.PayloadTypeTransfer,
+		Payload: types.Payload{
+			Type:           money.TransactionTypeTransfer,
 			UnitID:         defaultInitialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       0, // invalid system id

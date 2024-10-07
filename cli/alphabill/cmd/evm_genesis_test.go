@@ -23,10 +23,11 @@ import (
 func Test_EvmGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: evmsdk.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  evmsdk.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)

@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
-const mockTx = "mockTx"
+const mockTx uint16 = 22
 
 type txSysInfo struct {
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
@@ -51,8 +51,8 @@ func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttribut
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (mm MockModule) TxHandlers() map[string]TxExecutor {
-	return map[string]TxExecutor{
+func (mm MockModule) TxHandlers() map[uint16]TxExecutor {
+	return map[uint16]TxExecutor{
 		mockTx: NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
 	}
 }
@@ -88,22 +88,22 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(errors.New("unexpected call"))
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: "bar"}}
-		attr, authProof, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		txo := &types.TransactionOrder{Payload: types.Payload{Type: 23}}
+		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		// try calling validate
-		require.EqualError(t, err, `unknown transaction type bar`)
+		require.EqualError(t, err, `unknown transaction type 23`)
 		require.Nil(t, attr)
 		// try calling execute with attr
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, authProof, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.Nil(t, sm)
-		require.EqualError(t, err, `unknown transaction type bar`)
+		require.EqualError(t, err, `unknown transaction type 23`)
 		// try to execute
-		sm, err = exec.Execute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
-		require.EqualError(t, err, "unknown transaction type bar")
+		sm, err = exec.Execute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
+		require.EqualError(t, err, "unknown transaction type 23")
 		require.Nil(t, sm)
 		// try calling validate and execute
-		sm, err = exec.ValidateAndExecute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
-		require.EqualError(t, err, "unknown transaction type bar")
+		sm, err = exec.ValidateAndExecute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
+		require.EqualError(t, err, "unknown transaction type 23")
 		require.Nil(t, sm)
 	})
 
@@ -112,14 +112,14 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		expErr := errors.New("transaction handler failed")
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: mockTx}}
-		attr, authProof, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		txo := &types.TransactionOrder{Payload: types.Payload{Type: mockTx}}
+		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)
 		// try to execute anyway
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, authProof, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.Nil(t, sm)
-		require.EqualError(t, err, "incorrect attribute type: <nil> for transaction order mockTx")
+		require.EqualError(t, err, "incorrect attribute type: <nil> for transaction order 22")
 	})
 
 	t.Run("transaction execute returns error", func(t *testing.T) {
@@ -127,12 +127,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		expErr := errors.New("transaction handler failed")
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := &types.TransactionOrder{Payload: &types.Payload{Type: mockTx}}
-		attr, _, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		txo := &types.TransactionOrder{Payload: types.Payload{Type: mockTx}}
+		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)
 		// try to execute anyway
-		sm, err := exec.Execute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.Execute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.Nil(t, sm)
 		require.EqualError(t, err, "transaction order execution failed: failed to unmarshal payload: EOF")
 	})
@@ -143,12 +143,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(nil)
 		mock.ValidateError = expErr
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, _, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, attr)
 	})
@@ -160,12 +160,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(execErr)
 		mock.ValidateError = validateErr
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, err := exec.ValidateAndExecute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.ErrorIs(t, err, validateErr)
 		require.Nil(t, attr)
 	})
@@ -175,12 +175,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		execErr := errors.New("transaction execute failed")
 		mock := NewMockTxModule(execErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, err := exec.ValidateAndExecute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.ErrorIs(t, err, execErr)
 		require.Nil(t, attr)
 	})
@@ -193,10 +193,10 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(TestData{Data: []byte{1, 4}}))
-		attr, _, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: cbor: cannot unmarshal byte string into Go struct field types.MockTxAttributes.Value of type uint64")
 		require.Nil(t, attr)
 	})
@@ -207,16 +207,16 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(expErr)
 		mock.ValidateError = expErr
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, authProof, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, attr)
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, authProof, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
-		require.EqualError(t, err, "incorrect attribute type: <nil> for transaction order mockTx")
+		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
+		require.EqualError(t, err, "incorrect attribute type: <nil> for transaction order 22")
 		require.Nil(t, sm)
 	})
 
@@ -224,12 +224,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, _, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
 	})
@@ -238,15 +238,15 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, _, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
-		sm, err := exec.Execute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.Execute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
@@ -255,15 +255,15 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, authProof, err := exec.Validate(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, attr)
-		sm, err := exec.ExecuteWithAttr(txOrder, attr, authProof, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
@@ -272,12 +272,12 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(nil)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txOrder := transaction.NewTransactionOrder(t,
-			transaction.WithPayloadType(mockTx),
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		sm, err := exec.ValidateAndExecute(txOrder, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ValidateAndExecute(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})
@@ -303,12 +303,12 @@ func Test_TxExecutors_Add(t *testing.T) {
 
 	t.Run("attempt to add invalid items", func(t *testing.T) {
 		dst := make(TxExecutors)
-		err := dst.Add(TxExecutors{"": nil})
-		require.EqualError(t, err, `transaction executor must have non-empty transaction type name`)
+		err := dst.Add(TxExecutors{0: nil})
+		require.EqualError(t, err, `transaction executor must have non-zero transaction type`)
 		require.Empty(t, dst)
 
-		err = dst.Add(TxExecutors{"foo": nil})
-		require.EqualError(t, err, `transaction executor must not be nil (foo)`)
+		err = dst.Add(TxExecutors{23: nil})
+		require.EqualError(t, err, `transaction executor must not be nil (type=23)`)
 		require.Empty(t, dst)
 	})
 
@@ -317,7 +317,7 @@ func Test_TxExecutors_Add(t *testing.T) {
 		mock := NewMockTxModule(nil)
 
 		require.NoError(t, dst.Add(mock.TxHandlers()))
-		require.EqualError(t, dst.Add(mock.TxHandlers()), `transaction executor for "mockTx" is already registered`)
+		require.EqualError(t, dst.Add(mock.TxHandlers()), `transaction executor for type=22 is already registered`)
 		require.Len(t, dst, 1)
 		require.Contains(t, dst, mockTx)
 	})

@@ -17,7 +17,7 @@ func NewCloseFC(t *testing.T, signer abcrypto.Signer, attr *fc.CloseFeeCreditAtt
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(fc.PayloadTypeCloseFeeCredit),
+		testtransaction.WithTransactionType(fc.TransactionTypeCloseFeeCredit),
 		testtransaction.WithAuthProof(fc.CloseFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {

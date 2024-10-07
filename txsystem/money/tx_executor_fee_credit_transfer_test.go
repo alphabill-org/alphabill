@@ -24,8 +24,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
@@ -33,8 +33,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 101}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 101}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "invalid unit type")
 	})
 	t.Run("err - locked bill", func(t *testing.T) {
@@ -42,8 +42,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{Locked: 1, V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{Locked: 1, V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "bill is locked")
 	})
 	t.Run("err - bill not found", func(t *testing.T) {
@@ -51,16 +51,16 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier)
-		exeCtx := testctx.NewMockExecutionContext(t)
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000000")
+		exeCtx := testctx.NewMockExecutionContext()
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000001")
 	})
 	t.Run("err - TargetSystemIdentifier is zero", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetSystemID(0)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "TargetSystemIdentifier is empty")
 	})
 	t.Run("err - TargetRecordID is nil", func(t *testing.T) {
@@ -68,8 +68,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "TargetRecordID is empty")
 	})
 	t.Run("err - invalid amount", func(t *testing.T) {
@@ -77,8 +77,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "the amount to transfer cannot exceed the value of the bill")
 	})
 	t.Run("err - invalid fee", func(t *testing.T) {
@@ -86,8 +86,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "the transaction max fee cannot exceed the transferred amount")
 	})
 	t.Run("err - invalid counter", func(t *testing.T) {
@@ -95,8 +95,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
 	t.Run("err - FCR ID is set", func(t *testing.T) {
@@ -105,8 +105,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee credit reference")
 	})
 	t.Run("err - fee proof exists", func(t *testing.T) {
@@ -115,8 +115,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee authorization proof")
 	})
 	t.Run("err - bearer predicate error", func(t *testing.T) {
@@ -124,8 +124,8 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID(), templates.AlwaysFalseBytes(), &money.BillData{V: 101, Counter: counter}))
-		exeCtx := testctx.NewMockExecutionContext(t)
+			withStateUnit(tx.UnitID, templates.AlwaysFalseBytes(), &money.BillData{V: 101, Counter: counter}))
+		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), `verify owner proof: predicate evaluated to "false"`)
 	})
 }
@@ -138,15 +138,15 @@ func TestModule_executeTransferFCTx(t *testing.T) {
 	attr := &fcsdk.TransferFeeCreditAttributes{Amount: 10}
 	require.NoError(t, tx.UnmarshalAttributes(attr))
 	module := newTestMoneyModule(t, verifier,
-		withStateUnit(tx.UnitID(), templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
-	exeCtx := testctx.NewMockExecutionContext(t)
+		withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
+	exeCtx := testctx.NewMockExecutionContext()
 	authProof := &fcsdk.TransferFeeCreditAuthProof{OwnerProof: nil}
 	sm, err := module.executeTransferFCTx(tx, attr, authProof, exeCtx)
 	require.NoError(t, err)
 	require.EqualValues(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.EqualValues(t, []types.UnitID{tx.UnitID()}, sm.TargetUnits)
+	require.EqualValues(t, []types.UnitID{tx.UnitID}, sm.TargetUnits)
 	// validate changes
-	u, err := module.state.GetUnit(tx.UnitID(), false)
+	u, err := module.state.GetUnit(tx.UnitID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, u.Owner(), templates.AlwaysTrueBytes())
 	bill, ok := u.Data().(*money.BillData)

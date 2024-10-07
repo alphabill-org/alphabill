@@ -18,6 +18,7 @@ var _ txtypes.Module = (*Module)(nil)
 type (
 	Module struct {
 		state               *state.State
+		networkID           types.NetworkID
 		systemID            types.SystemID
 		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
@@ -27,7 +28,7 @@ type (
 	}
 )
 
-func NewMoneyModule(systemID types.SystemID, options *Options) (*Module, error) {
+func NewMoneyModule(networkID types.NetworkID, systemID types.SystemID, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -37,6 +38,7 @@ func NewMoneyModule(systemID types.SystemID, options *Options) (*Module, error) 
 
 	m := &Module{
 		state:               options.state,
+		networkID:           networkID,
 		systemID:            systemID,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
@@ -47,19 +49,19 @@ func NewMoneyModule(systemID types.SystemID, options *Options) (*Module, error) 
 	return m, nil
 }
 
-func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
+func (m *Module) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
 		// money partition tx handlers
-		money.PayloadTypeTransfer: txtypes.NewTxHandler[money.TransferAttributes, money.TransferAuthProof](m.validateTransferTx, m.executeTransferTx),
-		money.PayloadTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes, money.SplitAuthProof](m.validateSplitTx, m.executeSplitTx),
-		money.PayloadTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes, money.TransferDCAuthProof](m.validateTransferDCTx, m.executeTransferDCTx),
-		money.PayloadTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes, money.SwapDCAuthProof](m.validateSwapTx, m.executeSwapTx),
-		money.PayloadTypeLock:     txtypes.NewTxHandler[money.LockAttributes, money.LockAuthProof](m.validateLockTx, m.executeLockTx),
-		money.PayloadTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes, money.UnlockAuthProof](m.validateUnlockTx, m.executeUnlockTx),
+		money.TransactionTypeTransfer: txtypes.NewTxHandler[money.TransferAttributes, money.TransferAuthProof](m.validateTransferTx, m.executeTransferTx),
+		money.TransactionTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes, money.SplitAuthProof](m.validateSplitTx, m.executeSplitTx),
+		money.TransactionTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes, money.TransferDCAuthProof](m.validateTransferDCTx, m.executeTransferDCTx),
+		money.TransactionTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes, money.SwapDCAuthProof](m.validateSwapTx, m.executeSwapTx),
+		money.TransactionTypeLock:     txtypes.NewTxHandler[money.LockAttributes, money.LockAuthProof](m.validateLockTx, m.executeLockTx),
+		money.TransactionTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes, money.UnlockAuthProof](m.validateUnlockTx, m.executeUnlockTx),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		fcsdk.PayloadTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes, fcsdk.TransferFeeCreditAuthProof](m.validateTransferFCTx, m.executeTransferFCTx),
-		fcsdk.PayloadTypeReclaimFeeCredit:  txtypes.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes, fcsdk.ReclaimFeeCreditAuthProof](m.validateReclaimFCTx, m.executeReclaimFCTx),
+		fcsdk.TransactionTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes, fcsdk.TransferFeeCreditAuthProof](m.validateTransferFCTx, m.executeTransferFCTx),
+		fcsdk.TransactionTypeReclaimFeeCredit:  txtypes.NewTxHandler[fcsdk.ReclaimFeeCreditAttributes, fcsdk.ReclaimFeeCreditAuthProof](m.validateReclaimFCTx, m.executeReclaimFCTx),
 	}
 }
 

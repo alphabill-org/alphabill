@@ -116,10 +116,11 @@ func Test_MoneyGenesis(t *testing.T) {
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
 		sdr := &types.PartitionDescriptionRecord{
-			SystemIdentifier: moneysdk.DefaultSystemID,
-			TypeIdLen:        4,
-			UnitIdLen:        300,
-			T2Timeout:        10 * time.Second,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  moneysdk.DefaultSystemID,
+			TypeIdLen:         4,
+			UnitIdLen:         300,
+			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -156,8 +157,9 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		sdr := &types.PartitionDescriptionRecord{
-			SystemIdentifier: moneysdk.DefaultSystemID,
-			T2Timeout:        10 * time.Second,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  moneysdk.DefaultSystemID,
+			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         defaultInitialBillID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -178,8 +180,9 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		sdr := &types.PartitionDescriptionRecord{
-			SystemIdentifier: moneysdk.DefaultSystemID,
-			T2Timeout:        10 * time.Second,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  moneysdk.DefaultSystemID,
+			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         money.DustCollectorMoneySupplyID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -200,10 +203,11 @@ func Test_MoneyGenesis(t *testing.T) {
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, evmGenesisFileName)
 
 		sdr := types.PartitionDescriptionRecord{
-			SystemIdentifier: 55,
-			TypeIdLen:        4,
-			UnitIdLen:        300,
-			T2Timeout:        10 * time.Second,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  55,
+			TypeIdLen:         4,
+			UnitIdLen:         300,
+			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),

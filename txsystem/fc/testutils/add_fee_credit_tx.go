@@ -30,7 +30,7 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttribu
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(fc.PayloadTypeAddFeeCredit),
+		testtransaction.WithTransactionType(fc.TransactionTypeAddFeeCredit),
 		testtransaction.WithAuthProof(fc.AddFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
@@ -46,19 +46,21 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 	for _, opt := range opts {
 		opt(attr)
 	}
-	if attr.FeeCreditTransfer == nil {
-		attr.FeeCreditTransfer = &types.TransactionRecord{
-			TransactionOrder: NewTransferFC(t, signer, nil),
-			ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
-		}
-	}
 	if attr.FeeCreditTransferProof == nil {
-		attr.FeeCreditTransferProof = testblock.CreateProof(t, attr.FeeCreditTransfer, signer)
+		attr.FeeCreditTransferProof = NewTransferFeeCreditProof(t, signer)
 	}
 	if attr.FeeCreditOwnerPredicate == nil {
-		attr.FeeCreditOwnerPredicate = NewP2pkhFeeAuthPredicate(t, signer)
+		attr.FeeCreditOwnerPredicate = NewP2pkhPredicate(t, signer)
 	}
 	return attr
+}
+
+func NewTransferFeeCreditProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {
+	txRecord := &types.TransactionRecord{
+		TransactionOrder: NewTransferFC(t, signer, nil),
+		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
+	}
+	return testblock.CreateTxRecordProof(t, txRecord, signer)
 }
 
 func WithFeeCreditOwnerPredicate(ownerPredicate []byte) AddFeeCreditOption {
@@ -68,16 +70,9 @@ func WithFeeCreditOwnerPredicate(ownerPredicate []byte) AddFeeCreditOption {
 	}
 }
 
-func WithTransferFCProof(proof *types.TxProof) AddFeeCreditOption {
+func WithTransferFCProof(proof *types.TxRecordProof) AddFeeCreditOption {
 	return func(tx *fc.AddFeeCreditAttributes) AddFeeCreditOption {
 		tx.FeeCreditTransferProof = proof
-		return nil
-	}
-}
-
-func WithTransferFCRecord(ttx *types.TransactionRecord) AddFeeCreditOption {
-	return func(tx *fc.AddFeeCreditAttributes) AddFeeCreditOption {
-		tx.FeeCreditTransfer = ttx
 		return nil
 	}
 }

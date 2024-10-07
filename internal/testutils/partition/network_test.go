@@ -15,10 +15,11 @@ import (
 
 func TestNewNetwork_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: 0x01020401,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        3 * time.Second,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  0x01020401,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,
@@ -52,10 +53,11 @@ func TestNewNetwork_Ok(t *testing.T) {
 
 func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: 0x01020401,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        3 * time.Second,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  0x01020401,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,

@@ -52,10 +52,11 @@ const systemIdentifier types.SystemID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: 0x00000402,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  0x00000402,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
@@ -83,18 +84,18 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
-	txRecord, _, err := testpartition.WaitTxProof(t, evmPartition, transferTx)
+	txProof, err := testpartition.WaitTxProof(t, evmPartition, transferTx)
 	require.NoError(t, err, "evm transfer transaction failed")
-	require.EqualValues(t, transferTx, txRecord.TransactionOrder)
+	require.EqualValues(t, transferTx, txProof.TransactionOrder())
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
-	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
+	txProof, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
 	require.NoError(t, err, "evm deploy transaction failed")
-	require.EqualValues(t, deployContractTx, txRecord.TransactionOrder)
-	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
+	require.EqualValues(t, deployContractTx, txProof.TransactionOrder())
+	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
-	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
+	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
 	// call contract
@@ -108,12 +109,12 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
-	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
+	txProof, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
 	require.NoError(t, err, "evm call transaction failed")
-	require.EqualValues(t, callContractTx, txRecord.TransactionOrder)
-	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
-	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
-	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
+	require.EqualValues(t, callContractTx, txProof.TransactionOrder())
+	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
+	require.NotNil(t, txProof.TxRecord.ServerMetadata.ProcessingDetails)
+	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
@@ -242,8 +243,8 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
-		Payload: &types.Payload{
-			Type:           evm.PayloadTypeEVMCall,
+		Payload: types.Payload{
+			Type:           evm.TransactionTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -267,8 +268,8 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
-		Payload: &types.Payload{
-			Type:           evm.PayloadTypeEVMCall,
+		Payload: types.Payload{
+			Type:           evm.TransactionTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -291,8 +292,8 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
-		Payload: &types.Payload{
-			Type:           evm.PayloadTypeEVMCall,
+		Payload: types.Payload{
+			Type:           evm.TransactionTypeEVMCall,
 			SystemID:       systemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},

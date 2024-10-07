@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -29,6 +30,7 @@ const (
 
 type ConsensusParams struct {
 	_                   struct{}          `cbor:",toarray"`
+	Version             types.ABVersion   `json:"version,omitempty"`
 	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
 	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate (round time t3 in monolithic root chain)
 	ConsensusTimeoutMs  uint32            `json:"consensus_timeout_ms,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
@@ -39,6 +41,9 @@ type ConsensusParams struct {
 func (x *ConsensusParams) IsValid() error {
 	if x == nil {
 		return ErrConsensusParamsIsNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if x.TotalRootValidators < 1 {
 		return ErrInvalidNumberOfRootValidators
@@ -67,6 +72,7 @@ func (x *ConsensusParams) Bytes() []byte {
 	if x == nil {
 		return b.Bytes()
 	}
+	b.Write(util.Uint32ToBytes(x.GetVersion()))
 	b.Write(util.Uint32ToBytes(x.TotalRootValidators))
 	b.Write(util.Uint32ToBytes(x.BlockRateMs))
 	b.Write(util.Uint32ToBytes(x.ConsensusTimeoutMs))
@@ -118,4 +124,18 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 		}
 	}
 	return nil
+}
+
+func (x *ConsensusParams) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *ConsensusParams) MarshalCBOR() ([]byte, error) {
+	type alias ConsensusParams
+	return types.Cbor.MarshalTaggedValue(types.ConsensusParamsTag, (*alias)(x))
+}
+
+func (x *ConsensusParams) UnmarshalCBOR(data []byte) error {
+	type alias ConsensusParams
+	return types.Cbor.UnmarshalTaggedValue(types.ConsensusParamsTag, data, (*alias)(x))
 }

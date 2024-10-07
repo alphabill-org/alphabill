@@ -3,7 +3,6 @@ package rootchain
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
@@ -45,21 +45,24 @@ var partitionInputRecord = &types.InputRecord{
 
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
-	certResultCh chan *types.UnicityCertificate
+	certResultCh chan *certification.CertificationResponse
 	partitions   partitions.PartitionConfiguration
-	certs        map[types.SystemID]*types.UnicityCertificate
+	certs        map[types.SystemID]*certification.CertificationResponse
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
-	var c = make(map[types.SystemID]*types.UnicityCertificate)
+	var c = make(map[types.SystemID]*certification.CertificationResponse)
 	for _, partition := range rg.Partitions {
-		c[partition.PartitionDescription.GetSystemIdentifier()] = partition.Certificate
+		c[partition.PartitionDescription.GetSystemIdentifier()] = &certification.CertificationResponse{
+			Partition: partition.PartitionDescription.GetSystemIdentifier(),
+			UC:        *partition.Certificate,
+		}
 	}
 
 	return &MockConsensusManager{
 		// use buffered channels here, we just want to know if a tlg is received
 		certReqCh:    make(chan consensus.IRChangeRequest, 1),
-		certResultCh: make(chan *types.UnicityCertificate, 1),
+		certResultCh: make(chan *certification.CertificationResponse, 1),
 		partitions:   partitionStore,
 		certs:        c,
 	}, nil
@@ -74,7 +77,7 @@ func (m *MockConsensusManager) RequestCertification(ctx context.Context, cr cons
 	return nil
 }
 
-func (m *MockConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {
+func (m *MockConsensusManager) CertificationResult() <-chan *certification.CertificationResponse {
 	return m.certResultCh
 }
 
@@ -83,7 +86,7 @@ func (m *MockConsensusManager) Run(_ context.Context) error {
 	return nil
 }
 
-func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	luc, f := m.certs[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %X", id)
@@ -252,7 +255,8 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// request is accepted
-	require.Contains(t, rootValidator.incomingRequests.store, partitionID)
+	key := partitionShard{partition: partitionID, shard: req.Shard.Key()}
+	require.Contains(t, rootValidator.incomingRequests.store, key)
 	equivocatingIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -261,12 +265,10 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		RoundNumber:  2,
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
-	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request in this round already stored, rejected")
-	buffer, f := rootValidator.incomingRequests.store[partitionID]
-	require.True(t, f)
-	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].PeerConf.ID.String()]
-	require.True(t, f)
-	require.EqualValues(t, sha256.Sum256(req.InputRecord.Bytes()), storedNodeReqHash)
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request of the node in this round already stored")
+	buffer, f := rootValidator.incomingRequests.store[key]
+	require.True(t, f, "no requests for %#v", key)
+	require.Contains(t, buffer.nodeRequest, partitionNodes[0].PeerConf.ID.String())
 	require.Len(t, buffer.requests, 1)
 	for _, certReq := range buffer.requests {
 		require.Len(t, certReq, 1)
@@ -356,8 +358,9 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create
 	h := &handshake.Handshake{
-		SystemIdentifier: partitionID,
-		NodeIdentifier:   partitionNodes[1].PeerConf.ID.String(),
+		Partition:      partitionID,
+		Shard:          types.ShardID{},
+		NodeIdentifier: partitionNodes[1].PeerConf.ID.String(),
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
 	// make sure certificate is sent in return
@@ -380,17 +383,20 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 
 	// set network in error state
 	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
-	uc := &types.UnicityCertificate{
-		InputRecord: newIR,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: partitionID,
+	cr := certification.CertificationResponse{
+		Partition: partitionID,
+		UC: types.UnicityCertificate{
+			InputRecord: newIR,
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				SystemIdentifier: partitionID,
+			},
+			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
-		UnicitySeal: &types.UnicitySeal{},
 	}
-	rootValidator.onCertificationResult(ctx, uc)
+	rootValidator.onCertificationResult(ctx, &cr)
 	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Contains(t, subscribed, partitionNodes[0].PeerConf.ID.String())
-	rootValidator.onCertificationResult(ctx, uc)
+	rootValidator.onCertificationResult(ctx, &cr)
 	// subscription is cleared, node got two responses and is required to issue a block certification request
 	require.Empty(t, rootValidator.subscription.Get(partitionID))
 }
@@ -469,19 +475,22 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
-	uc := &types.UnicityCertificate{
-		InputRecord: newIR,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: partitionID,
+	cr := certification.CertificationResponse{
+		Partition: partitionID,
+		UC: types.UnicityCertificate{
+			InputRecord: newIR,
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				SystemIdentifier: partitionID,
+			},
+			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
-		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate 2x subscriptions
 	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
-	rootValidator.onCertificationResult(ctx, uc)
+	rootValidator.onCertificationResult(ctx, &cr)
 	// UC's are sent to all partition nodes
 	certs := testutils.MockNetAwaitMultiple[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
@@ -505,15 +514,18 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
-	uc := &types.UnicityCertificate{
-		InputRecord: newIR,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: unknownID,
+	cr := certification.CertificationResponse{
+		Partition: partitionID,
+		UC: types.UnicityCertificate{
+			InputRecord: newIR,
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				SystemIdentifier: unknownID,
+			},
+			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
-		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate response from consensus manager
-	rootValidator.onCertificationResult(ctx, uc)
+	rootValidator.onCertificationResult(ctx, &cr)
 	// no responses will be sent
 	require.Empty(t, mockNet.SentMessages(network.ProtocolUnicityCertificates))
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
@@ -70,10 +71,10 @@ type (
 		// channel via which validator sends "certification requests" to CM
 		certReqCh chan certRequest
 		// channel via which CM sends "certification request" response to validator
-		certResultCh chan *types.UnicityCertificate
+		certResultCh chan *certification.CertificationResponse
 		// internal buffer for "certification request" response to allow CM to
 		// continue without waiting validator to consume the response
-		ucSink         chan map[types.SystemID]*types.UnicityCertificate
+		ucSink         chan []*certification.CertificationResponse
 		params         *consensus.Parameters
 		id             peer.ID
 		net            RootNet
@@ -170,8 +171,8 @@ func NewDistributedAbConsensusManager(
 	}
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan certRequest),
-		certResultCh:   make(chan *types.UnicityCertificate),
-		ucSink:         make(chan map[types.SystemID]*types.UnicityCertificate, 1),
+		certResultCh:   make(chan *certification.CertificationResponse),
+		ucSink:         make(chan []*certification.CertificationResponse, 1),
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
@@ -289,12 +290,12 @@ func (x *ConsensusManager) RequestCertification(ctx context.Context, cr consensu
 	return nil
 }
 
-func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan *certification.CertificationResponse {
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
-	return x.blockStore.GetCertificate(id)
+func (x *ConsensusManager) GetLatestUnicityCertificate(partition types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+	return x.blockStore.GetCertificate(partition, shard)
 }
 
 func (x *ConsensusManager) GetCurrentRound() uint64 {
@@ -458,8 +459,10 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	}()
 
 	irReq := &drctypes.IRChangeReq{
-		SystemIdentifier: req.SystemIdentifier,
-		Requests:         req.Requests,
+		Partition: req.Partition,
+		Shard:     req.Shard,
+		Requests:  req.Requests,
+		Technical: req.Technical,
 	}
 	switch req.Reason {
 	case consensus.Quorum:
@@ -467,16 +470,16 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	case consensus.QuorumNotPossible:
 		irReq.CertReason = drctypes.QuorumNotPossible
 	default:
-		return fmt.Errorf("invalid IR change request from partition %s: unknown reason %v", irReq.SystemIdentifier, req.Reason)
+		return fmt.Errorf("invalid IR change request from partition %s: unknown reason %v", irReq.Partition, req.Reason)
 	}
 
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
-			return fmt.Errorf("failed to add IR change request from partition %s into buffer: %w", irReq.SystemIdentifier, err)
+			return fmt.Errorf("failed to add IR change request from partition %s into buffer: %w", irReq.Partition, err)
 		}
 		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from partition %s buffered",
-			irReq.SystemIdentifier), logger.Round(x.pacemaker.GetCurrentRound()))
+			irReq.Partition), logger.Round(x.pacemaker.GetCurrentRound()))
 		return nil
 	}
 	// forward to leader
@@ -485,13 +488,13 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		IrChangeReq: irReq,
 	}
 	if err := x.safety.Sign(irMsg); err != nil {
-		return fmt.Errorf("failed to sign ir change request from partition %s: %w", irReq.SystemIdentifier, err)
+		return fmt.Errorf("failed to sign IR change request from partition %s: %w", irReq.Partition, err)
 	}
 	if err := x.net.Send(ctx, irMsg, nextLeader); err != nil {
-		return fmt.Errorf("failed to send ir change request from partition %s: %w", irReq.SystemIdentifier, err)
+		return fmt.Errorf("failed to send IR change request from partition %s: %w", irReq.Partition, err)
 	}
 	x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("IR change request from partition %s forwarded to %s",
-		irReq.SystemIdentifier, nextLeader.ShortString()))
+		irReq.Partition, nextLeader.ShortString()))
 	return nil
 }
 
@@ -521,7 +524,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(irChangeMsg.IrChangeReq.SystemIdentifier), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
+	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(irChangeMsg.IrChangeReq.Partition), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change request from %s to the next leader: %w", irChangeMsg.Author, err)
 	}
@@ -776,6 +779,11 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 	x.pacemaker.AdvanceRoundTC(ctx, tc)
 }
 
+type partitionShard struct {
+	partition types.SystemID
+	shard     string // types.ShardID is not comparable
+}
+
 /*
 sendCertificates reads UCs produced by processing QC and makes them available for
 validator via certResultCh chan (returned by CertificationResult method).
@@ -786,16 +794,16 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 	// pending certificates, to be consumed by the validator.
 	// access to it is "serialized" ie we either update it with
 	// new certs sent by CM or we feed it's content to validator
-	certs := make(map[types.SystemID]*types.UnicityCertificate)
+	certs := make(map[partitionShard]*certification.CertificationResponse)
 
 	feedValidator := func(ctx context.Context) chan struct{} {
 		stopped := make(chan struct{})
 		go func() {
 			defer close(stopped)
-			for sysID, uc := range certs {
+			for key, uc := range certs {
 				select {
 				case x.certResultCh <- uc:
-					delete(certs, sysID)
+					delete(certs, key)
 				case <-ctx.Done():
 					return
 				}
@@ -812,8 +820,8 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 			// NB! if previous UC for given system hasn't been consumed, yet we'll overwrite it!
 			// this means that the validator sees newer UC than expected and goes into recovery,
 			// rolling back pending block proposal?
-			for sysID, uc := range nm {
-				certs[sysID] = uc
+			for _, uc := range nm {
+				certs[partitionShard{partition: uc.Partition, shard: uc.Shard.Key()}] = uc
 			}
 			feedCtx, cancel := context.WithCancel(ctx)
 			stopped := feedValidator(feedCtx)
@@ -902,7 +910,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err), logger.Round(round))
 	}
 	for _, cr := range proposalMsg.Block.Payload.Requests {
-		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(cr.SystemIdentifier), attribute.String("reason", cr.CertReason.String()))))
+		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(cr.Partition), attribute.String("reason", cr.CertReason.String()))))
 	}
 }
 

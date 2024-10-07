@@ -35,7 +35,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Sign ok",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 				HighQc:           &drctypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -46,7 +46,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Vote info hash is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: nil, Hash: nil},
 				HighQc:           &drctypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -57,7 +57,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Signer is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: nil, Hash: nil},
 				HighQc:           &drctypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -105,6 +105,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		vote := &VoteMsg{
 			VoteInfo: voteMsgInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
+				Version:      1,
 				PreviousHash: voteMsgInfo.Hash(gocrypto.SHA256),
 			},
 			HighQc: &drctypes.QuorumCert{

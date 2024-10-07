@@ -50,14 +50,15 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
-			SystemIdentifier: systemID,
-			NodeIdentifier:   partitionNode.PeerConf.ID.String(),
-			InputRecord:      ir,
+			Partition:      systemID,
+			NodeIdentifier: partitionNode.PeerConf.ID.String(),
+			InputRecord:    ir,
 		}
 		err = req.Sign(partitionNode.Signer)
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
+			Version:                   1,
 			NodeIdentifier:            partitionNode.PeerConf.ID.String(),
 			SigningPublicKey:          rawSigningPubKey,
 			EncryptionPublicKey:       rawEncPubKey,
@@ -72,11 +73,12 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.SystemID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID,
-		NodeIdentifier:   node.PeerConf.ID.String(),
-		InputRecord:      ir,
-		RootRoundNumber:  1,
+		Partition:       sysID,
+		NodeIdentifier:  node.PeerConf.ID.String(),
+		InputRecord:     ir,
+		RootRoundNumber: 1,
 	}
+	r1.Leader = r1.NodeIdentifier
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1
 }

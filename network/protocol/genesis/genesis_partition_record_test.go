@@ -116,6 +116,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisPartitionRecord{
+				Version:              1,
 				Nodes:                tt.fields.Nodes,
 				Certificate:          tt.fields.Certificate,
 				PartitionDescription: tt.fields.PartitionDescription,
@@ -148,8 +149,8 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   nodeID,
+		Partition:      1,
+		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
@@ -161,6 +162,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            nodeID,
 		SigningPublicKey:          node1VerifierPubKey,
 		EncryptionPublicKey:       encryptionPubKeyBytes,

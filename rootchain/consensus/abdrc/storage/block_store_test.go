@@ -30,17 +30,17 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	luc, err := m.blockStore.GetCertificate(irChReq.SystemIdentifier)
+	luc, err := m.blockStore.GetCertificate(irChReq.Partition, irChReq.Shard)
 	if err != nil {
-		return nil, fmt.Errorf("invalid payload: partition %s state is missing: %w", irChReq.SystemIdentifier, err)
+		return nil, fmt.Errorf("invalid payload: partition %s state is missing: %w", irChReq.Partition, err)
 	}
 	switch irChReq.CertReason {
 	case drctypes.Quorum:
 		// NB! there was at least one request, otherwise we would not be here
-		return &InputData{IR: irChReq.Requests[0].InputRecord, Sdrh: luc.UnicityTreeCertificate.PartitionDescriptionHash}, nil
+		return &InputData{IR: irChReq.Requests[0].InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PartitionDescriptionHash}, nil
 	case drctypes.QuorumNotPossible:
 	case drctypes.T2Timeout:
-		return &InputData{SysID: irChReq.SystemIdentifier, IR: luc.InputRecord, Sdrh: luc.UnicityTreeCertificate.PartitionDescriptionHash}, nil
+		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PartitionDescriptionHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 }
@@ -68,10 +68,10 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	certs, err := bStore.GetCertificates()
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
-	uc, err := bStore.GetCertificate(sysID1)
+	uc, err := bStore.GetCertificate(sysID1, types.ShardID{})
 	require.NoError(t, err)
-	require.Equal(t, sysID1, uc.UnicityTreeCertificate.SystemIdentifier)
-	uc, err = bStore.GetCertificate(types.SystemID(100))
+	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.SystemIdentifier)
+	uc, err = bStore.GetCertificate(types.SystemID(100), types.ShardID{})
 	require.Error(t, err)
 	require.Nil(t, uc)
 }
@@ -101,15 +101,16 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	b10 := fakeBlock(10, &drctypes.QuorumCert{
 		VoteInfo: vInfo9,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: vInfo9.Hash(gocrypto.SHA256),
+			Hash:         test.RandomBytes(32),
 		},
 	})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
 	b9 := fakeBlock(9, &drctypes.QuorumCert{
 		VoteInfo: vInfo8,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash:         vInfo8.Hash(gocrypto.SHA256),
 			RootChainRoundNumber: 8,
 			Hash:                 test.RandomBytes(32),
@@ -121,6 +122,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b8 := fakeBlock(8, &drctypes.QuorumCert{
 		VoteInfo: vInfo7,
 		LedgerCommitInfo: &types.UnicitySeal{
+			Version:              1,
 			PreviousHash:         vInfo7.Hash(gocrypto.SHA256),
 			RootChainRoundNumber: 7,
 			Hash:                 test.RandomBytes(32),
@@ -253,7 +255,7 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc := &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			Hash: rBlock.RootHash,
 		},
 	}
@@ -281,7 +283,7 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc = &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			Hash: rBlock.RootHash,
 		},
 	}

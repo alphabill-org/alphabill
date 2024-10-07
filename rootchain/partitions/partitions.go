@@ -11,6 +11,11 @@ type (
 		Verify(nodeId string, req MsgVerification) error
 	}
 
+	ShardTrustBase interface {
+		// NodeIDs returns list of validator node IDs
+		NodeIDs() []string
+	}
+
 	PartitionConfiguration interface {
 		GetInfo(id types.SystemID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error)
 	}

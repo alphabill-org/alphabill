@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -30,8 +31,8 @@ type VoteStore struct {
 	VoteMsg  types.RawCBOR
 }
 
-func certKey(id []byte) []byte {
-	return append([]byte(certPrefix), id...)
+func certKey(id types.SystemID, shard types.ShardID) []byte {
+	return slices.Concat([]byte(certPrefix), id.Bytes(), shard.Bytes())
 }
 
 func blockKey(round uint64) []byte {

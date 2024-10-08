@@ -62,6 +62,8 @@ github.com/alphabill-org/alphabill-go-base v0.0.0-20241007084627-6582948bd593 h1
 github.com/alphabill-org/alphabill-go-base v0.0.0-20241007084627-6582948bd593/go.mod h1:UhK51JazXh9iHQ577kq/lyHOI2WhhTuNe81oH+VQP3I=
 github.com/alphabill-org/alphabill-go-base v0.0.0-20241008083421-8624d98c0d83 h1:AeOTsxjULhfUG1xD5aUmb6mEHdGTNFREWQczA8T3Nw0=
 github.com/alphabill-org/alphabill-go-base v0.0.0-20241008083421-8624d98c0d83/go.mod h1:UhK51JazXh9iHQ577kq/lyHOI2WhhTuNe81oH+VQP3I=
+github.com/alphabill-org/alphabill-go-base v0.0.0-20241008141628-5d78d7ea2fc6 h1:2gs42g5tgTkBF2makBy3YS+Qk9KIK9nnoX0LFI7xN+4=
+github.com/alphabill-org/alphabill-go-base v0.0.0-20241008141628-5d78d7ea2fc6/go.mod h1:UhK51JazXh9iHQ577kq/lyHOI2WhhTuNe81oH+VQP3I=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

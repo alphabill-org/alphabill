@@ -22,6 +22,7 @@ type TxValidationContext struct {
 	state            *state.State
 	SystemIdentifier types.SystemID
 	BlockNumber      uint64
+	CustomData       []byte
 }
 
 type TxSystem struct {
@@ -165,7 +166,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	sm, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
@@ -220,3 +221,13 @@ func (vc *TxValidationContext) SpendGas(gas uint64) error {
 }
 
 func (vc *TxValidationContext) CalculateCost() uint64 { return 0 }
+
+func (vc *TxValidationContext) TransactionOrder() (*types.TransactionOrder, error) { return vc.Tx, nil }
+
+func (vc *TxValidationContext) GetData() []byte {
+	return vc.CustomData
+}
+
+func (vc *TxValidationContext) SetData(data []byte) {
+	vc.CustomData = data
+}

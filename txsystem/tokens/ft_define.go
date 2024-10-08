@@ -14,7 +14,7 @@ import (
 )
 
 func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, _ *tokens.DefineFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 
 	if err := m.state.Apply(
 		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),
@@ -26,7 +26,7 @@ func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr 
 }
 
 func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, authProof *tokens.DefineFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -73,7 +73,7 @@ func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr
 
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationProofs,
 		m.execPredicate,

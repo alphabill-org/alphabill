@@ -573,11 +573,11 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	return err
 }
 
-func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
+func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
 	for _, n := range n.Nodes {
 		number, err := n.LatestBlockNumber()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		for i := uint64(0); i < number; i++ {
 			b, err := n.GetBlock(context.Background(), number-i)
@@ -586,16 +586,16 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 			}
 			for j, t := range b.Transactions {
 				if reflect.DeepEqual(t.TransactionOrder, tx) {
-					proof, _, err := types.NewTxProof(b, j, crypto.SHA256)
+					proof, err := types.NewTxRecordProof(b, j, crypto.SHA256)
 					if err != nil {
-						return nil, nil, nil, err
+						return nil, nil, err
 					}
-					return b, proof, t, nil
+					return b, proof, nil
 				}
 			}
 		}
 	}
-	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
+	return nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID)
 }
 
 // PartitionInitReady - all nodes are in normal state and return the latest block number
@@ -614,28 +614,25 @@ func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
 
 // WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
 // the UC. Returns both transaction record and proof when tx has been executed and added to block
-func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TxRecordProof, error) {
 	t.Helper()
-	var (
-		txRecord *types.TransactionRecord
-		txProof  *types.TxProof
-	)
+	var txRecordProof *types.TxRecordProof
 	txHash := txOrder.Hash(crypto.SHA256)
-	if ok := test.Eventually(func() bool {
+	ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
-			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
+			txRecProof, err := n.GetTransactionRecordProof(context.Background(), txHash)
 			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
 			}
-			txRecord = txRec
-			txProof = proof
+			txRecordProof = txRecProof
 			return true
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick); ok {
-		return txRecord, txProof, nil
+	}, test.WaitDuration, test.WaitTick)
+	if !ok {
+		return nil, fmt.Errorf("failed to confirm tx")
 	}
-	return nil, nil, fmt.Errorf("failed to confirm tx")
+	return txRecordProof, nil
 }
 
 func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {

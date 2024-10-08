@@ -36,7 +36,7 @@ IsCredible implements the fee credit verification for ordinary transactions (eve
 */
 func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	// 1. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
-	fcrID := tx.Payload.ClientMetadata.FeeCreditRecordID
+	fcrID := tx.FeeCreditRecordID()
 	if len(fcrID) == 0 {
 		return errors.New("fee credit record missing")
 	}
@@ -52,11 +52,11 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 		return errors.New("invalid fee credit record type")
 	}
 	// 2. the maximum permitted transaction cost does not exceed the fee credit balance
-	if fcr.Balance < tx.Payload.ClientMetadata.MaxTransactionFee {
-		return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, tx.Payload.ClientMetadata.MaxTransactionFee)
+	if fcr.Balance < tx.MaxFee() {
+		return fmt.Errorf("the max fee cannot exceed fee credit balance. FC balance %d vs max fee %d", fcr.Balance, tx.MaxFee())
 	}
 	// VerifyFeeAuth(N[ιf].φ, T, T.sf) - fee authorization proof satisfies the owner predicate of the fee credit record
-	if err := f.execPredicate(fcrUnit.Owner(), tx.FeeProof, tx, exeCtx); err != nil {
+	if err := f.execPredicate(fcrUnit.Owner(), tx.FeeProof, tx.FeeProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil

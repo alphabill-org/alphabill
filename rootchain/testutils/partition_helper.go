@@ -34,10 +34,11 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	t.Helper()
 	record = &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
-			SystemIdentifier: systemID,
-			TypeIdLen:        8,
-			UnitIdLen:        256,
-			T2Timeout:        2500 * time.Millisecond,
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemID,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{},
 	}

@@ -274,15 +274,15 @@ func (mn *MockNode) TransactionSystemState() txsystem.StateReader {
 	return mn.txs.State()
 }
 
-func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (mn *MockNode) GetTransactionRecordProof(_ context.Context, hash []byte) (*types.TxRecordProof, error) {
 	if mn.err != nil {
-		return nil, nil, mn.err
+		return nil, mn.err
 	}
-	return &types.TransactionRecord{}, &types.TxProof{}, nil
+	return &types.TxRecordProof{}, nil
 }
 
 func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
-	if bytes.Equal(tx.UnitID(), failingUnitID) {
+	if bytes.Equal(tx.UnitID, failingUnitID) {
 		return nil, errors.New("failed")
 	}
 	if tx != nil {
@@ -357,9 +357,9 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	require.NoError(t, err)
 
 	txo := &types.TransactionOrder{
-		Payload: &types.Payload{
+		Payload: types.Payload{
 			UnitID:         unitID,
-			Type:           money.PayloadTypeTransfer,
+			Type:           money.TransactionTypeTransfer,
 			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},
 		},

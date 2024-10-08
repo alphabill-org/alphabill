@@ -17,7 +17,7 @@ var (
 
 func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttributes, _ *money.UnlockAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// unlock the unit
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
 		if !ok {
@@ -35,7 +35,7 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 }
 
 func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, authProof *money.UnlockAuthProof, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		return fmt.Errorf("unlock transaction: get unit error: %w", err)
@@ -50,7 +50,7 @@ func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.Unlock
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

@@ -19,7 +19,7 @@ func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *per
 	}
 
 	// verify unit id has the correct type byte
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if ok := unitID.HasType(f.feeCreditRecordUnitType); !ok {
 		return fmt.Errorf("invalid unit type for unitID: %s", unitID)
 	}
@@ -44,19 +44,19 @@ func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *per
 	}
 
 	// verify tx is signed by admin key
-	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx, exeCtx); err != nil {
+	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil
 }
 
 func (f *FeeCreditModule) executeDeleteFC(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, _ *permissioned.DeleteFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	setOwnerFn := state.SetOwner(tx.UnitID(), templates.AlwaysFalseBytes())
+	setOwnerFn := state.SetOwner(tx.UnitID, templates.AlwaysFalseBytes())
 	if err := f.state.Apply(setOwnerFn); err != nil {
 		return nil, fmt.Errorf("failed to delete fee credit record: %w", err)
 	}
 	return &types.ServerMetadata{
-		TargetUnits:      []types.UnitID{tx.UnitID()},
+		TargetUnits:      []types.UnitID{tx.UnitID},
 		SuccessIndicator: types.TxStatusSuccessful,
 	}, nil
 }

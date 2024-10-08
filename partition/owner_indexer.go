@@ -70,7 +70,7 @@ func (o *OwnerIndexer) IndexBlock(b *types.Block, s StateProvider) error {
 	defer o.mu.Unlock()
 
 	for _, tx := range b.Transactions {
-		for _, unitID := range tx.ServerMetadata.TargetUnits {
+		for _, unitID := range tx.TargetUnits() {
 			unit, err := s.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("failed to load unit: %w", err)
@@ -151,7 +151,7 @@ func (o *OwnerIndexer) extractOwnerIDFromPredicate(predicateBytes []byte) string
 		return ""
 	}
 
-	if !templates.IsP2pkhTemplate(predicate) {
+	if err := templates.VerifyP2pkhPredicate(predicate); err != nil {
 		// do not index non-p2pkh predicates
 		return ""
 	}

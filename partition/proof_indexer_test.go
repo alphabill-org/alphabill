@@ -305,7 +305,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 		Header: &types.Header{SystemID: 1},
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{SystemID: types.SystemID(1), UnitID: unitID}},
+				TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: types.SystemID(1), UnitID: unitID}},
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},

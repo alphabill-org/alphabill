@@ -41,8 +41,8 @@ func NewModule(options *Options) (*Module, error) {
 	return m, nil
 }
 
-func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		orchestration.PayloadTypeAddVAR: txtypes.NewTxHandler[orchestration.AddVarAttributes, orchestration.AddVarAuthProof](m.validateAddVarTx, m.executeAddVarTx),
+func (m *Module) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		orchestration.TransactionTypeAddVAR: txtypes.NewTxHandler[orchestration.AddVarAttributes, orchestration.AddVarAuthProof](m.validateAddVarTx, m.executeAddVarTx),
 	}
 }

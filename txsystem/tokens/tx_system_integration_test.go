@@ -33,10 +33,11 @@ var (
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: tokens.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  tokens.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
@@ -51,7 +52,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	defer abNet.WaitClose(t)
 
 	tx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithPayloadType(tokens.PayloadTypeDefineNFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithSystemID(pdr.SystemIdentifier),
 		testtransaction.WithUnitID(tokens.NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
@@ -83,10 +84,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		trustBase           types.RootTrustBase
 	)
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: tokens.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2000 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  tokens.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
 	}
 
 	// setup network
@@ -114,7 +116,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	createTypeTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithUnitID(fungibleTokenTypeID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeDefineFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeDefineFT),
 		testtransaction.WithAttributes(
 			&tokens.DefineFungibleTokenAttributes{
 				Symbol:                   "ALPHA",
@@ -131,9 +133,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(createTypeTx))
-	txRecord, txProof, err := testpartition.WaitTxProof(t, tokenPrt, createTypeTx)
+	txProof, err := testpartition.WaitTxProof(t, tokenPrt, createTypeTx)
 	require.NoError(t, err, "token create type tx failed")
-	require.NoError(t, types.VerifyTxProof(txProof, txRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(txProof, trustBase, hashAlgorithm))
 	RequireFungibleTokenTypeState(t, state0, fungibleTokenTypeUnitData{
 		tokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -150,7 +152,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// mint token
 	mintTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeMintFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeMintFT),
 		testtransaction.WithAttributes(
 			&tokens.MintFungibleTokenAttributes{
 				OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -163,11 +165,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	mintedTokenID := newFungibleTokenID(t, mintTx)
-	mintTx.Payload.UnitID = mintedTokenID
+	mintTx.UnitID = mintedTokenID
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
-	mintTxRecord, minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
+	minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
 	require.NoError(t, err, "token mint transaction failed")
-	require.NoError(t, types.VerifyTxProof(minTxProof, mintTxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(minTxProof, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
@@ -180,7 +182,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	splitTx1 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithUnitID(mintedTokenID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeSplitFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeSplitFT),
 		testtransaction.WithAttributes(
 			&tokens.SplitFungibleTokenAttributes{
 				TypeID:            fungibleTokenTypeID,
@@ -194,9 +196,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
-	split1TxRecord, split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx1)
+	split1TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx1)
 	require.NoError(t, err, "token split transaction failed")
-	require.NoError(t, types.VerifyTxProof(split1TxProof, split1TxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(split1TxProof, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
@@ -205,7 +207,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1,
 	})
 
-	sUnitID1 := tokens.NewFungibleTokenID(nil, splitTx1.HashForNewUnitID(hashAlgorithm))
+	unitPart, err := tokens.HashForNewTokenID(splitTx1, hashAlgorithm)
+	require.NoError(t, err)
+	sUnitID1 := tokens.NewFungibleTokenID(nil, unitPart)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -218,7 +222,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{}),
-		testtransaction.WithPayloadType(tokens.PayloadTypeSplitFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeSplitFT),
 		testtransaction.WithAttributes(
 			&tokens.SplitFungibleTokenAttributes{
 				TypeID:            fungibleTokenTypeID,
@@ -232,9 +236,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx2))
-	split2TxRecord, split2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx2)
+	split2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, splitTx2)
 	require.NoError(t, err, "token split 2 transaction failed")
-	require.NoError(t, types.VerifyTxProof(split2TxProof, split2TxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(split2TxProof, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
@@ -243,7 +247,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := tokens.NewFungibleTokenID(nil, splitTx2.HashForNewUnitID(hashAlgorithm))
+	unitPart, err = tokens.HashForNewTokenID(splitTx2, hashAlgorithm)
+	require.NoError(t, err)
+	sUnitID2 := tokens.NewFungibleTokenID(nil, unitPart)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,
@@ -256,7 +262,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	transferTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithUnitID(mintedTokenID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeTransferFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeTransferFT),
 		testtransaction.WithAttributes(
 			&tokens.TransferFungibleTokenAttributes{
 				TypeID:            fungibleTokenTypeID,
@@ -270,9 +276,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(transferTx))
-	transferTxRecord, transferTxProof, err := testpartition.WaitTxProof(t, tokenPrt, transferTx)
+	transferTxProof, err := testpartition.WaitTxProof(t, tokenPrt, transferTx)
 	require.NoError(t, err, "token transfer transaction failed")
-	require.NoError(t, types.VerifyTxProof(transferTxProof, transferTxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(transferTxProof, trustBase, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     mintedTokenID,
 		typeUnitID: fungibleTokenTypeID,
@@ -285,7 +291,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	burnTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(sUnitID1),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeBurnFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeBurnFT),
 		testtransaction.WithAttributes(
 			&tokens.BurnFungibleTokenAttributes{
 				TypeID:             fungibleTokenTypeID,
@@ -300,14 +306,14 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx))
-	burnTxRecord, burnTxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx)
+	burnTxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx)
 	require.NoError(t, err, "token burn transaction failed")
-	require.NoError(t, types.VerifyTxProof(burnTxProof, burnTxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(burnTxProof, trustBase, hashAlgorithm))
 
 	burnTx2 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(sUnitID2),
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeBurnFT),
+		testtransaction.WithTransactionType(tokens.TransactionTypeBurnFT),
 		testtransaction.WithAttributes(
 			&tokens.BurnFungibleTokenAttributes{
 				TypeID:             fungibleTokenTypeID,
@@ -322,49 +328,35 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx2))
-	burn2TxRecord, burn2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx2)
+	burn2TxProof, err := testpartition.WaitTxProof(t, tokenPrt, burnTx2)
 	require.NoError(t, err, "token burn 2 transaction failed")
-	require.NoError(t, types.VerifyTxProof(burn2TxProof, burn2TxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(burn2TxProof, trustBase, hashAlgorithm))
 
-	// group txs with proofs, and sort by unit id
-	type txWithProof struct {
-		burnTx      *types.TransactionRecord
-		burnTxProof *types.TxProof
-	}
-	txsWithProofs := []*txWithProof{
-		{burnTx: burnTxRecord, burnTxProof: burnTxProof},
-		{burnTx: burn2TxRecord, burnTxProof: burn2TxProof},
-	}
-	sort.Slice(txsWithProofs, func(i, j int) bool {
-		return txsWithProofs[i].burnTx.TransactionOrder.UnitID().Compare(txsWithProofs[j].burnTx.TransactionOrder.UnitID()) < 0
+	txProofs := []*types.TxRecordProof{burnTxProof, burn2TxProof}
+	sort.Slice(txProofs, func(i, j int) bool {
+		return txProofs[i].UnitID().Compare(txProofs[j].UnitID()) < 0
 	})
-	var burnTxs []*types.TransactionRecord
-	var burnTxProofs []*types.TxProof
-	for _, txWithProof := range txsWithProofs {
-		burnTxs = append(burnTxs, txWithProof.burnTx)
-		burnTxProofs = append(burnTxProofs, txWithProof.burnTxProof)
-	}
+	//var burnTxs []*types.TransactionRecord
+	//var burnTxProofs []*types.TxProof
+	//for _, txWithProof := range txsWithProofs {
+	//	burnTxs = append(burnTxs, txWithProof.burnTx)
+	//	burnTxProofs = append(burnTxProofs, txWithProof.burnTxProof)
+	//}
 
 	// join token
 	joinTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(tokens.DefaultSystemID),
 		testtransaction.WithUnitID(mintedTokenID),
-		testtransaction.WithPayloadType(tokens.PayloadTypeJoinFT),
-		testtransaction.WithAttributes(
-			&tokens.JoinFungibleTokenAttributes{
-				BurnTransactions: burnTxs,
-				Proofs:           burnTxProofs,
-				Counter:          3,
-			},
-		),
+		testtransaction.WithTransactionType(tokens.TransactionTypeJoinFT),
+		testtransaction.WithAttributes(&tokens.JoinFungibleTokenAttributes{BurnTokenProofs: txProofs}),
 		testtransaction.WithAuthProof(&tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{nil}}),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(joinTx))
-	joinTxRecord, joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, joinTx)
+	joinTxProof, err := testpartition.WaitTxProof(t, tokenPrt, joinTx)
 	require.NoError(t, err, "token join transaction failed")
-	require.NoError(t, types.VerifyTxProof(joinTxProof, joinTxRecord, trustBase, hashAlgorithm))
+	require.NoError(t, types.VerifyTxProof(joinTxProof, trustBase, hashAlgorithm))
 
 	u, err := states[0].GetUnit(mintedTokenID, true)
 	require.NoError(t, err)

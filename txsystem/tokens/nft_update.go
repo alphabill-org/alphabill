@@ -11,7 +11,7 @@ import (
 )
 
 func (n *NonFungibleTokensModule) executeUpdateNFT(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, _ *tokens.UpdateNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 			d, ok := data.(*tokens.NonFungibleTokenData)
@@ -33,7 +33,7 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -52,12 +52,12 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 		return fmt.Errorf("invalid counter: got %d expected %d", attr.Counter, data.Counter)
 	}
 
-	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdateProof, tx, exeCtx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdateProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		data.TypeID,
 		authProof.TokenTypeDataUpdateProofs,
 		n.execPredicate,

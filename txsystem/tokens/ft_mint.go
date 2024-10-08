@@ -12,7 +12,7 @@ import (
 )
 
 func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, _ *tokens.MintFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	tokenID := tx.UnitID()
+	tokenID := tx.GetUnitID()
 	typeID := attr.TypeID
 
 	if err := m.state.Apply(
@@ -24,7 +24,7 @@ func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *t
 }
 
 func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *tokens.MintFungibleTokenAttributes, authProof *tokens.MintFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenID := tx.UnitID()
+	tokenID := tx.GetUnitID()
 	tokenTypeID := attr.TypeID
 
 	// verify tx.unitID (new token id) has correct embedded type
@@ -75,7 +75,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify token minting predicate of the type
-	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx, exeCtx); err != nil {
+	if err := m.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf(`executing FT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil

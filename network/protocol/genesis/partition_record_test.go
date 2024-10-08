@@ -11,10 +11,11 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
-	SystemIdentifier: 1,
-	TypeIdLen:        8,
-	UnitIdLen:        256,
-	T2Timeout:        time.Second,
+	NetworkIdentifier: 5,
+	SystemIdentifier:  1,
+	TypeIdLen:         8,
+	UnitIdLen:         256,
+	T2Timeout:         time.Second,
 }
 
 func TestPartitionRecord_IsValid(t *testing.T) {
@@ -55,10 +56,11 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			name: "invalid validator system identifier",
 			fields: fields{
 				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
-					SystemIdentifier: 2,
-					TypeIdLen:        8,
-					UnitIdLen:        256,
-					T2Timeout:        time.Second,
+					NetworkIdentifier: 5,
+					SystemIdentifier:  2,
+					TypeIdLen:         8,
+					UnitIdLen:         256,
+					T2Timeout:         time.Second,
 				},
 				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},

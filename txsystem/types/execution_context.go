@@ -18,11 +18,13 @@ type (
 
 	// TxExecutionContext - implementation of ExecutionContext interface for generic tx handler
 	TxExecutionContext struct {
+		txo          *types.TransactionOrder
 		txs          StateInfo
 		fee          FeeCalculation
 		trustStore   types.RootTrustBase
 		initialGas   uint64
 		remainingGas uint64
+		customData   []byte
 	}
 )
 
@@ -55,9 +57,25 @@ func (ec *TxExecutionContext) CalculateCost() uint64 {
 	return cost
 }
 
-func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+func (ec *TxExecutionContext) TransactionOrder() (*types.TransactionOrder, error) {
+	if ec.txo == nil {
+		return nil, types.ErrTransactionOrderIsNil
+	}
+	return ec.txo, nil
+}
+
+func (ec *TxExecutionContext) GetData() []byte {
+	return ec.customData
+}
+
+func (ec *TxExecutionContext) SetData(data []byte) {
+	ec.customData = data
+}
+
+func NewExecutionContext(txo *types.TransactionOrder, txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
 	gasUnits := f.BuyGas(maxCost)
 	return &TxExecutionContext{
+		txo:          txo,
 		txs:          txSys,
 		fee:          f,
 		trustStore:   tb,

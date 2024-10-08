@@ -217,6 +217,10 @@ func (c *configuration) initMissingDefaults() error {
 	return nil
 }
 
+func (c *configuration) GetNetworkIdentifier() types.NetworkID {
+	return c.genesis.PartitionDescription.NetworkIdentifier
+}
+
 func (c *configuration) GetSystemIdentifier() types.SystemID {
 	return c.genesis.PartitionDescription.SystemIdentifier
 }

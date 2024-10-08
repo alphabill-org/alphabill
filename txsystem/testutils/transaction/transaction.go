@@ -8,12 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultSystemID types.SystemID = 0x00000001
+const (
+	defaultNetworkID types.NetworkID = 5
+	defaultSystemID  types.SystemID  = 1
+)
 
 func defaultTx() *types.TransactionOrder {
-	payload := &types.Payload{
+	payload := types.Payload{
+		NetworkID:      defaultNetworkID,
 		SystemID:       defaultSystemID,
-		Type:           "test",
+		Type:           22,
 		UnitID:         test.RandomBytes(33),
 		ClientMetadata: defaultClientMetadata(),
 	}
@@ -26,23 +30,30 @@ func defaultClientMetadata() *types.ClientMetadata {
 
 type Option func(*types.TransactionOrder) error
 
+func WithNetworkID(id types.NetworkID) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.NetworkID = id
+		return nil
+	}
+}
+
 func WithSystemID(id types.SystemID) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.Payload.SystemID = id
+		tx.SystemID = id
 		return nil
 	}
 }
 
 func WithUnitID(id []byte) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.Payload.UnitID = id
+		tx.UnitID = id
 		return nil
 	}
 }
 
-func WithPayloadType(t string) Option {
+func WithTransactionType(t uint16) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.Payload.Type = t
+		tx.Type = t
 		return nil
 	}
 }
@@ -74,14 +85,14 @@ func WithUnlockProof(unlockProof []byte) Option {
 
 func WithClientMetadata(m *types.ClientMetadata) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.Payload.ClientMetadata = m
+		tx.ClientMetadata = m
 		return nil
 	}
 }
 
 func WithStateLock(lock *types.StateLock) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.Payload.StateLock = lock
+		tx.StateLock = lock
 		return nil
 	}
 }
@@ -92,7 +103,7 @@ func WithAttributes(attr any) Option {
 		if err != nil {
 			return err
 		}
-		tx.Payload.Attributes = bytes
+		tx.Attributes = bytes
 		return nil
 	}
 }
@@ -114,7 +125,7 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 		TransactionOrder: tx,
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,
-			TargetUnits:      []types.UnitID{tx.UnitID()},
+			TargetUnits:      []types.UnitID{tx.UnitID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		},
 	}

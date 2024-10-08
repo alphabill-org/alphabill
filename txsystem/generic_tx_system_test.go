@@ -20,8 +20,9 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-const mockTxType = "mockTx-type"
-const mockTxSystemID = types.SystemID(10)
+const mockTxType uint16 = 22
+const mockNetworkID types.NetworkID = 5
+const mockTxSystemID types.SystemID = 10
 
 type MockData struct {
 	_     struct{} `cbor:",toarray"`
@@ -45,10 +46,11 @@ func (t *MockData) Copy() types.UnitData {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-		SystemIdentifier: mockTxSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: mockNetworkID,
+		SystemIdentifier:  mockTxSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
@@ -89,7 +91,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID+1),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
 		md, err := txSys.Execute(txo)
 		require.ErrorIs(t, err, ErrInvalidSystemIdentifier)
@@ -100,7 +102,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -121,7 +123,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -141,7 +143,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
@@ -161,7 +163,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -187,7 +189,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				templates.AlwaysTrueBytes(),
 				&MockData{Value: 1}, newMockLockTx(t,
 					transaction.WithSystemID(mockTxSystemID),
-					transaction.WithPayloadType(mockTxType),
+					transaction.WithTransactionType(mockTxType),
 					transaction.WithAttributes(MockTxAttributes{}),
 					transaction.WithClientMetadata(&types.ClientMetadata{
 						Timeout:           1000000,
@@ -203,7 +205,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithUnitID(unitID),
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -229,7 +231,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				templates.AlwaysTrueBytes(),
 				&MockData{Value: 1}, newMockLockTx(t,
 					transaction.WithSystemID(mockTxSystemID),
-					transaction.WithPayloadType(mockTxType),
+					transaction.WithTransactionType(mockTxType),
 					transaction.WithAttributes(MockTxAttributes{}),
 					transaction.WithClientMetadata(&types.ClientMetadata{
 						Timeout: 1000000,
@@ -244,7 +246,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithUnitID(unitID),
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -266,7 +268,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -287,7 +289,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m})
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -314,7 +316,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithUnitID(unitID),
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -338,7 +340,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil))
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
-			transaction.WithPayloadType(mockTxType),
+			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
@@ -357,9 +359,10 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	// tx system) for "txs" transaction system
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
 		return &types.TransactionOrder{
-			Payload: &types.Payload{
-				SystemID: txs.pdr.SystemIdentifier,
-				UnitID:   test.RandomBytes(33),
+			Payload: types.Payload{
+				NetworkID: txs.pdr.NetworkIdentifier,
+				SystemID:  txs.pdr.SystemIdentifier,
+				UnitID:    make(types.UnitID, 33),
 				ClientMetadata: &types.ClientMetadata{
 					Timeout: txs.currentRoundNumber + 1,
 				},
@@ -378,7 +381,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("system ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
-		txo.Payload.SystemID = txSys.pdr.SystemIdentifier + 1
+		txo.SystemID = txSys.pdr.SystemIdentifier + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidSystemIdentifier)
 	})
 
@@ -432,8 +435,8 @@ func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttribut
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (mm MockModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
+func (mm MockModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
 		mockTxType: txtypes.NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
 	}
 }
@@ -471,10 +474,11 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-		SystemIdentifier: mockTxSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        8 * 32,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: mockNetworkID,
+		SystemIdentifier:  mockTxSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         8 * 32,
+		T2Timeout:         2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))

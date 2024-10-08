@@ -28,13 +28,13 @@ func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 	}, nil
 }
 
-func (m *FungibleTokensModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		tokens.PayloadTypeDefineFT:   txtypes.NewTxHandler[tokens.DefineFungibleTokenAttributes, tokens.DefineFungibleTokenAuthProof](m.validateDefineFT, m.executeDefineFT),
-		tokens.PayloadTypeMintFT:     txtypes.NewTxHandler[tokens.MintFungibleTokenAttributes, tokens.MintFungibleTokenAuthProof](m.validateMintFT, m.executeMintFT),
-		tokens.PayloadTypeTransferFT: txtypes.NewTxHandler[tokens.TransferFungibleTokenAttributes, tokens.TransferFungibleTokenAuthProof](m.validateTransferFT, m.executeTransferFT),
-		tokens.PayloadTypeSplitFT:    txtypes.NewTxHandler[tokens.SplitFungibleTokenAttributes, tokens.SplitFungibleTokenAuthProof](m.validateSplitFT, m.executeSplitFT),
-		tokens.PayloadTypeBurnFT:     txtypes.NewTxHandler[tokens.BurnFungibleTokenAttributes, tokens.BurnFungibleTokenAuthProof](m.validateBurnFT, m.executeBurnFT),
-		tokens.PayloadTypeJoinFT:     txtypes.NewTxHandler[tokens.JoinFungibleTokenAttributes, tokens.JoinFungibleTokenAuthProof](m.validateJoinFT, m.executeJoinFT),
+func (m *FungibleTokensModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		tokens.TransactionTypeDefineFT:   txtypes.NewTxHandler[tokens.DefineFungibleTokenAttributes, tokens.DefineFungibleTokenAuthProof](m.validateDefineFT, m.executeDefineFT),
+		tokens.TransactionTypeMintFT:     txtypes.NewTxHandler[tokens.MintFungibleTokenAttributes, tokens.MintFungibleTokenAuthProof](m.validateMintFT, m.executeMintFT),
+		tokens.TransactionTypeTransferFT: txtypes.NewTxHandler[tokens.TransferFungibleTokenAttributes, tokens.TransferFungibleTokenAuthProof](m.validateTransferFT, m.executeTransferFT),
+		tokens.TransactionTypeSplitFT:    txtypes.NewTxHandler[tokens.SplitFungibleTokenAttributes, tokens.SplitFungibleTokenAuthProof](m.validateSplitFT, m.executeSplitFT),
+		tokens.TransactionTypeBurnFT:     txtypes.NewTxHandler[tokens.BurnFungibleTokenAttributes, tokens.BurnFungibleTokenAuthProof](m.validateBurnFT, m.executeBurnFT),
+		tokens.TransactionTypeJoinFT:     txtypes.NewTxHandler[tokens.JoinFungibleTokenAttributes, tokens.JoinFungibleTokenAuthProof](m.validateJoinFT, m.executeJoinFT),
 	}
 }

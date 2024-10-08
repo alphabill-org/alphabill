@@ -53,9 +53,9 @@ func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttrib
 	if attr.Value.Sign() < 0 {
 		return fmt.Errorf("invalid evm transaction, value is negative")
 	}
-	unit, _ := exeCtx.GetUnit(tx.UnitID(), false)
+	unit, _ := exeCtx.GetUnit(tx.UnitID, false)
 	if unit != nil {
-		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
+		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 			return fmt.Errorf("evaluating owner predicate: %w", err)
 		}
 	}

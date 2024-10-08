@@ -42,7 +42,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 
 func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
-		if ctx.Tx.SystemID() != ctx.SystemIdentifier {
+		if ctx.Tx.SystemID != ctx.SystemIdentifier {
 			return txsystem.ErrInvalidSystemIdentifier
 		}
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {
@@ -63,8 +63,8 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 	}
 }
 
-func (m *Module) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		evm.PayloadTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes, evm.TxAuthProof](m.validateEVMTx, m.executeEVMTx),
+func (m *Module) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		evm.TransactionTypeEVMCall: txtypes.NewTxHandler[evm.TxAttributes, evm.TxAuthProof](m.validateEVMTx, m.executeEVMTx),
 	}
 }

@@ -11,13 +11,13 @@ import (
 
 var (
 	ErrUnitTypeIsNotFCR     = errors.New("invalid unit identifier: type is not fee credit record")
-	ErrUnitDataTypeIsNotFCR = fmt.Errorf("invalid unit type: unit is not fee credit record")
+	ErrUnitDataTypeIsNotFCR = errors.New("invalid unit type: unit is not fee credit record")
 )
 
 // ValidateGenericFeeCreditTx none of the fee credit transactions must contain fee credit reference or separate fee authorization proof
 func ValidateGenericFeeCreditTx(tx *types.TransactionOrder) error {
 	// P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
-	if tx.GetClientFeeCreditRecordID() != nil {
+	if tx.FeeCreditRecordID() != nil {
 		return errors.New("fee transaction cannot contain fee credit reference")
 	}
 	if tx.FeeProof != nil {
@@ -28,9 +28,9 @@ func ValidateGenericFeeCreditTx(tx *types.TransactionOrder) error {
 
 func VerifyMaxTxFeeDoesNotExceedFRCBalance(tx *types.TransactionOrder, fcrBalance uint64) error {
 	// the transaction fees can’t exceed the fee credit record balance
-	if tx.GetClientMaxTxFee() > fcrBalance {
+	if tx.MaxFee() > fcrBalance {
 		return fmt.Errorf("max fee cannot exceed fee credit record balance: tx.maxFee=%d fcr.Balance=%d",
-			tx.GetClientMaxTxFee(), fcrBalance)
+			tx.MaxFee(), fcrBalance)
 	}
 	return nil
 }

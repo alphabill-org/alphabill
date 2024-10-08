@@ -12,7 +12,7 @@ import (
 )
 
 func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, authProof *fc.CloseFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	pubKey, err := predicates.ExtractPubKey(authProof.OwnerProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")

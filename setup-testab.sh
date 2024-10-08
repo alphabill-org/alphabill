@@ -71,21 +71,21 @@ moneySdrFlags=""
 
 # Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
-  tokensPDR='{"system_identifier": 2, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001200", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  tokensPDR='{"network_identifier": 3, "system_identifier": 2, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001201", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$tokensPDR" >testab/tokens-pdr.json
   moneySdrFlags+=" -c testab/tokens-pdr.json"
   generate_partition_node_genesis "tokens" "$token_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
 fi
 # Generate EVM nodes genesis files.
 if [ "$evm_nodes" -ne 0 ]; then
-  evmPDR='{"system_identifier": 3, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001300", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  evmPDR='{"network_identifier": 3, "system_identifier": 3, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001301", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$evmPDR" >testab/evm-pdr.json
   moneySdrFlags+=" -c testab/evm-pdr.json"
   generate_partition_node_genesis "evm" "$evm_nodes" "--partition-description=$PWD/testab/evm-pdr.json"
 fi
 # Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
-  moneyPDR='{"system_identifier": 1, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001100", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  moneyPDR='{"network_identifier": 3, "system_identifier": 1, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001101", "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$moneyPDR" >testab/money-pdr.json
   moneySdrFlags+=" -c testab/money-pdr.json"
   moneySdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
@@ -97,13 +97,13 @@ if [ "$money_nodes" -ne 0 ]; then
 fi
 # Generate orchestration nodes genesis files.
 if [ "$orchestration_nodes" -ne 0 ]; then
-  orchestrationPDR='{"system_identifier": 4, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
+  orchestrationPDR='{"network_identifier": 3, "system_identifier": 4, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
   echo "$orchestrationPDR" >testab/orchestration-pdr.json
   generate_partition_node_genesis "orchestration" "$orchestration_nodes" "--partition-description=$PWD/testab/orchestration-pdr.json --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
 fi
 # Generate enterprise token partition genesis files
 if [ "$enterprise_token_nodes" -ne 0 ]; then
-  enterpriseTokensPDR='{"system_identifier": 5, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
+  enterpriseTokensPDR='{"network_identifier": 3, "system_identifier": 5, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
   echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
   generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
 fi

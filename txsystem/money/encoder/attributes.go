@@ -10,14 +10,14 @@ import (
 )
 
 func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAttributesEncoder) error) error {
-	key := func(attrID string) encoder.AttrEncID {
+	key := func(attrID uint16) encoder.AttrEncID {
 		return encoder.AttrEncID{
 			TxSys: money.DefaultSystemID,
 			Attr:  attrID,
 		}
 	}
 	return errors.Join(
-		reg(key(money.PayloadTypeTransfer), txaTransferAttributes),
+		reg(key(money.TransactionTypeTransfer), txaTransferAttributes),
 	)
 }
 
@@ -37,7 +37,7 @@ func RegisterTxAttributeEncodersF(filter func(encoder.AttrEncID) bool) func(func
 
 func txaTransferAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
 	attr := &money.TransferAttributes{}
-	if err := txo.Payload.UnmarshalAttributes(attr); err != nil {
+	if err := txo.UnmarshalAttributes(attr); err != nil {
 		return nil, fmt.Errorf("reading transaction attributes: %w", err)
 	}
 	buf := encoder.TVEnc{}

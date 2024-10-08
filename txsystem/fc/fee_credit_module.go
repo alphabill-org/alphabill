@@ -21,6 +21,7 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
+	ErrNetworkIdentifierMissing     = errors.New("network identifier is missing")
 	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
 	ErrMoneySystemIdentifierMissing = errors.New("money transaction system identifier is missing")
 	ErrStateIsNil                   = errors.New("state is nil")
@@ -30,8 +31,9 @@ var (
 type (
 	// FeeCreditModule contains fee credit related functionality.
 	FeeCreditModule struct {
-		systemIdentifier        types.SystemID
-		moneySystemIdentifier   types.SystemID
+		networkID               types.NetworkID
+		systemID                types.SystemID
+		moneySystemID           types.SystemID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
@@ -41,8 +43,13 @@ type (
 	}
 )
 
-func NewFeeCreditModule(opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, moneySystemID types.SystemID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
+		networkID:     networkID,
+		systemID:      systemID,
+		moneySystemID: moneySystemID,
+		state:         state,
+		trustBase:     trustBase,
 		hashAlgorithm: crypto.SHA256,
 	}
 	for _, o := range opts {
@@ -77,12 +84,12 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 	return maxTxCost * GasUnitsPerTema
 }
 
-func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		fc.PayloadTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
-		fc.PayloadTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
-		fc.PayloadTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes, fc.LockFeeCreditAuthProof](f.validateLockFC, f.executeLockFC),
-		fc.PayloadTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes, fc.UnlockFeeCreditAuthProof](f.validateUnlockFC, f.executeUnlockFC),
+func (f *FeeCreditModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		fc.TransactionTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
+		fc.TransactionTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
+		fc.TransactionTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes, fc.LockFeeCreditAuthProof](f.validateLockFC, f.executeLockFC),
+		fc.TransactionTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes, fc.UnlockFeeCreditAuthProof](f.validateUnlockFC, f.executeUnlockFC),
 	}
 }
 
@@ -91,10 +98,13 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 }
 
 func (f *FeeCreditModule) IsValid() error {
-	if f.systemIdentifier == 0 {
+	if f.networkID == 0 {
+		return ErrNetworkIdentifierMissing
+	}
+	if f.systemID == 0 {
 		return ErrSystemIdentifierMissing
 	}
-	if f.moneySystemIdentifier == 0 {
+	if f.moneySystemID == 0 {
 		return ErrMoneySystemIdentifierMissing
 	}
 	if f.state == nil {

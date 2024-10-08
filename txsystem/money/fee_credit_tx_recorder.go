@@ -28,11 +28,11 @@ type transferFeeCreditTx struct {
 }
 
 type reclaimFeeCreditTx struct {
-	tx                  *types.TransactionOrder
-	attr                *fc.ReclaimFeeCreditAttributes
-	closeFCTransferAttr *fc.CloseFeeCreditAttributes
-	reclaimFee          uint64
-	closeFee            uint64
+	tx            *types.TransactionOrder
+	attr          *fc.ReclaimFeeCreditAttributes
+	reclaimAmount uint64
+	reclaimFee    uint64
+	closeFee      uint64
 }
 
 func newFeeCreditTxRecorder(s *state.State, systemIdentifier types.SystemID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
@@ -55,7 +55,7 @@ func (f *feeCreditTxRecorder) recordTransferFC(tx *transferFeeCreditTx) {
 }
 
 func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
-	sid := tx.attr.CloseFeeCreditTransfer.TransactionOrder.SystemID()
+	sid := tx.attr.CloseFeeCreditProof.TxRecord.TransactionOrder.SystemID
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
 }
 
@@ -70,7 +70,7 @@ func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) uint64 {
 func (f *feeCreditTxRecorder) getReclaimedCredit(sid types.SystemID) uint64 {
 	var sum uint64
 	for _, reclaimFC := range f.reclaimFeeCredits[sid] {
-		sum += reclaimFC.closeFCTransferAttr.Amount - reclaimFC.closeFee
+		sum += reclaimFC.reclaimAmount
 	}
 	return sum
 }

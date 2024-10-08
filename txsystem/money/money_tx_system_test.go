@@ -44,6 +44,7 @@ var (
 	}
 	fcrAmount     = uint64(1e8)
 	moneySystemID = money.DefaultSystemID
+	networkID     = types.NetworkID(5)
 )
 
 func TestNewTxSystem(t *testing.T) {
@@ -110,7 +111,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{transFC.UnitID()}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{transFC.UnitID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	originalSummaryRound1, err := originalTxs.EndBlock()
@@ -167,7 +168,7 @@ func TestExecute_TransferOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
 	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{transferOk.UnitID(), fcrID}, serverMetadata.TargetUnits)
+	require.Equal(t, []types.UnitID{transferOk.UnitID, fcrID}, serverMetadata.TargetUnits)
 	require.True(t, serverMetadata.ActualFee > 0)
 
 	stateSummary, err := txSystem.EndBlock()
@@ -197,8 +198,10 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	expectedNewUnitID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
-	require.Equal(t, []types.UnitID{splitOk.UnitID(), expectedNewUnitID, fcrID}, sm.TargetUnits)
+	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+	require.NoError(t, err)
+	expectedNewUnitID := money.NewBillID(nil, unitPart)
+	require.Equal(t, []types.UnitID{splitOk.UnitID, expectedNewUnitID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
@@ -257,9 +260,9 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Len(t, sm.TargetUnits, 1+10+1)                // target, new bills and fcr
-	require.Contains(t, sm.TargetUnits, splitOk.UnitID()) // target id
-	require.Contains(t, sm.TargetUnits, fcrID)            // fee credit id
+	require.Len(t, sm.TargetUnits, 1+10+1)              // target, new bills and fcr
+	require.Contains(t, sm.TargetUnits, splitOk.UnitID) // target id
+	require.Contains(t, sm.TargetUnits, fcrID)          // fee credit id
 	require.True(t, sm.ActualFee > 0)
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
@@ -284,7 +287,9 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
 	for i := range targetUnits {
-		expectedNewUnitId := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(i))))
+		unitPart, err := money.HashForNewBillID(splitOk, uint32(i), crypto.SHA256)
+		require.NoError(t, err)
+		expectedNewUnitId := money.NewBillID(nil, unitPart)
 		require.Contains(t, sm.TargetUnits, expectedNewUnitId) // target, new bills and fcr
 		newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
 		require.NotNil(t, newBill)
@@ -311,7 +316,9 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
 	require.True(t, sm.ActualFee > 0)
-	billID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
+	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+	require.NoError(t, err)
+	billID := money.NewBillID(nil, unitPart)
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _, _ := createDCTransfer(t, billID, fcrID, splitBillData.V, splitBillData.Counter, test.RandomBytes(32), 0)
@@ -321,7 +328,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{transferDCOk.UnitID(), DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{transferDCOk.UnitID, DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
@@ -345,12 +352,14 @@ func TestExecute_SwapOk(t *testing.T) {
 
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
-	splitBillID := money.NewBillID(nil, splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
+	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+	require.NoError(t, err)
+	splitBillID := money.NewBillID(nil, unitPart)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{splitOk.UnitID(), splitBillID, fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{splitOk.UnitID, splitBillID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 	// execute lock transaction to verify swap unlocks locked unit
 	counter += 1
@@ -359,7 +368,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockTx.UnitID(), fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{lockTx.UnitID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	// verify bill got locked
@@ -370,13 +379,13 @@ func TestExecute_SwapOk(t *testing.T) {
 	counter += 1
 	require.Equal(t, counter, billData.Counter)
 
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, fcrID, initialBill.ID, counter, s, signer)
-	for _, dcTransfer := range dcTransfers {
-		sm, err = txSystem.Execute(dcTransfer.TransactionOrder)
+	dcTransferProofs, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, fcrID, initialBill.ID, counter, s, signer)
+	for _, dcTransferProof := range dcTransferProofs {
+		sm, err = txSystem.Execute(dcTransferProof.TransactionOrder())
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 		require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-		require.Equal(t, []types.UnitID{dcTransfer.TransactionOrder.UnitID(), DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
+		require.Equal(t, []types.UnitID{dcTransferProof.UnitID(), DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
 		require.True(t, sm.ActualFee > 0)
 	}
 
@@ -401,10 +410,10 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{swapTx.UnitID(), DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
-	_, billData = getBill(t, s, swapTx.UnitID())
+	_, billData = getBill(t, s, swapTx.UnitID)
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
 	counter += 1
 	require.EqualValues(t, counter, billData.Counter)
@@ -439,7 +448,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockTx.UnitID(), fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{lockTx.UnitID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	stateSummary, err := txSystem.EndBlock()
@@ -447,7 +456,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NotNil(t, sm)
 	require.True(t, sm.ActualFee > 0)
 	require.Len(t, sm.TargetUnits, 2)
-	require.Equal(t, lockTx.UnitID(), sm.TargetUnits[0])
+	require.Equal(t, lockTx.UnitID, sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, 1)))
 
 	_, bd := getBill(t, rmaTree, initialBill.ID)
@@ -464,7 +473,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{unlockTx.UnitID(), fcrID}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{unlockTx.UnitID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	stateSummary, err = txSystem.EndBlock()
@@ -472,7 +481,7 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 	require.NotNil(t, sm)
 	require.True(t, sm.ActualFee > 0)
 	require.Len(t, sm.TargetUnits, 2)
-	require.Equal(t, unlockTx.UnitID(), sm.TargetUnits[0])
+	require.Equal(t, unlockTx.UnitID, sm.TargetUnits[0])
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, 1)))
 
 	_, bd = getBill(t, rmaTree, initialBill.ID)
@@ -530,12 +539,14 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		roundNumber := uint64(10)
 		err := txSystem.BeginBlock(roundNumber)
 		require.NoError(t, err)
-		splitBillIDs[i] = money.NewBillID(splitOk.UnitID(), splitOk.HashForNewUnitID(crypto.SHA256, util.Uint32ToBytes(uint32(0))))
+		unitPart, err := money.HashForNewBillID(splitOk, uint32(i), crypto.SHA256)
+		require.NoError(t, err)
+		splitBillIDs[i] = money.NewBillID(splitOk.UnitID, unitPart)
 		sm, err := txSystem.Execute(splitOk)
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 		require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-		require.Equal(t, []types.UnitID{splitOk.UnitID(), splitBillIDs[i], fcrID}, sm.TargetUnits)
+		require.Equal(t, []types.UnitID{splitOk.UnitID, splitBillIDs[i], fcrID}, sm.TargetUnits)
 		require.True(t, sm.ActualFee > 0)
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
@@ -550,15 +561,15 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	targetBillID := initialBill.ID
 	_, targetBillData := getBill(t, rmaTree, initialBill.ID)
 
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, targetBillID, fcrID, targetBillData.Counter, rmaTree, signer)
+	dcTransferProofs, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, targetBillID, fcrID, targetBillData.Counter, rmaTree, signer)
 
-	for _, dcTransfer := range dcTransfers {
-		_, err := txSystem.Execute(dcTransfer.TransactionOrder)
+	for _, dcTransferProof := range dcTransferProofs {
+		_, err := txSystem.Execute(dcTransferProof.TransactionOrder())
 		require.NoError(t, err)
 	}
 	_, err := txSystem.Execute(swapTx)
 	require.NoError(t, err)
-	_, newBillData := getBill(t, rmaTree, swapTx.UnitID())
+	_, newBillData := getBill(t, rmaTree, swapTx.UnitID)
 	require.Equal(t, uint64(10), newBillData.V)
 	_, dustCollectorBill := getBill(t, rmaTree, DustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
@@ -605,7 +616,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{transferFC.UnitID()}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{transferFC.UnitID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	stateSummary, err := txSystem.EndBlock()
@@ -634,22 +645,20 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		TransactionOrder: closeFC,
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
+	closureTxProof := testblock.CreateTxRecordProof(t, closeFCRecord, signer)
 
-	proof := testblock.CreateProof(t, closeFCRecord, signer)
 	reclaimFC := testutils.NewReclaimFC(t, signer,
 		testutils.NewReclaimFCAttr(t, signer,
-			testutils.WithReclaimFCClosureTx(closeFCRecord),
-			testutils.WithReclaimFCClosureProof(proof),
-			testutils.WithReclaimFCCounter(1),
+			testutils.WithReclaimFCClosureProof(closureTxProof),
 		),
 		testtransaction.WithUnitID(initialBill.ID),
-		testtransaction.WithPayloadType(fcsdk.PayloadTypeReclaimFeeCredit),
+		testtransaction.WithTransactionType(fcsdk.TransactionTypeReclaimFeeCredit),
 	)
 	sm, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{reclaimFC.UnitID()}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{reclaimFC.UnitID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	stateSummary, err = txSystem.EndBlock()
@@ -759,15 +768,14 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		TransactionOrder: transferFC,
 		ServerMetadata:   sm,
 	}
-	transferFCProof := testblock.CreateProof(t, transferFCTransactionRecord, signer)
+	transferFCProof := testblock.CreateTxRecordProof(t, transferFCTransactionRecord, signer)
 	addFC := testutils.NewAddFC(t, signer,
 		testutils.NewAddFCAttr(t, signer,
-			testutils.WithTransferFCRecord(transferFCTransactionRecord),
 			testutils.WithTransferFCProof(transferFCProof),
 		),
 		testtransaction.WithUnitID(fcrID),
 	)
-	authProof := &fcsdk.AddFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, addFC, signer)}
+	authProof := &fcsdk.AddFeeCreditAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, addFC, signer)}
 	require.NoError(t, addFC.SetAuthProof(authProof))
 
 	sm, err = txSystem.Execute(addFC)
@@ -785,7 +793,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 
 	// lock target unit
 	lockTx, _, _ := createLockTx(t, initialBillID, fcrID, 1)
-	lockTx.FeeProof = testsig.NewFeeProof(t, lockTx, signer)
+	lockTx.FeeProof = testsig.NewFeeProofSignature(t, lockTx, signer)
 
 	// execute lock transaction
 	sm, err = txSystem.Execute(lockTx)
@@ -814,7 +822,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		),
 		testtransaction.WithUnitID(fcrID),
 	)
-	closeFCAuthProof := &fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewOwnerProof(t, closeFC, signer)}
+	closeFCAuthProof := &fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, closeFC, signer)}
 	require.NoError(t, closeFC.SetAuthProof(closeFCAuthProof))
 
 	sm, err = txSystem.Execute(closeFC)
@@ -834,15 +842,13 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		TransactionOrder: closeFC,
 		ServerMetadata:   sm,
 	}
-	closeFCProof := testblock.CreateProof(t, closeFCTransactionRecord, signer)
+	closeFCProof := testblock.CreateTxRecordProof(t, closeFCTransactionRecord, signer)
 	reclaimFC := testutils.NewReclaimFC(t, signer,
 		testutils.NewReclaimFCAttr(t, signer,
-			testutils.WithReclaimFCClosureTx(closeFCTransactionRecord),
 			testutils.WithReclaimFCClosureProof(closeFCProof),
-			testutils.WithReclaimFCCounter(2),
 		),
 		testtransaction.WithUnitID(initialBillID),
-		testtransaction.WithPayloadType(fcsdk.PayloadTypeReclaimFeeCredit),
+		testtransaction.WithTransactionType(fcsdk.TransactionTypeReclaimFeeCredit),
 	)
 	sm, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
@@ -882,7 +888,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockFC.UnitID()}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{lockFC.UnitID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 	// verify unit was locked
 	u, err := rmaTree.GetUnit(fcrID, false)
@@ -898,7 +904,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{unlockFC.UnitID()}, sm.TargetUnits)
+	require.Equal(t, []types.UnitID{unlockFC.UnitID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 	// verify unit was unlocked
 	fcrUnit, err := rmaTree.GetUnit(fcrID, false)
@@ -917,14 +923,14 @@ func getBill(t *testing.T, s *state.State, billID types.UnitID) (*state.Unit, *m
 }
 
 func createBillTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, value uint64, bearer []byte, counter uint64) (*types.TransactionOrder, *money.TransferAttributes, *money.TransferAuthProof) {
-	tx := createTx(fromID, fcrID, money.PayloadTypeTransfer)
+	tx := createTx(fromID, fcrID, money.TransactionTypeTransfer)
 	attr := &money.TransferAttributes{
 		NewOwnerPredicate: bearer,
 		// #nosec G404
 		TargetValue: value,
 		Counter:     counter,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.TransferAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
@@ -933,12 +939,12 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, v
 }
 
 func createLockTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter uint64) (*types.TransactionOrder, *money.LockAttributes, *money.LockAuthProof) {
-	tx := createTx(fromID, fcrID, money.PayloadTypeLock)
+	tx := createTx(fromID, fcrID, money.TransactionTypeLock)
 	attr := &money.LockAttributes{
 		LockStatus: 1,
 		Counter:    counter,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.LockAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
@@ -947,11 +953,11 @@ func createLockTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter
 }
 
 func createUnlockTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter uint64) (*types.TransactionOrder, *money.UnlockAttributes, *money.UnlockAuthProof) {
-	tx := createTx(fromID, fcrID, money.PayloadTypeUnlock)
+	tx := createTx(fromID, fcrID, money.TransactionTypeUnlock)
 	attr := &money.UnlockAttributes{
 		Counter: counter,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.UnlockAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
@@ -966,32 +972,29 @@ func createDCTransferAndSwapTxs(
 	targetID []byte,
 	targetCounter uint64,
 	rmaTree *state.State,
-	signer abcrypto.Signer) ([]*types.TransactionRecord, *types.TransactionOrder) {
+	signer abcrypto.Signer) ([]*types.TxRecordProof, *types.TransactionOrder) {
 
 	t.Helper()
 
 	// create dc transfers
-	dcTransfers := make([]*types.TransactionRecord, len(ids))
-	proofs := make([]*types.TxProof, len(ids))
+	dustTransferProofs := make([]*types.TxRecordProof, len(ids))
 
-	var targetValue uint64 = 0
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
-		targetValue += billData.V
 		tx, _, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
 		txr := &types.TransactionRecord{
 			TransactionOrder: tx,
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
-		proofs[i] = testblock.CreateProof(t, txr, signer)
-		dcTransfers[i] = txr
+		dustTransferProofs[i] = testblock.CreateTxRecordProof(t, txr, signer)
 	}
 
 	tx := &types.TransactionOrder{
-		Payload: &types.Payload{
-			SystemID: moneySystemID,
-			UnitID:   targetID,
-			Type:     money.PayloadTypeSwapDC,
+		Payload: types.Payload{
+			NetworkID: networkID,
+			SystemID:  moneySystemID,
+			UnitID:    targetID,
+			Type:      money.TransactionTypeSwapDC,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
 				MaxTransactionFee: 10,
@@ -1001,27 +1004,25 @@ func createDCTransferAndSwapTxs(
 	}
 
 	attr := &money.SwapDCAttributes{
-		DcTransfers:      dcTransfers,
-		DcTransferProofs: proofs,
-		TargetValue:      targetValue,
+		DustTransferProofs: dustTransferProofs,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.SwapDCAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
 
-	return dcTransfers, tx
+	return dustTransferProofs, tx
 }
 
 func createDCTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, val uint64, counter uint64, targetID []byte, targetCounter uint64) (*types.TransactionOrder, *money.TransferDCAttributes, *money.TransferDCAuthProof) {
-	tx := createTx(fromID, fcrID, money.PayloadTypeTransDC)
+	tx := createTx(fromID, fcrID, money.TransactionTypeTransDC)
 	attr := &money.TransferDCAttributes{
 		Value:             val,
 		TargetUnitID:      targetID,
 		TargetUnitCounter: targetCounter,
 		Counter:           counter,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.TransferDCAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
@@ -1030,12 +1031,12 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, val
 }
 
 func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUnits []*money.TargetUnit, counter uint64) (*types.TransactionOrder, *money.SplitAttributes, *money.SplitAuthProof) {
-	tx := createTx(fromID, fcrID, money.PayloadTypeSplit)
+	tx := createTx(fromID, fcrID, money.TransactionTypeSplit)
 	attr := &money.SplitAttributes{
 		TargetUnits: targetUnits,
 		Counter:     counter,
 	}
-	require.NoError(t, tx.Payload.SetAttributes(attr))
+	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.SplitAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
@@ -1043,12 +1044,13 @@ func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUn
 	return tx, attr, authProof
 }
 
-func createTx(fromID types.UnitID, fcrID types.UnitID, payloadType string) *types.TransactionOrder {
+func createTx(fromID types.UnitID, fcrID types.UnitID, transactionType uint16) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
-		Payload: &types.Payload{
+		Payload: types.Payload{
+			NetworkID:  networkID,
 			SystemID:   moneySystemID,
 			UnitID:     fromID,
-			Type:       payloadType,
+			Type:       transactionType,
 			Attributes: nil,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
@@ -1139,10 +1141,11 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		SystemIdentifier: money.DefaultSystemID,
-		TypeIdLen:        8,
-		UnitIdLen:        256,
-		T2Timeout:        2500 * time.Millisecond,
+		NetworkIdentifier: 5,
+		SystemIdentifier:  money.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -1180,7 +1183,7 @@ func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(money.DefaultSystemID, options)
+	module, err := NewMoneyModule(5, money.DefaultSystemID, options)
 	require.NoError(t, err)
 	return module
 }

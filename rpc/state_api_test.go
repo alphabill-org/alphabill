@@ -134,16 +134,12 @@ func TestGetTransactionProof(t *testing.T) {
 		res, err := api.GetTransactionProof(context.Background(), txHash)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.NotNil(t, res.TxRecord)
-		require.NotNil(t, res.TxProof)
+		require.NotNil(t, res.TxRecordProof)
 
-		var txRecord *types.TransactionRecord
-		err = types.Cbor.Unmarshal(res.TxRecord, &txRecord)
+		var txRecordProof *types.TxRecordProof
+		err = types.Cbor.Unmarshal(res.TxRecordProof, &txRecordProof)
 		require.NoError(t, err)
-
-		var txProof *types.TxProof
-		err = types.Cbor.Unmarshal(res.TxProof, &txProof)
-		require.NoError(t, err)
+		require.NotNil(t, txRecordProof)
 	})
 	t.Run("err", func(t *testing.T) {
 		txHash := []byte{1}

@@ -39,8 +39,7 @@ type (
 	}
 
 	TransactionRecordAndProof struct {
-		TxRecord types.Bytes `json:"txRecord"`
-		TxProof  types.Bytes `json:"txProof"`
+		TxRecordProof types.Bytes `json:"txRecordProof"` // hex encoded CBOR of types.TxRecordProof
 	}
 )
 
@@ -122,17 +121,12 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) 
 		}
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordBytes, err := types.Cbor.Marshal(txRecordProof.TxRecord)
+	txRecordProofCBOR, err := types.Cbor.Marshal(txRecordProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
-	txProofBytes, err := types.Cbor.Marshal(txRecordProof.TxProof)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode tx proof: %w", err)
-	}
 	return &TransactionRecordAndProof{
-		TxRecord: txRecordBytes,
-		TxProof:  txProofBytes,
+		TxRecordProof: txRecordProofCBOR,
 	}, nil
 }
 

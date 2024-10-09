@@ -88,6 +88,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	newUC := &certification.CertificationResponse{
 		Partition: sysID3,
 		UC: types.UnicityCertificate{
+			Version:                1,
 			UnicityTreeCertificate: mockUc.UnicityTreeCertificate,
 			UnicitySeal:            mockUc.UnicitySeal,
 			InputRecord: &types.InputRecord{Version: 1,

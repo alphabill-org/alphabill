@@ -38,6 +38,7 @@ func (s *MockState) GetCertificates() []*certification.CertificationResponse {
 		Partition: 1,
 		Shard:     types.ShardID{},
 		UC: types.UnicityCertificate{
+			Version:                1,
 			InputRecord:            irSysID1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal: &types.UnicitySeal{Version: 1,

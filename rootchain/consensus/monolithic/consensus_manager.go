@@ -299,6 +299,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) ([]*certifi
 		cr := &certification.CertificationResponse{
 			Partition: utCert.SystemIdentifier,
 			UC: types.UnicityCertificate{
+				Version:     1,
 				InputRecord: ir,
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
 					SystemIdentifier:         utCert.SystemIdentifier,

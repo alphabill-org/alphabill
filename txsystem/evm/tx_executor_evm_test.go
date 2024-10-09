@@ -593,10 +593,13 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	gasPrice := big.NewInt(DefaultGasPrice)
 	mockDB, err := memorydb.New()
 	require.NoError(t, err)
+	uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: 1, BlockHash: test.RandomBytes(32)}}
+	ucBytes, err := (uc).MarshalCBOR()
+	require.NoError(t, err)
 	b := &types.Block{
 		Header:             &types.Header{SystemID: evm.DefaultSystemID},
 		Transactions:       []*types.TransactionRecord{},
-		UnicityCertificate: &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: 1, BlockHash: test.RandomBytes(32)}},
+		UnicityCertificate: ucBytes,
 	}
 	require.NoError(t, mockDB.Write(util.Uint64ToBytes(uint64(1)), &b))
 	_, err = Execute(2, stateDB, mockDB, &evm.TxAttributes{
@@ -624,7 +627,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
 	var details evm.ProcessingDetails
 	require.NoError(t, types.Cbor.Unmarshal(res.ProcessingDetails, &details))
-	require.EqualValues(t, b.UnicityCertificate.InputRecord.BlockHash, details.ReturnData)
+	require.EqualValues(t, uc.InputRecord.BlockHash, details.ReturnData)
 	// query not existing block
 	callContract.Nonce++
 	res, err = Execute(3, stateDB, mockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)

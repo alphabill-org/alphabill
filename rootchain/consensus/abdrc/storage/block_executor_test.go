@@ -121,7 +121,7 @@ func TestExecutedBlock(t *testing.T) {
 	// parent remains unchanged
 	require.Equal(t, genesisInputRecord, parent.CurrentIR.Find(partitionID1).IR)
 	require.Equal(t, hash, executedBlock.HashAlgo)
-	require.EqualValues(t, "E3C6967082C5D3E3FB0B40683F0491580B35B71E3727B9CC3916E615842739D1", fmt.Sprintf("%X", executedBlock.RootHash))
+	require.EqualValues(t, "89D3869C9284F932817E48CA5CEA7979000292E0072D3D5264D5ABEA2054E912", fmt.Sprintf("%X", executedBlock.RootHash))
 	// block has not got QC nor commit QC yet
 	require.Nil(t, executedBlock.Qc)
 	require.Nil(t, executedBlock.CommitQc)

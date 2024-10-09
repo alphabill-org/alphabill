@@ -872,6 +872,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 				Partition: id,
 				Shard:     types.ShardID{},
 				UC: types.UnicityCertificate{
+					Version: 1,
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
 						SystemIdentifier:         id,
 						PartitionDescriptionHash: test.RandomBytes(32),

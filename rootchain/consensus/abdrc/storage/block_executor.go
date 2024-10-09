@@ -257,6 +257,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 			Shard:     ir.Shard,
 			Technical: ir.Technical,
 			UC: types.UnicityCertificate{
+				Version:     1,
 				InputRecord: ir.IR,
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
 					SystemIdentifier:         utCert.SystemIdentifier,

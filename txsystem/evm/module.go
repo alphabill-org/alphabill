@@ -42,7 +42,10 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 
 func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
-		if ctx.Tx.SystemID != ctx.SystemIdentifier {
+		if ctx.Tx.NetworkID != ctx.NetworkID {
+			return txsystem.ErrInvalidNetworkIdentifier
+		}
+		if ctx.Tx.SystemID != ctx.SystemID {
 			return txsystem.ErrInvalidSystemIdentifier
 		}
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {

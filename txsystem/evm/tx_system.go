@@ -18,15 +18,17 @@ import (
 type genericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
-	Tx               *types.TransactionOrder
-	state            *state.State
-	SystemIdentifier types.SystemID
-	BlockNumber      uint64
-	CustomData       []byte
+	Tx          *types.TransactionOrder
+	state       *state.State
+	NetworkID   types.NetworkID
+	SystemID    types.SystemID
+	BlockNumber uint64
+	CustomData  []byte
 }
 
 type TxSystem struct {
-	systemIdentifier    types.SystemID
+	networkID           types.NetworkID
+	systemID            types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentRoundNumber  uint64
@@ -38,7 +40,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -52,16 +54,17 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemIdentifier, options, log)
+	evm, err := NewEVMModule(systemID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemIdentifier, options, log)
+	fees, err := newFeeModule(systemID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
 	txs := &TxSystem{
-		systemIdentifier:    systemIdentifier,
+		networkID:           networkID,
+		systemID:            systemID,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
@@ -131,10 +134,11 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
 	exeCtx := &TxValidationContext{
-		Tx:               tx,
-		state:            m.state,
-		SystemIdentifier: m.systemIdentifier,
-		BlockNumber:      m.currentRoundNumber,
+		Tx:          tx,
+		state:       m.state,
+		NetworkID:   m.networkID,
+		SystemID:    m.systemID,
+		BlockNumber: m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
 		if err = validator(exeCtx); err != nil {

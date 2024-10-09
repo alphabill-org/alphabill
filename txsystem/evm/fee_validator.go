@@ -15,7 +15,7 @@ func isFeeCreditTx(tx *types.TransactionOrder) bool {
 		typeUrl == fc.TransactionTypeCloseFeeCredit
 }
 
-func checkFeeAccountBalance(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), exeCtx predicates.TxContext) error) genericTransactionValidator {
+func checkFeeAccountBalanceFn(state *state.State, execPredicate func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), exeCtx predicates.TxContext) error) genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
 		if !isFeeCreditTx(ctx.Tx) {
 			return nil
@@ -38,7 +38,7 @@ func checkFeeAccountBalance(state *state.State, execPredicate func(predicate typ
 		}
 		// owner proof verifies correctly
 		ownerPredicate := u.Owner()
-		if err = execPredicate(ownerPredicate, ownerProof, ctx.Tx.FeeProofSigBytes, ctx); err != nil {
+		if err = execPredicate(ownerPredicate, ownerProof, ctx.Tx.AuthProofSigBytes, ctx); err != nil {
 			return fmt.Errorf("invalid owner proof: %w [authProof.OwnerProof=0x%x unit.Owner=0x%x]", err, ownerProof, ownerPredicate)
 		}
 		return nil

@@ -64,5 +64,5 @@ func (f *FeeAccount) TxHandlers() map[uint16]txtypes.TxExecutor {
 }
 
 func (f *FeeAccount) GenericTransactionValidator() genericTransactionValidator {
-	return checkFeeAccountBalance(f.state, f.execPredicate)
+	return checkFeeAccountBalanceFn(f.state, f.execPredicate)
 }

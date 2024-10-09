@@ -3,17 +3,52 @@ package evm
 import (
 	"testing"
 
+	templates2 "github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	"github.com/stretchr/testify/require"
 )
 
-/*
 func Test_checkFeeAccountBalance(t *testing.T) {
-	tree := rma.NewWithSHA256()
-	validatorFn := checkFeeAccountBalance(tree)
+	// generate keys
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	verifier, _ := signer.Verifier()
+	publicKey, _ := verifier.MarshalPublicKey()
 
-}*/
+	// create tx
+	txo := testutils.NewAddFC(t, signer, nil)
+	ownerProof := testsig.NewAuthProofSignature(t, txo, signer)
+	err := txo.SetAuthProof(fc.AddFeeCreditAuthProof{OwnerProof: ownerProof})
+	require.NoError(t, err)
+
+	// create state with 1 unit
+	s := state.NewEmptyState()
+	addr, _ := getAddressFromPredicateArg(ownerProof)
+	unitID := addr.Bytes()
+	err = s.Apply(state.AddUnit(unitID, templates2.NewP2pkh256BytesFromKey(publicKey), &fc.FeeCreditRecord{
+		Balance: 100,
+	}))
+	require.NoError(t, err)
+
+	// create checkFeeAccountBalance function
+	predEng, err := predicates.Dispatcher(templates.New())
+	require.NoError(t, err)
+	predicateRunner := predicates.NewPredicateRunner(predEng.Execute)
+	validateFeeBalanceFn := checkFeeAccountBalanceFn(s, predicateRunner)
+
+	// validate fee balance tx ok
+	require.NoError(t, validateFeeBalanceFn(&TxValidationContext{
+		Tx:        txo,
+		state:     s,
+		NetworkID: 5,
+		SystemID:  1,
+	}))
+}
 
 func Test_isFeeCreditTx(t *testing.T) {
 	type args struct {

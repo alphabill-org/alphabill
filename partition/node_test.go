@@ -66,10 +66,10 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 
-	uc1 := tp.GetCommittedUC(t)
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	uc0 := tp.GetCommittedUC(t)
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, _ := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 	require.NoError(t, db.Write(util.Uint64ToBytes(1), newBlock1))
 	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
 	// add transactions from block 4 as pending block
@@ -89,7 +89,9 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	b := tp.GetLatestBlock(t)
 	require.Equal(t, uint64(2), b.GetRoundNumber())
 	// Simulate UC received for block 4 - the pending block
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	uc4, err := getUCv1(newBlock3)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(uc4)
 	ContainsEventType(t, tp, event.BlockFinalized)
 	require.Equal(t, uint64(2), b.GetRoundNumber())
 }
@@ -160,8 +162,12 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	tp.CreateBlock(t)
 	block1 := tp.GetLatestBlock(t)
 	require.NotEmpty(t, block1.GetProposerID())
-	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.RoundNumber, block1.UnicityCertificate.InputRecord.RoundNumber)
-	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.BlockHash, block1.UnicityCertificate.InputRecord.BlockHash)
+	uc, err := getUCv1(genesis)
+	require.NoError(t, err)
+	uc1, err := getUCv1(block1)
+	require.NoError(t, err)
+	require.NotEqual(t, uc.InputRecord.RoundNumber, uc1.InputRecord.RoundNumber)
+	require.NotEqual(t, uc.InputRecord.BlockHash, uc1.InputRecord.BlockHash)
 
 	// next block (empty)
 	tp.CreateBlock(t)
@@ -169,11 +175,13 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.Equal(t, block1, block2)
 	// latest UC certifies empty block
 	uc2 := tp.partition.luc.Load()
-	require.Less(t, block2.UnicityCertificate.InputRecord.RoundNumber, uc2.InputRecord.RoundNumber)
+	block2uc, err := getUCv1(block2)
+	require.NoError(t, err)
+	require.Less(t, block2uc.InputRecord.RoundNumber, uc2.InputRecord.RoundNumber)
 	// hash of the latest certified empty block is zero-hash
 	require.Equal(t, uc2.InputRecord.BlockHash, zeroHash)
 	// state hash must stay the same as in last non-empty block
-	require.Equal(t, block2.UnicityCertificate.InputRecord.Hash, uc2.InputRecord.Hash)
+	require.Equal(t, block2uc.InputRecord.Hash, uc2.InputRecord.Hash)
 
 	// next block (empty)
 	tp.CreateBlock(t)
@@ -181,7 +189,9 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	uc3 := tp.partition.luc.Load()
 	require.Less(t, uc2.InputRecord.RoundNumber, uc3.InputRecord.RoundNumber)
 	require.Equal(t, uc3.InputRecord.BlockHash, zeroHash)
-	require.Equal(t, block1.UnicityCertificate.InputRecord.Hash, uc3.InputRecord.Hash)
+	block1uc, err := getUCv1(block1)
+	require.NoError(t, err)
+	require.Equal(t, block1uc.InputRecord.Hash, uc3.InputRecord.Hash)
 
 	// next block (non-empty)
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
@@ -190,11 +200,13 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	block4 := tp.GetLatestBlock(t)
 	require.NotEmpty(t, block4.GetProposerID())
 	require.NotEqual(t, block1, block4)
-	require.NotEqual(t, block4.UnicityCertificate.InputRecord.BlockHash, zeroHash)
-	require.Equal(t, block1.UnicityCertificate.InputRecord.BlockHash, block4.Header.PreviousBlockHash)
+	block4uc, err := getUCv1(block4)
+	require.NoError(t, err)
+	require.NotEqual(t, block4uc.InputRecord.BlockHash, zeroHash)
+	require.Equal(t, block1uc.InputRecord.BlockHash, block4.Header.PreviousBlockHash)
 	uc4 := tp.partition.luc.Load()
-	require.Equal(t, block4.UnicityCertificate, uc4)
-	require.Equal(t, block1.UnicityCertificate.InputRecord.Hash, uc4.InputRecord.PreviousHash)
+	require.Equal(t, block4uc, uc4)
+	require.Equal(t, block1uc.InputRecord.Hash, uc4.InputRecord.PreviousHash)
 	require.Less(t, uc3.InputRecord.RoundNumber, uc4.InputRecord.RoundNumber)
 }
 
@@ -283,7 +295,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 }
 
 func copyIR(record *types.InputRecord) *types.InputRecord {
-	return &types.InputRecord{
+	return &types.InputRecord{Version: 1,
 		PreviousHash:    slices.Clone(record.PreviousHash),
 		Hash:            slices.Clone(record.Hash),
 		BlockHash:       slices.Clone(record.BlockHash),
@@ -566,7 +578,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp := RunSingleNodePartition(t, system)
 	uc1 := tp.GetCommittedUC(t)
 	// create a UC for a new round
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		Hash:         uc1.InputRecord.Hash,
 		PreviousHash: uc1.InputRecord.PreviousHash,
 		BlockHash:    uc1.InputRecord.BlockHash,

@@ -81,7 +81,7 @@ func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID st
 	req := &certification.BlockCertificationRequest{
 		Partition:      systemIdentifier,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

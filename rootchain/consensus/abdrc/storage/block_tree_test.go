@@ -17,7 +17,7 @@ const sysID2 types.SystemID = 2
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
-var inputRecord1 = &types.InputRecord{
+var inputRecord1 = &types.InputRecord{Version: 1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{2, 2, 2},
 	BlockHash:    []byte{3, 3, 3},
@@ -29,7 +29,7 @@ var sdr1 = &types.PartitionDescriptionRecord{
 	SystemIdentifier:  sysID1,
 	T2Timeout:         2500 * time.Millisecond,
 }
-var inputRecord2 = &types.InputRecord{
+var inputRecord2 = &types.InputRecord{Version: 1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{5, 5, 5},
 	BlockHash:    []byte{3, 3, 3},
@@ -50,7 +50,7 @@ var roundInfo = &drctypes.RoundInfo{
 
 var pg = []*genesis.GenesisPartitionRecord{
 	{
-		Certificate: &types.UnicityCertificate{
+		Certificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: inputRecord1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         sysID1,
@@ -67,7 +67,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 		PartitionDescription: sdr1,
 	},
 	{
-		Certificate: &types.UnicityCertificate{
+		Certificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: inputRecord2,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         sysID2,

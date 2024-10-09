@@ -27,7 +27,7 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 const sysID1 types.SystemID = 1
 const sysID2 types.SystemID = 2
 
-var inputRecord1 = &types.InputRecord{
+var inputRecord1 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -35,7 +35,7 @@ var inputRecord1 = &types.InputRecord{
 	RoundNumber:     5,
 	SumOfEarnedFees: 6,
 }
-var inputRecord2 = &types.InputRecord{
+var inputRecord2 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{5, 5, 5},
 	BlockHash:       []byte{3, 3, 3},
@@ -161,7 +161,7 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	}
 	timeouts := []types.SystemID{sysID1}
 	isPending := func(id types.SystemID) *types.InputRecord {
-		return &types.InputRecord{}
+		return &types.InputRecord{Version: 1}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)

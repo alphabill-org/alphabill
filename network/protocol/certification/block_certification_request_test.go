@@ -20,7 +20,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 			Partition:      1,
 			NodeIdentifier: "1",
 			Leader:         "1",
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: []byte{},
 				Hash:         []byte{},
 				BlockHash:    []byte{},
@@ -78,7 +78,7 @@ func TestBlockCertificationRequest_GetPreviousHash(t *testing.T) {
 		InputRecord:    nil,
 	}
 	require.Nil(t, req.IRPreviousHash())
-	req.InputRecord = &types.InputRecord{PreviousHash: []byte{1, 2, 3}}
+	req.InputRecord = &types.InputRecord{Version: 1, PreviousHash: []byte{1, 2, 3}}
 	require.Equal(t, []byte{1, 2, 3}, req.IRPreviousHash())
 }
 
@@ -91,7 +91,7 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 		InputRecord:    nil,
 	}
 	require.EqualValues(t, 0, req.IRRound())
-	req.InputRecord = &types.InputRecord{RoundNumber: 10}
+	req.InputRecord = &types.InputRecord{Version: 1, RoundNumber: 10}
 	require.EqualValues(t, 10, req.IRRound())
 }
 

@@ -31,7 +31,7 @@ const sysID2 types.SystemID = 2
 const sysID3 types.SystemID = 5
 const partitionID types.SystemID = 0x00FF0001
 
-var partitionInputRecord = &types.InputRecord{
+var partitionInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
@@ -87,21 +87,21 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		{
 			Partition: sysID3,
 			UC: types.UnicityCertificate{
-				InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 3, Hash: []byte{1}}}, // no timeout (5 - 3) * 900 = 1800 ms,
 		},
 		{
 			Partition: sysID1,
 			UC: types.UnicityCertificate{
-				InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2, Hash: []byte{1}}}, // timeout (5 - 2) * 900 = 2700 ms
 		},
 		{
 			Partition: sysID2,
 			UC: types.UnicityCertificate{
-				InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
+				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 4, Hash: []byte{1}}}, // no timeout
 		},
@@ -145,7 +145,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	requests := make([]*certification.BlockCertificationRequest, 2)
 
 	ir := rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord
-	newIR := &types.InputRecord{
+	newIR := &types.InputRecord{Version: 1,
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -189,7 +189,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	// mock requests from partition node
 	requests := make([]*certification.BlockCertificationRequest, 2)
 	ir := rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord
-	newIR := &types.InputRecord{
+	newIR := &types.InputRecord{Version: 1,
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),

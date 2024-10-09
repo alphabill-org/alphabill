@@ -216,7 +216,7 @@ func prepareState(t *testing.T) *state.State {
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -299,7 +299,11 @@ func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Bloc
 		// empty block
 		return nil, nil
 	}
-	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
+	uc, err := (&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: blockNumber}}).MarshalCBOR()
+	if err != nil {
+		return nil, err
+	}
+	return &types.Block{UnicityCertificate: uc}, nil
 }
 
 func (mn *MockNode) LatestBlockNumber() (uint64, error) {

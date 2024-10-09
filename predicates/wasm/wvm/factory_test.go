@@ -70,7 +70,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TxProof ok", func(t *testing.T) {
-		txp := types.TxProof{
+		txp := types.TxProof{Version: 1,
 			BlockHeaderHash: []byte{5, 5, 5},
 			Chain:           []*types.GenericChainItem{{Hash: []byte{4}}},
 		}

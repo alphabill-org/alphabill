@@ -158,7 +158,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -204,7 +204,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -258,7 +258,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -313,7 +313,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -429,7 +429,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -462,7 +462,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -496,7 +496,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -530,7 +530,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -565,7 +565,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -595,7 +595,7 @@ func TestInputData_IsValid(t *testing.T) {
 	t.Run("system description hash is not set", func(t *testing.T) {
 		i := &InputData{
 			Partition: 0,
-			Ir: &types.InputRecord{
+			Ir: &types.InputRecord{Version: 1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),
@@ -610,7 +610,7 @@ func TestInputData_IsValid(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		i := &InputData{
 			Partition: 0,
-			Ir: &types.InputRecord{
+			Ir: &types.InputRecord{Version: 1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),

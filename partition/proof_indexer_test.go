@@ -301,6 +301,9 @@ func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
+	uc, _ := (&types.UnicityCertificate{Version: 1,
+		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
+	}).MarshalCBOR()
 	block := &types.Block{
 		Header: &types.Header{SystemID: 1},
 		Transactions: []*types.TransactionRecord{
@@ -309,9 +312,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{RoundNumber: round},
-		},
+		UnicityCertificate: uc,
 	}
 	return &BlockAndState{
 		Block: block,
@@ -320,12 +321,13 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 }
 
 func simulateEmptyInput(round uint64) *BlockAndState {
+	uc, _ := (&types.UnicityCertificate{Version: 1,
+		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
+	}).MarshalCBOR()
 	block := &types.Block{
-		Header:       &types.Header{SystemID: 1},
-		Transactions: []*types.TransactionRecord{},
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{RoundNumber: round},
-		},
+		Header:             &types.Header{SystemID: 1},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: uc,
 	}
 	return &BlockAndState{
 		Block: block,

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var inputRecord = &types.InputRecord{
+var inputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: []byte{0x00},
 	Hash:         []byte{0x01},
 	BlockHash:    []byte{0x02},

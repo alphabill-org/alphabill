@@ -79,7 +79,7 @@ func createInputRequest(systemID types.SystemID, nodeID string, partitionSigner 
 	req := &certification.BlockCertificationRequest{
 		Partition:      systemID,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

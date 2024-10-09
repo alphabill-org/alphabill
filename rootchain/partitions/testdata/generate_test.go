@@ -1,6 +1,6 @@
 //go:build manual
 
-package main
+package testdata
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ import (
 
 const partitionID1 types.SystemID = 1
 
-var genesisInputRecord = &types.InputRecord{
+var genesisInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},

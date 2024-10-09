@@ -4,9 +4,9 @@
     "version": 1,
     "root_validators": [
       {
-        "node_identifier": "test_root_node",
-        "signing_public_key": "At0J3D6ihxn2u7sjE3evPVUlpJ06OqD8/1xcHtX2V1/e",
-        "encryption_public_key": "At0J3D6ihxn2u7sjE3evPVUlpJ06OqD8/1xcHtX2V1/e"
+        "node_identifier": "16Uiu2HAmA1abZGid1sYh415TnzPwn51cmFGCSZxGJi4Py2gEv5iG",
+        "signing_public_key": "Aom4USq7I4oSZunRtVQHtMKTolZ0VATwtZlvfe3wm4Rv",
+        "encryption_public_key": "Aom4USq7I4oSZunRtVQHtMKTolZ0VATwtZlvfe3wm4Rv"
       }
     ],
     "consensus": {
@@ -16,7 +16,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "test_root_node": "HNyypSJGgeiDri4/DmpPfZrZQN5Jzx9havKdEDm03QA879DaHZmtJU65v6R+mj2OQWAXwVS++pcHqad8B2YqOgA="
+        "16Uiu2HAmA1abZGid1sYh415TnzPwn51cmFGCSZxGJi4Py2gEv5iG": "2UGFZNuc1ijIJ1bRnAj/l7jk/8NXBdK3E24lVXsDRz80OcoTeel4Cfb0eKHWzGhaqmdimlHy5zLgdYlUOqAyzwA="
       }
     }
   },
@@ -26,45 +26,44 @@
       "nodes": [
         {
           "version": 1,
-          "node_identifier": "A",
-          "signing_public_key": "AySLYWhRrG5DfsJOzCGeW0JD36Xb2wjOpkg6yeDca1XN",
-          "encryption_public_key": "AySLYWhRrG5DfsJOzCGeW0JD36Xb2wjOpkg6yeDca1XN",
+          "node_identifier": "16Uiu2HAmCq9mbLDbER4c5pdf3NvYJu4PLHn69tEAzxib4XRt1N1j",
+          "signing_public_key": "AtrJtHy4Y4YNx1h+ywn7ylT3+ZyAyotYTK714VYU3/PY",
+          "encryption_public_key": "AwKadUzoUxmmIRJtlfjOZdzPDPqTeIFZmY+F04IFWpBO",
           "block_certification_request": {
             "system_identifier": 1,
             "shard_identifier": "0x80",
-            "node_identifier": "A",
+            "node_identifier": "16Uiu2HAmCq9mbLDbER4c5pdf3NvYJu4PLHn69tEAzxib4XRt1N1j",
             "input_record": {
+              "version": 1,
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "summary_value": "AQAA"
+              "hash": "AQEBAQ==",
+              "block_hash": "AAABAg==",
+              "summary_value": "AAABAw==",
+              "round_number": 1
             },
             "root_round_number": 0,
             "block_size": 0,
             "state_size": 0,
-            "signature": "AXOJHfDLeJPLVobVlCOWHYU/knmK+YQWlPJwx/lZ545OTP/8v7heiuym+E5Qtd/fKkJ08g7SiBYtqfj4NdLktAE=",
+            "signature": "6MNrBKDQ5qdf+nbhgIZ4c6eIuPjYaMpedlYd8AZg8OQObBshNpUPHsEKYwSnN9s/rkuF3qum2yDgM3+ugIfQ+QA=",
             "round_leader": ""
           },
           "partition_description": {
-            "network_identifier": 5,
-            "system_identifier": 1,
-            "type_id_length": 8,
-            "unit_id_length": 256,
+            "type_id_length": 0,
+            "unit_id_length": 0,
             "sharding_scheme": null,
-            "t2timeout": 2500000000,
-            "fee_credit_bill": {
-              "unit_id": "0x000000000000000000000000000000000000000000000000000000000000000001",
-              "owner_predicate": "0x83004101f6"
-            }
+            "t2timeout": 0
           }
         }
       ],
       "certificate": {
+        "version": 1,
         "input_record": {
+          "version": 1,
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "summary_value": "AQAA"
+          "hash": "AQEBAQ==",
+          "block_hash": "AAABAg==",
+          "summary_value": "AAABAw==",
+          "round_number": 1
         },
         "unicity_tree_certificate": {
           "system_identifier": 1,
@@ -74,10 +73,10 @@
           "version": 1,
           "root_chain_round_number": 1,
           "timestamp": 1681971084,
-          "previous_hash": "cwlG/Mehzaa3zce1vQ6taqmsTfd6+0MT6XgM1BT6VIw=",
-          "hash": "qKmVS7+HwU804VdapHennKvzom5PWQP16V80qH6qLGk=",
+          "previous_hash": "ksRXnkNauqpTflPWV+khZOwTiJqLG0zDZ6qSSJJIpn4=",
+          "hash": "xb9QD0MdJpkBhb1wpeoV8dKvs/O1hOMT9p41516yU5k=",
           "signatures": {
-            "test_root_node": "QBZ03o4xtYYRzsdgkb8sGVPZqu+D6mdYsEzjqmfScPs8JBz06oO+UlSzKpqiUa5RcmhF1B7fgzfC0U5049sJ6QE="
+            "16Uiu2HAmA1abZGid1sYh415TnzPwn51cmFGCSZxGJi4Py2gEv5iG": "uigeGW33ACsnhDqwSRd+SMX6KCk44bacKJLyCFdRKlVcUF2d9v3nKw/l7a3GmyUjuIxiLL0FFqwdl2fnla1hsgE="
           }
         }
       },
@@ -87,11 +86,7 @@
         "type_id_length": 8,
         "unit_id_length": 256,
         "sharding_scheme": null,
-        "t2timeout": 2500000000,
-        "fee_credit_bill": {
-          "unit_id": "0x000000000000000000000000000000000000000000000000000000000000000001",
-          "owner_predicate": "0x83004101f6"
-        }
+        "t2timeout": 2500000000
       }
     }
   ]

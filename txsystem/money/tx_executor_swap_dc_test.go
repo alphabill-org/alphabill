@@ -348,7 +348,7 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 	proofs := []*types.TxRecordProof{
 		{
 			TxRecord: transferDCRecord,
-			TxProof:  &types.TxProof{BlockHeaderHash: []byte{0}},
+			TxProof:  &types.TxProof{Version: 1, BlockHeaderHash: []byte{0}},
 		},
 	}
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}

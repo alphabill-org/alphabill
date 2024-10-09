@@ -112,7 +112,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 	require.NoError(t, stateDB.Finalize())
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -596,7 +596,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	b := &types.Block{
 		Header:             &types.Header{SystemID: evm.DefaultSystemID},
 		Transactions:       []*types.TransactionRecord{},
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1, BlockHash: test.RandomBytes(32)}},
+		UnicityCertificate: &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: 1, BlockHash: test.RandomBytes(32)}},
 	}
 	require.NoError(t, mockDB.Write(util.Uint64ToBytes(uint64(1)), &b))
 	_, err = Execute(2, stateDB, mockDB, &evm.TxAttributes{

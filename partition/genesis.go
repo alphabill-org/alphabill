@@ -104,14 +104,14 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		hash = zeroHash
 	}
 	// calculate block hash
-	gIR := &types.InputRecord{
+	gIR := &types.InputRecord{Version: 1,
 		PreviousHash: zeroHash, // extend zero hash
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}
 	// create genesis block
-	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{
+	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{Version: 1,
 		InputRecord: gIR,
 	})
 	if err != nil {

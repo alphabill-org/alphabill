@@ -169,8 +169,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{},
+				Certificate: &types.UnicityCertificate{Version: 1,
+					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
 				PartitionDescription: systemDescription,
@@ -216,8 +216,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{},
+				Certificate: &types.UnicityCertificate{Version: 1,
+					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
 				PartitionDescription: systemDescription,
@@ -225,8 +225,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{},
+				Certificate: &types.UnicityCertificate{Version: 1,
+					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
 				PartitionDescription: systemDescription,

@@ -422,7 +422,7 @@ func getUCv1(b *types.Block) (*types.UnicityCertificate, error) {
 	if b.UnicityCertificate == nil {
 		return nil, errors.New("block unicity certificate is nil")
 	}
-	uc := &types.UnicityCertificate{}
+	uc := &types.UnicityCertificate{Version: 1}
 	return uc, types.Cbor.Unmarshal(b.UnicityCertificate, uc)
 }
 

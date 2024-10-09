@@ -18,7 +18,7 @@ import (
 const partitionID1 types.SystemID = 1
 const partitionID2 types.SystemID = 2
 
-var genesisInputRecord = &types.InputRecord{
+var genesisInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
@@ -93,7 +93,7 @@ func TestExecutedBlock(t *testing.T) {
 	certReq := &certification.BlockCertificationRequest{
 		Partition:      partitionID1,
 		NodeIdentifier: "1",
-		InputRecord: &types.InputRecord{
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash:    []byte{1, 1, 1, 1},
 			Hash:            []byte{2, 2, 2, 2},
 			BlockHash:       []byte{3, 3, 3, 3},
@@ -138,7 +138,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		CurrentIR: InputRecords{
 			{
 				Partition: partitionID1,
-				IR: &types.InputRecord{
+				IR: &types.InputRecord{Version: 1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{2, 2, 2, 2},
 					BlockHash:       []byte{3, 3, 3, 3},
@@ -150,7 +150,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			},
 			{
 				Partition: partitionID2,
-				IR: &types.InputRecord{
+				IR: &types.InputRecord{Version: 1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{4, 4, 4, 4},
 					BlockHash:       []byte{3, 3, 3, 3},

@@ -1131,7 +1131,7 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 	s := genesisState(t, initialBill, sdrs)
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -1154,7 +1154,7 @@ func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{InputRecord: &types.InputRecord{
+	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  roundNumber,
 		Hash:         s.Root(),
 		SummaryValue: s.Summary(),

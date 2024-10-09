@@ -154,8 +154,8 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
@@ -205,8 +205,8 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),

@@ -2,6 +2,7 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"testing"
@@ -128,6 +129,8 @@ func TestExecutedBlock(t *testing.T) {
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
+	rh, err := hex.DecodeString("DDA4C864E4365DDB45B6555D3815BFAC9227C01887540DD653169CBA3D7BCB4F")
+	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:  "test",
@@ -163,8 +166,9 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		},
 		Changed:  []types.SystemID{partitionID1, partitionID2},
 		HashAlgo: gocrypto.SHA256,
-		RootHash: []byte{0x9b, 0x98, 0xf9, 0x3b, 0xcf, 0x8d, 0xd8, 0x74, 0x88, 0xe6, 0x2c, 0xd5, 0x2f, 0x15, 0x10, 0xa5, 0xc6, 0xd1, 0xad, 0xc, 0xc3, 0x8f, 0xf8, 0xca, 0x87, 0x9b, 0x85, 0x66, 0x99, 0x6b, 0xef, 0xa3},
+		RootHash: rh,
 	}
+
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{
 			RoundNumber:       3,
@@ -189,7 +193,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		},
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
-			Hash:         []byte{0x9b, 0x98, 0xf9, 0x3b, 0xcf, 0x8d, 0xd8, 0x74, 0x88, 0xe6, 0x2c, 0xd5, 0x2f, 0x15, 0x10, 0xa5, 0xc6, 0xd1, 0xad, 0xc, 0xc3, 0x8f, 0xf8, 0xca, 0x87, 0x9b, 0x85, 0x66, 0x99, 0x6b, 0xef, 0xa3},
+			Hash:         rh,
 		},
 	}
 	certs, err = block.GenerateCertificates(commitQc)

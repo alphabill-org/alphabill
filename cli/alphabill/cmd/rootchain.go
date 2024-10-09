@@ -210,7 +210,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("root trust base init failed: %w", err)
 	}
-	genesisStore, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"), rootGenesis)
+	genesisStore, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"), rootGenesis, log)
 	if err != nil {
 		return fmt.Errorf("creating genesis store: %w", err)
 	}

@@ -3,6 +3,7 @@ package partitions
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 	"sync"
 	"time"
@@ -28,13 +29,14 @@ type genesisStore struct {
 	currentCfg *genesis.RootGenesis
 	lastUpdate uint64
 	nextUpdate uint64
+	log        *slog.Logger
 }
 
 /*
   - dbFile is filename (full path) to the Bolt DB file to use for storage, if the
     file does not exist it will be created;
 */
-func NewGenesisStore(dbFile string, genesisCfg *genesis.RootGenesis) (*genesisStore, error) {
+func NewGenesisStore(dbFile string, genesisCfg *genesis.RootGenesis, log *slog.Logger) (*genesisStore, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt DB: %w", err)
@@ -54,9 +56,10 @@ func NewGenesisStore(dbFile string, genesisCfg *genesis.RootGenesis) (*genesisSt
 	}
 
 	return &genesisStore{
-		db: db,
+		db:         db,
 		lastUpdate: 0,
 		nextUpdate: 0, // ensures configuration is loaded on next GetConfiguration call
+		log:        log,
 	}, nil
 }
 
@@ -89,6 +92,8 @@ func (gs *genesisStore) GetConfiguration(round uint64) (*genesis.RootGenesis, ui
 		return nil, 0, err
 	}
 
+	gs.log.Info(fmt.Sprintf("Loaded configuration for round %d", gs.lastUpdate))
+
 	gs.currentCfg = cfg
 	gs.lastUpdate = lastUpdate
 	gs.nextUpdate = nextUpdate
@@ -100,6 +105,8 @@ func (gs *genesisStore) GetConfiguration(round uint64) (*genesis.RootGenesis, ui
    AddConfiguration registers new configuration taking effect from round "round".
 */
 func (gs *genesisStore) AddConfiguration(cfg *genesis.RootGenesis, round uint64) error {
+	gs.log.Info(fmt.Sprintf("Adding configuration for round %d", round))
+
 	err := gs.db.Update(func(tx *bolt.Tx) error {
 		return saveConfiguration(tx.Bucket(rootGenesisBucket), round, cfg)
 	})

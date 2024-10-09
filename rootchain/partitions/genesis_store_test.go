@@ -13,13 +13,14 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 )
 
 func Test_NewGenesisStore(t *testing.T) {
 	t.Run("directory not exist", func(t *testing.T) {
 		// attempt to create file in a not existing directory should fail
 		dbFN := filepath.Join(t.TempDir(), "notExist", "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN, nil, logger.New(t))
 		require.ErrorIs(t, err, fs.ErrNotExist)
 		require.Nil(t, gs)
 	})
@@ -27,7 +28,7 @@ func Test_NewGenesisStore(t *testing.T) {
 	t.Run("empty db created", func(t *testing.T) {
 		// empty DB
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN, nil, logger.New(t))
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -54,7 +55,7 @@ func testCfg(t *testing.T) *genesis.RootGenesis {
 func Test_genesisStore_AddConfiguration(t *testing.T) {
 	t.Run("invalid config", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, &genesis.RootGenesis{})
+		gs, err := NewGenesisStore(dbFN, &genesis.RootGenesis{}, logger.New(t))
 		require.ErrorContains(t, err, "verifying configuration")
 		require.Nil(t, gs)
 	})
@@ -71,7 +72,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 		require.NoError(t, f.Close())
 
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, rgA)
+		gs, err := NewGenesisStore(dbFN, rgA, logger.New(t))
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -90,7 +91,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 
 		// if we now reopen the DB with different seed the original
 		// data must be preserved and new seed ignored
-		gs, err = NewGenesisStore(dbFN, rgB)
+		gs, err = NewGenesisStore(dbFN, rgB, logger.New(t))
 		require.NoError(t, err)
 		require.NotNil(t, gs)
 		require.NoError(t, gs.db.View(
@@ -114,7 +115,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 
 	t.Run("success, new config is NOT next", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN, nil, logger.New(t))
 		require.NoError(t, err)
 		gs.lastUpdate = 50
 		gs.nextUpdate = 100
@@ -127,7 +128,7 @@ func Test_genesisStore_AddConfiguration(t *testing.T) {
 
 	t.Run("success, new config is next", func(t *testing.T) {
 		dbFN := filepath.Join(t.TempDir(), "root.db")
-		gs, err := NewGenesisStore(dbFN, nil)
+		gs, err := NewGenesisStore(dbFN, nil, logger.New(t))
 		require.NoError(t, err)
 		gs.lastUpdate = 50
 		gs.nextUpdate = 100
@@ -159,7 +160,7 @@ func Test_genesisStore_loadConfiguration(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	dbFN := filepath.Join(t.TempDir(), "root.db")
-	gs, err := NewGenesisStore(dbFN, nil)
+	gs, err := NewGenesisStore(dbFN, nil, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, gs)
 	// DB must be empty and any query should fail

@@ -1409,6 +1409,10 @@ func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 	return n.luc.Load().GetRoundNumber(), nil
 }
 
+func (n *Node) NetworkID() types.NetworkID {
+	return n.configuration.GetNetworkIdentifier()
+}
+
 func (n *Node) SystemID() types.SystemID {
 	return n.configuration.GetSystemIdentifier()
 }

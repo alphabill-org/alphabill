@@ -80,6 +80,13 @@ func TestGetUnit(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, unit)
 	})
+	t.Run("network and system identifier exist", func(t *testing.T) {
+		unit, err := api.GetUnit(unitID, false)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		require.Equal(t, types.NetworkID(5), unit.NetworkID)
+		require.Equal(t, types.SystemID(0x00010000), unit.SystemID)
+	})
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
@@ -307,6 +314,10 @@ func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 		return 0, mn.err
 	}
 	return mn.maxRoundNumber, nil
+}
+
+func (mn *MockNode) NetworkID() types.NetworkID {
+	return 5
 }
 
 func (mn *MockNode) SystemID() types.SystemID {

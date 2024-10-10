@@ -19,6 +19,7 @@ type (
 	}
 
 	partitionNode interface {
+		NetworkID() types.NetworkID
 		SystemID() types.SystemID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
@@ -31,6 +32,7 @@ type (
 	}
 
 	Unit[T any] struct {
+		NetworkID      types.NetworkID       `json:"networkId"`
 		SystemID       types.SystemID        `json:"systemId"`
 		UnitID         types.UnitID          `json:"unitId"`
 		Data           T                     `json:"data"`
@@ -69,6 +71,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 	}
 
 	resp := &Unit[any]{
+		NetworkID:      s.node.NetworkID(),
 		SystemID:       s.node.SystemID(),
 		UnitID:         unitID,
 		Data:           unit.Data(),

@@ -53,11 +53,17 @@ func (r *LedgerReplicationResponse) Pretty() string {
 		fb := r.Blocks[0]
 		lb := r.Blocks[count-1]
 		if fb != nil && lb != nil {
-			uc := &types.UnicityCertificate{Version: 1}
-			_ = uc.UnmarshalCBOR(fb.UnicityCertificate)
-			fRn, _ := fb.GetRoundNumber()
-			lRn, _ := lb.GetRoundNumber()
-			blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fRn, uc.GetStateHash(), lRn, uc.GetStateHash())
+			fUC := &types.UnicityCertificate{}
+			if err := fUC.UnmarshalCBOR(fb.UnicityCertificate); err != nil {
+				blockInfo = " (error unmarshalling first block's UnicityCertificate)"
+			} else {
+				lUC := &types.UnicityCertificate{}
+				if err := lUC.UnmarshalCBOR(lb.UnicityCertificate); err != nil {
+					blockInfo = " (error unmarshalling last block's UnicityCertificate)"
+				} else {
+					blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fUC.GetRoundNumber(), fUC.GetStateHash(), lUC.GetRoundNumber(), lUC.GetStateHash())
+				}
+			}
 		}
 	}
 	return fmt.Sprintf("status: %s, %v blocks%s", r.Status.String(), count, blockInfo)

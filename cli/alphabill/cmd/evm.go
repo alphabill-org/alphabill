@@ -111,6 +111,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 
 	systemIdentifier := pg.PartitionDescription.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
+		pg.PartitionDescription.GetNetworkIdentifier(),
 		systemIdentifier,
 		log,
 		evm.WithBlockGasLimit(params.BlockGasLimit),

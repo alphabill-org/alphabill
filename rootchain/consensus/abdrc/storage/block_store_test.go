@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +49,8 @@ func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	bStore, err := New(gocrypto.SHA256, pg, db)
+	cfgStore := testgenesis.NewGenesisStoreFromPartitions(pg)
+	bStore, err := New(gocrypto.SHA256, cfgStore, db, func() uint64 {return 1})
 	require.NoError(t, err)
 	return bStore
 }
@@ -63,7 +65,9 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	require.Len(t, b.RootHash, 32)
 	_, err = bStore.Block(2)
 	require.ErrorContains(t, err, "block for round 2 not found")
-	require.Len(t, bStore.GetCertificates(), 2)
+	certs, err := bStore.GetCertificates()
+	require.NoError(t, err)
+	require.Len(t, certs, 2)
 	uc, err := bStore.GetCertificate(sysID1, types.ShardID{})
 	require.NoError(t, err)
 	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.SystemIdentifier)
@@ -128,7 +132,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := New(gocrypto.SHA256, pg, db)
+	cfgStore := testgenesis.NewGenesisStoreFromPartitions(pg)
+	bStore, err := New(gocrypto.SHA256, cfgStore, db, func() uint64 {return 1})
 	require.NoError(t, err)
 	// although store contains more than one root, the latest is preferred
 	require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
@@ -161,8 +166,9 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
+	cfgStore := testgenesis.NewGenesisStoreFromPartitions(pg)
 	// load from DB
-	bStore, err := New(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, cfgStore, db, func() uint64 {return 1})
 	require.ErrorContains(t, err, "init failed, error cannot add block for round 8, parent block 7 not found")
 	require.Nil(t, bStore)
 }
@@ -180,8 +186,9 @@ func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
 	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
+	cfgStore := testgenesis.NewGenesisStoreFromPartitions(pg)
 	// load from DB
-	bStore, err := New(gocrypto.SHA256, pg, db)
+	bStore, err := New(gocrypto.SHA256, cfgStore, db, func() uint64 {return 1})
 	require.ErrorContains(t, err, "init failed, root block not found")
 	require.Nil(t, bStore)
 }

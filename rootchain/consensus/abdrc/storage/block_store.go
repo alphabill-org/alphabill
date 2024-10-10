@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -20,12 +21,19 @@ import (
 )
 
 type (
+	ConfigurationStore interface {
+		GetConfiguration(round uint64) (*genesis.RootGenesis, uint64, error)
+	}
+
 	BlockStore struct {
+		mu           sync.RWMutex
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
 		storage      keyvaluedb.KeyValueDB
+		cfgStore     ConfigurationStore
+		cfgVersion   atomic.Uint64
+		currentRound func() uint64
 		certificates map[partitionShard]*certification.CertificationResponse // cache
-		lock         sync.RWMutex
 	}
 
 	partitionShard struct {
@@ -34,31 +42,25 @@ type (
 	}
 )
 
-func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[types.SystemID]*types.UnicityCertificate {
-	var certs = make(map[types.SystemID]*types.UnicityCertificate)
+func certificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[partitionShard]*certification.CertificationResponse {
+	var crs = make(map[partitionShard]*certification.CertificationResponse)
 	for _, partition := range pg {
-		identifier := partition.GetSystemDescriptionRecord().GetSystemIdentifier()
-		certs[identifier] = partition.Certificate
+		// TODO: generate per shard! Genesis must support shards...
+		cr := &certification.CertificationResponse{
+			Partition: partition.GetSystemDescriptionRecord().GetSystemIdentifier(),
+			Shard:     types.ShardID{},
+			Technical: certification.TechnicalRecord{},
+			UC:        *partition.Certificate,
+		}
+		ps := partitionShard{partition: cr.Partition, shard: cr.Shard.Key()}
+		crs[ps] = cr
 	}
-	return certs
+	return crs
 }
 
 func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	// nil is returned if no value is in DB
 	genesisBlock := NewGenesisBlock(hash, pg)
-	ucs := UnicityCertificatesFromGenesis(pg)
-	for id, cert := range ucs {
-		// TODO: generate per shard! Genesis must support shards...
-		cr := certification.CertificationResponse{
-			Partition: cert.UnicityTreeCertificate.SystemIdentifier,
-			Shard:     types.ShardID{},
-			Technical: certification.TechnicalRecord{},
-			UC:        *cert,
-		}
-		if err := db.Write(certKey(cr.Partition, cr.Shard), cr); err != nil {
-			return fmt.Errorf("certificate %X write failed, %w", id, err)
-		}
-	}
 	if err := blockStoreGenesisInit(genesisBlock, db); err != nil {
 		return fmt.Errorf("block store genesis init failed, %w", err)
 	}
@@ -80,25 +82,32 @@ func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[partitionShard]*certifi
 	return ucs, err
 }
 
-func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
-	// Initiate store
-	if pg == nil {
-		return nil, errors.New("genesis record is nil")
-	}
+func New(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, currentRound func() uint64) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
+	if cfgStore == nil {
+		return nil, errors.New("configuration store is nil")
+	}
+	if currentRound == nil {
+		return nil, errors.New("current round provider is nil")
+	}
+
 	// First start, initiate from genesis data
 	empty, err := keyvaluedb.IsEmpty(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read block store, %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, db); err != nil {
+		genesisCfg, _, err := cfgStore.GetConfiguration(genesis.RootRound)
+		if err != nil {
+			return nil, fmt.Errorf("loading genesis configuration failed, %w", err)
+		}
+		if err = storeGenesisInit(hash, genesisCfg.Partitions, db); err != nil {
 			return nil, fmt.Errorf("block store init failed, %w", err)
 		}
 	}
-	// read certificates from storage
+	// read certificates from storage, empty for genesis
 	ucs, err := readCertificates(db)
 	if err != nil {
 		return nil, fmt.Errorf("init failed, %w", err)
@@ -107,19 +116,30 @@ func New(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb
 	if err != nil {
 		return nil, fmt.Errorf("init failed, %w", err)
 	}
+	// cfgVersion is set to 0, which means certificates will be
+	// updated according to cfg with the next call to GetCertificate(s)
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
-		certificates: ucs,
 		storage:      db,
+		cfgStore:     cfgStore,
+		currentRound: currentRound,
+		certificates: ucs,
 	}, nil
 }
 
-func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB) (*BlockStore, error) {
+func NewFromState(hash gocrypto.Hash, cfgStore ConfigurationStore, db keyvaluedb.KeyValueDB, currentRound func() uint64, stateMsg *abdrc.StateMsg) (*BlockStore, error) {
 	// Initiate store
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
+	if cfgStore == nil {
+		return nil, errors.New("configuration store is nil")
+	}
+	if currentRound == nil {
+		return nil, errors.New("current round provider is nil")
+	}
+
 	certificates := make(map[partitionShard]*certification.CertificationResponse)
 	for _, cert := range stateMsg.Certificates {
 		id := cert.UC.UnicityTreeCertificate.SystemIdentifier
@@ -141,11 +161,15 @@ func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.Ke
 	if err != nil {
 		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
 	}
+	// cfgVersion is set to 0, which means certificates will be
+	// updated according to cfg with the next call to GetCertificate(s)
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
-		certificates: certificates,
 		storage:      db,
+		cfgStore:     cfgStore,
+		currentRound: currentRound,
+		certificates: certificates,
 	}, nil
 }
 
@@ -261,8 +285,8 @@ func (x *BlockStore) GetLastTC() (*drctypes.TimeoutCert, error) {
 }
 
 func (x *BlockStore) updateCertificateCache(certs []*certification.CertificationResponse) error {
-	x.lock.Lock()
-	defer x.lock.Unlock()
+	x.mu.Lock()
+	defer x.mu.Unlock()
 	for _, uc := range certs {
 		// persist changes
 		if err := x.storage.Write(certKey(uc.Partition, uc.Shard), uc); err != nil {
@@ -277,8 +301,12 @@ func (x *BlockStore) updateCertificateCache(certs []*certification.Certification
 }
 
 func (x *BlockStore) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
-	x.lock.RLock()
-	defer x.lock.RUnlock()
+	if err := x.loadConfig(); err != nil {
+		return nil, fmt.Errorf("loading new configuration: %w", err)
+	}
+
+	x.mu.RLock()
+	defer x.mu.RUnlock()
 	uc, f := x.certificates[partitionShard{partition: id, shard: shard.Key()}]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %s", id)
@@ -286,13 +314,21 @@ func (x *BlockStore) GetCertificate(id types.SystemID, shard types.ShardID) (*ce
 	return uc, nil
 }
 
-func (x *BlockStore) GetCertificates() []*certification.CertificationResponse {
-	x.lock.RLock()
-	defer x.lock.RUnlock()
-	return slices.Collect(maps.Values(x.certificates))
+func (x *BlockStore) GetCertificates() ([]*certification.CertificationResponse, error) {
+	if err := x.loadConfig(); err != nil {
+		return nil, fmt.Errorf("loading new configuration: %w", err)
+	}
+
+	x.mu.RLock()
+	defer x.mu.RUnlock()
+	return slices.Collect(maps.Values(x.certificates)), nil
 }
 
-func (x *BlockStore) GetState() *abdrc.StateMsg {
+func (x *BlockStore) GetState() (*abdrc.StateMsg, error) {
+	certs, err := x.GetCertificates()
+	if err != nil {
+		return nil, fmt.Errorf("loading certificates: %w", err)
+	}
 	committedBlock := x.blockTree.Root()
 	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
 	pending := make([]*drctypes.BlockData, len(pendingBlocks))
@@ -304,7 +340,7 @@ func (x *BlockStore) GetState() *abdrc.StateMsg {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
 	return &abdrc.StateMsg{
-		Certificates: x.GetCertificates(),
+		Certificates: certs,
 		CommittedHead: &abdrc.CommittedBlock{
 			Block:    committedBlock.BlockData,
 			Ir:       ToRecoveryInputData(committedBlock.CurrentIR),
@@ -312,7 +348,7 @@ func (x *BlockStore) GetState() *abdrc.StateMsg {
 			CommitQc: committedBlock.CommitQc,
 		},
 		BlockData: pending,
-	}
+	}, nil
 }
 
 /*
@@ -331,6 +367,54 @@ func (x *BlockStore) StoreLastVote(vote any) error {
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
+}
+
+/*
+loadConfig loads the root chain configuration for the current round and
+updates the list of Unicity Certificates with those of added and removed partitions.
+*/
+func (x *BlockStore) loadConfig() error {
+	round := x.currentRound()
+	cfg, version, err := x.cfgStore.GetConfiguration(round)
+	if err != nil {
+		return fmt.Errorf("loading root chain configuration: %w", err)
+	}
+	if x.cfgVersion.Load() >= version {
+		// Latest configuration already loaded
+		return nil
+	}
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
+
+	// double-check to see if someone else already loaded it while we waited on lock
+	if x.cfgVersion.Load() >= version {
+		return nil
+	}
+
+	newCrs := certificatesFromGenesis(cfg.Partitions)
+
+	// find deleted partitions
+	for ps, cr := range x.certificates {
+		if _, ok := newCrs[ps]; !ok {
+			if err := x.storage.Delete(certKey(cr.Partition, cr.Shard)); err != nil {
+				return fmt.Errorf("failed to delete certificate from storage: %w", err)
+			}
+			delete(x.certificates, ps)
+		}
+	}
+	// find added partitions
+	for ps, newCr := range newCrs {
+		if _, ok := x.certificates[ps]; !ok {
+			if err := x.storage.Write(certKey(newCr.Partition, newCr.Shard), newCr); err != nil {
+				return fmt.Errorf("failed to write certificate into storage: %w", err)
+			}
+			x.certificates[ps] = newCr
+		}
+	}
+
+	x.cfgVersion.Store(version)
+	return nil
 }
 
 // ToRecoveryInputData function for type conversion

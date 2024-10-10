@@ -3,7 +3,6 @@ package partitions
 import (
 	"fmt"
 	"maps"
-	"math"
 	"slices"
 	"sync"
 
@@ -23,19 +22,17 @@ type (
 		PartitionTrustBase map[string]abcrypto.Verifier
 	}
 
-	GenesisStore interface {
-		AddConfiguration(round uint64, cfg *genesis.RootGenesis) error
-		PartitionRecords(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error)
+	ConfigurationStore interface {
+		GetConfiguration(round uint64) (*genesis.RootGenesis, uint64, error)
 	}
 
 	PartitionStore struct {
-		mu sync.Mutex
-		// currently active partitions configuration
-		partitions map[types.SystemID]*PartitionInfo
-
-		next     uint64        // round number when next cfg must be activated
-		curRound func() uint64 // returns current round number.
-		cfgStore GenesisStore
+		mu           sync.RWMutex
+		cfgStore     ConfigurationStore
+		cfgVersion   uint64
+		// cached configuration of partitions from the latest
+		// GetInfo call, usually does not change
+		partitions   map[types.SystemID]*PartitionInfo
 	}
 
 	MsgVerification interface {
@@ -71,43 +68,37 @@ func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {
 	return req.IsValid(ver)
 }
 
-/*
-NB! The PartitionStore returned is NOT ready for use, the Reset method
-must be called before any other method is called!
-*/
-func NewPartitionStore(cfgStore GenesisStore) (*PartitionStore, error) {
+func NewPartitionStore(cfgStore ConfigurationStore) (*PartitionStore, error) {
 	if cfgStore == nil {
-		return nil, fmt.Errorf("genesis storage must be initialized")
+		return nil, fmt.Errorf("configuration storage must be initialized")
 	}
-	return &PartitionStore{cfgStore: cfgStore, next: math.MaxUint64}, nil
+	return &PartitionStore{cfgStore: cfgStore}, nil
 }
 
-/*
-Reset sets the source of truth about current round number and loads the configuration
-of the current round (ie what is returned by the curRound callback). IOW this method
-must be called once system is in the state where it knows current round.
-*/
-func (ps *PartitionStore) Reset(curRound func() uint64) error {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	ps.curRound = curRound
-	return ps.loadConfig(curRound())
-}
-
-/*
-It is expected that "round" only increases, to jump back in history Reset has to be called.
-*/
 func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	if ps.next <= round {
-		if err := ps.loadConfig(round); err != nil {
-			return nil, nil, fmt.Errorf("switching to new config: %w", err)
-		}
+	cfg, version, err := ps.cfgStore.GetConfiguration(round)
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading from configuration store: %w", err)
 	}
 
+	ps.mu.RLock()
+	if ps.cfgVersion != version {
+		ps.mu.RUnlock()
+		ps.mu.Lock()
+		defer ps.mu.Unlock()
+
+		// Cache the loaded configuration
+		if err := ps.cacheConfig(cfg, version); err != nil {
+			return nil, nil, fmt.Errorf("loading new configuration: %w", err)
+		}
+		return ps.getInfo(id)
+	}
+
+	defer ps.mu.RUnlock()
+	return ps.getInfo(id)
+}
+
+func (ps *PartitionStore) getInfo(id types.SystemID) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
 	info, f := ps.partitions[id]
 	if !f {
 		return nil, nil, fmt.Errorf("unknown partition identifier %s", id)
@@ -116,40 +107,19 @@ func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.Parti
 }
 
 /*
-AddConfiguration registers new configuration starting from round "round". This method
-is meant to be used to add configurations for future rounds, not to add historic data.
+cacheConfig caches the loaded rootchain configuration and its
+version. In a normal rootchain operation there should be a cache miss
+only when new configuration takes effect. Supposed to be called only
+while holding write lock.
 */
-func (ps *PartitionStore) AddConfiguration(round uint64, cfg *genesis.RootGenesis) error {
-	if cr := ps.curRound(); cr >= round {
-		return fmt.Errorf("can't add config taking effect on round %d as current round is already %d", round, cr)
+func (ps *PartitionStore) cacheConfig(cfg *genesis.RootGenesis, version uint64) error {
+	// double-check to see if the correct version is already cached
+	if ps.cfgVersion == version {
+		return nil
 	}
 
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	if err := ps.cfgStore.AddConfiguration(round, cfg); err != nil {
-		return fmt.Errorf("storing configurations for round %d: %w", round, err)
-	}
-	if ps.next > round {
-		ps.next = round
-	}
-
-	return nil
-}
-
-/*
-loadConfig sets the current config for the one of round "round".
-
-NB! method assumes that the caller holds the mutex!
-*/
-func (ps *PartitionStore) loadConfig(round uint64) error {
-	cfg, next, err := ps.cfgStore.PartitionRecords(round)
-	if err != nil {
-		return fmt.Errorf("loading genesis for the round %d: %w", round, err)
-	}
-
-	parts := make(map[types.SystemID]*PartitionInfo)
-	for _, partition := range cfg {
+	partitions := make(map[types.SystemID]*PartitionInfo)
+	for _, partition := range cfg.Partitions {
 		trustBase := make(map[string]abcrypto.Verifier)
 		for _, node := range partition.Nodes {
 			ver, err := abcrypto.NewVerifierSecp256k1(node.SigningPublicKey)
@@ -158,13 +128,14 @@ func (ps *PartitionStore) loadConfig(round uint64) error {
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[partition.PartitionDescription.SystemIdentifier] = &PartitionInfo{
+		partitions[partition.PartitionDescription.SystemIdentifier] = &PartitionInfo{
 			PartitionDescription: partition.PartitionDescription,
-			Verifier:             NewPartitionTrustBase(trustBase),
+			Verifier:          NewPartitionTrustBase(trustBase),
 		}
 	}
 
-	ps.partitions = parts
-	ps.next = next
+	ps.partitions = partitions
+	ps.cfgVersion = version
+
 	return nil
 }

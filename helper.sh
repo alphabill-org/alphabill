@@ -1,6 +1,7 @@
 #!/bin/bash
 
 rootPortStart=26662
+rootRpcPortStart=25866
 
 # generate logger configuration file
 function generate_log_configuration() {
@@ -46,7 +47,7 @@ function generate_boot_node() {
 
 # generates genesis files
 # first two arguments are mandatory, third is optional
-# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration', 'tokens-enterprise') as string
+# $1 Alphabill partition type ('money', 'tokens', 'evm', 'orchestration', 'enterprise-tokens') as string
 # $2 nof genesis files to generate
 # $3 custom CLI args
 function generate_partition_node_genesis() {
@@ -69,9 +70,9 @@ case $1 in
     cmd="orchestration-genesis"
     home="testab/orchestration"
     ;;
-  tokens-enterprise)
+  enterprise-tokens)
     cmd="tokens-genesis"
-    home="testab/tokens_enterprise"
+    home="testab/enterprise-tokens-5-"
     ;;
   *)
     echo "error: unknown partition $1" >&2
@@ -95,7 +96,7 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json testab/orchestration*/orchestration/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/enterprise-tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json testab/orchestration*/orchestration/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -132,7 +133,7 @@ function start_root_nodes() {
   # use root node 1 as bootstrap node
   local bootNode=""
   local port=$rootPortStart
-  local rpcPort=25866
+  local rpcPort=$rootRpcPortStart
   bootNode=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
@@ -156,7 +157,9 @@ function start_root_nodes() {
 }
 
 # starts node
-# $1 partition type i.e. one of [money/tokens/evm/orchestration/tokens-enterprise]
+# $1 partition type i.e. one of [money/tokens/evm/orchestration/enterprise-tokens]
+# $2 systemID (enterprise-tokens only)
+# $3 partition-genesis dir (enterprise-tokens only)
 function start_partition_nodes() {
 local cmd=""
 local home=""
@@ -198,13 +201,15 @@ local rpcPort=0
       aPort=30666
       rpcPort=30866
       ;;
-    tokens-enterprise)
+    enterprise-tokens)
+      systemId=${2:-"5"}
+      partitionGenesisDir=${3:-"rootchain1/rootchain"}
       cmd="tokens"
-      home="testab/tokens_enterprise"
-      key_files="testab/tokens_enterprise[0-9]*/tokens/keys.json"
-      genesis_file="testab/rootchain1/rootchain/partition-genesis-5.json"
-      aPort=31666
-      rpcPort=31866
+      home="testab/enterprise-tokens-$systemId-"
+      key_files="testab/enterprise-tokens-$systemId-[0-9]*/tokens/keys.json"
+      genesis_file="testab/$partitionGenesisDir/partition-genesis-$systemId.json"
+      aPort=$((31616 + 10 * systemId))
+      rpcPort=$((31816 + 10 * systemId ))
       ;;
     *)
       echo "error: unknown partition $1" >&2
@@ -234,7 +239,7 @@ local rpcPort=0
     ((aPort=aPort+1))
     ((rpcPort=rpcPort+1))
   done
-    echo "started $(($i-1)) $1 nodes"
+  echo "started $(($i-1)) $1 nodes"
 }
 
 function start_non_validator_partition_nodes() {

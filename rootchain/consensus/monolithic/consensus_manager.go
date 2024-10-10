@@ -43,7 +43,7 @@ func trackExecutionTime(start time.Time, name string, log *slog.Logger) {
 func NewMonolithicConsensusManager(
 	selfStr string,
 	trustBase types.RootTrustBase,
-	rg *genesis.RootGenesis,
+	cfgStore partitions.ConfigurationStore,
 	partitionStore partitions.PartitionConfiguration,
 	signer crypto.Signer,
 	log *slog.Logger,
@@ -54,6 +54,11 @@ func NewMonolithicConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("loading optional configuration: %w", err)
 	}
+	genesisCfg, _, err := cfgStore.GetConfiguration(genesis.RootRound)
+	if err != nil {
+		return nil, fmt.Errorf("loading genesis configuration: %w", err)
+	}
+
 	// Initiate store
 	storage := NewStateStore(optional.Storage)
 	empty, err := storage.IsEmpty()
@@ -63,7 +68,7 @@ func NewMonolithicConsensusManager(
 	if empty {
 		// init form genesis
 		log.Info("Consensus init from genesis")
-		if err = storage.Init(rg); err != nil {
+		if err = storage.Init(genesisCfg); err != nil {
 			return nil, fmt.Errorf("consensus manager genesis init failed: %w", err)
 		}
 	}
@@ -75,8 +80,8 @@ func NewMonolithicConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("restore root round from DB failed: %w", err)
 	}
-	consensusParams := consensus.NewConsensusParams(rg.Root)
-	consensusManager := &ConsensusManager{
+	consensusParams := consensus.NewConsensusParams(genesisCfg.Root)
+	return &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest),
 		certResultCh: make(chan *certification.CertificationResponse),
 		params:       consensusParams,
@@ -89,11 +94,7 @@ func NewMonolithicConsensusManager(
 		signer:       signer,
 		trustBase:    trustBase,
 		log:          log,
-	}
-	if err := partitionStore.Reset(func() uint64 { return consensusManager.round }); err != nil {
-		return nil, fmt.Errorf("resetting partition store: %w", err)
-	}
-	return consensusManager, nil
+	}, nil
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
@@ -119,6 +120,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID, shard 
 		return nil, fmt.Errorf("loading certificate for partition %s from state store: %w", id, err)
 	}
 	return luc, nil
+}
+
+func (x *ConsensusManager) GetCurrentRound() uint64 {
+	return x.round
 }
 
 func (x *ConsensusManager) loop(ctx context.Context) error {

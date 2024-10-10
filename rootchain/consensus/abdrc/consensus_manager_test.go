@@ -72,10 +72,11 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
+	cfgStore := testgenesis.NewGenesisStore(rootGenesis)
+	partitionStore, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, trustBase, partitionStore, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	cm, err := NewDistributedAbConsensusManager(id, trustBase, cfgStore, partitionStore, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -122,8 +123,6 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	// we need to init pacemaker into correct round, otherwise IR validation fails
 	cm.pacemaker.Reset(context.Background(), cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
-	// as CM is actually not running we need to manually reset the partition store in order to init it
-	require.NoError(t, cm.partitions.Reset(cm.pacemaker.GetCurrentRound))
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
@@ -1210,21 +1209,22 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
+	cfgStore := testgenesis.NewGenesisStore(rootGenesis)
+	partitionStore, err := partitions.NewPartitionStore(cfgStore)
 	require.NoError(t, err)
 	// store timeout vote to DB
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// init DB from genesis
-	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db)
+	_, err = storage.New(gocrypto.SHA256, cfgStore, db, func() uint64 {return genesis.RootRound})
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 2}, Author: "test"}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))
 	observe := testobservability.Default(t)
 	cm, err := NewDistributedAbConsensusManager(
 		id,
-		rootGenesis,
 		trustBase,
+		cfgStore,
 		partitionStore,
 		net,
 		rootNode.Signer,

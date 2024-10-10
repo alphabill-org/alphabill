@@ -16,7 +16,7 @@ import (
 type (
 	State interface {
 		GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error)
-		GetCertificates() []*certification.CertificationResponse
+		GetCertificates() ([]*certification.CertificationResponse, error)
 		IsChangeInProgress(id types.SystemID) *types.InputRecord
 	}
 
@@ -117,9 +117,11 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 }
 
 func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID, error) {
-	ucs := x.state.GetCertificates()
+	ucs, err := x.state.GetCertificates()
+	if err != nil {
+		return []types.SystemID{}, err
+	}
 	timeoutIds := make([]types.SystemID, 0, len(ucs))
-	var err error
 	for _, cert := range ucs {
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(cert.Partition); ir != nil {

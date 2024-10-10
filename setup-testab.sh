@@ -1,11 +1,11 @@
 #!/bin/bash
 
 money_nodes=3
-token_nodes=3
+tokens_nodes=3
 evm_nodes=3
 orchestration_nodes=3
 root_nodes=3
-enterprise_token_nodes=0
+enterprise_tokens_nodes=0
 reset_db_only=false
 initial_bill_owner_predicate=null
 admin_owner_predicate=830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f
@@ -14,7 +14,7 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of tokens nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise tokens partition nodes] [-a enterprise tokens partition admin owner predicate]"
   exit 0
 }
 # handle arguments
@@ -27,7 +27,7 @@ while getopts "chm:t:r:e:o:i:k:a:" o; do
     money_nodes=${OPTARG}
     ;;
   t)
-    token_nodes=${OPTARG}
+    tokens_nodes=${OPTARG}
     ;;
   r)
     root_nodes=${OPTARG}
@@ -42,7 +42,7 @@ while getopts "chm:t:r:e:o:i:k:a:" o; do
     initial_bill_owner_predicate=${OPTARG}
     ;;
   k)
-    enterprise_token_nodes=${OPTARG}
+    enterprise_tokens_nodes=${OPTARG}
     ;;
   a)
     admin_owner_predicate=${OPTARG}
@@ -70,11 +70,11 @@ source helper.sh
 moneySdrFlags=""
 
 # Generate token nodes genesis files.
-if [ "$token_nodes" -ne 0 ]; then
+if [ "$tokens_nodes" -ne 0 ]; then
   tokensPDR='{"network_identifier": 3, "system_identifier": 2, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000, "fee_credit_bill": {"unit_id": "0x000000000000000000000000000000000000000000000000000000000000001201", "owner_predicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$tokensPDR" >testab/tokens-pdr.json
   moneySdrFlags+=" -c testab/tokens-pdr.json"
-  generate_partition_node_genesis "tokens" "$token_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
+  generate_partition_node_genesis "tokens" "$tokens_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
 fi
 # Generate EVM nodes genesis files.
 if [ "$evm_nodes" -ne 0 ]; then
@@ -101,11 +101,11 @@ if [ "$orchestration_nodes" -ne 0 ]; then
   echo "$orchestrationPDR" >testab/orchestration-pdr.json
   generate_partition_node_genesis "orchestration" "$orchestration_nodes" "--partition-description=$PWD/testab/orchestration-pdr.json --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
 fi
-# Generate enterprise token partition genesis files
-if [ "$enterprise_token_nodes" -ne 0 ]; then
+# Generate enterprise tokens partition genesis files
+if [ "$enterprise_tokens_nodes" -ne 0 ]; then
   enterpriseTokensPDR='{"network_identifier": 3, "system_identifier": 5, "type_id_length": 8, "unit_id_length": 256, "t2timeout": 2500000000}'
   echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
+  generate_partition_node_genesis "enterprise-tokens" "$enterprise_tokens_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
 fi
 
 # generate root node genesis files

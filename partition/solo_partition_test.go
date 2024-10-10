@@ -235,7 +235,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		panic(err)
 	}
 
-	return &types.UnicityCertificate{
+	return &types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:         cert.SystemIdentifier,

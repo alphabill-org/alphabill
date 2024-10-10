@@ -15,8 +15,8 @@ import (
 )
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
-var mockUc = &types.UnicityCertificate{
-	InputRecord: &types.InputRecord{
+var mockUc = &types.UnicityCertificate{Version: 1,
+	InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         zeroHash,
 		PreviousHash: zeroHash,
@@ -88,9 +88,10 @@ func storeTest(t *testing.T, store *StateStore) {
 	newUC := &certification.CertificationResponse{
 		Partition: sysID3,
 		UC: types.UnicityCertificate{
+			Version:                1,
 			UnicityTreeCertificate: mockUc.UnicityTreeCertificate,
 			UnicitySeal:            mockUc.UnicitySeal,
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber:  2,
 				Hash:         []byte{1, 2, 3},
 				PreviousHash: []byte{3, 2, 1},

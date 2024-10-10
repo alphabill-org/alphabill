@@ -14,7 +14,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 	})
 	t.Run("luc is nil", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 			},
 		}
@@ -22,12 +22,12 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 	})
 	t.Run("invalid partition round", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 			},
 		}
-		luc := &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		luc := &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 			},
 		}
@@ -35,13 +35,13 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 	})
 	t.Run("hash mismatch", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: []byte{0, 0, 0, 0},
 				RoundNumber:  2,
 			},
 		}
-		luc := &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		luc := &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 				Hash:        []byte{1, 1, 1, 1},
 			},
@@ -50,14 +50,14 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 	})
 	t.Run("root round does not match", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: []byte{0, 0, 0, 0},
 				RoundNumber:  2,
 			},
 			RootRoundNumber: 1,
 		}
-		luc := &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		luc := &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 				Hash:        []byte{0, 0, 0, 0},
 			},
@@ -67,13 +67,13 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 	})
 	t.Run("ok", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: []byte{0, 0, 0, 0},
 				RoundNumber:  2,
 			},
 		}
-		luc := &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		luc := &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber: 1,
 				Hash:        []byte{0, 0, 0, 0},
 			},

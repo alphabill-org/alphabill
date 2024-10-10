@@ -12,7 +12,7 @@ import (
 func Test_shardInfo_Update(t *testing.T) {
 	t.Run("values do get assigned", func(t *testing.T) {
 		cr := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				RoundNumber:     80940,
 				Epoch:           1,
 				Hash:            []byte{2, 6, 7, 8, 9, 0, 1},
@@ -49,7 +49,7 @@ func Test_shardInfo_Update(t *testing.T) {
 		}
 		// max values mustn't change
 		cr := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				SumOfEarnedFees: 1001,
 			},
 			BlockSize: 1002,
@@ -75,7 +75,7 @@ func Test_shardInfo_Update(t *testing.T) {
 
 		// state didn't change, block count should stay zero
 		cr := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
+			InputRecord: &types.InputRecord{Version: 1,
 				Hash:         []byte{1, 1, 1, 1},
 				PreviousHash: []byte{1, 1, 1, 1},
 			},

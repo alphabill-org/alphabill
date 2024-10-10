@@ -101,7 +101,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		WithHashAlgorithm(gocrypto.SHA256),
 	)
 	require.Nil(t, got)
-	require.EqualError(t, err, `calculating genesis block hash: invalid block: system identifier is unassigned`)
+	require.EqualError(t, err, `calculating genesis block hash: block hash calculation failed: invalid block: system identifier is unassigned`)
 }
 
 func TestNewGenesisPartitionNode_Ok(t *testing.T) {

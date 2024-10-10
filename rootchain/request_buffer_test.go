@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var ir1 = &types.InputRecord{Hash: []byte{1}}
-var ir2 = &types.InputRecord{Hash: []byte{2}}
-var ir3 = &types.InputRecord{Hash: []byte{3}}
+var ir1 = &types.InputRecord{Version: 1, Hash: []byte{1}}
+var ir2 = &types.InputRecord{Version: 1, Hash: []byte{2}}
+var ir3 = &types.InputRecord{Version: 1, Hash: []byte{3}}
 var sysID1 = types.SystemID(1)
 var sysID2 = types.SystemID(2)
 
@@ -123,7 +123,7 @@ func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
 	require.NotNil(t, proof)
 	require.Len(t, proof, 3)
 	// 4. change one filed and make sure it is not part of consensus
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: &types.InputRecord{Hash: bytes.Clone(ir1.Hash), SumOfEarnedFees: 10}}, trustBase)
+	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: &types.InputRecord{Version: 1, Hash: bytes.Clone(ir1.Hash), SumOfEarnedFees: 10}}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)

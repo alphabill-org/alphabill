@@ -38,7 +38,7 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	return &types.UnicityCertificate{
+	return &types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:         cert.SystemIdentifier,

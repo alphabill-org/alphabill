@@ -103,7 +103,7 @@ func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Ha
 		if err != nil {
 			return nil, nil, fmt.Errorf("get unicity tree certificate error: %w", err)
 		}
-		uc := &types.UnicityCertificate{
+		uc := &types.UnicityCertificate{Version: 1,
 			InputRecord: d.InputRecord,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         utCert.SystemIdentifier,

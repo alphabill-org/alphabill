@@ -424,13 +424,17 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 	}
 
 	// TODO verify proof before returning
+	ucBytes, err := s.committedTreeUC.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal unicity certificate: %w", err)
+	}
 	return &types.UnitStateProof{
 		UnitID:             id,
 		UnitLedgerHash:     unitLedgerHeadHash,
 		UnitTreeCert:       unitTreeCert,
 		UnitValue:          summaryValueInput,
 		StateTreeCert:      stateTreeCert,
-		UnicityCertificate: s.committedTreeUC,
+		UnicityCertificate: ucBytes,
 	}, nil
 }
 

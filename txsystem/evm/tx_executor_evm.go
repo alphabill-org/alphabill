@@ -138,7 +138,11 @@ func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 			if err := it.Value(b); err != nil {
 				return common.Hash{}
 			}
-			return common.BytesToHash(b.UnicityCertificate.InputRecord.BlockHash)
+			uc := &types.UnicityCertificate{Version: 1}
+			if err := types.Cbor.Unmarshal(b.UnicityCertificate, uc); err != nil {
+				return common.Hash{}
+			}
+			return common.BytesToHash(uc.InputRecord.BlockHash)
 		},
 		Coinbase:    common.Address{},
 		GasLimit:    DefaultBlockGasLimit,

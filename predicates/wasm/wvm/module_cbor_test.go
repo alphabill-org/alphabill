@@ -116,7 +116,7 @@ func Test_cbor_parse_array_raw(t *testing.T) {
 
 	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, handle2)
 	require.NoError(t, err)
-	txProof := &types.TxProof{}
+	txProof := &types.TxProof{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(buf, txProof))
 }
 

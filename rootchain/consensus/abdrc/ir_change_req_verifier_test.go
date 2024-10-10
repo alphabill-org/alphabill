@@ -24,7 +24,7 @@ type (
 	}
 )
 
-var irSysID1 = &types.InputRecord{
+var irSysID1 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -38,6 +38,7 @@ func (s *MockState) GetCertificates() []*certification.CertificationResponse {
 		Partition: 1,
 		Shard:     types.ShardID{},
 		UC: types.UnicityCertificate{
+			Version:                1,
 			InputRecord:            irSysID1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal: &types.UnicitySeal{Version: 1,
@@ -88,7 +89,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("ir change request nil", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
 			partitions: pConf,
 		}
 		data, err := ver.VerifyIRChangeReq(2, nil)
@@ -99,10 +100,10 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("error change in progress", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
 			partitions: pConf,
 		}
-		newIR := &types.InputRecord{
+		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -130,10 +131,10 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("invalid sys ID", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{}},
+			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
 			partitions: pConf,
 		}
-		newIR := &types.InputRecord{
+		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -159,7 +160,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
-		newIR := &types.InputRecord{
+		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -195,7 +196,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:      &MockState{},
 			partitions: pConf,
 		}
-		newIR := &types.InputRecord{
+		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -226,7 +227,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:      &MockState{},
 			partitions: pConf,
 		}
-		newIR := &types.InputRecord{
+		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},

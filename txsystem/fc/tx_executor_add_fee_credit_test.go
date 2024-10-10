@@ -35,7 +35,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
 					TxRecord: nil,
-					TxProof:  &types.TxProof{},
+					TxProof:  &types.TxProof{Version: 1},
 				}},
 			),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
@@ -54,7 +54,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
 					TxRecord: &types.TransactionRecord{TransactionOrder: nil},
-					TxProof:  &types.TxProof{},
+					TxProof:  &types.TxProof{Version: 1},
 				}},
 			),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{
@@ -97,7 +97,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   nil,
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -118,7 +118,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewAddFC(t, signer, nil),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -140,7 +140,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 							testtransaction.WithTransactionType(fc.TransactionTypeTransferFeeCredit)),
 						ServerMetadata: &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -174,7 +174,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte{1}))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -209,7 +209,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, nil, testtransaction.WithNetworkID(10)),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -230,7 +230,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -251,7 +251,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -272,7 +272,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -293,7 +293,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -314,7 +314,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(10))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -352,7 +352,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithAmount(100))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
@@ -415,7 +415,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("transferFC transaction record is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
-			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{}, TxRecord: nil}}),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{Version: 1}, TxRecord: nil}}),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
@@ -430,7 +430,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("transferFC transaction order is nil", func(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
-			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{}, TxRecord: &types.TransactionRecord{TransactionOrder: nil}}}),
+			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{Version: 1}, TxRecord: &types.TransactionRecord{TransactionOrder: nil}}}),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}))
 		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
@@ -489,7 +489,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewAddFC(t, signer, nil),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -511,7 +511,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 							testtransaction.WithTransactionType(fc.TransactionTypeTransferFeeCredit)),
 						ServerMetadata: &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -545,7 +545,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte{1}))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -579,7 +579,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			))
 		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
@@ -604,7 +604,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -625,7 +625,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -646,7 +646,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -667,7 +667,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, nil), // default counter is nil
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -688,7 +688,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -730,7 +730,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithLatestAdditionTime(10))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 		)
@@ -773,7 +773,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithAmount(100))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
-					TxProof: &types.TxProof{},
+					TxProof: &types.TxProof{Version: 1},
 				}),
 			),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),

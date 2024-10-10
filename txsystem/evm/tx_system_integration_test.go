@@ -185,7 +185,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         round1EndState.Root(),
 		SummaryValue: round1EndState.Summary(),

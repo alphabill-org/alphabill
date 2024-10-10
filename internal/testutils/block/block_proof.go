@@ -50,7 +50,7 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 	for _, option := range opts {
 		option(options)
 	}
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: make([]byte, 32),
 		Hash:         test.RandomBytes(32),
 		RoundNumber:  DefaultRoundNumber,
@@ -63,28 +63,30 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 }
 
 func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
+	uc, err := (&types.UnicityCertificate{Version: 1,
+		InputRecord: ir,
+	}).MarshalCBOR()
+	require.NoError(t, err)
 	b := &types.Block{
 		Header: &types.Header{
 			SystemID:          types.SystemID(1),
 			ProposerID:        "test",
 			PreviousBlockHash: make([]byte, 32),
 		},
-		Transactions: txs,
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: ir,
-		},
+		Transactions:       txs,
+		UnicityCertificate: uc,
 	}
 	// calculate block hash
-	blockHash, err := b.Hash(crypto.SHA256)
+	ir, err = b.CalculateBlockHash(crypto.SHA256)
 	require.NoError(t, err)
-	ir.BlockHash = blockHash
-	b.UnicityCertificate = testcertificates.CreateUnicityCertificate(
+	b.UnicityCertificate, err = testcertificates.CreateUnicityCertificate(
 		t,
 		signer,
 		ir,
 		sdr,
 		1,
 		make([]byte, 32),
-	)
+	).MarshalCBOR()
+	require.NoError(t, err)
 	return b
 }

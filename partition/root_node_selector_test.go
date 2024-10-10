@@ -18,7 +18,7 @@ func Test_rootNodesSelector(t *testing.T) {
 	})
 	t.Run("root node list is empty or nil", func(t *testing.T) {
 		var nodes peer.IDSlice
-		uc := &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber: 1,
 		}}
 		rootNodes, err := rootNodesSelector(uc, nodes, 2)
@@ -27,7 +27,7 @@ func Test_rootNodesSelector(t *testing.T) {
 	})
 	t.Run("select 0 nodes", func(t *testing.T) {
 		nodes := test.GeneratePeerIDs(t, 1)
-		uc := &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber: 1,
 		}}
 		rootNodes, err := rootNodesSelector(uc, nodes, 0)
@@ -36,7 +36,7 @@ func Test_rootNodesSelector(t *testing.T) {
 	})
 	t.Run("1 root node", func(t *testing.T) {
 		nodes := test.GeneratePeerIDs(t, 1)
-		uc := &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber: 1,
 		}}
 		rootNodes, err := rootNodesSelector(uc, nodes, 2)
@@ -45,7 +45,7 @@ func Test_rootNodesSelector(t *testing.T) {
 	})
 	t.Run("choose 2 from 3 root nodes", func(t *testing.T) {
 		nodes := test.GeneratePeerIDs(t, 3)
-		uc := &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber: 1,
 		}}
 		rootNodes, err := rootNodesSelector(uc, nodes, 2)
@@ -55,7 +55,7 @@ func Test_rootNodesSelector(t *testing.T) {
 	})
 	t.Run("choose 4 from 3 root nodes", func(t *testing.T) {
 		nodes := test.GeneratePeerIDs(t, 3)
-		uc := &types.UnicityCertificate{InputRecord: &types.InputRecord{
+		uc := &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber: 1,
 		}}
 		rootNodes, err := rootNodesSelector(uc, nodes, 4)

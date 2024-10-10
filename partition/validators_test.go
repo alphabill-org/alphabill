@@ -75,7 +75,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -147,7 +147,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),

@@ -64,8 +64,8 @@ func TestNewTxSystem_OK(t *testing.T) {
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{
-		InputRecord: &types.InputRecord{
+	return &types.UnicityCertificate{Version: 1,
+		InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber:  roundNumber,
 			Hash:         s.Root(),
 			SummaryValue: s.Summary(),

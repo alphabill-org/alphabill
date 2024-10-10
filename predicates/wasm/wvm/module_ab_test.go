@@ -226,7 +226,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("invalid input, required argument is nil", func(t *testing.T) {
 		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}
-		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{}}
+		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(nil, txRecProof, nil, nil)
 		require.Zero(t, sum)
@@ -236,17 +236,17 @@ func Test_transferredSum(t *testing.T) {
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record proof is nil`)
 
-		invalidTxRecProof := &types.TxRecordProof{TxRecord: nil, TxProof: &types.TxProof{}}
+		invalidTxRecProof := &types.TxRecordProof{TxRecord: nil, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: nil}, TxProof: &types.TxProof{}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction order is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: nil}, TxProof: &types.TxProof{}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: server metadata is nil`)
@@ -260,7 +260,7 @@ func Test_transferredSum(t *testing.T) {
 	t.Run("tx for non-money txsystem", func(t *testing.T) {
 		// money system ID is 1, create tx for some other txs
 		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: 2}}, ServerMetadata: &types.ServerMetadata{}}
-		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{}}
+		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `expected partition id 1 got 2`)
@@ -280,7 +280,7 @@ func Test_transferredSum(t *testing.T) {
 			},
 			ServerMetadata: &types.ServerMetadata{},
 		}
-		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{}}
+		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		refNo := []byte{1, 2, 3, 4, 5}
 		// txRec.ReferenceNumber == nil but refNo param != nil
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, refNo)
@@ -307,7 +307,7 @@ func Test_transferredSum(t *testing.T) {
 				SystemID: money.DefaultSystemID,
 				Type:     txt,
 			}
-			txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{}}
+			txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 			sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 			require.NoError(t, err)
 			require.Zero(t, sum)
@@ -329,7 +329,7 @@ func Test_transferredSum(t *testing.T) {
 		})
 		require.NoError(t, err)
 		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
-		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{}}
+		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 		require.EqualError(t, err, `decoding split attributes: cbor: cannot unmarshal array into Go value of type money.SplitAttributes (cannot decode CBOR array to struct with different number of elements)`)

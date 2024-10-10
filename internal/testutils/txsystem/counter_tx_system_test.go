@@ -8,7 +8,7 @@ import (
 
 func TestRace(t *testing.T) {
 	txSystem := &CounterTxSystem{}
-	uc := &types.UnicityCertificate{}
+	uc := &types.UnicityCertificate{Version: 1}
 	go func() {
 		_ = txSystem.Commit(uc)
 	}()

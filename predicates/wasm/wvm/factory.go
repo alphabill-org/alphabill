@@ -21,7 +21,7 @@ func (ABTypesFactory) createObj(typID uint32, data []byte) (any, error) {
 	case type_id_tx_record:
 		obj = &types.TransactionRecord{}
 	case type_id_tx_proof:
-		obj = &types.TxProof{}
+		obj = &types.TxProof{Version: 1}
 	default:
 		return nil, fmt.Errorf("unknown type ID %d", typID)
 	}

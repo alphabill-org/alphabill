@@ -43,7 +43,7 @@ func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logg
 func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 	return func(ctx *TxValidationContext) error {
 		if ctx.Tx.NetworkID != ctx.NetworkID {
-			return txsystem.ErrInvalidNetworkIdentifier
+			return fmt.Errorf("invalid network id: %d (expected %d)", ctx.Tx.NetworkID, ctx.NetworkID)
 		}
 		if ctx.Tx.SystemID != ctx.SystemID {
 			return txsystem.ErrInvalidSystemIdentifier

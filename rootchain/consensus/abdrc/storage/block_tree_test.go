@@ -2,6 +2,8 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +19,8 @@ const sysID2 types.SystemID = 2
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
-var inputRecord1 = &types.InputRecord{Version: 1,
+var inputRecord1 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{2, 2, 2},
 	BlockHash:    []byte{3, 3, 3},
@@ -29,7 +32,8 @@ var sdr1 = &types.PartitionDescriptionRecord{
 	SystemIdentifier:  sysID1,
 	T2Timeout:         2500 * time.Millisecond,
 }
-var inputRecord2 = &types.InputRecord{Version: 1,
+var inputRecord2 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{5, 5, 5},
 	BlockHash:    []byte{3, 3, 3},
@@ -45,18 +49,20 @@ var sdr2 = &types.PartitionDescriptionRecord{
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: []byte{0x26, 0xdd, 0xcd, 0x54, 0x49, 0x29, 0x8a, 0xd9, 0xec, 0x32, 0x4e, 0x20, 0xb0, 0x67, 0x96, 0x26, 0xd1, 0x41, 0x7f, 0x21, 0xa6, 0x98, 0xbf, 0xf1, 0x62, 0x8, 0xea, 0xcf, 0x2b, 0x7b, 0xdc, 0x33},
+	CurrentRootHash: hexToBytes("637F77AA807367DA4AA6D585978B20BC13B245F0D374D4316479570E870D8A46"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
 	{
-		Certificate: &types.UnicityCertificate{Version: 1,
+		Certificate: &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: inputRecord1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         sysID1,
 				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
+			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -67,13 +73,15 @@ var pg = []*genesis.GenesisPartitionRecord{
 		PartitionDescription: sdr1,
 	},
 	{
-		Certificate: &types.UnicityCertificate{Version: 1,
+		Certificate: &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: inputRecord2,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:         sysID2,
 				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
+			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -102,6 +110,14 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 			},
 		},
 	}
+}
+
+func hexToBytes(hexStr string) []byte {
+	b, err := hex.DecodeString(hexStr)
+	if err != nil {
+		panic(fmt.Sprintf("error decoding hex string: %s", err))
+	}
+	return b
 }
 
 // createTestBlockTree creates the following tree

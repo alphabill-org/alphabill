@@ -21,13 +21,14 @@ type (
 	}
 
 	NodeInfoResponse struct {
-		SystemID            types.SystemID `json:"systemId"` // hex encoded system identifier
-		Name                string         `json:"name"`     // one of [money node | tokens node | evm node]
-		Self                PeerInfo       `json:"self"`     // information about this peer
-		BootstrapNodes      []PeerInfo     `json:"bootstrapNodes"`
-		RootValidators      []PeerInfo     `json:"rootValidators"`
-		PartitionValidators []PeerInfo     `json:"partitionValidators"`
-		OpenConnections     []PeerInfo     `json:"openConnections"` // all libp2p connections to other peers in the network
+		NetworkID           types.NetworkID `json:"networkId"` // hex encoded network identifier
+		SystemID            types.SystemID  `json:"systemId"`  // hex encoded system identifier
+		Name                string          `json:"name"`      // one of [money node | tokens node | evm node]
+		Self                PeerInfo        `json:"self"`      // information about this peer
+		BootstrapNodes      []PeerInfo      `json:"bootstrapNodes"`
+		RootValidators      []PeerInfo      `json:"rootValidators"`
+		PartitionValidators []PeerInfo      `json:"partitionValidators"`
+		OpenConnections     []PeerInfo      `json:"openConnections"` // all libp2p connections to other peers in the network
 	}
 
 	PeerInfo struct {
@@ -43,8 +44,9 @@ func NewAdminAPI(node partitionNode, name string, self *network.Peer, log *slog.
 // GetNodeInfo returns status information about the node.
 func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 	return &NodeInfoResponse{
-		SystemID: s.node.SystemID(),
-		Name:     s.name,
+		NetworkID: s.node.NetworkID(),
+		SystemID:  s.node.SystemID(),
+		Name:      s.name,
 		Self: PeerInfo{
 			Identifier: s.self.ID().String(),
 			Addresses:  s.self.MultiAddresses(),

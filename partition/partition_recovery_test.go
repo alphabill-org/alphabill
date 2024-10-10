@@ -228,7 +228,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	uc := tp.IssueBlockUC(t)
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
+	latestRound, err := bl.GetRoundNumber()
+	require.NoError(t, err)
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
@@ -269,9 +270,9 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
 	uc, err := getUCv1(bl)
 	require.NoError(t, err)
+	latestRound := uc.GetRoundNumber()
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
@@ -312,9 +313,9 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
 	uc, err := getUCv1(bl)
 	require.NoError(t, err)
+	latestRound := uc.GetRoundNumber()
 
 	// now assume the node missed the proposal due to a network hiccup, other validators finalized _one_ empty block
 	// that is, round number has been incremented, but the state hash is the same

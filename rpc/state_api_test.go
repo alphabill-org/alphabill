@@ -165,7 +165,9 @@ func TestGetBlock(t *testing.T) {
 		var block *types.Block
 		err = types.Cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, block.GetRoundNumber())
+		rn, err := block.GetRoundNumber()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, rn)
 	})
 	t.Run("block not found", func(t *testing.T) {
 		node.maxBlockNumber = 1

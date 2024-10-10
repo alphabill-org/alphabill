@@ -87,13 +87,18 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	})
 	// Ask Node for latest block
 	b := tp.GetLatestBlock(t)
-	require.Equal(t, uint64(2), b.GetRoundNumber())
+	rn, err := b.GetRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), rn)
 	// Simulate UC received for block 4 - the pending block
 	uc4, err := getUCv1(newBlock3)
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(uc4)
 	ContainsEventType(t, tp, event.BlockFinalized)
-	require.Equal(t, uint64(2), b.GetRoundNumber())
+	b = tp.GetLatestBlock(t)
+	rn, err = b.GetRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), rn)
 }
 
 func TestNode_CreateBlocks(t *testing.T) {

@@ -62,14 +62,13 @@ func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uin
 	}
 }
 
-func (p *ProofIndexer) IndexBlock(ctx context.Context, block *types.Block, state UnitAndProof) error {
-	roundNumber := block.GetRoundNumber()
+func (p *ProofIndexer) IndexBlock(ctx context.Context, block *types.Block, roundNumber uint64, state UnitAndProof) error {
 	if roundNumber <= p.latestIndexedBlockNumber() {
 		p.log.DebugContext(ctx, fmt.Sprintf("block for round %v is already indexed", roundNumber))
 		return nil
 	}
 	p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("indexing block %v", roundNumber))
-	if err := p.create(ctx, block, state); err != nil {
+	if err := p.create(ctx, block, roundNumber, state); err != nil {
 		return fmt.Errorf("creating index failed: %w", err)
 	}
 	// clean-up
@@ -99,15 +98,20 @@ func (p *ProofIndexer) loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case b := <-p.blockCh:
-			if err := p.IndexBlock(ctx, b.Block, b.State); err != nil {
-				p.log.Warn(fmt.Sprintf("indexing block %v failed", b.Block.GetRoundNumber()), logger.Error(err))
+			roundNumber, err := b.Block.GetRoundNumber()
+			if err != nil {
+				p.log.Warn("proof indexer: unable to fetch block's round number", logger.Error(err))
+				continue
+			}
+			if err := p.IndexBlock(ctx, b.Block, roundNumber, b.State); err != nil {
+				p.log.Warn(fmt.Sprintf("indexing block %v failed", roundNumber), logger.Error(err))
 			}
 		}
 	}
 }
 
 // create - creates proof index DB entries
-func (p *ProofIndexer) create(ctx context.Context, block *types.Block, stateReader UnitAndProof) (err error) {
+func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumber uint64, stateReader UnitAndProof) (err error) {
 	dbTx, err := p.storage.StartTx()
 	if err != nil {
 		return fmt.Errorf("start DB transaction failed: %w", err)
@@ -134,7 +138,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, stateRead
 		// write down tx index for generating block proofs
 		txoHash := tx.TransactionOrder.Hash(p.hashAlgorithm)
 		if err = dbTx.Write(txoHash, &TxIndex{
-			RoundNumber:  block.GetRoundNumber(),
+			RoundNumber:  roundNumber,
 			TxOrderIndex: i,
 		}); err != nil {
 			return err
@@ -176,7 +180,6 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, stateRead
 		}
 	}
 	// update latest round number
-	roundNumber := block.GetRoundNumber()
 	if err = dbTx.Write(keyLatestRoundNumber, roundNumber); err != nil {
 		return fmt.Errorf("round number update failed: %w", err)
 	}

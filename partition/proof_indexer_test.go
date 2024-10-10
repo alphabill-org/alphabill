@@ -33,15 +33,15 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	ctx := context.Background()
 	unitID := make([]byte, 32)
 	blockRound1 := simulateInput(1, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound1.Block, blockRound1.State))
+	require.NoError(t, indexer.create(ctx, blockRound1.Block, 1, blockRound1.State))
 	// make sure when called with bigger round than history nothing bad will happen
 	require.NoError(t, indexer.historyCleanup(ctx, 3))
 
 	blockRound2 := simulateInput(2, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound2.Block, blockRound2.State))
+	require.NoError(t, indexer.create(ctx, blockRound2.Block, 2, blockRound2.State))
 
 	blockRound3 := simulateInput(3, unitID)
-	require.NoError(t, indexer.create(ctx, blockRound3.Block, blockRound3.State))
+	require.NoError(t, indexer.create(ctx, blockRound3.Block, 3, blockRound3.State))
 
 	// run clean-up
 	require.NoError(t, indexer.historyCleanup(ctx, 3))
@@ -74,14 +74,14 @@ func TestNewProofIndexer_IndexBlock_EmptyInput(t *testing.T) {
 	// start indexing loop
 	ctx := context.Background()
 	blockRound1 := simulateEmptyInput(1)
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, 1, blockRound1.State))
 	blockRound2 := simulateEmptyInput(2)
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, 2, blockRound2.State))
 	blockRound3 := simulateEmptyInput(3)
 	// index block 1 again will just return as it is already indexed
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, 1, blockRound1.State))
 	// since history is set to 2 rounds/blocks, then 1 will be now removed
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, blockRound3.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, 3, blockRound3.State))
 	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
 	// index db contains only latest round number
 	dbIt := proofDB.First()
@@ -102,14 +102,14 @@ func TestNewProofIndexer_IndexBlock(t *testing.T) {
 	ctx := context.Background()
 	unit1ID := test.RandomBytes(32)
 	blockRound1 := simulateInput(1, unit1ID)
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, 1, blockRound1.State))
 	unit2ID := test.RandomBytes(32)
 	blockRound2 := simulateInput(2, unit2ID)
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound2.Block, 2, blockRound2.State))
 	unit3ID := test.RandomBytes(32)
 	blockRound3 := simulateInput(3, unit3ID)
 	// since history is set to 2 rounds/blocks, then 1 will be now removed
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, blockRound3.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound3.Block, 3, blockRound3.State))
 	require.EqualValues(t, 3, indexer.latestIndexedBlockNumber())
 	// index db contains only latest round number
 	dbIt := proofDB.Find(util.Uint64ToBytes(1))
@@ -147,10 +147,10 @@ func TestNewProofIndexer_SimulateWriteError(t *testing.T) {
 	// start indexing loop
 	ctx := context.Background()
 	blockRound1 := simulateEmptyInput(1)
-	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, blockRound1.State))
+	require.NoError(t, indexer.IndexBlock(ctx, blockRound1.Block, 1, blockRound1.State))
 	proofDB.MockWriteError(fmt.Errorf("db write error"))
 	blockRound2 := simulateEmptyInput(2)
-	require.Error(t, indexer.IndexBlock(ctx, blockRound2.Block, blockRound2.State))
+	require.Error(t, indexer.IndexBlock(ctx, blockRound2.Block, 2, blockRound2.State))
 }
 
 func TestNewProofIndexer_RunLoop(t *testing.T) {
@@ -266,7 +266,7 @@ func TestProofIndexer_BoltDBTx(t *testing.T) {
 	bas := simulateInput(1, []byte{1})
 	bas.State = mockStateStoreOK{err: errors.New("some error")}
 
-	err = indexer.create(ctx, bas.Block, bas.State)
+	err = indexer.create(ctx, bas.Block, 1, bas.State)
 	require.ErrorContains(t, err, "some error")
 
 	// verify index db does not contain the stored round number (tx is rolled back)

@@ -4,6 +4,8 @@ services:
     build:
       context: ./
       dockerfile: ./cli/alphabill/Dockerfile
+    volumes:
+      - ./docker:/docker
   alphabill-root-bootnode:
     extends:
       service: alphabill
@@ -46,14 +48,14 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      -  'if [ -z "$(ls -A /genesis)" ]; then alphabill tokens-genesis -g --home /genesis; else echo "Genesis exists"; exit 0; fi'
+      -  'if [ -z "$(ls -A /genesis)" ]; then alphabill tokens-genesis -g --home /genesis --partition-description /docker/tokens-pdr.json; else echo "Genesis exists"; exit 0; fi'
   generate-money-genesis:
     extends:
       service: alphabill
     entrypoint:
       - /busybox/sh
       - -c
-      - 'if [ -z "$(ls -A /genesis)" ]; then alphabill money-genesis -g --home /genesis; else echo "Genesis exists"; exit 0; fi'
+      - 'if [ -z "$(ls -A /genesis)" ]; then alphabill money-genesis -g --home /genesis --partition-description /docker/money-pdr.json -c /docker/money-pdr.json -c /docker/tokens-pdr.json; else echo "Genesis exists"; exit 0; fi'
   generate-root-genesis:
     extends:
       service: alphabill

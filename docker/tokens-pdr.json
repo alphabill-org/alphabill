@@ -1,0 +1,11 @@
+{
+  "network_identifier": 3,
+  "system_identifier": 2,
+  "type_id_length": 8,
+  "unit_id_length": 256,
+  "t2timeout": 2500000000,
+  "fee_credit_bill": {
+    "unit_id": "0x000000000000000000000000000000000000000000000000000000000000001201",
+    "owner_predicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+  }
+}

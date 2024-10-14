@@ -9,6 +9,10 @@ services:
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
+      sign-root-trust-base2:
+        condition: service_completed_successfully
+      sign-root-trust-base3:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD", "nc", "-zv", "alphabill-root1", "8000" ]
       interval: 2s
@@ -22,9 +26,11 @@ services:
       - ./.genesis/root2:/genesis
       - ./.genesis:/genesis-nodes
     depends_on:
-      alphabill-root1:
-        condition: service_healthy
+      sign-root-trust-base1:
+        condition: service_completed_successfully
       sign-root-trust-base2:
+        condition: service_completed_successfully
+      sign-root-trust-base3:
         condition: service_completed_successfully
     healthcheck:
       test: [ "CMD", "nc", "-zv", "alphabill-root2", "8000" ]
@@ -39,8 +45,10 @@ services:
       - ./.genesis/root3:/genesis
       - ./.genesis:/genesis-nodes
     depends_on:
-      alphabill-root2:
-        condition: service_healthy
+      sign-root-trust-base1:
+        condition: service_completed_successfully
+      sign-root-trust-base2:
+        condition: service_completed_successfully
       sign-root-trust-base3:
         condition: service_completed_successfully
     healthcheck:

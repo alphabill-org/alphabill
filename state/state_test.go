@@ -403,7 +403,7 @@ func TestState_GetUnit(t *testing.T) {
 	require.NotNil(t, u2)
 	// logRoot, subTreeSummaryHash and summaryCalculated do not get cloned - rest must match
 	require.Equal(t, u.logs, u2.logs)
-	require.Equal(t, u.bearer, u2.bearer)
+	require.Equal(t, u.owner, u2.owner)
 	require.Equal(t, u.data, u2.data)
 	require.Equal(t, u.subTreeSummaryValue, u2.subTreeSummaryValue)
 }
@@ -551,8 +551,8 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		unitData, err := MarshalUnitData(unit.Data())
 		require.NoError(t, err)
 		data := &types.StateUnitData{
-			Data:   unitData,
-			Bearer: unit.Bearer(),
+			Data:           unitData,
+			OwnerPredicate: unit.Owner(),
 		}
 		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
 	})
@@ -814,7 +814,7 @@ func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityC
 	if s.IsCommitted() {
 		roundNumber = s.CommittedUC().GetRoundNumber() + 1
 	}
-	return &types.UnicityCertificate{InputRecord: &types.InputRecord{
+	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  roundNumber,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),

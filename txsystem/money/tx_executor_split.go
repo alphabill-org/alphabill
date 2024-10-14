@@ -1,7 +1,6 @@
 package money
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -13,31 +12,32 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint32, hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	hasher.Write(idBytes)
-	hasher.Write(attr)
-	hasher.Write(util.Uint64ToBytes(timeout))
-	hasher.Write(util.Uint32ToBytes(idx))
-	return hasher.Sum(nil)
-}
-
-func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.GetUnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
 	var actions []state.Action
+	var sum uint64
 	for i, targetUnit := range attr.TargetUnits {
-		newUnitID := money.NewBillID(unitID, tx.HashForNewUnitID(m.hashAlgorithm, util.Uint32ToBytes(uint32(i))))
+		newUnitPart, err := money.HashForNewBillID(tx, uint32(i), m.hashAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate hash for new bill id: %w", err)
+		}
+		newUnitID := money.NewBillID(unitID, newUnitPart)
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		actions = append(actions, state.AddUnit(
 			newUnitID,
-			targetUnit.OwnerCondition,
+			targetUnit.OwnerPredicate,
 			&money.BillData{
 				V:       targetUnit.Amount,
 				T:       exeCtx.CurrentRound(),
 				Counter: 0,
-			}))
+			}),
+		)
+		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add target unit amounts: %w", err)
+		}
 	}
 	// update existing unit
 	actions = append(actions, state.UpdateUnitData(unitID,
@@ -46,11 +46,10 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
-			return &money.BillData{
-				V:       attr.RemainingValue,
-				T:       exeCtx.CurrentRound(),
-				Counter: bd.Counter + 1,
-			}, nil
+			bd.V -= sum
+			bd.Counter += 1
+			bd.T = exeCtx.CurrentRound()
+			return bd, nil
 		},
 	))
 	// update state
@@ -60,16 +59,16 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	return &types.ServerMetadata{TargetUnits: targetUnitIDs, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, exeCtx txtypes.ExecutionContext) error {
-	unit, err := m.state.GetUnit(tx.UnitID(), false)
+func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, authProof *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) error {
+	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return err
 	}
 	if err = validateSplit(unit.Data(), attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	if err = m.execPredicate(unit.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("executing bearer predicate: %w", err)
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }
@@ -96,8 +95,8 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 		if targetUnit.Amount == 0 {
 			return fmt.Errorf("target unit amount is zero at index %d", i)
 		}
-		if len(targetUnit.OwnerCondition) == 0 {
-			return fmt.Errorf("target unit owner condition is empty at index %d", i)
+		if len(targetUnit.OwnerPredicate) == 0 {
+			return fmt.Errorf("target unit owner predicate is empty at index %d", i)
 		}
 		var err error
 		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
@@ -105,13 +104,8 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 			return fmt.Errorf("failed to add target unit amounts: %w", err)
 		}
 	}
-	if attr.RemainingValue == 0 {
-		return errors.New("remaining value is zero")
-	}
-	if attr.RemainingValue != bd.V-sum {
-		return fmt.Errorf(
-			"the sum of the values to be transferred plus the remaining value must equal the value of the bill"+
-				"; sum=%d remainingValue=%d billValue=%d", sum, attr.RemainingValue, bd.V)
+	if sum >= bd.V {
+		return fmt.Errorf("the sum of the values to be transferred must be less than the value of the bill; sum=%d billValue=%d", sum, bd.V)
 	}
 	return nil
 }

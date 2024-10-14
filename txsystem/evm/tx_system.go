@@ -18,14 +18,17 @@ import (
 type genericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
-	Tx               *types.TransactionOrder
-	Unit             *state.Unit
-	SystemIdentifier types.SystemID
-	BlockNumber      uint64
+	Tx          *types.TransactionOrder
+	state       *state.State
+	NetworkID   types.NetworkID
+	SystemID    types.SystemID
+	BlockNumber uint64
+	CustomData  []byte
 }
 
 type TxSystem struct {
-	systemIdentifier    types.SystemID
+	networkID           types.NetworkID
+	systemID            types.SystemID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentRoundNumber  uint64
@@ -37,7 +40,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -46,21 +49,22 @@ func NewEVMTxSystem(systemIdentifier types.SystemID, log *slog.Logger, opts ...O
 		option(options)
 	}
 	if options.state == nil {
-		return nil, errors.New("evm tx system init failed, state tree is nil")
+		return nil, errors.New("evm transaction system init failed, state tree is nil")
 	}
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemIdentifier, options, log)
+	evm, err := NewEVMModule(systemID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemIdentifier, options, log)
+	fees, err := newFeeModule(systemID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
 	txs := &TxSystem{
-		systemIdentifier:    systemIdentifier,
+		networkID:           networkID,
+		systemID:            systemID,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
@@ -86,6 +90,13 @@ func (m *TxSystem) CurrentBlockNumber() uint64 {
 
 func (m *TxSystem) State() txsystem.StateReader {
 	return m.state.Clone()
+}
+
+func (m *TxSystem) StateSize() (uint64, error) {
+	if !m.state.IsCommitted() {
+		return 0, txsystem.ErrStateContainsUncommittedChanges
+	}
+	return m.state.Size()
 }
 
 func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
@@ -122,15 +133,15 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 }
 
 func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
-	u, _ := m.state.GetUnit(tx.UnitID(), false)
-	ctx := &TxValidationContext{
-		Tx:               tx,
-		Unit:             u,
-		SystemIdentifier: m.systemIdentifier,
-		BlockNumber:      m.currentRoundNumber,
+	exeCtx := &TxValidationContext{
+		Tx:          tx,
+		state:       m.state,
+		NetworkID:   m.networkID,
+		SystemID:    m.systemID,
+		BlockNumber: m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
-		if err = validator(ctx); err != nil {
+		if err = validator(exeCtx); err != nil {
 			return nil, fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
@@ -159,12 +170,11 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, ctx)
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	sm, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
-
 	return sm, err
 }
 
@@ -197,18 +207,13 @@ func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 }
 
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
-	return nil, fmt.Errorf("TxValidationContext.GetUnit not implemented")
+	return vc.state.GetUnit(id, committed)
 }
 
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
 
 func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return nil, fmt.Errorf("TxValidationContext.TrustBase not implemented")
-}
-
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (vc *TxValidationContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
 }
 
 func (vc *TxValidationContext) GasAvailable() uint64 {
@@ -220,3 +225,13 @@ func (vc *TxValidationContext) SpendGas(gas uint64) error {
 }
 
 func (vc *TxValidationContext) CalculateCost() uint64 { return 0 }
+
+func (vc *TxValidationContext) TransactionOrder() (*types.TransactionOrder, error) { return vc.Tx, nil }
+
+func (vc *TxValidationContext) GetData() []byte {
+	return vc.CustomData
+}
+
+func (vc *TxValidationContext) SetData(data []byte) {
+	vc.CustomData = data
+}

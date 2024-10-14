@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const systemID types.SystemID = 0x01000001
-
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -48,7 +46,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			wantErr: ErrGenesisIsNil,
 		},
 		{
-			name: "tx system is nil",
+			name: "transaction system is nil",
 			args: args{
 				signer:  signer,
 				genesis: createPartitionGenesis(t, signer, verifier, nil, peerConf),
@@ -115,7 +113,14 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	if rootSigner == nil {
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
 	}
-	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, systemID, peerConf.ID)
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  0x01000001,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
+	}
+	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, pdr, peerConf.ID)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)

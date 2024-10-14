@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var inputRecord = &types.InputRecord{
+var inputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: []byte{0x00},
 	Hash:         []byte{0x01},
 	BlockHash:    []byte{0x02},
@@ -19,9 +19,9 @@ var inputRecord = &types.InputRecord{
 func TestNewUnicityTree(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            1,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         1,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -33,14 +33,14 @@ func TestGetCertificate_Ok(t *testing.T) {
 	key2 := types.SystemID(2)
 	data := []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            key2,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{3, 4, 5, 6},
+			SystemIdentifier:         key2,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{3, 4, 5, 6},
 		},
 		{
-			SystemIdentifier:            key1,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         key1,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	}
 	unicityTree, err := New(crypto.SHA256, data)
@@ -49,7 +49,12 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key1, cert.SystemIdentifier)
-	root := imt.IndexTreeOutput(cert.SiblingHashes, key1.Bytes(), crypto.SHA256)
+
+	var hashSteps []*imt.PathItem
+	hashSteps = append(hashSteps, cert.FirstHashStep(inputRecord, crypto.SHA256))
+	hashSteps = append(hashSteps, cert.HashSteps...)
+
+	root := imt.IndexTreeOutput(hashSteps, key1.Bytes(), crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 	// system id 0 is illegal
@@ -61,9 +66,9 @@ func TestGetCertificate_Ok(t *testing.T) {
 func TestGetCertificate_InvalidKey(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            0x01020301,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         0x01020301,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -76,9 +81,9 @@ func TestGetCertificate_InvalidKey(t *testing.T) {
 func TestGetCertificate_KeyNotFound(t *testing.T) {
 	unicityTree, err := New(crypto.SHA256, []*types.UnicityTreeData{
 		{
-			SystemIdentifier:            0x01020301,
-			InputRecord:                 inputRecord,
-			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+			SystemIdentifier:         0x01020301,
+			InputRecord:              inputRecord,
+			PartitionDescriptionHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)

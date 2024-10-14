@@ -15,13 +15,13 @@ var (
 	ErrBillUnlocked = errors.New("bill is already unlocked")
 )
 
-func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttributes, _ *money.UnlockAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// unlock the unit
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
 		if !ok {
-			return nil, fmt.Errorf("unlock tx: unit %v does not contain bill data", unitID)
+			return nil, fmt.Errorf("unlock transaction: unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = 0
 		newBillData.T = exeCtx.CurrentRound()
@@ -29,26 +29,29 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 		return newBillData, nil
 	})
 	if err := m.state.Apply(action); err != nil {
-		return nil, fmt.Errorf("unlock tx: failed to update state: %w", err)
+		return nil, fmt.Errorf("unlock transaction: failed to update state: %w", err)
 	}
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, _ txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.UnlockAttributes, authProof *money.UnlockAuthProof, exeCtx txtypes.ExecutionContext) error {
+	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
-		return fmt.Errorf("unlock tx: get unit error: %w", err)
+		return fmt.Errorf("unlock transaction: get unit error: %w", err)
 	}
 	billData, ok := unit.Data().(*money.BillData)
 	if !ok {
-		return errors.New("unlock tx: invalid unit type")
+		return errors.New("unlock transaction: invalid unit type")
 	}
 	if !billData.IsLocked() {
 		return ErrBillUnlocked
 	}
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }

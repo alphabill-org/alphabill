@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -32,7 +31,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -66,7 +65,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -90,7 +89,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	// increment round number
-	irNew := &types.InputRecord{
+	irNew := &types.InputRecord{Version: 1,
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -105,6 +104,44 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitUnicityCertificate(newerUC)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status.Load())
+}
+
+func TestNode_RecoverToOlderRootRound(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := RunSingleNodePartition(t, system)
+	uc1 := tp.GetCommittedUC(t)
+
+	// create a new block with a new UC which node does not know about
+	uc2Block, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+
+	// create a repeat UC from uc2
+	repeatUC, err := tp.CreateUnicityCertificate(
+		copyIR(uc2.InputRecord),
+		uc2.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+
+	// submit repeatUC so that node starts recovery
+	tp.SubmitUnicityCertificate(repeatUC)
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, uint64(1), system.RevertCount)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure node has asked for uc2Block
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+
+	// send uc2Block
+	tp.eh.Reset()
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status: replication.Ok,
+		Blocks: []*types.Block{uc2Block},
+	})
+
+	// make sure node accepts uc2Block even though it already has a UC with newer root round (repeatUC)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	require.Equal(t, normal, tp.partition.status.Load())
 }
 
 // AB-714 If before shutting down nodes managed to send certification requests,
@@ -191,7 +228,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	uc := tp.IssueBlockUC(t)
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
+	latestRound, err := bl.GetRoundNumber()
+	require.NoError(t, err)
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
@@ -232,8 +270,9 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
-	uc := bl.UnicityCertificate
+	uc, err := getUCv1(bl)
+	require.NoError(t, err)
+	latestRound := uc.GetRoundNumber()
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
@@ -274,8 +313,9 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	tp.partition.startNewRound(context.Background())
 
 	bl := tp.GetLatestBlock(t)
-	latestRound := bl.GetRoundNumber()
-	uc := bl.UnicityCertificate
+	uc, err := getUCv1(bl)
+	require.NoError(t, err)
+	latestRound := uc.GetRoundNumber()
 
 	// now assume the node missed the proposal due to a network hiccup, other validators finalized _one_ empty block
 	// that is, round number has been incremented, but the state hash is the same
@@ -332,7 +372,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	rootRound++
 	partitionRound++
 	newStateHash := test.RandomBytes(32)
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         newStateHash,
 		BlockHash:    test.RandomBytes(32),
@@ -358,7 +398,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp.eh.Reset()
 	rootRound++
 	partitionRound++
-	ir = &types.InputRecord{
+	ir = &types.InputRecord{Version: 1,
 		PreviousHash: newStateHash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -380,13 +420,13 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -415,20 +455,20 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.Equal(t, uint64(3), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
+	require.Equal(t, latestBlock, newBlock3)
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
 	require.Nil(t, b)
 	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock1))
+	require.Equal(t, b, newBlock1)
 	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock2))
+	require.Equal(t, b, newBlock2)
 	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock3))
-	require.True(t, reflect.DeepEqual(b, latestBlock))
+	require.Equal(t, b, newBlock3)
+	require.Equal(t, b, latestBlock)
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
@@ -441,13 +481,13 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, _ := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 	// prepare a proposal
 	tp.SubmitT1Timeout(t)
 	// simulate root response with newer UC from round 2
-	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc2)
 	// node starts recovery
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -468,8 +508,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), nr)
 	latestBlock := tp.GetLatestBlock(t)
-	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
+	require.Equal(t, latestBlock, newBlock3)
 	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
 }
 
@@ -478,15 +517,15 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3empty := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3empty.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock5empty := createNewBlockOutsideNode(t, tp, system, newBlock4.UnicityCertificate)
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3empty, uc3 := createNewBlockOutsideNode(t, tp, system, uc2)
+	newBlock4, uc4 := createNewBlockOutsideNode(t, tp, system, uc3, testtransaction.NewTransactionRecord(t))
+	newBlock5empty, uc5 := createNewBlockOutsideNode(t, tp, system, uc4)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock5empty.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc5)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -515,25 +554,25 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.Equal(t, uint64(5), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock5empty))
+	require.Equal(t, latestBlock, newBlock5empty)
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "node does not have block: 0, first block: 1")
 	require.Nil(t, b)
 	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock1))
+	require.Equal(t, b, newBlock1)
 	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock2))
+	require.Equal(t, b, newBlock2)
 	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
 	require.NotNil(t, b) // newBlock3empty
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, newBlock4))
+	require.Equal(t, b, newBlock4)
 	b, err = tp.partition.GetBlock(context.Background(), 5)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(b, latestBlock))
+	require.Equal(t, b, latestBlock)
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 6)
 	require.NoError(t, err)
@@ -546,13 +585,13 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0)
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0)
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -599,13 +638,13 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -653,15 +692,16 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+
 	altBlock2 := copyBlock(t, newBlock2)
 	altBlock2.Transactions = append(altBlock2.Transactions, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -706,15 +746,15 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	})
 	uc0 := tp.GetCommittedUC(t)
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
 	altBlock2.Header.ProposerID = ""
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -767,12 +807,12 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		}
 	})
 	uc0 := tp.GetCommittedUC(t)
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -846,7 +886,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(uc0)
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// submit transaction
 	require.NoError(t, tp.SubmitTx(newBlock1.Transactions[0].TransactionOrder))
@@ -869,7 +909,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// set DB in error state
 	db.MockWriteError(fmt.Errorf("disk is full"))
 	// submit UC status from root
-	tp.SubmitUnicityCertificate(newBlock1.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc1)
 	// block is requested from other nodes
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// expect store fails and node enters recovery
@@ -920,7 +960,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(uc0)
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
@@ -944,7 +984,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
 	require.NoError(t, err)
 	require.False(t, found)
-	tp.SubmitUnicityCertificate(newBlock1.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc1)
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// block is requested from other nodes
@@ -971,13 +1011,13 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1.UnicityCertificate, testtransaction.NewTransactionRecord(t))
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2.UnicityCertificate, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock3.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc3)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -1052,7 +1092,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 		bl := tp.GetLatestBlock(t)
 		require.Equal(t, 3, len(bl.Transactions))
 	}
-	latestBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
+	uc, err := getUCv1(tp.GetLatestBlock(t))
+	require.NoError(t, err)
+	latestBlockNumber := uc.InputRecord.RoundNumber
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 
 	//send replication request, it will hit tx replication limit
@@ -1113,7 +1155,9 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 		bl := tp.GetLatestBlock(t)
 		require.Equal(t, 3, len(bl.Transactions))
 	}
-	latestBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
+	uc, err := getUCv1(tp.GetLatestBlock(t))
+	require.NoError(t, err)
+	latestBlockNumber := uc.InputRecord.RoundNumber
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 	// does not have the block 11
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
@@ -1168,7 +1212,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }
 
-func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) *types.Block {
+func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) (*types.Block, *types.UnicityCertificate) {
 	newRound := uc.InputRecord.RoundNumber + 1
 	var transactions = make([]*types.TransactionRecord, len(txrs))
 	// simulate new block's state
@@ -1182,34 +1226,38 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	state, err := txs.EndBlock()
 	require.NoError(t, err)
 	// create new block
+	ucBytes, err := (&types.UnicityCertificate{Version: 1,
+		InputRecord: &types.InputRecord{Version: 1,
+			RoundNumber:  newRound,
+			Hash:         state.Root(),
+			PreviousHash: uc.InputRecord.Hash,
+			SummaryValue: state.Summary(),
+		},
+	}).MarshalCBOR()
 	newBlock := &types.Block{
 		Header: &types.Header{
 			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
+			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",
 			PreviousBlockHash: uc.InputRecord.BlockHash,
 		},
-		Transactions: transactions,
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
-				RoundNumber:  newRound,
-				Hash:         state.Root(),
-				PreviousHash: uc.InputRecord.Hash,
-				SummaryValue: state.Summary(),
-			},
-		},
+		Transactions:       transactions,
+		UnicityCertificate: ucBytes,
 	}
-	blockHash, err := newBlock.Hash(gocrypto.SHA256)
+	_, err = newBlock.CalculateBlockHash(gocrypto.SHA256)
 	require.NoError(t, err)
-	newBlock.UnicityCertificate.InputRecord.BlockHash = blockHash
-	require.NoError(t, txs.Commit(newBlock.UnicityCertificate))
+	newUC := &types.UnicityCertificate{Version: 1}
+	require.NoError(t, newUC.UnmarshalCBOR(newBlock.UnicityCertificate))
+	require.NoError(t, txs.Commit(newUC))
 
-	newUC, err := tp.CreateUnicityCertificate(
-		newBlock.UnicityCertificate.InputRecord,
+	newUC, err = tp.CreateUnicityCertificate(
+		newUC.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	newBlock.UnicityCertificate = copyUC(t, newUC)
-	return newBlock
+	newBlock.UnicityCertificate, err = copyUC(t, newUC).MarshalCBOR()
+	require.NoError(t, err)
+	return newBlock, newUC
 }
 
 // newer UC is received, putting the node into recovery
@@ -1221,11 +1269,11 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 
 	// create a block with single tx with fee=1 but sumOfEarnedFees=0
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock1.UnicityCertificate)
+	tp.SubmitUnicityCertificate(uc1)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -1254,7 +1302,7 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 func copyUC(t *testing.T, uc *types.UnicityCertificate) *types.UnicityCertificate {
 	bytes, err := types.Cbor.Marshal(uc)
 	require.NoError(t, err)
-	newUC := &types.UnicityCertificate{}
+	newUC := &types.UnicityCertificate{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(bytes, newUC))
 	return newUC
 }

@@ -15,8 +15,8 @@ func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
 	msg := &IrChangeReqMsg{
 		Author: "test",
 		IrChangeReq: &abdrc.IRChangeReq{
-			SystemIdentifier: 1,
-			CertReason:       abdrc.Quorum,
+			Partition:  1,
+			CertReason: abdrc.Quorum,
 		},
 	}
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -41,8 +41,8 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			name: "no author",
 			fields: fields{
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.Quorum,
+					Partition:  1,
+					CertReason: abdrc.Quorum,
 				},
 			},
 			wantErr: "author is missing",
@@ -60,8 +60,8 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       10,
+					Partition:  1,
+					CertReason: 10,
 				},
 			},
 			wantErr: "request validation failed: unknown reason (10)",
@@ -71,8 +71,8 @@ func TestIrChangeReqMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.T2Timeout,
+					Partition:  1,
+					CertReason: abdrc.T2Timeout,
 				},
 			},
 			wantErr: "invalid reason, timeout can only be proposed by leader",
@@ -116,8 +116,8 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 			name: "signer is nil",
 			fields: fields{
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.Quorum,
+					Partition:  1,
+					CertReason: abdrc.Quorum,
 				},
 			},
 			args:    args{signer: nil},
@@ -128,8 +128,8 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.T2Timeout,
+					Partition:  1,
+					CertReason: abdrc.T2Timeout,
 				},
 			},
 			args:    args{signer: s},
@@ -170,8 +170,8 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.T2Timeout,
+					Partition:  1,
+					CertReason: abdrc.T2Timeout,
 				},
 			},
 			args:    args{rootTrust: tb},
@@ -182,8 +182,8 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "bar",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.Quorum,
+					Partition:  1,
+					CertReason: abdrc.Quorum,
 				},
 			},
 			args:    args{rootTrust: tb},
@@ -194,8 +194,8 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 			fields: fields{
 				Author: "test",
 				IrChangeReq: &abdrc.IRChangeReq{
-					SystemIdentifier: 1,
-					CertReason:       abdrc.Quorum,
+					Partition:  1,
+					CertReason: abdrc.Quorum,
 				},
 				Signature: []byte{0, 1, 2, 3, 4, 5},
 			},
@@ -224,8 +224,8 @@ func TestIrChangeReqMsg_bytes(t *testing.T) {
 	msg := &IrChangeReqMsg{
 		Author: "test",
 		IrChangeReq: &abdrc.IRChangeReq{
-			SystemIdentifier: 1,
-			CertReason:       abdrc.T2Timeout,
+			Partition:  1,
+			CertReason: abdrc.T2Timeout,
 		},
 		Signature: []byte{1, 2, 4},
 	}

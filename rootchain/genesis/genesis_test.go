@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -36,11 +37,15 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
-		SystemDescriptionRecord: &types.SystemDescriptionRecord{
-			SystemIdentifier: systemIdentifier,
-			T2Timeout:        2500,
+		PartitionDescription: &types.PartitionDescriptionRecord{
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemIdentifier,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
+			Version:                   1,
 			NodeIdentifier:            nodeID,
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,
@@ -56,20 +61,27 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            nodeID,
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
-		T2Timeout:                 2500,
+		PartitionDescription: types.PartitionDescriptionRecord{
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemIdentifier,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
+		},
 	}
 }
 
 func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   nodeID,
-		InputRecord: &types.InputRecord{
+		Partition:      systemIdentifier,
+		NodeIdentifier: nodeID,
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
@@ -248,6 +260,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            "2",
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,

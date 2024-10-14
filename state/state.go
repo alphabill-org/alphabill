@@ -129,7 +129,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 
 		latestLog := &Log{
 			UnitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
-			NewBearer:          nodeRecord.OwnerCondition,
+			NewOwner:           nodeRecord.OwnerPredicate,
 			NewUnitData:        unitData,
 		}
 		logsHash := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
@@ -203,7 +203,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	logsCount := len(unit.logs)
 	l := &Log{
 		TxRecordHash:   transactionRecordHash,
-		NewBearer:      bytes.Clone(unit.bearer),
+		NewOwner:       bytes.Clone(unit.owner),
 		NewUnitData:    copyData(unit.data),
 		NewStateLockTx: bytes.Clone(unit.stateLockTx),
 	}
@@ -338,6 +338,15 @@ func (s *State) Prune() error {
 	return pruner.Err()
 }
 
+func (s *State) Size() (uint64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	ss := stateSize{}
+	s.latestSavepoint().Traverse(&ss)
+	return ss.size, ss.err
+}
+
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
 func (s *State) Serialize(writer io.Writer, committed bool) error {
@@ -415,13 +424,17 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 	}
 
 	// TODO verify proof before returning
+	ucBytes, err := s.committedTreeUC.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal unicity certificate: %w", err)
+	}
 	return &types.UnitStateProof{
 		UnitID:             id,
 		UnitLedgerHash:     unitLedgerHeadHash,
 		UnitTreeCert:       unitTreeCert,
 		UnitValue:          summaryValueInput,
 		StateTreeCert:      stateTreeCert,
-		UnicityCertificate: s.committedTreeUC,
+		UnicityCertificate: ucBytes,
 	}, nil
 }
 
@@ -443,7 +456,7 @@ func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCer
 	}
 	l := unit.logs[logIndex]
 	dataHasher := s.hashAlgorithm.New()
-	dataHasher.Write(l.NewBearer)
+	dataHasher.Write(l.NewOwner)
 	if err = l.NewUnitData.Write(dataHasher); err != nil {
 		return nil, fmt.Errorf("add to hasher error: %w", err)
 	}

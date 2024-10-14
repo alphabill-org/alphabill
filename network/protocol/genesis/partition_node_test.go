@@ -82,6 +82,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionNode{
+				Version:                   1,
 				NodeIdentifier:            tt.fields.NodeIdentifier,
 				SigningPublicKey:          tt.fields.SigningPublicKey,
 				EncryptionPublicKey:       tt.fields.EncryptionPublicKey,
@@ -102,9 +103,9 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   nodeIdentifier,
-		InputRecord: &types.InputRecord{
+		Partition:      1,
+		NodeIdentifier: nodeIdentifier,
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
@@ -115,6 +116,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	}
 	require.NoError(t, req.Sign(signer))
 	pn := &PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            nodeIdentifier,
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,

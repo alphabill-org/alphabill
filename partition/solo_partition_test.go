@@ -71,7 +71,7 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 
 func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	peerConf := createPeerConfiguration(t)
-
+	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
@@ -79,11 +79,10 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		// txSystem and start the txSystem with it. Works like
 		// this if the txSystem has empty state as well.
 		state.NewEmptyState(),
+		pdr,
 		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
-		WithSystemIdentifier(0x01010101),
-		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
 
@@ -129,6 +128,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
 		obs:        observability.WithLogger(obs, obs.Logger().With(logger.NodeID(peerConf.ID))),
+		nodeConf:   &configuration{},
 	}
 	return partition
 }
@@ -211,12 +211,12 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
-	sdr := sn.nodeDeps.genesis.SystemDescriptionRecord
+	sdr := sn.nodeDeps.genesis.PartitionDescription
 	sdrHash := sdr.Hash(gocrypto.SHA256)
 	data := []*types.UnicityTreeData{{
-		SystemIdentifier:            sdr.SystemIdentifier,
-		InputRecord:                 ir,
-		SystemDescriptionRecordHash: sdrHash,
+		SystemIdentifier:         sdr.SystemIdentifier,
+		InputRecord:              ir,
+		PartitionDescriptionHash: sdrHash,
 	},
 	}
 	ut, err := unicitytree.New(gocrypto.SHA256, data)
@@ -235,19 +235,19 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		panic(err)
 	}
 
-	return &types.UnicityCertificate{
+	return &types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier:      cert.SystemIdentifier,
-			SiblingHashes:         cert.SiblingHashes,
-			SystemDescriptionHash: sdrHash,
+			SystemIdentifier:         cert.SystemIdentifier,
+			HashSteps:                cert.HashSteps,
+			PartitionDescriptionHash: sdrHash,
 		},
 		UnicitySeal: unicitySeal,
 	}, nil
 }
 
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
-	u := &types.UnicitySeal{
+	u := &types.UnicitySeal{Version: 1,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,
@@ -283,14 +283,14 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[req.SystemIdentifier]
+	luc, found := sn.certs[req.Partition]
 	require.True(t, found)
 	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[req.SystemIdentifier] = uc
+	sn.certs[req.Partition] = uc
 	return uc
 }
 

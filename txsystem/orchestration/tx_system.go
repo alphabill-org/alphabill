@@ -8,7 +8,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default configuration: %w", err)
@@ -21,7 +21,8 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		return nil, fmt.Errorf("failed to load module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
-		options.systemIdentifier,
+		pdr,
+		shardID,
 		options.trustBase,
 		[]txtypes.Module{module},
 		observe,

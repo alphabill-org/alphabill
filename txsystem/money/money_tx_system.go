@@ -4,38 +4,35 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
+	basetypes "github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
-		return nil, fmt.Errorf("money tx system default configuration: %w", err)
+		return nil, fmt.Errorf("money transaction system default configuration: %w", err)
 	}
 	for _, option := range opts {
 		option(options)
 	}
 
-	moneyModule, err := NewMoneyModule(options)
+	moneyModule, err := NewMoneyModule(pdr.NetworkIdentifier, pdr.SystemIdentifier, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
-	feeCreditModule, err := fc.NewFeeCreditModule(
-		fc.WithState(options.state),
+	feeCreditModule, err := fc.NewFeeCreditModule(pdr.NetworkIdentifier, pdr.SystemIdentifier, pdr.SystemIdentifier, options.state, options.trustBase,
 		fc.WithHashAlgorithm(options.hashAlgorithm),
-		fc.WithTrustBase(options.trustBase),
-		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneySystemIdentifier(options.systemIdentifier),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
-		options.systemIdentifier,
+		pdr,
+		shardID,
 		options.trustBase,
 		[]txtypes.Module{moneyModule},
 		observe,

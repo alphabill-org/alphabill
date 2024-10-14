@@ -38,9 +38,9 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID: 7,
-				Type:     "test-tx",
+				Type:     22,
 				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
@@ -49,7 +49,7 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		}
 		buf, err := enc.Encode(txo, 1, getHandle)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0x1, 0x3, 0x7, 0x0, 0x0, 0x0, 0x2, 0x4, 0x7, 0x0, 0x0, 0x0, 0x74, 0x65, 0x73, 0x74, 0x2d, 0x74, 0x78, 0x3, 0x1, 0xa, 0x0, 0x0, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0x4, 0x1, 0x6, 0x0, 0x0, 0x0, 0x72, 0x65, 0x66, 0x2d, 0x6e, 0x6f}, buf)
+		require.Equal(t, []byte{0x1, 0x4, 0x0, 0x0, 0x2, 0x3, 0x7, 0x0, 0x0, 0x0, 0x3, 0x1, 0xa, 0x0, 0x0, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0x4, 0x4, 0x16, 0x0, 0x5, 0x1, 0x6, 0x0, 0x0, 0x0, 0x72, 0x65, 0x66, 0x2d, 0x6e, 0x6f}, buf)
 	})
 
 	t.Run("byte slice", func(t *testing.T) {
@@ -96,9 +96,9 @@ func Test_generate_TXSTestsData(t *testing.T) {
 	t.Run("txOrder", func(t *testing.T) {
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID: 7,
-				Type:     "test-tx",
+				Type:     22,
 				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
@@ -107,7 +107,7 @@ func Test_generate_TXSTestsData(t *testing.T) {
 		}
 		buf, err := enc.Encode(txo, 1, getHandle)
 		require.NoError(t, err)
-		t.Errorf("\n// %#v\n// %#v\nlet data: &mut [u8] = &mut [%s];", txo.Payload, txo.Payload.ClientMetadata, bytesAsHex(t, buf))
+		t.Errorf("\n// %#v\n// %#v\nlet data: &mut [u8] = &mut [%s];", txo.Payload, txo.ClientMetadata, bytesAsHex(t, buf))
 	})
 }
 

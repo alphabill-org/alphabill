@@ -144,7 +144,7 @@ func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &types.UnicitySeal{
+	seal := &types.UnicitySeal{Version: 1,
 		RootChainRoundNumber: 1,
 		Timestamp:            10000,
 		PreviousHash:         test.RandomBytes(32),
@@ -154,31 +154,31 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      systemIdentifier,
-				SiblingHashes:         []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
-				SystemDescriptionHash: sdrHash,
+				SystemIdentifier:         systemIdentifier,
+				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
 		Transactions: []*types.TransactionRecord{{
 			TransactionOrder: &types.TransactionOrder{
-				Payload: &types.Payload{
+				Payload: types.Payload{
 					SystemID:       0,
-					Type:           "test",
+					Type:           22,
 					UnitID:         nil,
 					Attributes:     nil,
 					ClientMetadata: nil,
 				},
-				OwnerProof: nil,
-				FeeProof:   nil,
+				AuthProof: nil,
+				FeeProof:  nil,
 			},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
@@ -195,7 +195,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 func TestBlockProposal_InvalidSignature(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &types.UnicitySeal{
+	seal := &types.UnicitySeal{Version: 1,
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
@@ -205,30 +205,30 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{Version: 1,
+			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      systemIdentifier,
-				SiblingHashes:         []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
-				SystemDescriptionHash: sdrHash,
+				SystemIdentifier:         systemIdentifier,
+				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
 		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID:       0,
-				Type:           "test",
+				Type:           22,
 				UnitID:         nil,
 				Attributes:     nil,
 				ClientMetadata: nil,
 			},
-			OwnerProof: nil,
-			FeeProof:   nil,
+			AuthProof: nil,
+			FeeProof:  nil,
 		},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,

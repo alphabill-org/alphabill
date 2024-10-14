@@ -21,7 +21,7 @@ type (
 	nodeRecord struct {
 		_                  struct{} `cbor:",toarray"`
 		UnitID             types.UnitID
-		OwnerCondition     []byte
+		OwnerPredicate     []byte
 		UnitData           types.RawCBOR
 		UnitLedgerHeadHash []byte
 		UnitTreePath       []*mt.PathItem
@@ -80,7 +80,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 
 	nr := &nodeRecord{
 		UnitID:             n.Key(),
-		OwnerCondition:     latestLog.NewBearer,
+		OwnerPredicate:     latestLog.NewOwner,
 		UnitLedgerHeadHash: latestLog.UnitLedgerHeadHash,
 		UnitData:           unitDataBytes,
 		UnitTreePath:       unitTreePath,

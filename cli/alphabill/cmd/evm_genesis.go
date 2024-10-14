@@ -7,12 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
@@ -26,36 +25,33 @@ const (
 )
 
 type evmGenesisConfig struct {
-	Base             *baseConfiguration
-	Keys             *keysConfig
-	SystemIdentifier types.SystemID
-	Output           string
-	OutputState      string
-	T2Timeout        uint32
-	BlockGasLimit    uint64
-	GasUnitPrice     uint64
+	Base          *baseConfiguration
+	Keys          *keysConfig
+	PDRFilename   string
+	Output        string
+	OutputState   string
+	BlockGasLimit uint64
+	GasUnitPrice  uint64
 }
 
 // newEvmGenesisCmd creates a new cobra command for the evm genesis.
 func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	var systemID uint32
 	config := &evmGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, evmDir)}
 	var cmd = &cobra.Command{
 		Use:   "evm-genesis",
 		Short: "Generates a genesis file for the evm partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.SystemIdentifier = types.SystemID(systemID)
 			return evmGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	addSystemIDFlag(cmd, &systemID, evmsdk.DefaultSystemID)
+	cmd.Flags().StringVar(&config.PDRFilename, "partition-description", "", "filename (full path) from where to read the Partition Description Record")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/evm/node-genesis-state.cbor)")
-	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().Uint64Var(&config.BlockGasLimit, "gas-limit", evm.DefaultBlockGasLimit, "max units of gas processed in each block")
 	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm.DefaultGasPrice, "gas unit price in wei")
 	config.Keys.addCmdFlags(cmd)
+	_ = cmd.MarkFlagRequired("partition-description")
 	return cmd
 }
 
@@ -80,6 +76,11 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	if err != nil {
+		return fmt.Errorf("loading partition description: %w", err)
+	}
+
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
 		return fmt.Errorf("load keys %v failed: %w", config.Keys.GetKeyFileLocation(), err)
@@ -97,16 +98,15 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 	}
 	params, err := config.getPartitionParams()
 	if err != nil {
-		return fmt.Errorf("failes to set evm genesis parameters: %w", err)
+		return fmt.Errorf("failed to set evm genesis parameters: %w", err)
 	}
 
 	nodeGenesis, err := partition.NewNodeGenesis(
 		genesisState,
+		*pdr,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
-		partition.WithSystemIdentifier(config.SystemIdentifier),
-		partition.WithT2Timeout(config.T2Timeout),
 		partition.WithParams(params),
 	)
 	if err != nil {

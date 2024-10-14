@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 )
 
@@ -23,8 +24,8 @@ type (
 	}
 )
 
-func certKey(id []byte) []byte {
-	return append([]byte(certPrefix), id...)
+func certKey(id types.SystemID) []byte {
+	return append([]byte(certPrefix), id.Bytes()...)
 }
 
 func NewStateStore(storage keyvaluedb.KeyValueDB) *StateStore {
@@ -37,7 +38,7 @@ func (s *StateStore) IsEmpty() (bool, error) {
 	return keyvaluedb.IsEmpty(s.db)
 }
 
-func (s *StateStore) save(newRound uint64, certificates map[types.SystemID]*types.UnicityCertificate) error {
+func (s *StateStore) save(newRound uint64, certificates []*certification.CertificationResponse) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.StartTx()
@@ -49,10 +50,10 @@ func (s *StateStore) save(newRound uint64, certificates map[types.SystemID]*type
 		return fmt.Errorf("root state failed to persist round  %v, %w, rollback", newRound, err)
 	}
 	// update certificates
-	for id, uc := range certificates {
-		key := certKey(id.Bytes())
+	for _, uc := range certificates {
+		key := certKey(uc.Partition)
 		if err = tx.Write(key, uc); err != nil {
-			return fmt.Errorf("root state failed to persist certificate for  %s, %w", id, err)
+			return fmt.Errorf("root state failed to persist certificate for  %s, %w", uc.Partition, err)
 		}
 	}
 	// persist state
@@ -63,14 +64,17 @@ func (s *StateStore) Init(rg *genesis.RootGenesis) error {
 	if rg == nil {
 		return fmt.Errorf("store init failed, root genesis is nil")
 	}
-	certs := make(map[types.SystemID]*types.UnicityCertificate)
+	certs := make([]*certification.CertificationResponse, 0, len(rg.Partitions))
 	for _, partition := range rg.Partitions {
-		certs[partition.SystemDescriptionRecord.SystemIdentifier] = partition.Certificate
+		certs = append(certs, &certification.CertificationResponse{
+			Partition: partition.PartitionDescription.SystemIdentifier,
+			UC:        *partition.Certificate,
+		})
 	}
 	return s.save(rg.GetRoundNumber(), certs)
 }
 
-func (s *StateStore) Update(newRound uint64, certificates map[types.SystemID]*types.UnicityCertificate) error {
+func (s *StateStore) Update(newRound uint64, certificates []*certification.CertificationResponse) error {
 	// sanity check
 	round, err := s.GetRound()
 	if err != nil {
@@ -89,20 +93,20 @@ func (s *StateStore) GetLastCertifiedInputRecords() (ir map[types.SystemID]*type
 	it := s.db.Find([]byte(certPrefix))
 	defer func() { err = errors.Join(err, it.Close()) }()
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
-		var cert types.UnicityCertificate
+		var cert certification.CertificationResponse
 		if err = it.Value(&cert); err != nil {
 			return nil, fmt.Errorf("read certificate %v failed, %w", it.Key(), err)
 		}
-		ir[cert.UnicityTreeCertificate.SystemIdentifier] = cert.InputRecord
+		ir[cert.Partition] = cert.UC.InputRecord
 	}
-	return ir, err
+	return ir, nil
 }
 
-func (s *StateStore) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+func (s *StateStore) GetCertificate(id types.SystemID) (*certification.CertificationResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var cert types.UnicityCertificate
-	cKey := certKey(id.Bytes())
+	var cert certification.CertificationResponse
+	cKey := certKey(id)
 	found, err := s.db.Read(cKey, &cert)
 	if !found {
 		return nil, fmt.Errorf("no certificate for partition %s in DB", id)

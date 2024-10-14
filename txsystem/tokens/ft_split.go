@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 
@@ -12,8 +11,8 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
+func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.GetUnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		return nil, err
@@ -21,12 +20,16 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	ftData := u.Data().(*tokens.FungibleTokenData)
 
 	// add new token unit
-	newTokenID := tokens.NewFungibleTokenID(unitID, tx.HashForNewUnitID(m.hashAlgorithm))
+	unitPart, err := tokens.HashForNewTokenID(tx, m.hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	newTokenID := tokens.NewFungibleTokenID(unitID, unitPart)
 
 	// update state
 	if err = m.state.Apply(
 		state.AddUnit(newTokenID,
-			attr.NewBearer,
+			attr.NewOwnerPredicate,
 			&tokens.FungibleTokenData{
 				TokenType: ftData.TokenType,
 				Value:     attr.TargetValue,
@@ -56,16 +59,8 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	hasher.Write(tx.UnitID())
-	hasher.Write(tx.Payload.Attributes)
-	tx.Payload.ClientMetadata.AddToHasher(hasher)
-	return hasher.Sum(nil)
-}
-
-func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
-	bearer, tokenData, err := getFungibleTokenData(tx.UnitID(), m.state)
+func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
@@ -75,18 +70,9 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	if attr.TargetValue == 0 {
 		return errors.New("when splitting a token the value assigned to the new token must be greater than zero")
 	}
-	if attr.RemainingValue == 0 {
-		return errors.New("when splitting a token the remaining value of the token must be greater than zero")
+	if attr.TargetValue >= tokenData.Value {
+		return fmt.Errorf("the target value must be less than the value of the source token: targetValue=%d tokenValue=%d", attr.TargetValue, tokenData.Value)
 	}
-
-	if tokenData.Value < attr.TargetValue {
-		return fmt.Errorf("invalid token value: max allowed %d, got %d", tokenData.Value, attr.TargetValue)
-	}
-	remainingValue := tokenData.Value - attr.TargetValue
-	if remainingValue != attr.RemainingValue {
-		return errors.New("remaining value must equal to the original value minus target value")
-	}
-
 	if tokenData.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
@@ -94,22 +80,22 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(bearer, tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("evaluating bearer predicate: %w", err)
+	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		tokenData.TokenType,
-		attr.InvariantPredicateSignatures,
+		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
+			return d.ParentTypeID, d.TokenTypeOwnerPredicate
 		},
 		m.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf("evaluating InvariantPredicate: %w", err)
+		return fmt.Errorf("evaluating TokenTypeOwnerPredicate: %w", err)
 	}
 	return nil
 }

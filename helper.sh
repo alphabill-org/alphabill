@@ -132,6 +132,7 @@ function start_root_nodes() {
   # use root node 1 as bootstrap node
   local bootNode=""
   local port=$rootPortStart
+  local rpcPort=25866
   bootNode=$(generate_boot_node testab/rootchain1/rootchain/keys.json "$rootPortStart")
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
@@ -141,14 +142,15 @@ function start_root_nodes() {
       exit 1
     fi
     if [[ $i -eq 1 ]]; then
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --rpc-server-address "localhost:$rpcPort" --metrics prometheus >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
           # give bootstrap node a head start
           sleep 0.200
     else
-          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
+          build/alphabill root --home testab/rootchain$i --address="/ip4/127.0.0.1/tcp/$port" --trust-base-file testab/root-trust-base.json --bootnodes="$bootNode" --rpc-server-address "localhost:$rpcPort" --metrics prometheus >> testab/rootchain$i/rootchain/rootchain.log 2>&1 &
     fi
     ((port=port+1))
     ((i=i+1))
+    ((rpcPort=rpcPort+1))    
   done
   echo "started $(($i-1)) root nodes"
 }
@@ -249,15 +251,17 @@ function start_non_validator_partition_nodes() {
           partitionGenesis="testab/rootchain1/rootchain/partition-genesis-1.json"
           p2pPort=36666
           rpcPort=36866
-          sdrFlags="-c testab/money-sdr.json"
-          [ -f testab/evm-sdr.json ] && sdrFlags+=" -c testab/evm-sdr.json"
-          [ -f testab/tokens-sdr.json ] && sdrFlags+=" -c testab/tokens-sdr.json"
+          sdrFlags="-c testab/money-pdr.json"
+          sdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
+
+          [ -f testab/evm-pdr.json ] && sdrFlags+=" -c testab/evm-pdr.json"
+          [ -f testab/tokens-pdr.json ] && sdrFlags+=" -c testab/tokens-pdr.json"
           ;;
       tokens)
           partitionGenesis="testab/rootchain1/rootchain/partition-genesis-2.json"
           p2pPort=38666
           rpcPort=38866
-          sdrFlags=""
+          sdrFlags="--partition-description=$PWD/testab/tokens-pdr.json"
           ;;
   esac
 

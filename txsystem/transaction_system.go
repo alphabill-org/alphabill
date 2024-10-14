@@ -8,7 +8,11 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
+var (
+	ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
+	ErrTransactionExpired              = errors.New("transaction timeout must be greater than current block number")
+	ErrInvalidSystemIdentifier         = errors.New("error invalid system identifier")
+)
 
 type (
 	// TransactionSystem is a set of rules and logic for defining units and performing transactions with them.
@@ -21,6 +25,8 @@ type (
 		// StateSummary returns the summary of the current state of the transaction system or an ErrStateContainsUncommittedChanges if
 		// current state contains uncommitted changes.
 		StateSummary() (StateSummary, error)
+
+		StateSize() (uint64, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64) error

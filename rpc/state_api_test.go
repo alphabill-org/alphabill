@@ -80,6 +80,13 @@ func TestGetUnit(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, unit)
 	})
+	t.Run("network and system identifier exist", func(t *testing.T) {
+		unit, err := api.GetUnit(unitID, false)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		require.Equal(t, types.NetworkID(5), unit.NetworkID)
+		require.Equal(t, types.SystemID(0x00010000), unit.SystemID)
+	})
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
@@ -134,16 +141,12 @@ func TestGetTransactionProof(t *testing.T) {
 		res, err := api.GetTransactionProof(context.Background(), txHash)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.NotNil(t, res.TxRecord)
-		require.NotNil(t, res.TxProof)
+		require.NotNil(t, res.TxRecordProof)
 
-		var txRecord *types.TransactionRecord
-		err = types.Cbor.Unmarshal(res.TxRecord, &txRecord)
+		var txRecordProof *types.TxRecordProof
+		err = types.Cbor.Unmarshal(res.TxRecordProof, &txRecordProof)
 		require.NoError(t, err)
-
-		var txProof *types.TxProof
-		err = types.Cbor.Unmarshal(res.TxProof, &txProof)
-		require.NoError(t, err)
+		require.NotNil(t, txRecordProof)
 	})
 	t.Run("err", func(t *testing.T) {
 		txHash := []byte{1}
@@ -169,7 +172,9 @@ func TestGetBlock(t *testing.T) {
 		var block *types.Block
 		err = types.Cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, block.GetRoundNumber())
+		rn, err := block.GetRoundNumber()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, rn)
 	})
 	t.Run("block not found", func(t *testing.T) {
 		node.maxBlockNumber = 1
@@ -216,7 +221,7 @@ func prepareState(t *testing.T) *state.State {
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{InputRecord: &types.InputRecord{
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -274,15 +279,15 @@ func (mn *MockNode) TransactionSystemState() txsystem.StateReader {
 	return mn.txs.State()
 }
 
-func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (mn *MockNode) GetTransactionRecordProof(_ context.Context, hash []byte) (*types.TxRecordProof, error) {
 	if mn.err != nil {
-		return nil, nil, mn.err
+		return nil, mn.err
 	}
-	return &types.TransactionRecord{}, &types.TxProof{}, nil
+	return &types.TxRecordProof{}, nil
 }
 
 func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
-	if bytes.Equal(tx.UnitID(), failingUnitID) {
+	if bytes.Equal(tx.UnitID, failingUnitID) {
 		return nil, errors.New("failed")
 	}
 	if tx != nil {
@@ -299,7 +304,11 @@ func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Bloc
 		// empty block
 		return nil, nil
 	}
-	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
+	uc, err := (&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: blockNumber}}).MarshalCBOR()
+	if err != nil {
+		return nil, err
+	}
+	return &types.Block{UnicityCertificate: uc}, nil
 }
 
 func (mn *MockNode) LatestBlockNumber() (uint64, error) {
@@ -311,6 +320,10 @@ func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
 		return 0, mn.err
 	}
 	return mn.maxRoundNumber, nil
+}
+
+func (mn *MockNode) NetworkID() types.NetworkID {
+	return 5
 }
 
 func (mn *MockNode) SystemID() types.SystemID {
@@ -348,23 +361,26 @@ func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) 
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
-		NewBearer:   templates.AlwaysTrueBytes(),
-		TargetValue: 1,
-		Counter:     0,
+		NewOwnerPredicate: templates.AlwaysTrueBytes(),
+		TargetValue:       1,
+		Counter:           0,
 	}
 
 	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	order, err := types.Cbor.Marshal(&types.TransactionOrder{
-		Payload: &types.Payload{
+	txo := &types.TransactionOrder{
+		Payload: types.Payload{
 			UnitID:         unitID,
-			Type:           money.PayloadTypeTransfer,
+			Type:           money.TransactionTypeTransfer,
 			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},
 		},
-		OwnerProof: []byte{1},
-	})
+	}
+	authProof := money.TransferAuthProof{OwnerProof: []byte{1}}
+	require.NoError(t, txo.SetAuthProof(authProof))
+
+	txoCBOR, err := types.Cbor.Marshal(txo)
 	require.NoError(t, err)
-	return order
+	return txoCBOR
 }

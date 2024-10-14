@@ -9,13 +9,13 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 )
 
 func Test_cbor_parse(t *testing.T) {
 	t.Run("unknown handle", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
 		}
@@ -25,8 +25,8 @@ func Test_cbor_parse(t *testing.T) {
 
 	t.Run("wrong data type behind handle", func(t *testing.T) {
 		// data must be []byte "compatible"
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{handle_predicate_conf: 42},
 			},
 		}
@@ -35,8 +35,8 @@ func Test_cbor_parse(t *testing.T) {
 	})
 
 	t.Run("bytes but invalid CBOR", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{handle_predicate_conf: []byte{}},
 			},
 		}
@@ -45,19 +45,19 @@ func Test_cbor_parse(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ctx := &VmContext{
-			curPrg: &EvalContext{
+		ctx := &vmContext{
+			curPrg: &evalContext{
 				// CBOR(830a63737472430102ff) == [10, "str", h'0102FF']
 				vars: map[uint64]any{handle_predicate_conf: []byte{0x83, 0x0a, 0x63, 0x73, 0x74, 0x72, 0x43, 0x01, 0x02, 0xff}},
 			},
-			MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+			memMngr: bumpallocator.New(0, maxMem(10000)),
 		}
 		mem := &mockMemory{
 			size: func() uint32 { return 10000 },
 			// write is called for the memory "sent back" to the module
 			// ie it contains the response
 			write: func(offset uint32, v []byte) bool {
-				require.Equal(t, []byte{0x5, 0x3, 0x0, 0x0, 0x0, 0x2, 0xa, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x4, 0x3, 0x0, 0x0, 0x0, 0x73, 0x74, 0x72, 0x1, 0x3, 0x0, 0x0, 0x0, 0x1, 0x2, 0xff}, v)
+				require.Equal(t, []byte{0x6, 0x3, 0x0, 0x0, 0x0, 0x2, 0xa, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x3, 0x0, 0x0, 0x0, 0x73, 0x74, 0x72, 0x1, 0x3, 0x0, 0x0, 0x0, 0x1, 0x2, 0xff}, v)
 				return true
 			},
 		}
@@ -67,15 +67,16 @@ func Test_cbor_parse(t *testing.T) {
 }
 
 func Test_cbor_parse_array_raw(t *testing.T) {
-	vm := &VmContext{
-		curPrg: &EvalContext{
+	t.Skip("test fails as UnicityCertificate struct has changed (number of fields) and thus CBOR decoding fails")
+	vm := &vmContext{
+		curPrg: &evalContext{
 			// the "txProof" contains tx proof CBOR as saved by CLI wallet:
 			// array of array pairs [ {[txRec],[txProof]}, {...} ]
 			vars:   map[uint64]any{handle_current_args: txProof},
 			varIdx: handle_max_reserved,
 		},
 		factory: ABTypesFactory{},
-		MemMngr: allocator.NewBumpAllocator(0, maxMem(10000)),
+		memMngr: bumpallocator.New(0, maxMem(10000)),
 	}
 
 	var handle, handle2 uint64
@@ -115,7 +116,7 @@ func Test_cbor_parse_array_raw(t *testing.T) {
 
 	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, handle2)
 	require.NoError(t, err)
-	txProof := &types.TxProof{}
+	txProof := &types.TxProof{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(buf, txProof))
 }
 

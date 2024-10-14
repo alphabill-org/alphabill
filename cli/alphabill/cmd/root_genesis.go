@@ -163,14 +163,14 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 	for _, pg := range pgs {
 		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
-			return fmt.Errorf("save partition %X genesis failed: %w", pg.SystemDescriptionRecord.SystemIdentifier, err)
+			return fmt.Errorf("save partition %X genesis failed: %w", pg.PartitionDescription.SystemIdentifier, err)
 		}
 	}
 	return nil
 }
 
 func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
-	filename := fmt.Sprintf("partition-genesis-%d.json", pg.SystemDescriptionRecord.SystemIdentifier)
+	filename := fmt.Sprintf("partition-genesis-%d.json", pg.PartitionDescription.SystemIdentifier)
 	outputFile := filepath.Join(outputDir, filename)
 	return util.WriteJsonFile(outputFile, pg)
 }

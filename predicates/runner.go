@@ -14,18 +14,19 @@ const MaxPredicateBinSize = 65536
 
 type (
 	PredicateEngine interface {
-		// unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
+		// ID unique ID of the engine, this is used to dispatch predicates (predicate.Tag == engine.ID)
 		// to the engine which is supposed to evaluate it.
 		ID() uint64
-		// executes given predicate
-		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+
+		// Execute executes given predicate
+		Execute(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env TxContext) (bool, error)
 	}
 
-	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	PredicateEngines map[uint64]func(ctx context.Context, predicate *predicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env TxContext) (bool, error)
 
-	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error)
+	PredicateExecutor func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env TxContext) (bool, error)
 
-	PredicateRunner func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error
+	PredicateRunner func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env TxContext) error
 
 	GasMeter interface {
 		GasAvailable() uint64
@@ -33,7 +34,7 @@ type (
 		CalculateCost() uint64
 	}
 
-	// environment where predicate runs (AKA transaction execution context)
+	// TxContext environment where predicate runs (AKA transaction execution context)
 	// This is meant to provide the predicate engine with access to the
 	// tx system which processes the transaction.
 	TxContext interface {
@@ -41,8 +42,7 @@ type (
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
-		// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
+		TransactionOrder() (*types.TransactionOrder, error)
 	}
 )
 
@@ -80,7 +80,7 @@ func (pe PredicateEngines) Add(engine PredicateEngine) error {
 /*
 Execute decodes predicate from binary representation and dispatches it to appropriate predicate executor.
 */
-func (pe PredicateEngines) Execute(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) (bool, error) {
+func (pe PredicateEngines) Execute(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env TxContext) (bool, error) {
 	if len(predicate) == 0 {
 		return false, errors.New("predicate is empty")
 	}
@@ -96,7 +96,7 @@ func (pe PredicateEngines) Execute(ctx context.Context, predicate types.Predicat
 	if !ok {
 		return false, fmt.Errorf("unknown predicate engine with id %d", pred.Tag)
 	}
-	result, err := executor(ctx, pred, args, txo, env)
+	result, err := executor(ctx, pred, args, sigBytesFn, env)
 	if err != nil {
 		return false, fmt.Errorf("executing predicate: %w", err)
 	}
@@ -105,8 +105,7 @@ func (pe PredicateEngines) Execute(ctx context.Context, predicate types.Predicat
 
 /*
 NewPredicateRunner is a helper to refactor predicate support - provide implementation which is common
-for most tx systems (as of now only tokens tx system requires different PayloadBytes implementation,
-see AB-1012 for details) and "translates" between two interfaces:
+for most tx systems and "translates" between two interfaces:
   - currently tx handlers do not have context.Context to pass to the predicate engine so wrapper
     returned doesn't require it and passes context.Background() to the predicate engine;
   - currently tx systems do not differentiate between predicate evaluating to "false" vs returning
@@ -118,8 +117,8 @@ func NewPredicateRunner(
 	// usually it is PredicateEngines.Execute
 	executor PredicateExecutor,
 ) PredicateRunner {
-	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error {
-		res, err := executor(context.Background(), predicate, args, txo, env)
+	return func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env TxContext) error {
+		res, err := executor(context.Background(), predicate, args, sigBytesFn, env)
 		if err != nil {
 			return err
 		}

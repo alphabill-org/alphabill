@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
@@ -23,8 +24,13 @@ type (
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
 		storage      keyvaluedb.KeyValueDB
-		certificates map[types.SystemID]*types.UnicityCertificate // cashed
+		certificates map[partitionShard]*certification.CertificationResponse // cache
 		lock         sync.RWMutex
+	}
+
+	partitionShard struct {
+		partition types.SystemID
+		shard     string // types.ShardID is not comparable
 	}
 )
 
@@ -42,7 +48,14 @@ func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, 
 	genesisBlock := NewGenesisBlock(hash, pg)
 	ucs := UnicityCertificatesFromGenesis(pg)
 	for id, cert := range ucs {
-		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
+		// TODO: generate per shard! Genesis must support shards...
+		cr := certification.CertificationResponse{
+			Partition: cert.UnicityTreeCertificate.SystemIdentifier,
+			Shard:     types.ShardID{},
+			Technical: certification.TechnicalRecord{},
+			UC:        *cert,
+		}
+		if err := db.Write(certKey(cr.Partition, cr.Shard), cr); err != nil {
 			return fmt.Errorf("certificate %X write failed, %w", id, err)
 		}
 	}
@@ -52,17 +65,17 @@ func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, 
 	return nil
 }
 
-func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[types.SystemID]*types.UnicityCertificate, err error) {
+func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[partitionShard]*certification.CertificationResponse, err error) {
 	// read certificates from storage
 	itr := db.Find([]byte(certPrefix))
 	defer func() { err = errors.Join(err, itr.Close()) }()
-	ucs = make(map[types.SystemID]*types.UnicityCertificate)
+	ucs = make(map[partitionShard]*certification.CertificationResponse)
 	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), certPrefix); itr.Next() {
-		var uc types.UnicityCertificate
+		var uc certification.CertificationResponse
 		if err = itr.Value(&uc); err != nil {
-			return nil, fmt.Errorf("certificate read error, %w", err)
+			return nil, fmt.Errorf("reading certificate from storage: %w", err)
 		}
-		ucs[uc.UnicityTreeCertificate.SystemIdentifier] = &uc
+		ucs[partitionShard{partition: uc.Partition, shard: uc.Shard.Key()}] = &uc
 	}
 	return ucs, err
 }
@@ -107,15 +120,15 @@ func NewFromState(hash gocrypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.Ke
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
-	certificates := make(map[types.SystemID]*types.UnicityCertificate)
+	certificates := make(map[partitionShard]*certification.CertificationResponse)
 	for _, cert := range stateMsg.Certificates {
-		id := cert.UnicityTreeCertificate.SystemIdentifier
+		id := cert.UC.UnicityTreeCertificate.SystemIdentifier
 		// persist changes
-		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
+		if err := db.Write(certKey(id, cert.Shard), cert); err != nil {
 			return nil, fmt.Errorf("failed to write certificate of partition %s into storage: %w", id, err)
 		}
 		// update cache
-		certificates[id] = cert
+		certificates[partitionShard{partition: id, shard: cert.Shard.Key()}] = cert
 	}
 
 	// create new root node
@@ -171,7 +184,7 @@ func (x *BlockStore) GetDB() keyvaluedb.KeyValueDB {
 	return x.storage
 }
 
-func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) (map[types.SystemID]*types.UnicityCertificate, error) {
+func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
 	if qc == nil {
 		return nil, fmt.Errorf("qc is nil")
 	}
@@ -247,44 +260,39 @@ func (x *BlockStore) GetLastTC() (*drctypes.TimeoutCert, error) {
 	return ReadLastTC(x.storage)
 }
 
-func (x *BlockStore) updateCertificateCache(certs map[types.SystemID]*types.UnicityCertificate) error {
+func (x *BlockStore) updateCertificateCache(certs []*certification.CertificationResponse) error {
 	x.lock.Lock()
 	defer x.lock.Unlock()
-	for id, uc := range certs {
+	for _, uc := range certs {
 		// persist changes
-		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
+		if err := x.storage.Write(certKey(uc.Partition, uc.Shard), uc); err != nil {
 			// non-functional requirements? what should the root node do if it fails to persist state?
 			// todo: AB-795 persistent storage failure?
 			return fmt.Errorf("failed to write certificate into storage: %w", err)
 		}
 		// update cache
-		x.certificates[id] = uc
+		x.certificates[partitionShard{partition: uc.Partition, shard: uc.Shard.Key()}] = uc
 	}
 	return nil
 }
 
-func (x *BlockStore) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+func (x *BlockStore) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	uc, f := x.certificates[id]
+	uc, f := x.certificates[partitionShard{partition: id, shard: shard.Key()}]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %s", id)
 	}
 	return uc, nil
 }
 
-func (x *BlockStore) GetCertificates() map[types.SystemID]*types.UnicityCertificate {
+func (x *BlockStore) GetCertificates() []*certification.CertificationResponse {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	return maps.Clone(x.certificates)
+	return slices.Collect(maps.Values(x.certificates))
 }
 
 func (x *BlockStore) GetState() *abdrc.StateMsg {
-	certs := x.GetCertificates()
-	ucs := make([]*types.UnicityCertificate, 0, len(certs))
-	for _, c := range certs {
-		ucs = append(ucs, c)
-	}
 	committedBlock := x.blockTree.Root()
 	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
 	pending := make([]*drctypes.BlockData, len(pendingBlocks))
@@ -296,7 +304,7 @@ func (x *BlockStore) GetState() *abdrc.StateMsg {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
 	return &abdrc.StateMsg{
-		Certificates: ucs,
+		Certificates: x.GetCertificates(),
 		CommittedHead: &abdrc.CommittedBlock{
 			Block:    committedBlock.BlockData,
 			Ir:       ToRecoveryInputData(committedBlock.CurrentIR),
@@ -330,9 +338,11 @@ func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
 	inputData := make([]*abdrc.InputData, len(data))
 	for i, d := range data {
 		inputData[i] = &abdrc.InputData{
-			SysID: d.SysID,
-			Ir:    d.IR,
-			Sdrh:  d.Sdrh,
+			Partition: d.Partition,
+			Shard:     d.Shard,
+			Ir:        d.IR,
+			Technical: d.Technical,
+			Sdrh:      d.PDRHash,
 		}
 	}
 	return inputData

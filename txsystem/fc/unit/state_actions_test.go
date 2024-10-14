@@ -31,7 +31,7 @@ func TestAddCredit_OK(t *testing.T) {
 	// verify unit is in state tree
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	require.Equal(t, owner, unit.Bearer())
+	require.Equal(t, owner, unit.Owner())
 	require.Equal(t, counter, unit.Data().(*fc.FeeCreditRecord).Counter)
 	require.Equal(t, fcr, unit.Data())
 }
@@ -81,12 +81,12 @@ func TestIncrCredit_OK(t *testing.T) {
 	require.EqualValues(t, 100, unitFCR.Balance)
 	require.EqualValues(t, 200, unitFCR.Timeout)
 	require.Equal(t, counter+1, unitFCR.Counter)
-	require.Equal(t, owner, unit.Bearer())
+	require.Equal(t, owner, unit.Owner())
 }
 
 func TestDecrCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
-		Balance: 1,
+		Balance: 100,
 		Counter: 10,
 		Timeout: 2,
 	}
@@ -97,14 +97,14 @@ func TestDecrCredit_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// decrement credit balance
-	err = tr.Apply(DecrCredit(id, 101))
+	err = tr.Apply(DecrCredit(id, 10))
 	require.NoError(t, err)
 
 	// verify balance is decrement
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
 	unitFCR := unit.Data().(*fc.FeeCreditRecord)
-	require.EqualValues(t, -100, unitFCR.Balance) // fcr and go negative
+	require.EqualValues(t, 90, unitFCR.Balance)
 
 	// and timeout, counter and locked values are not changed
 	require.Equal(t, fcr.Timeout, unitFCR.Timeout)

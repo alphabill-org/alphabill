@@ -51,7 +51,7 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 	if err != nil {
 		return fmt.Errorf("ir change request verification failed, %w", err)
 	}
-	systemID := irChReq.SystemIdentifier
+	systemID := irChReq.Partition
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
@@ -90,20 +90,20 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID, i
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
 		// if there is a change already in the pipeline for this system id
 		if x.IsChangeInBuffer(id) || inProgress(id) != nil {
-			x.log.Debug(fmt.Sprintf("T2 timout request ignored, partition %s has pending change in progress", id))
+			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", id))
 			continue
 		}
 		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Round(round))
 		payload.Requests = append(payload.Requests, &drctypes.IRChangeReq{
-			SystemIdentifier: id,
-			CertReason:       drctypes.T2Timeout,
+			Partition:  id,
+			CertReason: drctypes.T2Timeout,
 		})
 	}
 	for _, req := range x.irChgReqBuffer {
-		if inProgress(req.Req.SystemIdentifier) != nil {
+		if inProgress(req.Req.Partition) != nil {
 			// if there is a pending block with the system id in progress then do not propose a change
 			// before last has been certified
-			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.SystemIdentifier))
+			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.Partition))
 			continue
 		}
 		payload.Requests = append(payload.Requests, req.Req)

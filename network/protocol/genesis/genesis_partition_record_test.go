@@ -3,6 +3,7 @@ package genesis
 import (
 	"crypto"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,11 +22,18 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionKey1 := testsig.CreateSignerAndVerifier(t)
 	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
+	validPDR := &types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  1,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         1 * time.Second,
+	}
 
 	type fields struct {
-		Nodes                   []*PartitionNode
-		Certificate             *types.UnicityCertificate
-		SystemDescriptionRecord *types.SystemDescriptionRecord
+		Nodes                []*PartitionNode
+		Certificate          *types.UnicityCertificate
+		PartitionDescription *types.PartitionDescriptionRecord
 	}
 	type args struct {
 		verifier      types.RootTrustBase
@@ -53,8 +61,8 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			name: "system description record is nil",
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
-				Nodes:                   []*PartitionNode{nil},
-				SystemDescriptionRecord: nil,
+				Nodes:                []*PartitionNode{nil},
+				PartitionDescription: nil,
 			},
 			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
@@ -66,7 +74,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				PartitionDescription: validPDR,
 			},
 			wantErrStr: "invalid partition nodes: duplicated node id: 1",
 		},
@@ -78,7 +86,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				PartitionDescription: validPDR,
 			},
 			wantErrStr: "invalid partition nodes: duplicated node signing public key",
 		},
@@ -90,7 +98,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 					createPartitionNode(t, "2", signingKey2, encryptionKey1),
 				},
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				PartitionDescription: validPDR,
 			},
 			wantErrStr: "invalid partition nodes: duplicated node encryption public key",
 		},
@@ -101,7 +109,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes: []*PartitionNode{
 					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{SystemIdentifier: 1, T2Timeout: 10},
+				PartitionDescription: validPDR,
 			},
 			wantErrStr: "invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil",
 		},
@@ -109,9 +117,10 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisPartitionRecord{
-				Nodes:                   tt.fields.Nodes,
-				Certificate:             tt.fields.Certificate,
-				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
+				Version:              1,
+				Nodes:                tt.fields.Nodes,
+				Certificate:          tt.fields.Certificate,
+				PartitionDescription: tt.fields.PartitionDescription,
 			}
 			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
 			if tt.wantErrStr != "" {
@@ -141,9 +150,9 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   nodeID,
-		InputRecord: &types.InputRecord{
+		Partition:      1,
+		NodeIdentifier: nodeID,
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
@@ -154,6 +163,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            nodeID,
 		SigningPublicKey:          node1VerifierPubKey,
 		EncryptionPublicKey:       encryptionPubKeyBytes,

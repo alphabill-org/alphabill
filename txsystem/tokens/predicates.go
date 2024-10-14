@@ -15,18 +15,18 @@ Typically, these are predicates of the token type chain.
 
 Parameters:
   - "env": transaction execution environment/context;
-  - "txo": transaction order against which predicates are run, passed on as argument to the
-    exec callback;
+  - "txo": transaction order against which predicates are run,
+    passed on as argument to the exec callback;
   - "parentID": ID of the first unit in the chain, typically token's type ID;
   - "args": slice of arguments for chained predicates, ie when called for mint NFT tx the
-    TokenCreationPredicateSignatures field of the mint tx;
+    TokenMintingProofs field of the mint tx;
   - "exec": function which evaluates the predicate;
   - "iter": function which returns "parent ID" and predicate for given unit (the "chain iterator");
   - "getUnit": function which returns unit with given ID;
 */
 func runChainedPredicates[T types.UnitData](
 	env txtypes.ExecutionContext,
-	txo *types.TransactionOrder,
+	sigBytesFn func() ([]byte, error),
 	parentID types.UnitID,
 	args [][]byte,
 	exec predicates.PredicateRunner,
@@ -46,7 +46,7 @@ func runChainedPredicates[T types.UnitData](
 		if parentID, predicate = iter(parentData); predicate == nil {
 			return fmt.Errorf("unexpected nil predicate")
 		}
-		if err := exec(predicate, args[idx], txo, env); err != nil {
+		if err := exec(predicate, args[idx], sigBytesFn, env); err != nil {
 			return fmt.Errorf("executing predicate [%d] in the chain: %w", idx, err)
 		}
 	}

@@ -6,15 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
-
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -24,33 +23,32 @@ const (
 )
 
 type userTokenPartitionGenesisConfig struct {
-	Base             *baseConfiguration
-	Keys             *keysConfig
-	SystemIdentifier types.SystemID
-	Output           string
-	OutputState      string
-	T2Timeout        uint32
-	AdminKey         []byte
+	Base                *baseConfiguration
+	Keys                *keysConfig
+	PDRFilename         string
+	Output              string
+	OutputState         string
+	AdminOwnerPredicate []byte
+	FeelessMode         bool
 }
 
 func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	var systemID uint32
 	config := &userTokenPartitionGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, utDir)}
 	var cmd = &cobra.Command{
 		Use:   "tokens-genesis",
 		Short: "Generates a genesis file for the User-Defined Token partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.SystemIdentifier = types.SystemID(systemID)
 			return utGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	addSystemIDFlag(cmd, &systemID, tokens.DefaultSystemID)
+	cmd.Flags().StringVar(&config.PDRFilename, "partition-description", "", "filename (full path) from where to read the Partition Description Record")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/tokens/node-genesis-state.cbor)")
-	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
-	cmd.Flags().BytesHexVar(&config.AdminKey, "admin-key", nil, "the admin public key for permissioned mode")
+	cmd.Flags().BytesHexVar(&config.AdminOwnerPredicate, "admin-owner-predicate", nil, "the admin owner predicate for permissioned mode")
+	cmd.Flags().BoolVar(&config.FeelessMode, "feeless-mode", false, "if true then fees are not charged, if false then fees are charged as normal; applies only for permissioned mode")
+	_ = cmd.MarkFlagRequired("partition-description")
 	return cmd
 }
 
@@ -72,6 +70,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(utHomePath)
 	if util.FileExists(nodeGenesisStateFile) {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
+	}
+
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	if err != nil {
+		return fmt.Errorf("loading partition description: %w", err)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
@@ -96,11 +99,10 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 	}
 	nodeGenesis, err := partition.NewNodeGenesis(
 		genesisState,
+		*pdr,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
-		partition.WithSystemIdentifier(config.SystemIdentifier),
-		partition.WithT2Timeout(config.T2Timeout),
 		partition.WithParams(params),
 	)
 	if err != nil {
@@ -130,7 +132,8 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisStateFileLocation(utHome
 
 func (c *userTokenPartitionGenesisConfig) getPartitionParams() ([]byte, error) {
 	src := &genesis.TokensPartitionParams{
-		AdminKey: c.AdminKey,
+		AdminOwnerPredicate: c.AdminOwnerPredicate,
+		FeelessMode:         c.FeelessMode,
 	}
 	res, err := types.Cbor.Marshal(src)
 	if err != nil {

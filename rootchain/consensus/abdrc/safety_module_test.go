@@ -374,7 +374,7 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 					VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1, CurrentRootHash: []byte{0, 1, 2, 3}},
 				}},
 				voteInfoHash: []byte{2, 2, 2, 2}},
-			want: &types.UnicitySeal{PreviousHash: []byte{2, 2, 2, 2}, RootChainRoundNumber: 2, Hash: []byte{0, 1, 2, 3}},
+			want: &types.UnicitySeal{Version: 1, PreviousHash: []byte{2, 2, 2, 2}, RootChainRoundNumber: 2, Hash: []byte{0, 1, 2, 3}},
 		},
 		{
 			name:   "Not to be committed",
@@ -385,7 +385,7 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 					VoteInfo: &drctypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 0, CurrentRootHash: []byte{0, 1, 2, 3}},
 				}},
 				voteInfoHash: []byte{2, 2, 2, 2}},
-			want: &types.UnicitySeal{PreviousHash: []byte{2, 2, 2, 2}},
+			want: &types.UnicitySeal{Version: 1, PreviousHash: []byte{2, 2, 2, 2}},
 		},
 	}
 	for _, tt := range tests {

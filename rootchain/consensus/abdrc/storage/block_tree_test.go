@@ -2,7 +2,10 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"encoding/hex"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -17,43 +20,49 @@ const sysID2 types.SystemID = 2
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
 var inputRecord1 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{2, 2, 2},
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr1 = &types.SystemDescriptionRecord{
-	SystemIdentifier: sysID1,
-	T2Timeout:        2500,
+var sdr1 = &types.PartitionDescriptionRecord{
+	NetworkIdentifier: 5,
+	SystemIdentifier:  sysID1,
+	T2Timeout:         2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{5, 5, 5},
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr2 = &types.SystemDescriptionRecord{
-	SystemIdentifier: sysID2,
-	T2Timeout:        2500,
+var sdr2 = &types.PartitionDescriptionRecord{
+	NetworkIdentifier: 5,
+	SystemIdentifier:  sysID2,
+	T2Timeout:         2500 * time.Millisecond,
 }
 
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: []byte{0xD4, 0xDC, 0xAB, 0x31, 0x55, 0xD5, 0x32, 0x2D, 0xC6, 0xCF, 0x8F, 0x32, 0x20, 0xF0, 0xF1, 0x82, 0xAB, 0x16, 0x79, 0x5B, 0xA8, 0x73, 0x67, 0xDA, 0x60, 0x6E, 0x86, 0x25, 0x4F, 0x0C, 0x8D, 0x2C},
+	CurrentRootHash: hexToBytes("637F77AA807367DA4AA6D585978B20BC13B245F0D374D4316479570E870D8A46"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
 	{
 		Certificate: &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: inputRecord1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID1,
-				SystemDescriptionHash: sdr1.Hash(gocrypto.SHA256),
+				SystemIdentifier:         sysID1,
+				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -61,16 +70,18 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Signatures:           map[string][]byte{},
 			},
 		},
-		SystemDescriptionRecord: sdr1,
+		PartitionDescription: sdr1,
 	},
 	{
 		Certificate: &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: inputRecord2,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID2,
-				SystemDescriptionHash: sdr2.Hash(gocrypto.SHA256),
+				SystemIdentifier:         sysID2,
+				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
@@ -78,7 +89,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Signatures:           map[string][]byte{},
 			},
 		},
-		SystemDescriptionRecord: sdr2,
+		PartitionDescription: sdr2,
 	},
 }
 
@@ -93,12 +104,20 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 					Hash: zeroHash,
 				},
 			},
 		},
 	}
+}
+
+func hexToBytes(hexStr string) []byte {
+	b, err := hex.DecodeString(hexStr)
+	if err != nil {
+		panic(fmt.Sprintf("error decoding hex string: %s", err))
+	}
+	return b
 }
 
 // createTestBlockTree creates the following tree
@@ -349,7 +368,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -409,7 +428,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -523,7 +542,7 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{1, 2, 3},
 			Hash:         zeroHash,
 		},

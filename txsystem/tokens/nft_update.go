@@ -10,9 +10,8 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
-	// update state
+func (n *NonFungibleTokensModule) executeUpdateNFT(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, _ *tokens.UpdateNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 			d, ok := data.(*tokens.NonFungibleTokenData)
@@ -23,17 +22,18 @@ func (n *NonFungibleTokensModule) executeNFTUpdateTx(tx *types.TransactionOrder,
 			d.T = exeCtx.CurrentRound()
 			d.Counter += 1
 			return d, nil
-		})); err != nil {
+		}),
+	); err != nil {
 		return nil, err
 	}
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
+func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, attr *tokens.UpdateNonFungibleTokenAttributes, authProof *tokens.UpdateNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -52,18 +52,14 @@ func (n *NonFungibleTokensModule) validateNFTUpdateTx(tx *types.TransactionOrder
 		return fmt.Errorf("invalid counter: got %d expected %d", attr.Counter, data.Counter)
 	}
 
-	if len(attr.DataUpdateSignatures) == 0 {
-		return errors.New("missing data update signatures")
-	}
-
-	if err = n.execPredicate(data.DataUpdatePredicate, attr.DataUpdateSignatures[0], tx, exeCtx); err != nil {
+	if err = n.execPredicate(data.DataUpdatePredicate, authProof.TokenDataUpdateProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("data update predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
+		tx.AuthProofSigBytes,
 		data.TypeID,
-		attr.DataUpdateSignatures[1:],
+		authProof.TokenTypeDataUpdateProofs,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
 			return d.ParentTypeID, d.DataUpdatePredicate

@@ -103,12 +103,12 @@ func createUnicityCertificates(utData []*types.UnicityTreeData, hash gocrypto.Ha
 		if err != nil {
 			return nil, nil, fmt.Errorf("get unicity tree certificate error: %w", err)
 		}
-		uc := &types.UnicityCertificate{
+		uc := &types.UnicityCertificate{Version: 1,
 			InputRecord: d.InputRecord,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      utCert.SystemIdentifier,
-				SiblingHashes:         utCert.SiblingHashes,
-				SystemDescriptionHash: utCert.SystemDescriptionHash,
+				SystemIdentifier:         utCert.SystemIdentifier,
+				HashSteps:                utCert.HashSteps,
+				PartitionDescriptionHash: utCert.PartitionDescriptionHash,
 			},
 			UnicitySeal: seal,
 		}
@@ -123,7 +123,7 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 		if err := n.IsValid(); err != nil {
 			return nil, fmt.Errorf("partition node %s validation failed: %w", n.NodeIdentifier, err)
 		}
-		si := n.BlockCertificationRequest.SystemIdentifier
+		si := n.BlockCertificationRequest.Partition
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
@@ -177,15 +177,15 @@ func NewRootGenesis(
 		if err = partition.IsValid(); err != nil {
 			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
-		sdrh := partition.SystemDescriptionRecord.Hash(c.hashAlgorithm)
+		sdrh := partition.PartitionDescription.Hash(c.hashAlgorithm)
 		// if partition is valid then conversion cannot fail
-		sdrhs[partition.SystemDescriptionRecord.SystemIdentifier] = sdrh
+		sdrhs[partition.PartitionDescription.SystemIdentifier] = sdrh
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		ucData[i] = &types.UnicityTreeData{
-			SystemIdentifier:            partition.SystemDescriptionRecord.SystemIdentifier,
-			InputRecord:                 partition.Validators[0].BlockCertificationRequest.InputRecord,
-			SystemDescriptionRecordHash: sdrh,
+			SystemIdentifier:         partition.PartitionDescription.SystemIdentifier,
+			InputRecord:              partition.Validators[0].BlockCertificationRequest.InputRecord,
+			PartitionDescriptionHash: sdrh,
 		}
 	}
 	// if all requests match then consensus is present
@@ -198,6 +198,7 @@ func NewRootGenesis(
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &types.UnicitySeal{
+			Version:              1,
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            types.GenesisTime,
 			PreviousHash:         roundMeta.Hash(gocrypto.SHA256),
@@ -244,22 +245,24 @@ func NewRootGenesis(
 	}
 	// generate genesis structs
 	for i, partition := range partitions {
-		certificate, f := certs[partition.SystemDescriptionRecord.SystemIdentifier]
+		certificate, f := certs[partition.PartitionDescription.SystemIdentifier]
 		if !f {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("missing UnicityCertificate for partition %s", partition.PartitionDescription.SystemIdentifier)
 		}
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
-			Nodes:                   partition.Validators,
-			Certificate:             certificate,
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
+			Version:              1,
+			Nodes:                partition.Validators,
+			Certificate:          certificate,
+			PartitionDescription: partition.PartitionDescription,
 		}
 	}
 	// sort genesis partition by system id
 	sort.Slice(genesisPartitions, func(i, j int) bool {
-		return genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier < genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier
+		return genesisPartitions[i].PartitionDescription.SystemIdentifier < genesisPartitions[j].PartitionDescription.SystemIdentifier
 	})
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
+		Version:             1,
 		TotalRootValidators: c.totalValidators,
 		BlockRateMs:         c.blockRateMs,
 		ConsensusTimeoutMs:  c.consensusTimeoutMs,
@@ -270,10 +273,12 @@ func NewRootGenesis(
 		return nil, nil, fmt.Errorf("consensus parameter sign error: %w", err)
 	}
 	genesisRoot := &genesis.GenesisRootRecord{
+		Version:        1,
 		RootValidators: rootValidatorInfo,
 		Consensus:      consensusParams,
 	}
 	rootGenesis := &genesis.RootGenesis{
+		Version:    1,
 		Root:       genesisRoot,
 		Partitions: genesisPartitions,
 	}
@@ -296,11 +301,11 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 			}
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Certificate:             partition.Certificate,
-			RootValidators:          rg.Root.RootValidators,
-			Keys:                    keys,
-			Params:                  partition.Nodes[0].Params,
+			PartitionDescription: partition.PartitionDescription,
+			Certificate:          partition.Certificate,
+			RootValidators:       rg.Root.RootValidators,
+			Keys:                 keys,
+			Params:               partition.Nodes[0].Params,
 		}
 	}
 	return partitionGenesis
@@ -313,13 +318,10 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 			return nil, fmt.Errorf("partition node %s genesis validation failed %w", n.NodeIdentifier, err)
 		}
 	}
-	// create partition record
+	// all nodes expected to have the same PDR so we just take the first
 	pr := &genesis.PartitionRecord{
-		SystemDescriptionRecord: &types.SystemDescriptionRecord{
-			SystemIdentifier: nodes[0].BlockCertificationRequest.SystemIdentifier,
-			T2Timeout:        nodes[0].T2Timeout,
-		},
-		Validators: nodes,
+		PartitionDescription: &nodes[0].PartitionDescription,
+		Validators:           nodes,
 	}
 
 	// validate partition record
@@ -373,9 +375,9 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		}
 		// Append to UC Seal signatures, assume partitions are in the same order
 		for i, rgPart := range rg.Partitions {
-			rgPartSdh := rgPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash
+			rgPartSdh := rgPart.Certificate.UnicityTreeCertificate.PartitionDescriptionHash
 			appendPart := appendGen.Partitions[i]
-			if !bytes.Equal(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) {
+			if !bytes.Equal(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.PartitionDescriptionHash) {
 				return nil, nil, errors.New("not compatible genesis files, partitions are different")
 			}
 			// copy partition UC Seal signatures
@@ -427,7 +429,7 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s cryp
 	// Update partition records
 	for _, pr := range rootGenesis.Partitions {
 		if err = pr.Certificate.UnicitySeal.Sign(id, s); err != nil {
-			return nil, fmt.Errorf("failed to sign partition %X seal: %w", pr.SystemDescriptionRecord.SystemIdentifier, err)
+			return nil, fmt.Errorf("failed to sign partition %X seal: %w", pr.PartitionDescription.SystemIdentifier, err)
 		}
 	}
 	// make sure it what we signed is also valid

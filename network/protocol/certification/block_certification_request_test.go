@@ -13,94 +13,72 @@ func TestBlockCertificationRequest_IsValid_BlockCertificationRequestIsNil(t *tes
 	require.ErrorIs(t, p1.IsValid(nil), ErrBlockCertificationRequestIsNil)
 }
 
-func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord:      &types.InputRecord{},
-	}
-	require.ErrorIs(t, p1.IsValid(nil), errVerifierIsNil)
-}
-
-func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 0,
-		NodeIdentifier:   "11",
-		InputRecord:      &types.InputRecord{},
-	}
-	require.ErrorIs(t, p1.IsValid(verifier), errInvalidSystemIdentifier)
-}
-
-func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "",
-		InputRecord:      &types.InputRecord{},
-	}
-	require.ErrorIs(t, p1.IsValid(verifier), errEmptyNodeIdentifier)
-}
-
-func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord:      nil,
-	}
-	require.ErrorContains(t, p1.IsValid(verifier), types.ErrInputRecordIsNil.Error())
-}
-
-func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord: &types.InputRecord{
-			PreviousHash: []byte{},
-			Hash:         []byte{},
-			BlockHash:    []byte{},
-			SummaryValue: []byte{},
-			RoundNumber:  1,
-		},
-		Signature: make([]byte, 64),
-	}
-	err := p1.IsValid(verifier)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "signature verification failed")
-}
-
-func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
+func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord: &types.InputRecord{
-			PreviousHash: []byte{},
-			Hash:         []byte{},
-			BlockHash:    []byte{},
-			SummaryValue: []byte{},
-			RoundNumber:  1,
-		},
-		RootRoundNumber: 1,
+	validBCR := func(t *testing.T) *BlockCertificationRequest {
+		bcr := &BlockCertificationRequest{
+			Partition:      1,
+			NodeIdentifier: "1",
+			Leader:         "1",
+			InputRecord: &types.InputRecord{Version: 1,
+				PreviousHash: []byte{},
+				Hash:         []byte{},
+				BlockHash:    []byte{},
+				SummaryValue: []byte{},
+				RoundNumber:  1,
+			},
+			RootRoundNumber: 1,
+		}
+
+		require.NoError(t, bcr.Sign(signer))
+		return bcr
 	}
-	err := p1.Sign(signer)
-	require.NoError(t, err)
-	err = p1.IsValid(verifier)
-	require.NoError(t, err)
+
+	t.Run("valid", func(t *testing.T) {
+		bcr := validBCR(t)
+		require.NoError(t, bcr.IsValid(verifier))
+	})
+
+	t.Run("verifier is nil", func(t *testing.T) {
+		bcr := validBCR(t)
+		require.ErrorIs(t, bcr.IsValid(nil), errVerifierIsNil)
+	})
+
+	t.Run("invalid partition ID", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.Partition = 0
+		require.ErrorIs(t, bcr.IsValid(verifier), errInvalidSystemIdentifier)
+	})
+
+	t.Run("invalid node ID", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.NodeIdentifier = ""
+		require.ErrorIs(t, bcr.IsValid(verifier), errEmptyNodeIdentifier)
+	})
+
+	t.Run("invalid IR", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.InputRecord = nil
+		require.EqualError(t, bcr.IsValid(verifier), `input record error: input record is nil`)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.Signature = make([]byte, 64)
+		require.EqualError(t, bcr.IsValid(verifier), `signature verification failed`)
+	})
 }
 
 func TestBlockCertificationRequest_GetPreviousHash(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.Nil(t, req.IRPreviousHash())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord:      nil,
+		Partition:      1,
+		NodeIdentifier: "1",
+		InputRecord:    nil,
 	}
 	require.Nil(t, req.IRPreviousHash())
-	req.InputRecord = &types.InputRecord{PreviousHash: []byte{1, 2, 3}}
+	req.InputRecord = &types.InputRecord{Version: 1, PreviousHash: []byte{1, 2, 3}}
 	require.Equal(t, []byte{1, 2, 3}, req.IRPreviousHash())
 }
 
@@ -108,12 +86,12 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.EqualValues(t, 0, req.IRRound())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		InputRecord:      nil,
+		Partition:      1,
+		NodeIdentifier: "1",
+		InputRecord:    nil,
 	}
 	require.EqualValues(t, 0, req.IRRound())
-	req.InputRecord = &types.InputRecord{RoundNumber: 10}
+	req.InputRecord = &types.InputRecord{Version: 1, RoundNumber: 10}
 	require.EqualValues(t, 10, req.IRRound())
 }
 
@@ -121,9 +99,9 @@ func TestBlockCertificationRequest_RootRound(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.EqualValues(t, 0, req.RootRound())
 	req = &BlockCertificationRequest{
-		SystemIdentifier: 1,
-		NodeIdentifier:   "1",
-		RootRoundNumber:  11,
+		Partition:       1,
+		NodeIdentifier:  "1",
+		RootRoundNumber: 11,
 	}
 	require.EqualValues(t, 11, req.RootRound())
 }

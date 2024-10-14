@@ -33,9 +33,12 @@ func NewTestNode(t *testing.T) *TestNode {
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
-		SystemDescriptionRecord: &types.SystemDescriptionRecord{
-			SystemIdentifier: systemID,
-			T2Timeout:        2500,
+		PartitionDescription: &types.PartitionDescriptionRecord{
+			NetworkIdentifier: 5,
+			SystemIdentifier:  systemID,
+			TypeIdLen:         8,
+			UnitIdLen:         256,
+			T2Timeout:         2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{},
 	}
@@ -48,14 +51,15 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
-			SystemIdentifier: systemID,
-			NodeIdentifier:   partitionNode.PeerConf.ID.String(),
-			InputRecord:      ir,
+			Partition:      systemID,
+			NodeIdentifier: partitionNode.PeerConf.ID.String(),
+			InputRecord:    ir,
 		}
 		err = req.Sign(partitionNode.Signer)
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
+			Version:                   1,
 			NodeIdentifier:            partitionNode.PeerConf.ID.String(),
 			SigningPublicKey:          rawSigningPubKey,
 			EncryptionPublicKey:       rawEncPubKey,
@@ -70,11 +74,12 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.SystemID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID,
-		NodeIdentifier:   node.PeerConf.ID.String(),
-		InputRecord:      ir,
-		RootRoundNumber:  1,
+		Partition:       sysID,
+		NodeIdentifier:  node.PeerConf.ID.String(),
+		InputRecord:     ir,
+		RootRoundNumber: 1,
 	}
+	r1.Leader = r1.NodeIdentifier
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1
 }

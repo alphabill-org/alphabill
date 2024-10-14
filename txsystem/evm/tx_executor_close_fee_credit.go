@@ -11,9 +11,9 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
-	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, authProof *fc.CloseFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.GetUnitID()
+	pubKey, err := predicates.ExtractPubKey(authProof.OwnerProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 	}
@@ -28,7 +28,7 @@ func (f *FeeAccount) executeCloseFC(tx *types.TransactionOrder, attr *fc.CloseFe
 	return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, _ txtypes.ExecutionContext) error {
+func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseFeeCreditAttributes, authProof *fc.CloseFeeCreditAuthProof, _ txtypes.ExecutionContext) error {
 	// there’s no fee credit reference or separate fee authorization proof
 	if err := feeModule.ValidateGenericFeeCreditTx(tx); err != nil {
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
@@ -36,7 +36,7 @@ func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseF
 	// ι identifies an existing fee credit record
 	// ExtrType(P.ι) = fcr – target unit is a fee credit record
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	pubKey, err := predicates.ExtractPubKey(tx.OwnerProof)
+	pubKey, err := predicates.ExtractPubKey(authProof.OwnerProof)
 	if err != nil {
 		return fmt.Errorf("failed to extract public key from fee credit owner proof")
 	}

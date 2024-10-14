@@ -32,7 +32,7 @@ func (TemplateRunner) ID() uint64 {
 	return templates.TemplateStartByte
 }
 
-func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func (TemplateRunner) Execute(_ context.Context, p *sdkpredicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
 	if p.Tag != templates.TemplateStartByte {
 		return false, fmt.Errorf("expected predicate template tag %d but got %d", templates.TemplateStartByte, p.Tag)
 	}
@@ -42,7 +42,7 @@ func (TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, a
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return executeP2PKH256(p.Params, args, txo, env)
+		return executeP2PKH256TxAuth(p.Params, args, sigBytesFn, env)
 	case templates.AlwaysTrueID:
 		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
@@ -76,18 +76,20 @@ func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, er
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
+func executeP2PKH256TxAuth(pubKeyHash, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
+	sigBytes, err := sigBytesFn()
+	if err != nil {
+		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
+	}
+	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
+}
+
+func executeP2PKH256(pubKeyHash, args []byte, sigBytes []byte, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(P2PKHGasCost); err != nil {
 		return false, err
 	}
-	// when AB-1012 gets resolved should call txo.PayloadBytes() instead
-	payloadBytes, err := env.PayloadBytes(txo)
-	if err != nil {
-		return false, fmt.Errorf("reading transaction payload bytes: %w", err)
-	}
-
 	p2pkh256Signature := templates.P2pkh256Signature{}
-	if err = types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
+	if err := types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
 		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {
@@ -100,14 +102,17 @@ func executeP2PKH256(pubKeyHash, args []byte, txo *types.TransactionOrder, env p
 		return false, fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
 	}
 	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
-		return false, errors.New("pubkey hash does not match")
+		return false, nil
 	}
 
 	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
 	if err != nil {
 		return false, fmt.Errorf("failed to create verifier: %w", err)
 	}
-	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, payloadBytes); err != nil {
+	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, sigBytes); err != nil {
+		if errors.Is(err, crypto.ErrVerificationFailed) {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to verify signature: %w", err)
 	}
 	return true, nil

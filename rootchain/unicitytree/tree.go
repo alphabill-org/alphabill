@@ -28,7 +28,7 @@ func New(hashAlgorithm crypto.Hash, data []*types.UnicityTreeData) (*UnicityTree
 	leaves := make([]imt.LeafData, len(data))
 	for i, d := range data {
 		leaves[i] = d
-		sdMap[d.SystemIdentifier] = d.SystemDescriptionRecordHash
+		sdMap[d.SystemIdentifier] = d.PartitionDescriptionHash
 	}
 	t, err := imt.New(hashAlgorithm, leaves)
 	if err != nil {
@@ -58,8 +58,8 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 		return nil, err
 	}
 	return &types.UnicityTreeCertificate{
-		SystemIdentifier:      sysID,
-		SystemDescriptionHash: sdrh,
-		SiblingHashes:         path,
+		SystemIdentifier:         sysID,
+		PartitionDescriptionHash: sdrh,
+		HashSteps:                path[1:], // drop redundant first hash step; path is guaranteed to have size > 0
 	}, nil
 }

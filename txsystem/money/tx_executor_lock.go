@@ -13,9 +13,9 @@ import (
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
 
-func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, _ *money.LockAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// lock the unit
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	action := state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 		newBillData, ok := data.(*money.BillData)
 		if !ok {
@@ -32,15 +32,15 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, _ txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttributes, authProof *money.LockAuthProof, exeCtx txtypes.ExecutionContext) error {
+	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
-		return fmt.Errorf("lock tx: get unit error: %w", err)
+		return fmt.Errorf("lock transaction: get unit error: %w", err)
 	}
 	billData, ok := unit.Data().(*money.BillData)
 	if !ok {
-		return errors.New("lock tx: invalid unit type")
+		return errors.New("lock transaction: invalid unit type")
 	}
 	if billData.IsLocked() {
 		return errors.New("bill is already locked")
@@ -50,6 +50,9 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	}
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
+	}
+	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }

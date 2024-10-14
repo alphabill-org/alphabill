@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -28,16 +29,18 @@ const (
 	moneyPartitionDir         = "money"
 	defaultInitialBillValue   = 1000000000000000000
 	defaultDCMoneySupplyValue = 1000000000000000000
-	defaultT2Timeout          = 2500
 )
 
 var (
 	defaultInitialBillID             = moneysdk.NewBillID(nil, []byte{1})
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
-	defaultMoneySDR = &types.SystemDescriptionRecord{
-		SystemIdentifier: moneysdk.DefaultSystemID,
-		T2Timeout:        defaultT2Timeout,
+	defaultMoneyPDR = &types.PartitionDescriptionRecord{
+		NetworkIdentifier: types.NetworkLocal,
+		SystemIdentifier:  moneysdk.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -48,21 +51,19 @@ var (
 
 type moneyGenesisConfig struct {
 	Base                      *baseConfiguration
-	SystemIdentifier          types.SystemID
 	Keys                      *keysConfig
 	Output                    string
 	OutputState               string
+	PDRFilename               string
 	InitialBillID             types.UnitID
-	InitialBillValue          uint64 `validate:"gte=0"`
+	InitialBillValue          uint64
 	InitialBillOwnerPredicate []byte
-	DCMoneySupplyValue        uint64 `validate:"gte=0"`
-	T2Timeout                 uint32 `validate:"gte=0"`
-	SDRFiles                  []string // system description record files
+	DCMoneySupplyValue        uint64
+	SDRFiles                  []string // system description record filenames
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	var systemID uint32
 	config := &moneyGenesisConfig{
 		Base:                      baseConfig,
 		Keys:                      NewKeysConf(baseConfig, moneyPartitionDir),
@@ -73,20 +74,19 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.SystemIdentifier = types.SystemID(systemID)
 			return abMoneyGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
-	addSystemIDFlag(cmd, &systemID, moneysdk.DefaultSystemID)
+	cmd.Flags().StringVar(&config.PDRFilename, "partition-description", "", "filename (full path) from where to read the Partition Description Record")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().StringVarP(&config.OutputState, "output-state", "", "", "path to the output genesis state file (default: $AB_HOME/money/node-genesis-state.cbor)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().BytesHexVar(&config.InitialBillOwnerPredicate, "initial-bill-owner-predicate", defaultInitialBillOwnerPredicate, "the initial bill owner predicate")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
-	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR)")
 	config.Keys.addCmdFlags(cmd)
+	_ = cmd.MarkFlagRequired("partition-description")
 	return cmd
 }
 
@@ -109,6 +109,11 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	nodeGenesisStateFile := config.getNodeGenesisStateFileLocation(moneyPartitionHomePath)
 	if util.FileExists(nodeGenesisStateFile) {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
+	}
+
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	if err != nil {
+		return fmt.Errorf("loading partition description: %w", err)
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
@@ -136,11 +141,10 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	}
 	nodeGenesis, err := partition.NewNodeGenesis(
 		genesisState,
+		*pdr,
 		partition.WithPeerID(peerID),
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
-		partition.WithSystemIdentifier(config.SystemIdentifier),
-		partition.WithT2Timeout(config.T2Timeout),
 		partition.WithParams(params),
 	)
 	if err != nil {
@@ -174,7 +178,7 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 		return nil, err
 	}
 	src := &genesis.MoneyPartitionParams{
-		SystemDescriptionRecords: sdrs,
+		Partitions: sdrs,
 	}
 	res, err := types.Cbor.Marshal(src)
 	if err != nil {
@@ -183,13 +187,13 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	return res, nil
 }
 
-func (c *moneyGenesisConfig) getSDRs() ([]*types.SystemDescriptionRecord, error) {
-	var sdrs []*types.SystemDescriptionRecord
+func (c *moneyGenesisConfig) getSDRs() ([]*types.PartitionDescriptionRecord, error) {
+	var sdrs []*types.PartitionDescriptionRecord
 	if len(c.SDRFiles) == 0 {
-		sdrs = append(sdrs, defaultMoneySDR)
+		sdrs = append(sdrs, defaultMoneyPDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &types.SystemDescriptionRecord{})
+			sdr, err := util.ReadJsonFile(sdrFile, &types.PartitionDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}

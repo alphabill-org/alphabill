@@ -52,16 +52,16 @@ func (x *Payload) IsValid() error {
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {
-			return fmt.Errorf("invalid IR change request for %s: %w", req.SystemIdentifier, err)
+			return fmt.Errorf("invalid IR change request for %s: %w", req.Partition, err)
 		}
 		// Timeout requests do not contain proof
 		if req.CertReason == T2Timeout && len(req.Requests) > 0 {
-			return fmt.Errorf("partition %s timeout proof contains requests", req.SystemIdentifier)
+			return fmt.Errorf("partition %s timeout proof contains requests", req.Partition)
 		}
-		if _, found := sysIdSet[req.SystemIdentifier]; found {
-			return fmt.Errorf("duplicate requests for partition %s", req.SystemIdentifier)
+		if _, found := sysIdSet[req.Partition]; found {
+			return fmt.Errorf("duplicate requests for partition %s", req.Partition)
 		}
-		sysIdSet[req.SystemIdentifier] = struct{}{}
+		sysIdSet[req.Partition] = struct{}{}
 	}
 	return nil
 }

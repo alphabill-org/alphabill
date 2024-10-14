@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,131 +24,127 @@ const (
 	ownerPredicate          = "830041025820F52022BB450407D92F13BF1C53128A676BCF304818E9F41A5EF4EBEAE9C0D6B0"
 )
 
-func TestOrchestrationGenesis_KeyFileNotFound(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", filepath.Join(homeDir, orchestrationDir, defaultKeysFileName)))
-}
-
-func TestOrchestrationGenesis_ForceKeyGeneration(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
+func Test_OrchestrationGenesis(t *testing.T) {
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  123,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         5 * time.Second,
+	}
+	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
-	require.FileExists(t, filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName))
-}
+	pdrArgument := " --partition-description " + pdrFilename
 
-func TestOrchestrationGenesis_DefaultNodeGenesisExists(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700)
-	require.NoError(t, err)
+	t.Run("KeyFileNotFound", func(t *testing.T) {
+		homeDir := t.TempDir()
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err := cmd.Execute(context.Background())
+		require.ErrorContains(t, err, "failed to load keys "+filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
+	})
 
-	nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
-	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
-	require.NoError(t, err)
+	t.Run("ForceKeyGeneration", func(t *testing.T) {
+		homeDir := t.TempDir()
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
+		require.FileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
+		require.FileExists(t, filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName))
+	})
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
-	require.NoFileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
-}
+	t.Run("DefaultNodeGenesisExists", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700))
+		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
 
-func TestOrchestrationGenesis_LoadExistingKeys(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700)
-	require.NoError(t, err)
-	kf := filepath.Join(homeDir, orchestrationDir, defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
-	nodeKeys, err := GenerateKeys()
-	require.NoError(t, err)
-	err = nodeKeys.WriteTo(kf)
-	require.NoError(t, err)
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err := cmd.Execute(context.Background())
+		require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
+		require.NoFileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
+	})
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
+	t.Run("LoadExistingKeys", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700))
+		kf := filepath.Join(homeDir, orchestrationDir, defaultKeysFileName)
+		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
+		nodeKeys, err := GenerateKeys()
+		require.NoError(t, err)
+		require.NoError(t, nodeKeys.WriteTo(kf))
 
-	require.FileExists(t, kf)
-	require.FileExists(t, nodeGenesisFile)
-}
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-func TestOrchestrationGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700)
-	require.NoError(t, err)
+		require.FileExists(t, kf)
+		require.FileExists(t, nodeGenesisFile)
+	})
 
-	err = os.MkdirAll(filepath.Join(homeDir, orchestrationDir, "n1"), 0700)
-	require.NoError(t, err)
+	t.Run("WritesGenesisToSpecifiedOutputLocation", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir, "n1"), 0700))
 
-	nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "n1", orchestrationGenesisFileName)
-	nodeGenesisStateFile := filepath.Join(homeDir, orchestrationDir, "n1", orchestrationGenesisStateFileName)
+		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "n1", orchestrationGenesisFileName)
+		nodeGenesisStateFile := filepath.Join(homeDir, orchestrationDir, "n1", orchestrationGenesisStateFileName)
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-	require.FileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
-	require.FileExists(t, nodeGenesisFile)
-	require.FileExists(t, nodeGenesisStateFile)
-}
+		require.FileExists(t, filepath.Join(homeDir, orchestrationDir, defaultKeysFileName))
+		require.FileExists(t, nodeGenesisFile)
+		require.FileExists(t, nodeGenesisStateFile)
+	})
 
-func TestOrchestrationGenesis_WithSystemIdentifier(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700)
-	require.NoError(t, err)
+	t.Run("partition description is loaded", func(t *testing.T) {
+		homeDir := t.TempDir()
+		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "not-default-name.json")
 
-	err = os.MkdirAll(filepath.Join(homeDir, orchestrationDir, "n1"), 0700)
-	require.NoError(t, err)
+		sdr := types.PartitionDescriptionRecord{
+			NetworkIdentifier: 5,
+			SystemIdentifier:  55,
+			TypeIdLen:         4,
+			UnitIdLen:         300,
+			T2Timeout:         10 * time.Second,
+		}
+		sdrFile, err := createPDRFile(homeDir, &sdr)
+		require.NoError(t, err)
 
-	kf := filepath.Join(homeDir, orchestrationDir, "n1", defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "n1", orchestrationGenesisFileName)
+		cmd := New(testobserve.NewFactory(t))
+		args := "orchestration-genesis -g -o " + nodeGenesisFile + " --home " + homeDir + " --owner-predicate " + ownerPredicate + " --partition-description " + sdrFile
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "orchestration-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01020304" + " --home " + homeDir + " --owner-predicate " + ownerPredicate
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		require.NoError(t, err)
+		require.EqualValues(t, sdr, pn.PartitionDescription)
+		require.EqualValues(t, sdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)
+	})
 
-	require.FileExists(t, kf)
-	require.FileExists(t, nodeGenesisFile)
+	t.Run("ParamsCanBeChanged", func(t *testing.T) {
+		homeDir := t.TempDir()
+		cmd := New(testobserve.NewFactory(t))
+		args := fmt.Sprintf("orchestration-genesis --home %s -g --owner-predicate %s %s", homeDir, ownerPredicate, pdrArgument)
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
-	require.NoError(t, err)
-	require.EqualValues(t, 0o1020304, pn.BlockCertificationRequest.SystemIdentifier)
-}
+		pg, err := util.ReadJsonFile(filepath.Join(homeDir, orchestrationPartitionDir, orchestrationGenesisFileName), &genesis.PartitionGenesis{})
+		require.NoError(t, err)
+		require.NotNil(t, pg)
 
-func TestOrchestrationGenesis_ParamsCanBeChanged(t *testing.T) {
-	homeDir := setupTestHomeDir(t, orchestrationGenesisDir)
+		var params *genesis.OrchestrationPartitionParams
+		require.NoError(t, types.Cbor.Unmarshal(pg.Params, &params))
 
-	cmd := New(testobserve.NewFactory(t))
-	args := fmt.Sprintf("orchestration-genesis --home %s -g --owner-predicate %s", homeDir, ownerPredicate)
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
-	require.NoError(t, err)
-
-	gf := filepath.Join(homeDir, orchestrationPartitionDir, orchestrationGenesisFileName)
-	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
-	require.NoError(t, err)
-	require.NotNil(t, pg)
-
-	var params *genesis.OrchestrationPartitionParams
-	err = types.Cbor.Unmarshal(pg.Params, &params)
-	require.NoError(t, err)
-
-	expectedOwnerPredicate, err := hex.DecodeString(ownerPredicate)
-	require.NoError(t, err)
-
-	require.EqualValues(t, expectedOwnerPredicate, params.OwnerPredicate)
+		expectedOwnerPredicate, err := hex.DecodeString(ownerPredicate)
+		require.NoError(t, err)
+		require.EqualValues(t, expectedOwnerPredicate, params.OwnerPredicate)
+	})
 }

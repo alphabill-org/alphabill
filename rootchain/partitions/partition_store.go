@@ -2,7 +2,9 @@ package partitions
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"sync"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -12,8 +14,7 @@ import (
 
 type (
 	PartitionInfo struct {
-		// partition system description record,
-		SystemDescription *types.SystemDescriptionRecord
+		PartitionDescription *types.PartitionDescriptionRecord
 		// registered nodes and their public key's
 		Verifier PartitionTrustBase
 	}
@@ -58,6 +59,10 @@ func (v *TrustBase) GetTotalNodes() uint64 {
 	return uint64(len(v.PartitionTrustBase))
 }
 
+func (v *TrustBase) NodeIDs() []string {
+	return slices.Collect(maps.Keys(v.PartitionTrustBase))
+}
+
 func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {
 	ver, found := v.PartitionTrustBase[nodeId]
 	if !found {
@@ -93,7 +98,7 @@ func (ps *PartitionStore) Reset(curRound func() uint64) error {
 /*
 It is expected that "round" only increases, to jump back in history Reset has to be called.
 */
-func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.SystemDescriptionRecord, PartitionTrustBase, error) {
+func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
@@ -107,7 +112,7 @@ func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.Syste
 	if !f {
 		return nil, nil, fmt.Errorf("unknown partition identifier %s", id)
 	}
-	return info.SystemDescription, info.Verifier, nil
+	return info.PartitionDescription, info.Verifier, nil
 }
 
 /*
@@ -153,9 +158,9 @@ func (ps *PartitionStore) loadConfig(round uint64) error {
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[partition.SystemDescriptionRecord.SystemIdentifier] = &PartitionInfo{
-			SystemDescription: partition.SystemDescriptionRecord,
-			Verifier:          NewPartitionTrustBase(trustBase),
+		parts[partition.PartitionDescription.SystemIdentifier] = &PartitionInfo{
+			PartitionDescription: partition.PartitionDescription,
+			Verifier:             NewPartitionTrustBase(trustBase),
 		}
 	}
 

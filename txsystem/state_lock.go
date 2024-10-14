@@ -32,11 +32,11 @@ func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.Transa
 	}
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -58,7 +58,7 @@ func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, erro
 // Returns error if unit is locked and could not be unlocked (either predicate fails or none input is provided).
 func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// todo: handle multiple target units
-	unitID := tx.UnitID()
+	unitID := tx.GetUnitID()
 	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
@@ -80,11 +80,11 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	}
 	txOnHold := &types.TransactionOrder{}
 	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal state lock tx: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
-	if err = proof.check(m.pr, tx, txOnHold.Payload.StateLock, exeCtx); err != nil {
+	if err = proof.check(m.pr, tx, txOnHold.StateLock, exeCtx); err != nil {
 		return nil, fmt.Errorf("unlock error: %w", err)
 	}
 	// proof is ok, release the lock
@@ -95,7 +95,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if proof.Kind == StateUnlockExecute {
 		sm, err := m.handlers.Execute(txOnHold, exeCtx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute tx that was on hold: %w", err)
+			return nil, fmt.Errorf("failed to execute transaction that was on hold: %w", err)
 		}
 		return sm, nil
 	}
@@ -106,15 +106,15 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 // executeLockUnitState - validates lock predicate and locks the state of a unit
 func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// transaction contains lock and execution predicate - lock unit
-	if err := tx.Payload.StateLock.IsValid(); err != nil {
+	if err := tx.StateLock.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid state lock parameter: %w", err)
 	}
 	// todo: add support for multiple targets
-	targetUnits := []types.UnitID{tx.UnitID()}
+	targetUnits := []types.UnitID{tx.GetUnitID()}
 	// ignore 'err' as we are only interested if the predicate evaluates to true or not
 	txBytes, err := types.Cbor.Marshal(tx)
 	if err != nil {
-		return nil, fmt.Errorf("state lock: failed to marshal tx: %w", err)
+		return nil, fmt.Errorf("state lock: failed to marshal transaction: %w", err)
 	}
 	// lock the state
 	for _, targetUnit := range targetUnits {

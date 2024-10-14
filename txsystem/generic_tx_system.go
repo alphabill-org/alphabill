@@ -24,7 +24,7 @@ var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 type (
 	GenericTxSystem struct {
-		systemIdentifier    types.SystemID
+		pdr                 types.PartitionDescriptionRecord
 		hashAlgorithm       crypto.Hash
 		state               *state.State
 		currentRoundNumber  uint64
@@ -36,6 +36,7 @@ type (
 		roundCommitted      bool
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
+		unitIdValidator     func(types.UnitID) error
 	}
 
 	Observability interface {
@@ -44,9 +45,12 @@ type (
 	}
 )
 
-func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
-	if systemID == 0 {
-		return nil, errors.New("system ID must be assigned")
+func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+	if err := pdr.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid Partition Description: %w", err)
+	}
+	if err := pdr.IsValidShard(shardID); err != nil {
+		return nil, fmt.Errorf("invalid shard ID: %w", err)
 	}
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
@@ -56,10 +60,11 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 		option(options)
 	}
 	txs := &GenericTxSystem{
-		systemIdentifier:    systemID,
+		pdr:                 pdr,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		trustBase:           trustBase,
+		unitIdValidator:     pdr.UnitIdValidator(shardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -71,13 +76,13 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 
 	for _, module := range modules {
 		if err := txs.handlers.Add(module.TxHandlers()); err != nil {
-			return nil, fmt.Errorf("registering tx handler: %w", err)
+			return nil, fmt.Errorf("registering transaction handler: %w", err)
 		}
 	}
 	// if fees are collected, then register fee tx handlers
 	if options.feeCredit != nil {
 		if err := txs.handlers.Add(options.feeCredit.TxHandlers()); err != nil {
-			return nil, fmt.Errorf("registering fee credit tx handler: %w", err)
+			return nil, fmt.Errorf("registering fee credit transaction handler: %w", err)
 		}
 
 	}
@@ -91,6 +96,13 @@ func NewGenericTxSystem(systemID types.SystemID, trustBase types.RootTrustBase, 
 // FeesEnabled - if fee module is configured then fees will be collected
 func (m *GenericTxSystem) FeesEnabled() bool {
 	return m.fees != nil
+}
+
+func (m *GenericTxSystem) StateSize() (uint64, error) {
+	if !m.state.IsCommitted() {
+		return 0, ErrStateContainsUncommittedChanges
+	}
+	return m.state.Size()
 }
 
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
@@ -131,10 +143,10 @@ func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.Exec
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
-	// First, check transaction credible and that there are enough fee credits on the FRC?
+	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.GetClientMaxTxFee())
+	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {
@@ -142,10 +154,10 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	}
 	// only handle fees if there is a fee module
 	if err := m.snFees(tx, exeCtx); err != nil {
-		return nil, fmt.Errorf("error tx snFees: %w", err)
+		return nil, fmt.Errorf("error transaction snFees: %w", err)
 	}
-	// all tx's that get this far will go into bock even if they fail and cost is credited from user FCR
-	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	// all transactions that get this far will go into bock even if they fail and cost is credited from user FCR
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
 		sm, err := m.executeFc(tx, exeCtx)
@@ -157,7 +169,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	// execute rest ordinary transactions
 	if err := m.fees.IsCredible(exeCtx, tx); err != nil {
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
-		return nil, fmt.Errorf("error tx not credible: %w", err)
+		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
 	sm, err := m.doExecute(tx, exeCtx)
 	if err != nil {
@@ -173,7 +185,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
-			m.log.Debug("tx execute failed", logger.Error(txExecErr))
+			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
 			result.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order
@@ -186,14 +198,14 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		sm.ActualFee = exeCtx.CalculateCost()
 		if sm.ActualFee > 0 {
 			// credit the cost from
-			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
+			feeCreditRecordID := tx.FeeCreditRecordID()
 			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
 				// Tx must not be added to block - FCR could not be credited.
 				// Otherwise, Tx would be for free, and there are no funds taken to pay validators
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
 				sm = nil
-				retErr = fmt.Errorf("handling tx fee: %w", err)
+				retErr = fmt.Errorf("handling transaction fee: %w", err)
 			}
 			// add fee credit record unit log
 			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
@@ -226,14 +238,14 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		txExecErr = fmt.Errorf("unit state lock error: %w", err)
 		return result, nil
 	}
-	// perform transaction-system-specific validation and owner condition check
-	attr, err := m.handlers.Validate(tx, exeCtx)
+	// perform transaction-system-specific validation and owner predicate check
+	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
-		txExecErr = fmt.Errorf("tx '%s' validation error: %w", tx.PayloadType(), err)
+		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
 		return result, nil
 	}
 	// either state lock or execute Tx
-	if tx.Payload.HasStateLock() {
+	if tx.HasStateLock() {
 		// handle conditional lock of units
 		sm, err = m.executeLockUnitState(tx, exeCtx)
 		result = appendServerMetadata(result, sm)
@@ -243,7 +255,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		return result, nil
 	}
 	// proceed with the transaction execution, if not state lock
-	sm, err = m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	result = appendServerMetadata(result, sm)
 	if err != nil {
 		txExecErr = fmt.Errorf("execute error: %w", err)
@@ -253,15 +265,15 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
 	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
-	if tx.Payload.StateLock != nil {
-		return nil, fmt.Errorf("error fc tx contains state lock")
+	if tx.StateLock != nil {
+		return nil, fmt.Errorf("error fc transaction contains state lock")
 	}
 	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
 	// if we do no handle state locking and unlocking then lock state must be impossible state
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
-	// perform transaction-system-specific validation and owner condition check
-	attr, err := m.handlers.Validate(tx, exeCtx)
+	// perform transaction-system-specific validation and owner predicate check
+	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +283,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
 	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
 	// proceed with the transaction execution
-	sm, err := m.handlers.ExecuteWithAttr(tx, attr, exeCtx)
+	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
@@ -304,23 +316,25 @@ The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
 implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
-	// 1. P.α = S.α – transaction is sent to this system
-	if m.systemIdentifier != tx.SystemID() {
+	// T.α = S.α – transaction is sent to this network
+	if m.pdr.NetworkIdentifier != tx.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkIdentifier)
+	}
+
+	// T.β = S.β – transaction is sent to this partition
+	if m.pdr.SystemIdentifier != tx.SystemID {
 		return ErrInvalidSystemIdentifier
 	}
 
-	// 2. fSH(P.ι)=S.σ–target unit is in this shard
+	// fSH(T.ι) = S.σ – target unit is in this shard
+	if err := m.unitIdValidator(tx.UnitID); err != nil {
+		return err
+	}
 
-	// 3. n < T0 – transaction has not expired
+	// S.n < T0 – transaction has not expired
 	if m.currentRoundNumber >= tx.Timeout() {
 		return ErrTransactionExpired
 	}
-
-	// 4. N[ι] = ⊥ ∨ VerifyOwner(N[ι].φ, P, P.s) = 1 – owner proof verifies correctly.
-	// Yellowpaper currently suggests to check owner proof here. However it requires
-	// knowledge about whether it's ok that the unit is not part of current
-	// state - ie create token type or mint token transactions. So we do the
-	// owner proof verification in the tx handler.
 	return nil
 }
 

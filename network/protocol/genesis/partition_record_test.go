@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -9,9 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &types.SystemDescriptionRecord{
-	SystemIdentifier: 1,
-	T2Timeout:        10,
+var systemDescription = &types.PartitionDescriptionRecord{
+	NetworkIdentifier: 5,
+	SystemIdentifier:  1,
+	TypeIdLen:         8,
+	UnitIdLen:         256,
+	T2Timeout:         time.Second,
 }
 
 func TestPartitionRecord_IsValid(t *testing.T) {
@@ -19,7 +23,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		SystemDescriptionRecord *types.SystemDescriptionRecord
+		SystemDescriptionRecord *types.PartitionDescriptionRecord
 		Validators              []*PartitionNode
 	}
 
@@ -51,9 +55,12 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name: "invalid validator system identifier",
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 2,
-					T2Timeout:        10,
+				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
+					NetworkIdentifier: 5,
+					SystemIdentifier:  2,
+					TypeIdLen:         8,
+					UnitIdLen:         256,
+					T2Timeout:         time.Second,
 				},
 				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
@@ -74,8 +81,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionRecord{
-				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
-				Validators:              tt.fields.Validators,
+				PartitionDescription: tt.fields.SystemDescriptionRecord,
+				Validators:           tt.fields.Validators,
 			}
 			err = x.IsValid()
 			if tt.wantErrStr != "" {
@@ -97,7 +104,7 @@ func TestPartitionRecord_GetPartitionNode(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	pr := &PartitionRecord{
-		SystemDescriptionRecord: systemDescription,
+		PartitionDescription: systemDescription,
 		Validators: []*PartitionNode{
 			createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
 		},

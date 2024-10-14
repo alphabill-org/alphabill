@@ -17,29 +17,43 @@ import (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
+	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
 	ErrMissingSystemIdentifier        = errors.New("system identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
-	ErrMissingAdminOwnerCondition     = errors.New("admin owner condition is missing")
+	ErrMissingAdminOwnerPredicate     = errors.New("admin owner predicate is missing")
 )
 
-type (
-	// FeeCreditModule is a transaction system module for handling fees in "permissioned" mode.
-	// In permissioned mode all FCRs must be created by a designated "admin key" with a CreateFCR transaction.
-	// Furthermore, all transactions are free e.g. cost 0, however, the transaction fee proof (or owner proof)
-	// must satisfy the FCR i.e. all users must ask the owner of the admin key for permission to send transactions.
-	FeeCreditModule struct {
-		systemIdentifier        types.SystemID
-		state                   *state.State
-		hashAlgorithm           crypto.Hash
-		execPredicate           predicates.PredicateRunner
-		feeCreditRecordUnitType []byte
-		feeBalanceValidator     *feeModule.FeeBalanceValidator
-		adminOwnerCondition     types.PredicateBytes
+/*
+FeeCreditModule is a transaction system module for handling fees in "permissioned" mode.
+
+In permissioned mode there are two special transactions: SetFC and DeleteFC;
+these transactions can only be sent by the operator of this partition i.e. owner of the admin key.
+The SetFC transaction can be used to create new fee credit records and update existing ones.
+The DeleteFC transaction can be used to close existing fee credit records.
+All other ordinary transactions must still satisfy the fee credit records
+i.e. users must ask the owner of the partition for permission to send transactions.
+
+In addition, the module can be configured in two modes: normal and feeless.
+In normal mode the non-fee transaction costs are calculated normally.
+In feeless mode the non-fee transactions are "free" i.e. no actual fees are charged.
+*/
+type FeeCreditModule struct {
+	networkID               types.NetworkID
+	systemIdentifier        types.SystemID
+	state                   *state.State
+	hashAlgorithm           crypto.Hash
+	execPredicate           predicates.PredicateRunner
+	feeCreditRecordUnitType []byte
+	feeBalanceValidator     *feeModule.FeeBalanceValidator
+	adminOwnerPredicate     types.PredicateBytes
+	feelessMode             bool
+}
+
+func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+	if networkID == 0 {
+		return nil, ErrMissingSystemIdentifier
 	}
-)
-
-func NewFeeCreditModule(systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerCondition []byte, opts ...Option) (*FeeCreditModule, error) {
 	if systemID == 0 {
 		return nil, ErrMissingSystemIdentifier
 	}
@@ -49,14 +63,14 @@ func NewFeeCreditModule(systemID types.SystemID, state *state.State, feeCreditRe
 	if len(feeCreditRecordUnitType) == 0 {
 		return nil, ErrMissingFeeCreditRecordUnitType
 	}
-	if len(adminOwnerCondition) == 0 {
-		return nil, ErrMissingAdminOwnerCondition
+	if len(adminOwnerPredicate) == 0 {
+		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
 		systemIdentifier:        systemID,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
-		adminOwnerCondition:     adminOwnerCondition,
+		adminOwnerPredicate:     adminOwnerPredicate,
 		hashAlgorithm:           crypto.SHA256,
 	}
 	for _, o := range opts {
@@ -75,20 +89,30 @@ func NewFeeCreditModule(systemID types.SystemID, state *state.State, feeCreditRe
 	return m, nil
 }
 
+// CalculateCost calculates the actual fee charged for the current transaction, based on gas used.
+// For non-fee transactions it is implicitly used in GenericTxSystem.
+// For fee transactions this function is NOT used in this module.
 func (f *FeeCreditModule) CalculateCost(gasUsed uint64) uint64 {
-	return 0 // all transactions are "free" in permissioned mode
+	// in feeless mode all transactions are "free"
+	if f.feelessMode {
+		return 0
+	}
+	// in normal mode all transactions cost at least 1 tema
+	cost := (gasUsed + feeModule.GasUnitsPerTema/2) / feeModule.GasUnitsPerTema
+	if cost == 0 {
+		cost = 1
+	}
+	return cost
 }
 
 func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
-	// FCRs have balance of 1 alpha that is never decreased,
-	// so transactions cannot spend gas worth more than 1 alpha
-	return 1e8 * feeModule.GasUnitsPerTema
+	return maxTxCost * feeModule.GasUnitsPerTema
 }
 
-func (f *FeeCreditModule) TxHandlers() map[string]txtypes.TxExecutor {
-	return map[string]txtypes.TxExecutor{
-		permissioned.PayloadTypeCreateFCR: txtypes.NewTxHandler[permissioned.CreateFeeCreditAttributes](f.validateCreateFCR, f.executeCreateFCR),
-		permissioned.PayloadTypeDeleteFCR: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes](f.validateDeleteFCR, f.executeDeleteFCR),
+func (f *FeeCreditModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		permissioned.TransactionTypeSetFeeCredit:    txtypes.NewTxHandler[permissioned.SetFeeCreditAttributes, permissioned.SetFeeCreditAuthProof](f.validateSetFC, f.executeSetFC),
+		permissioned.TransactionTypeDeleteFeeCredit: txtypes.NewTxHandler[permissioned.DeleteFeeCreditAttributes, permissioned.DeleteFeeCreditAuthProof](f.validateDeleteFC, f.executeDeleteFC),
 	}
 }
 

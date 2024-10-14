@@ -31,12 +31,22 @@ import (
 )
 
 func TestRunTokensNode(t *testing.T) {
-	homeDir := setupTestHomeDir(t, "tokens")
+	homeDir := t.TempDir()
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  tokens.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
+	}
+	pdrFilename := filepath.Join(homeDir, "pdr.json")
+	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
+
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
 		appStoppedWg := sync.WaitGroup{}
@@ -48,6 +58,7 @@ func TestRunTokensNode(t *testing.T) {
 		// generate node genesis
 		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir +
+			" --partition-description " + pdrFilename +
 			" -o " + nodeGenesisFileLocation +
 			" --output-state " + nodeGenesisStateFileLocation +
 			" -g -k " + keysFileLocation
@@ -109,20 +120,20 @@ func TestRunTokensNode(t *testing.T) {
 		// Test
 		// green path
 		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
-		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
+		attr := &tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
-			InvariantPredicate:       templates.AlwaysTrueBytes(),
+			TokenMintingPredicate:    templates.AlwaysTrueBytes(),
+			TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID:       tokens.DefaultSystemID,
-				Type:           tokens.PayloadTypeCreateNFTType,
+				Type:           tokens.TransactionTypeDefineNFT,
 				UnitID:         id[:],
 				Attributes:     attrBytes,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
@@ -137,7 +148,7 @@ func TestRunTokensNode(t *testing.T) {
 
 		// failing case
 		var res2 types.Bytes
-		tx.Payload.SystemID = 0x01000000 // incorrect system id
+		tx.SystemID = 0x01000000 // incorrect system id
 		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))

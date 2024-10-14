@@ -2,6 +2,7 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"testing"
@@ -18,7 +19,7 @@ import (
 const partitionID1 types.SystemID = 1
 const partitionID2 types.SystemID = 2
 
-var genesisInputRecord = &types.InputRecord{
+var genesisInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
@@ -33,7 +34,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 type mockIRVerifier struct{}
 
 func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*InputData, error) {
-	return &InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
+	return &InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
 func generateBlockData(round uint64, req ...*drctypes.IRChangeReq) *drctypes.BlockData {
@@ -61,9 +62,9 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	b := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, data.SysID)
+	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
-	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.SystemDescriptionHash, data.Sdrh)
+	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PartitionDescriptionHash, data.PDRHash)
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
@@ -91,9 +92,9 @@ func TestExecutedBlock(t *testing.T) {
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	parent := NewGenesisBlock(hash, rootGenesis.Partitions)
 	certReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: partitionID1,
-		NodeIdentifier:   "1",
-		InputRecord: &types.InputRecord{
+		Partition:      partitionID1,
+		NodeIdentifier: "1",
+		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash:    []byte{1, 1, 1, 1},
 			Hash:            []byte{2, 2, 2, 2},
 			BlockHash:       []byte{3, 3, 3, 3},
@@ -103,9 +104,9 @@ func TestExecutedBlock(t *testing.T) {
 		},
 	}
 	req := &drctypes.IRChangeReq{
-		SystemIdentifier: partitionID1,
-		CertReason:       drctypes.Quorum,
-		Requests:         []*certification.BlockCertificationRequest{certReq},
+		Partition:  partitionID1,
+		CertReason: drctypes.Quorum,
+		Requests:   []*certification.BlockCertificationRequest{certReq},
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
@@ -121,13 +122,15 @@ func TestExecutedBlock(t *testing.T) {
 	// parent remains unchanged
 	require.Equal(t, genesisInputRecord, parent.CurrentIR.Find(partitionID1).IR)
 	require.Equal(t, hash, executedBlock.HashAlgo)
-	require.EqualValues(t, "A815B4DFDDAABF23FEBE0E3E4975BE8CC1DD0FDE78941935D5C502D803FC20C2", fmt.Sprintf("%X", executedBlock.RootHash))
+	require.EqualValues(t, "89D3869C9284F932817E48CA5CEA7979000292E0072D3D5264D5ABEA2054E912", fmt.Sprintf("%X", executedBlock.RootHash))
 	// block has not got QC nor commit QC yet
 	require.Nil(t, executedBlock.Qc)
 	require.Nil(t, executedBlock.CommitQc)
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
+	rh, err := hex.DecodeString("DDA4C864E4365DDB45B6555D3815BFAC9227C01887540DD653169CBA3D7BCB4F")
+	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:  "test",
@@ -137,8 +140,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		},
 		CurrentIR: InputRecords{
 			{
-				SysID: partitionID1,
-				IR: &types.InputRecord{
+				Partition: partitionID1,
+				IR: &types.InputRecord{Version: 1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{2, 2, 2, 2},
 					BlockHash:       []byte{3, 3, 3, 3},
@@ -146,11 +149,11 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					RoundNumber:     3,
 					SumOfEarnedFees: 4,
 				},
-				Sdrh: []byte{1, 2, 3, 4},
+				PDRHash: []byte{1, 2, 3, 4},
 			},
 			{
-				SysID: partitionID2,
-				IR: &types.InputRecord{
+				Partition: partitionID2,
+				IR: &types.InputRecord{Version: 1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{4, 4, 4, 4},
 					BlockHash:       []byte{3, 3, 3, 3},
@@ -158,21 +161,21 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					RoundNumber:     3,
 					SumOfEarnedFees: 6,
 				},
-				Sdrh: []byte{4, 5, 6, 7},
+				PDRHash: []byte{4, 5, 6, 7},
 			},
 		},
 		Changed:  []types.SystemID{partitionID1, partitionID2},
 		HashAlgo: gocrypto.SHA256,
-		RootHash: []byte{0x0A, 0x54, 0x3E, 0xC8, 0xFB, 0xBB, 0xDA, 0x18, 0x74, 0xC6, 0xAB, 0x54, 0xAC, 0x4C, 0x1B,
-			0x10, 0xF5, 0xCA, 0x72, 0x65, 0x7F, 0x6E, 0x28, 0x55, 0x5, 0x4A, 0x3A, 0xF4, 0xD4, 0xA3, 0x83, 0x66},
+		RootHash: rh,
 	}
+
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
 			Hash:         make([]byte, gocrypto.SHA256.Size()),
 		},
@@ -188,11 +191,9 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
-			Hash: []byte{0x0A, 0x54, 0x3E, 0xC8, 0xFB, 0xBB, 0xDA, 0x18, 0x74, 0xC6, 0xAB, 0x54, 0xAC, 0x4C, 0x1B,
-				0x10, 0xF5, 0xCA, 0x72, 0x65, 0x7F, 0x6E, 0x28, 0x55, 0x5, 0x4A, 0x3A, 0xF4, 0xD4, 0xA3, 0x83, 0x66,
-			},
+			Hash:         rh,
 		},
 	}
 	certs, err = block.GenerateCertificates(commitQc)

@@ -168,7 +168,7 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 			},
 			receiveProtocolDescription{
 				protocolID: ProtocolUnicityCertificates,
-				typeFn:     func() any { return &types.UnicityCertificate{} },
+				typeFn:     func() any { return &types.UnicityCertificate{Version: 1} },
 			},
 		)
 	}
@@ -262,7 +262,7 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 			return
 		}
 		if err := txProcessor(ctx, tx); err != nil {
-			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID))
 		}
 	}
 }
@@ -295,7 +295,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 
 		addToMetric := func(status string) {
 			n.txFwdBy.Add(ctx, 1, metric.WithAttributeSet(
-				attribute.NewSet(attribute.String("tx", tx.PayloadType()), attribute.String("status", status))))
+				attribute.NewSet(attribute.Int("tx", int(tx.Type)), attribute.String("status", status))))
 		}
 
 		curReceiver := receiverFunc()
@@ -312,7 +312,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 			var err error
 			stream, err = n.self.CreateStream(ctx, receiver, ProtocolInputForward)
 			if err != nil {
-				n.log.WarnContext(ctx, "opening p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
+				n.log.WarnContext(ctx, "opening p2p stream", logger.Error(err), logger.UnitID(tx.UnitID))
 				addToMetric("err")
 				continue
 			}
@@ -321,17 +321,17 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 
 		n.log.DebugContext(ctx,
 			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
-			logger.UnitID(tx.UnitID()))
+			logger.UnitID(tx.UnitID))
 
 		data, err := serializeMsg(tx)
 		if err != nil {
-			n.log.WarnContext(ctx, "serializing tx", logger.Error(err), logger.UnitID(tx.UnitID()))
+			n.log.WarnContext(ctx, "serializing tx", logger.Error(err), logger.UnitID(tx.UnitID))
 			addToMetric("err.serialize")
 			continue
 		}
 
 		if _, err := stream.Write(data); err != nil {
-			n.log.WarnContext(ctx, "writing data to p2p stream", logger.Error(err), logger.UnitID(tx.UnitID()))
+			n.log.WarnContext(ctx, "writing data to p2p stream", logger.Error(err), logger.UnitID(tx.UnitID))
 			addToMetric("err.write")
 			continue
 		}
@@ -365,7 +365,7 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 		}
 
 		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(
-			attribute.String("tx", tx.PayloadType()),
+			attribute.Int("tx", int(tx.Type)),
 			attribute.String("status", statusCodeOfTxBufferError(err))))
 	}
 }

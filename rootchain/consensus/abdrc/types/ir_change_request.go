@@ -2,7 +2,7 @@ package types
 
 import (
 	"bytes"
-	gocrypto "crypto"
+	"crypto"
 	"errors"
 	"fmt"
 
@@ -22,11 +22,13 @@ const (
 type IRChangeReason uint8
 
 type IRChangeReq struct {
-	_                struct{}       `cbor:",toarray"`
-	SystemIdentifier types.SystemID `json:"system_identifier,omitempty"`
-	CertReason       IRChangeReason `json:"cert_reason,omitempty"`
+	_          struct{} `cbor:",toarray"`
+	Partition  types.SystemID
+	Shard      types.ShardID
+	CertReason IRChangeReason
 	// IR change (quorum or no quorum possible of block certification requests)
-	Requests []*certification.BlockCertificationRequest `json:"requests,omitempty"`
+	Requests  []*certification.BlockCertificationRequest
+	Technical certification.TechnicalRecord
 }
 
 func (r IRChangeReason) String() string {
@@ -79,23 +81,23 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 	for _, req := range x.Requests {
 		if err := tb.Verify(req.NodeIdentifier, req); err != nil {
 			return nil, fmt.Errorf("request proof from partition %s node %v is not valid: %w",
-				req.SystemIdentifier, req.NodeIdentifier, err)
+				req.Partition, req.NodeIdentifier, err)
 		}
-		if x.SystemIdentifier != req.SystemIdentifier {
+		if x.Partition != req.Partition {
 			return nil, fmt.Errorf("invalid partition %s proof: node %v request system id %s does not match request",
-				x.SystemIdentifier, req.NodeIdentifier, req.SystemIdentifier)
+				x.Partition, req.NodeIdentifier, req.Partition)
 		}
 		if err := consensus.CheckBlockCertificationRequest(req, luc); err != nil {
 			return nil, fmt.Errorf("invalid certification request: %w", err)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {
 			return nil, fmt.Errorf("invalid partition %s proof: contains duplicate request from node %v",
-				x.SystemIdentifier, req.NodeIdentifier)
+				x.Partition, req.NodeIdentifier)
 		}
 		// register node id
 		nodeIDs[req.NodeIdentifier] = struct{}{}
 		// get hash of IR and add to hash counter
-		hasher := gocrypto.SHA256.New()
+		hasher := crypto.SHA256.New()
 		req.InputRecord.AddToHasher(hasher)
 		count := hashCnt[string(hasher.Sum(nil))]
 		hashCnt[string(hasher.Sum(nil))] = count + 1
@@ -107,11 +109,11 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 		// reject requests carrying redundant info, there is no use for proofs that do not participate in quorum
 		// perhaps this is a bit harsh, but let's not waste bandwidth
 		if len(hashCnt) != 1 {
-			return nil, fmt.Errorf("invalid partition %s quorum proof: contains proofs for different state hashes", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %s quorum proof: contains proofs for different state hashes", x.Partition)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
-		if count := getMaxHashCount(hashCnt); count < tb.GetQuorum() {
-			return nil, fmt.Errorf("invalid partition %s quorum proof: not enough requests to prove quorum", x.SystemIdentifier)
+		if count, q := getMaxHashCount(hashCnt), tb.GetQuorum(); count < q {
+			return nil, fmt.Errorf("invalid partition %s quorum proof: not enough requests to prove quorum (got %d, need %d)", x.Partition, count, q)
 		}
 		// if any request did not extend previous state the whole IRChange request is rejected in validation step
 		// NB! there was at least one request, otherwise we would not be here
@@ -121,22 +123,21 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 		// a) find how many votes are missing (nof nodes - requests)
 		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
 		if int(tb.GetTotalNodes())-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(tb.GetQuorum()) {
-			return nil, fmt.Errorf("invalid partition %s no quorum proof: not enough requests to prove only no quorum is possible", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %s no quorum proof: not enough requests to prove only no quorum is possible", x.Partition)
 		}
 		// initiate repeat UC
 		return luc.InputRecord.NewRepeatIR(), nil
-
 	case T2Timeout:
-		// timout does not carry proof in form of certification requests
+		// timeout does not carry proof in form of certification requests
 		// again this is not fatal in itself, but we should not encourage redundant info
 		if len(x.Requests) != 0 {
-			return nil, fmt.Errorf("invalid partition %s timeout proof: proof contains requests", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %s timeout proof: proof contains requests", x.Partition)
 		}
 		// validate timeout against LUC age
 		lucAge := round - luc.UnicitySeal.RootChainRoundNumber
 		if lucAge < t2InRounds {
 			return nil, fmt.Errorf("invalid partition %s timeout proof: time from latest UC %v, timeout in rounds %v",
-				x.SystemIdentifier, lucAge, t2InRounds)
+				x.Partition, lucAge, t2InRounds)
 		}
 		// initiate repeat UC
 		return luc.InputRecord.NewRepeatIR(), nil
@@ -148,7 +149,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 // Bytes serializes entire struct.
 func (x *IRChangeReq) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.SystemIdentifier.Bytes())
+	b.Write(x.Partition.Bytes())
 	b.Write(util.Uint32ToBytes(uint32(x.CertReason)))
 	for _, req := range x.Requests {
 		b.Write(req.Bytes())
@@ -157,5 +158,5 @@ func (x *IRChangeReq) Bytes() []byte {
 }
 
 func (x *IRChangeReq) String() string {
-	return fmt.Sprintf("%s->%s", x.SystemIdentifier, x.CertReason)
+	return fmt.Sprintf("%s->%s", x.Partition, x.CertReason)
 }

@@ -20,12 +20,12 @@ func NewUnlockFC(t *testing.T, signer abcrypto.Signer, attr *fc.UnlockFeeCreditA
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(fc.PayloadTypeUnlockFeeCredit),
+		testtransaction.WithTransactionType(fc.TransactionTypeUnlockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
-		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithAuthProof(fc.UnlockFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

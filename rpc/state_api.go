@@ -19,11 +19,12 @@ type (
 	}
 
 	partitionNode interface {
+		NetworkID() types.NetworkID
 		SystemID() types.SystemID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
-		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
+		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
 		GetLatestRoundNumber(ctx context.Context) (uint64, error)
 		TransactionSystemState() txsystem.StateReader
 		ValidatorNodes() peer.IDSlice
@@ -31,6 +32,7 @@ type (
 	}
 
 	Unit[T any] struct {
+		NetworkID      types.NetworkID       `json:"networkId"`
 		SystemID       types.SystemID        `json:"systemId"`
 		UnitID         types.UnitID          `json:"unitId"`
 		Data           T                     `json:"data"`
@@ -39,8 +41,7 @@ type (
 	}
 
 	TransactionRecordAndProof struct {
-		TxRecord types.Bytes `json:"txRecord"`
-		TxProof  types.Bytes `json:"txProof"`
+		TxRecordProof types.Bytes `json:"txRecordProof"` // hex encoded CBOR of types.TxRecordProof
 	}
 )
 
@@ -70,10 +71,11 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 	}
 
 	resp := &Unit[any]{
+		NetworkID:      s.node.NetworkID(),
 		SystemID:       s.node.SystemID(),
 		UnitID:         unitID,
 		Data:           unit.Data(),
-		OwnerPredicate: unit.Bearer(),
+		OwnerPredicate: unit.Owner(),
 		StateProof:     nil,
 	}
 
@@ -115,24 +117,19 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (ty
 
 // GetTransactionProof returns transaction record and proof for the given transaction hash.
 func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) (*TransactionRecordAndProof, error) {
-	txRecord, txProof, err := s.node.GetTransactionRecord(ctx, txHash)
+	txRecordProof, err := s.node.GetTransactionRecordProof(ctx, txHash)
 	if err != nil {
 		if errors.Is(err, partition.ErrIndexNotFound) || errors.Is(err, types.ErrBlockIsNil) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordBytes, err := types.Cbor.Marshal(txRecord)
+	txRecordProofCBOR, err := types.Cbor.Marshal(txRecordProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
-	txProofBytes, err := types.Cbor.Marshal(txProof)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode tx proof: %w", err)
-	}
 	return &TransactionRecordAndProof{
-		TxRecord: txRecordBytes,
-		TxProof:  txProofBytes,
+		TxRecordProof: txRecordProofCBOR,
 	}, nil
 }
 

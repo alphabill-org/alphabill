@@ -1,12 +1,10 @@
 package exec_context
 
 import (
-	"testing"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-	"github.com/stretchr/testify/require"
 )
 
 type MockExecContext struct {
@@ -16,11 +14,16 @@ type MockExecContext struct {
 	RoundNumber   uint64
 	GasRemaining  uint64
 	mockErr       error
+	customData    []byte
 }
 
 func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	if m.mockErr != nil {
 		return nil, m.mockErr
+	}
+	// return avl.ErrNotFound if unit does not exist to be consistent with actual implementation
+	if m.Unit == nil {
+		return nil, avl.ErrNotFound
 	}
 	return m.Unit, nil
 }
@@ -34,31 +37,44 @@ func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return m.RootTrustBase, nil
 }
 
-// until AB-1012 gets resolved we need this hack to get correct payload bytes.
-func (m *MockExecContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return txo.PayloadBytes()
+func (m *MockExecContext) TransactionOrder() (*types.TransactionOrder, error) {
+	if m.mockErr != nil {
+		return nil, m.mockErr
+	}
+	return m.Tx, nil
 }
 
-type TestOption func(*MockExecContext) error
+func (m *MockExecContext) GetData() []byte {
+	return m.customData
+}
+
+func (m *MockExecContext) SetData(data []byte) {
+	m.customData = data
+}
+
+type TestOption func(*MockExecContext)
 
 func WithCurrentRound(round uint64) TestOption {
-	return func(m *MockExecContext) error {
+	return func(m *MockExecContext) {
 		m.RoundNumber = round
-		return nil
 	}
 }
 
 func WithUnit(unit *state.Unit) TestOption {
-	return func(m *MockExecContext) error {
+	return func(m *MockExecContext) {
 		m.Unit = unit
-		return nil
+	}
+}
+
+func WithData(data []byte) TestOption {
+	return func(m *MockExecContext) {
+		m.customData = data
 	}
 }
 
 func WithErr(err error) TestOption {
-	return func(m *MockExecContext) error {
+	return func(m *MockExecContext) {
 		m.mockErr = err
-		return nil
 	}
 }
 
@@ -75,10 +91,10 @@ func (m *MockExecContext) CalculateCost() uint64 {
 	return 1 // (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
 }
 
-func NewMockExecutionContext(t *testing.T, options ...TestOption) txtypes.ExecutionContext {
+func NewMockExecutionContext(options ...TestOption) txtypes.ExecutionContext {
 	execCtx := &MockExecContext{}
 	for _, o := range options {
-		require.NoError(t, o(execCtx))
+		o(execCtx)
 	}
 	return execCtx
 }

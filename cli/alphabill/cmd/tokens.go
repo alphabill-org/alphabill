@@ -134,16 +134,18 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	}
 
 	txs, err := tokens.NewTxSystem(
+		*pg.PartitionDescription,
+		types.ShardID{},
 		obs,
-		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
-		tokens.WithAdminKey(params.AdminKey),
+		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),
+		tokens.WithFeelessMode(params.FeelessMode),
 	)
 	if err != nil {
-		return fmt.Errorf("creating tx system: %w", err)
+		return fmt.Errorf("creating transaction system: %w", err)
 	}
 	var ownerIndexer *partition.OwnerIndexer
 	if cfg.Node.WithOwnerIndex {

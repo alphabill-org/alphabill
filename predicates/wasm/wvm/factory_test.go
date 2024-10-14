@@ -35,12 +35,12 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 
 	t.Run("TransactionOrder ok", func(t *testing.T) {
 		txo := types.TransactionOrder{
-			Payload: &types.Payload{
+			Payload: types.Payload{
 				SystemID: 1,
-				Type:     "txt",
+				Type:     22,
 			},
-			OwnerProof: []byte{1},
-			FeeProof:   []byte{2},
+			AuthProof: []byte{1},
+			FeeProof:  []byte{2},
 		}
 		buf, err := types.Cbor.Marshal(txo)
 		require.NoError(t, err)
@@ -53,14 +53,13 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 
 	t.Run("TransactionRecord ok", func(t *testing.T) {
 		txr := types.TransactionRecord{
-			TransactionOrder: &types.TransactionOrder{
-				OwnerProof: []byte{0, 0, 0},
-			},
+			TransactionOrder: &types.TransactionOrder{},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,
 				SuccessIndicator: types.TxStatusSuccessful,
 			},
 		}
+		txr.TransactionOrder.SetAuthProof([]byte{0, 0, 0})
 		buf, err := types.Cbor.Marshal(txr)
 		require.NoError(t, err)
 
@@ -71,7 +70,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TxProof ok", func(t *testing.T) {
-		txp := types.TxProof{
+		txp := types.TxProof{Version: 1,
 			BlockHeaderHash: []byte{5, 5, 5},
 			Chain:           []*types.GenericChainItem{{Hash: []byte{4}}},
 		}

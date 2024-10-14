@@ -2,124 +2,120 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	utDirectory  = "tokens"
-	utGenesisDir = "ut-genesis"
-)
-
-func TestTokensGenesis_KeyFileNotFound(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", filepath.Join(homeDir, utDirectory, defaultKeysFileName)))
-}
-
-func TestTokensGenesis_ForceKeyGeneration(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --gen-keys --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
+func Test_TokensGenesis(t *testing.T) {
+	// create partition description file to be shared in all the tests
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  2,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         3 * time.Second,
+	}
+	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
-	require.FileExists(t, filepath.Join(homeDir, utDirectory, utGenesisFileName))
-}
+	pdrArgument := " --partition-description " + pdrFilename
+	const utDirectory = "tokens"
 
-func TestTokensGenesis_DefaultNodeGenesisExists(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
-	require.NoError(t, err)
+	t.Run("KeyFileNotFound", func(t *testing.T) {
+		homeDir := t.TempDir()
+		cmd := New(testobserve.NewFactory(t))
+		args := "tokens-genesis --home " + homeDir + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err := cmd.Execute(context.Background())
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", filepath.Join(homeDir, utDirectory, defaultKeysFileName)))
+	})
 
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
-	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
-	require.NoError(t, err)
+	t.Run("ForceKeyGeneration", func(t *testing.T) {
+		homeDir := t.TempDir()
+		cmd := New(testobserve.NewFactory(t))
+		args := "tokens-genesis --gen-keys --home " + homeDir + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
+		require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
+		require.FileExists(t, filepath.Join(homeDir, utDirectory, utGenesisFileName))
+	})
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --gen-keys --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
-	require.NoFileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
-}
+	t.Run("LoadExistingKeys", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700))
+		kf := filepath.Join(homeDir, utDirectory, defaultKeysFileName)
+		nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
+		nodeKeys, err := GenerateKeys()
+		require.NoError(t, err)
+		require.NoError(t, nodeKeys.WriteTo(kf))
 
-func TestTokensGenesis_LoadExistingKeys(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
-	require.NoError(t, err)
-	kf := filepath.Join(homeDir, utDirectory, defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
-	nodeKeys, err := GenerateKeys()
-	require.NoError(t, err)
-	err = nodeKeys.WriteTo(kf)
-	require.NoError(t, err)
+		cmd := New(testobserve.NewFactory(t))
+		args := "tokens-genesis --home " + homeDir + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err = cmd.Execute(context.Background())
+		require.NoError(t, err)
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
+		require.FileExists(t, kf)
+		require.FileExists(t, nodeGenesisFile)
+	})
 
-	require.FileExists(t, kf)
-	require.FileExists(t, nodeGenesisFile)
-}
+	t.Run("WritesGenesisToSpecifiedOutputLocation", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, utDirectory, "n1"), 0700))
 
-func TestTokensGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
-	require.NoError(t, err)
+		nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
+		nodeGenesisStateFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisStateFileName)
 
-	err = os.MkdirAll(filepath.Join(homeDir, utDirectory, "n1"), 0700)
-	require.NoError(t, err)
+		cmd := New(testobserve.NewFactory(t))
+		args := "tokens-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
-	nodeGenesisStateFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisStateFileName)
+		require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
+		require.FileExists(t, nodeGenesisFile)
+		require.FileExists(t, nodeGenesisStateFile)
+	})
 
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis --gen-keys -o " + nodeGenesisFile + " --output-state " + nodeGenesisStateFile + " --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
+	t.Run("PartitionParams", func(t *testing.T) {
+		homeDir := t.TempDir()
+		adminOwnerPredicate := "830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f"
 
-	require.FileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
-	require.FileExists(t, nodeGenesisFile)
-	require.FileExists(t, nodeGenesisStateFile)
-}
+		cmd := New(testobserve.NewFactory(t))
+		args := fmt.Sprintf("tokens-genesis -g --home %s %s --admin-owner-predicate %s --feeless-mode true", homeDir, pdrArgument, adminOwnerPredicate)
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		require.NoError(t, cmd.Execute(context.Background()))
 
-func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
-	homeDir := setupTestHomeDir(t, utGenesisDir)
-	err := os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700)
-	require.NoError(t, err)
+		nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		require.NoError(t, err)
+		var params *genesis.TokensPartitionParams
+		require.NoError(t, types.Cbor.Unmarshal(pn.Params, &params))
+		require.NotNil(t, params)
+		require.Equal(t, adminOwnerPredicate, hex.EncodeToString(params.AdminOwnerPredicate))
+		require.True(t, params.FeelessMode)
+	})
 
-	err = os.MkdirAll(filepath.Join(homeDir, utDirectory, "n1"), 0700)
-	require.NoError(t, err)
+	t.Run("DefaultNodeGenesisExists", func(t *testing.T) {
+		homeDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700))
+		nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
 
-	kf := filepath.Join(homeDir, utDirectory, "n1", defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, utDirectory, "n1", utGenesisFileName)
-
-	cmd := New(testobserve.NewFactory(t))
-	args := "tokens-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01020304" + " --home " + homeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.Execute(context.Background())
-	require.NoError(t, err)
-
-	require.FileExists(t, kf)
-	require.FileExists(t, nodeGenesisFile)
-
-	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
-	require.NoError(t, err)
-	require.EqualValues(t, 0o1020304, pn.BlockCertificationRequest.SystemIdentifier)
+		cmd := New(testobserve.NewFactory(t))
+		args := "tokens-genesis --gen-keys --home " + homeDir + pdrArgument
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err := cmd.Execute(context.Background())
+		require.ErrorContains(t, err, fmt.Sprintf("node genesis file %q already exists", nodeGenesisFile))
+		require.NoFileExists(t, filepath.Join(homeDir, utDirectory, defaultKeysFileName))
+	})
 }

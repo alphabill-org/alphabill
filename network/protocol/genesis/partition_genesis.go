@@ -17,12 +17,12 @@ var (
 )
 
 type PartitionGenesis struct {
-	_                       struct{}                       `cbor:",toarray"`
-	SystemDescriptionRecord *types.SystemDescriptionRecord `json:"system_description_record,omitempty"`
-	Certificate             *types.UnicityCertificate      `json:"certificate,omitempty"`
-	RootValidators          []*PublicKeyInfo               `json:"root_validators,omitempty"`
-	Keys                    []*PublicKeyInfo               `json:"keys,omitempty"`
-	Params                  []byte                         `json:"params,omitempty"`
+	_                    struct{}                          `cbor:",toarray"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
+	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
+	RootValidators       []*PublicKeyInfo                  `json:"root_validators,omitempty"`
+	Keys                 []*PublicKeyInfo                  `json:"keys,omitempty"`
+	Params               []byte                            `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
@@ -59,18 +59,18 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 		return fmt.Errorf("partition keys validation failed, %w", err)
 	}
 
-	if x.SystemDescriptionRecord == nil {
+	if x.PartitionDescription == nil {
 		return types.ErrSystemDescriptionIsNil
 	}
-	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
+	if err := x.PartitionDescription.IsValid(); err != nil {
 		return fmt.Errorf("invalid system decsrition record, %w", err)
 	}
 	if x.Certificate == nil {
 		return ErrPartitionUnicityCertificateIsNil
 	}
-	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
+	sdrHash := x.PartitionDescription.Hash(hashAlgorithm)
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.SystemIdentifier, sdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators

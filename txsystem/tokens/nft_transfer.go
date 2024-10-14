@@ -11,11 +11,10 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	unitID := tx.UnitID()
-	// update owner, counter and last updated block number
+func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, _ *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
-		state.SetOwner(unitID, attr.NewBearer),
+		state.SetOwner(unitID, attr.NewOwnerPredicate),
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 			d, ok := data.(*tokens.NonFungibleTokenData)
 			if !ok {
@@ -31,8 +30,8 @@ func (n *NonFungibleTokensModule) executeNFTTransferTx(tx *types.TransactionOrde
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
-	unitID := tx.UnitID()
+func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, authProof *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
@@ -55,22 +54,22 @@ func (n *NonFungibleTokensModule) validateNFTTransferTx(tx *types.TransactionOrd
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.TypeID)
 	}
 
-	if err = n.execPredicate(u.Bearer(), tx.OwnerProof, tx, exeCtx); err != nil {
-		return fmt.Errorf("executing bearer predicate: %w", err)
+	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 		exeCtx,
-		tx,
-		data.TypeID,
-		attr.InvariantPredicateSignatures,
+		tx.AuthProofSigBytes,
+		tokenTypeID,
+		authProof.TokenTypeOwnerProofs,
 		n.execPredicate,
 		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.InvariantPredicate
+			return d.ParentTypeID, d.TokenTypeOwnerPredicate
 		},
 		n.state.GetUnit,
 	)
 	if err != nil {
-		return fmt.Errorf(`token type "InvariantPredicate": %w`, err)
+		return fmt.Errorf("token type owner predicate: %w", err)
 	}
 	return nil
 }

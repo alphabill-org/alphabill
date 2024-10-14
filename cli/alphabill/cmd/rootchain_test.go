@@ -55,17 +55,18 @@ func TestRootValidator_DefaultDBPath(t *testing.T) {
 
 func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 	t.Helper()
-	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyPartitionDir, defaultKeysFileName)
 	rootDir := filepath.Join(homeDir, defaultRootChainDir)
 	logF := observability.NewFactory(t)
 	// prepare
 	// generate money node genesis
-	cmd := New(logF)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
+	cmd := New(logF)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + pdrFilename
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// create root node genesis with root node
 	cmd = New(logF)
 	args = "root-genesis new --home " + homeDir +
@@ -81,7 +82,7 @@ func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
 		" --root-genesis=" + filepath.Join(rootDir, rootGenesisFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
-	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
+	return rootDir, filepath.Join(homeDir, moneyPartitionDir)
 }
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
@@ -183,8 +184,8 @@ func Test_StartMonolithicNode(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemID,
-				NodeIdentifier:   moneyPeer.ID().String(),
+				Partition:      money.DefaultSystemID,
+				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 2*time.Second, test.WaitTick)
@@ -227,18 +228,19 @@ func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 
 func Test_Start_2_DRCNodes(t *testing.T) {
 	homeDir := t.TempDir()
-	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyPartitionDir, defaultKeysFileName)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	observe := observability.Default(t)
 	obsF := observe.Factory()
 	// prepare genesis files
 	// generate money node genesis
-	cmd := New(obsF)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
+	cmd := New(obsF)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + pdrFilename
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.Execute(context.Background()))
 	// create root node genesis with root node 1
 	genesisFileDirN1 := filepath.Join(homeDir, defaultRootChainDir+"1")
 	cmd = New(obsF)
@@ -318,8 +320,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				SystemIdentifier: money.DefaultSystemID,
-				NodeIdentifier:   moneyPeer.ID().String(),
+				Partition:      money.DefaultSystemID,
+				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 4*time.Second, test.WaitTick)

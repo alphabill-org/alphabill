@@ -13,6 +13,7 @@ import (
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 )
@@ -30,13 +31,14 @@ func TestLockFT_Ok(t *testing.T) {
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 	attr := &tokens.LockTokenAttributes{
-		LockStatus:                   1,
-		Counter:                      0,
-		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
+		LockStatus: 1,
+		Counter:    0,
 	}
-	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingTokenID)
+	tx := createTxOrder(t, existingTokenID, tokens.TransactionTypeLockToken, attr,
+		testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: templates.EmptyArgument()}),
+	)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingTokenID, false)
@@ -47,7 +49,7 @@ func TestLockFT_Ok(t *testing.T) {
 
 	// verify lock status, counter and round number is updated
 	// verify value and type id is not updated
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
+	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
 	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
 	require.Equal(t, roundNo, d.T)
@@ -65,70 +67,64 @@ func TestLockFT_NotOk(t *testing.T) {
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
-		attr       *tokens.LockTokenAttributes
 		wantErrStr string
 	}{
 		{
 			name:       "unit ID is nil",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, nil),
-			attr:       &tokens.LockTokenAttributes{},
+			tx:         createTxOrder(t, nil, tokens.TransactionTypeLockToken, nil),
 			wantErrStr: "not found",
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeID),
-			attr:       &tokens.LockTokenAttributes{},
-			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
+			tx:         createTxOrder(t, existingTokenTypeID, tokens.TransactionTypeLockToken, nil),
+			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000101' is not of fungible nor non-fungible token type",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, tokens.NewFungibleTokenID(nil, []byte{42})),
-			attr:       &tokens.LockTokenAttributes{},
+			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeLockToken, nil),
 			wantErrStr: fmt.Sprintf("unit '%s' does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
 		},
 		{
 			name: "token is already locked",
-			tx: createTx(t, existingLockedTokenID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingLockedTokenID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    0,
+			}, testtransaction.WithAuthProof([][]byte{templates.EmptyArgument()})),
 			wantErrStr: "token is already locked",
 		},
 		{
 			name: "lock status zero",
-			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
-				LockStatus:                   0,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 0,
+				Counter:    0,
+			}),
 			wantErrStr: "lock status cannot be zero-value",
 		},
 		{
 			name: "invalid counter",
-			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      1,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    1,
+			}),
 			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx: createTx(t, existingTokenID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{{8, 4, 0}},
-			}, tokens.PayloadTypeLockToken),
-			wantErrStr: `executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
+			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    0,
+			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: []byte{8, 4, 0}})),
+			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
+			authProof := &tokens.LockTokenAuthProof{}
+			require.NoError(t, tt.tx.UnmarshalAuthProof(authProof))
 
-			err := m.validateLockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+			err := m.validateLockTokenTx(tt.tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -142,13 +138,12 @@ func TestLockNFT_Ok(t *testing.T) {
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
 	attr := &tokens.LockTokenAttributes{
-		LockStatus:                   1,
-		Counter:                      0,
-		InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
+		LockStatus: 1,
+		Counter:    0,
 	}
-	tx := createTransactionOrder(t, attr, tokens.PayloadTypeLockToken, existingNFTUnitID)
+	tx := createTxOrder(t, existingNFTUnitID, tokens.TransactionTypeLockToken, attr)
 	var roundNo uint64 = 10
-	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(tx, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	u, err := opts.state.GetUnit(existingNFTUnitID, false)
@@ -158,7 +153,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	d := u.Data().(*tokens.NonFungibleTokenData)
 
 	// verify lock status, counter and round number is updated
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
+	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
 	require.Equal(t, roundNo, d.T)
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
@@ -174,70 +169,64 @@ func TestLockNFT_NotOk(t *testing.T) {
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
-		attr       *tokens.LockTokenAttributes
 		wantErrStr string
 	}{
 		{
 			name:       "unit ID is nil",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, nil),
-			attr:       &tokens.LockTokenAttributes{},
+			tx:         createTxOrder(t, nil, tokens.TransactionTypeLockToken, nil),
 			wantErrStr: "not found",
 		},
 		{
 			name:       "unit ID has wrong type",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, existingTokenTypeID),
-			attr:       &tokens.LockTokenAttributes{},
-			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000120' is not of fungible nor non-fungible token type",
+			tx:         createTxOrder(t, existingTokenTypeID, tokens.TransactionTypeLockToken, nil),
+			wantErrStr: "unit id '000000000000000000000000000000000000000000000000000000000000000101' is not of fungible nor non-fungible token type",
 		},
 		{
 			name:       "non-fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, tokens.PayloadTypeLockToken, tokens.NewNonFungibleTokenID(nil, []byte{42})),
-			attr:       &tokens.LockTokenAttributes{},
+			tx:         createTxOrder(t, tokens.NewNonFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeLockToken, nil),
 			wantErrStr: fmt.Sprintf("unit '%s' does not exist", tokens.NewNonFungibleTokenID(nil, []byte{42})),
 		},
 		{
 			name: "token is already locked",
-			tx: createTx(t, existingLockedNFTUnitID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingLockedNFTUnitID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    0,
+			}),
 			wantErrStr: "token is already locked",
 		},
 		{
 			name: "lock status zero",
-			tx: createTx(t, existingNFTUnitID, &tokens.LockTokenAttributes{
-				LockStatus:                   0,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingNFTUnitID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 0,
+				Counter:    0,
+			}),
 			wantErrStr: "lock status cannot be zero-value",
 		},
 		{
 			name: "invalid counter",
-			tx: createTx(t, existingNFTUnitID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      1,
-				InvariantPredicateSignatures: [][]byte{templates.EmptyArgument()},
-			}, tokens.PayloadTypeLockToken),
+			tx: createTxOrder(t, existingNFTUnitID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    1,
+			}),
 			wantErrStr: "the transaction counter is not equal to the token counter",
 		},
 		{
-			name: "invalid token invariant predicate argument",
-			tx: createTx(t, existingNFTUnitID, &tokens.LockTokenAttributes{
-				LockStatus:                   1,
-				Counter:                      0,
-				InvariantPredicateSignatures: [][]byte{{1, 2, 3}},
-			}, tokens.PayloadTypeLockToken),
-			wantErrStr: `executing predicate [0] in the chain: executing predicate: "always true" predicate arguments must be empty`,
+			name: "invalid token owner proof",
+			tx: createTxOrder(t, existingNFTUnitID, tokens.TransactionTypeLockToken, &tokens.LockTokenAttributes{
+				LockStatus: 1,
+				Counter:    0,
+			}, testtransaction.WithAuthProof(tokens.LockTokenAuthProof{OwnerProof: []byte{1, 2, 3}})),
+			wantErrStr: `evaluating owner predicate: executing predicate: "always true" predicate arguments must be empty`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			attr := &tokens.LockTokenAttributes{}
 			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
+			authProof := &tokens.LockTokenAuthProof{}
+			require.NoError(t, tt.tx.UnmarshalAuthProof(authProof))
 
-			err := m.validateLockTokenTx(tt.tx, attr, testctx.NewMockExecutionContext(t, testctx.WithCurrentRound(10)))
+			err := m.validateLockTokenTx(tt.tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10)))
 			require.ErrorContains(t, err, tt.wantErrStr)
 		})
 	}
@@ -261,8 +250,8 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		ParentTypeID:             nil,
 		DecimalPlaces:            5,
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		InvariantPredicate:       templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
+		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
@@ -288,8 +277,8 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
-		TokenCreationPredicate:   templates.AlwaysTrueBytes(),
-		InvariantPredicate:       templates.AlwaysTrueBytes(),
+		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
+		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)

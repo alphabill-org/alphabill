@@ -109,8 +109,9 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
-	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
+	systemIdentifier := pg.PartitionDescription.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
+		pg.PartitionDescription.GetNetworkIdentifier(),
 		systemIdentifier,
 		log,
 		evm.WithBlockGasLimit(params.BlockGasLimit),

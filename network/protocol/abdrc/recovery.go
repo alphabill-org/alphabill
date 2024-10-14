@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
 
@@ -17,10 +18,12 @@ type GetStateMsg struct {
 }
 
 type InputData struct {
-	_     struct{} `cbor:",toarray"`
-	SysID types.SystemID
-	Ir    *types.InputRecord
-	Sdrh  []byte
+	_         struct{} `cbor:",toarray"`
+	Partition types.SystemID
+	Shard     types.ShardID
+	Ir        *types.InputRecord
+	Technical certification.TechnicalRecord
+	Sdrh      []byte
 }
 
 type CommittedBlock struct {
@@ -33,7 +36,7 @@ type CommittedBlock struct {
 
 type StateMsg struct {
 	_             struct{} `cbor:",toarray"`
-	Certificates  []*types.UnicityCertificate
+	Certificates  []*certification.CertificationResponse
 	CommittedHead *CommittedBlock
 	BlockData     []*drctypes.BlockData
 }
@@ -87,8 +90,8 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		}
 	}
 	for _, c := range sm.Certificates {
-		if err := c.Verify(tb, hashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
-			return fmt.Errorf("certificate for %X is invalid: %w", c.UnicityTreeCertificate.SystemIdentifier, err)
+		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.SystemIdentifier, c.UC.UnicityTreeCertificate.PartitionDescriptionHash); err != nil {
+			return fmt.Errorf("certificate for %X is invalid: %w", c.UC.UnicityTreeCertificate.SystemIdentifier, err)
 		}
 	}
 	return nil

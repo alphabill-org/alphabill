@@ -76,9 +76,7 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 
 	obs := observability.Default(t)
 	peer1 := createPeer(t)
-	defer func() { require.NoError(t, peer1.Close()) }()
 	peer2 := createPeer(t)
-	defer func() { require.NoError(t, peer2.Close()) }()
 
 	// peer1 and peer2 are bootstrap peers for peer3
 	bootstrapPeers := []peer.AddrInfo{{
@@ -89,7 +87,6 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 		Addrs: peer2.host.Addrs(),
 	}}
 	peer3 := createBootstrappedPeer(t, bootstrapPeers, []peer.ID{peer1.ID(), peer2.ID()})
-	defer func() { require.NoError(t, peer3.Close()) }()
 
 	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, peer1.conf.Validators}, opts, obs)
 	require.NoError(t, err)
@@ -182,8 +179,9 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	require.LessOrEqual(t, peer1StreamCount, 1)
 	require.LessOrEqual(t, peer2StreamCount, 1)
 
-	cancel()
-	wg.Wait()
+	require.NoError(t, peer1.Close())
+	require.NoError(t, peer2.Close())
+	require.NoError(t, peer3.Close())
 }
 
 type mockNode struct {

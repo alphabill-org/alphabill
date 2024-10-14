@@ -12,17 +12,17 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *tokens.MintNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if err := n.state.Apply(
-		state.AddUnit(tx.UnitID(), attr.Bearer, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
+		state.AddUnit(tx.UnitID, attr.OwnerPredicate, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
 	); err != nil {
 		return nil, err
 	}
-	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+	return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
-func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, exeCtx txtypes.ExecutionContext) error {
-	tokenID := tx.UnitID()
+func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, authProof *tokens.MintNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	tokenID := tx.GetUnitID()
 	tokenTypeID := attr.TypeID
 
 	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
@@ -68,9 +68,13 @@ func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, 
 	if tokenType == nil {
 		return fmt.Errorf("nft type does not exist: %s", tokenTypeID)
 	}
+	tokenTypeData, ok := tokenType.Data().(*tokens.NonFungibleTokenTypeData)
+	if !ok {
+		return fmt.Errorf("token type data is not of type *tokens.NonFungibleTokenTypeData")
+	}
 
 	// verify token id is correctly generated
-	unitPart, err := tokens.HashForNewTokenID(attr, tx.Payload.ClientMetadata, n.hashAlgorithm)
+	unitPart, err := tokens.HashForNewTokenID(tx, n.hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -79,20 +83,9 @@ func (n *NonFungibleTokensModule) validateNFTMintTx(tx *types.TransactionOrder, 
 		return errors.New("invalid token id")
 	}
 
-	// verify predicate inheritance chain
-	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
-		exeCtx,
-		tx,
-		tokenTypeID,
-		attr.TokenCreationPredicateSignatures,
-		n.execPredicate,
-		func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) {
-			return d.ParentTypeID, d.TokenCreationPredicate
-		},
-		n.state.GetUnit,
-	)
-	if err != nil {
-		return fmt.Errorf(`executing NFT type's "TokenCreationPredicate": %w`, err)
+	// verify token minting predicate of the type
+	if err := n.execPredicate(tokenTypeData.TokenMintingPredicate, authProof.TokenMintingProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf(`executing NFT type's "TokenMintingPredicate": %w`, err)
 	}
 	return nil
 }

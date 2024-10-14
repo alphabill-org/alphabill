@@ -15,36 +15,43 @@ func TestNewFeeCreditModule(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	stateTree := state.NewEmptyState()
+	networkID := types.NetworkID(5)
 	systemID := types.SystemID(5)
 	feeCreditRecordUnitType := []byte{1}
-	adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(pubKey)
+	adminOwnerPredicate := predtempl.NewP2pkh256BytesFromKey(pubKey)
+
+	t.Run("missing network id", func(t *testing.T) {
+		m, err := NewFeeCreditModule(0, systemID, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
+		require.Nil(t, m)
+		require.ErrorIs(t, err, ErrMissingSystemIdentifier)
+	})
 
 	t.Run("missing system id", func(t *testing.T) {
-		m, err := NewFeeCreditModule(0, stateTree, feeCreditRecordUnitType, adminOwnerCondition)
+		m, err := NewFeeCreditModule(networkID, 0, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingSystemIdentifier)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(systemID, nil, feeCreditRecordUnitType, adminOwnerCondition)
+		m, err := NewFeeCreditModule(networkID, systemID, nil, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrStateIsNil)
 	})
 
 	t.Run("fee credit record unit type is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(systemID, stateTree, nil, adminOwnerCondition)
+		m, err := NewFeeCreditModule(networkID, systemID, stateTree, nil, adminOwnerPredicate)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingFeeCreditRecordUnitType)
 	})
 
-	t.Run("admin owner condition is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(systemID, stateTree, feeCreditRecordUnitType, nil)
+	t.Run("admin owner predicate is nil", func(t *testing.T) {
+		m, err := NewFeeCreditModule(networkID, systemID, stateTree, feeCreditRecordUnitType, nil)
 		require.Nil(t, m)
-		require.ErrorIs(t, err, ErrMissingAdminOwnerCondition)
+		require.ErrorIs(t, err, ErrMissingAdminOwnerPredicate)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		m, err := NewFeeCreditModule(systemID, stateTree, feeCreditRecordUnitType, adminOwnerCondition)
+		m, err := NewFeeCreditModule(networkID, systemID, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.NotNil(t, m.execPredicate, "execPredicate should not be nil")

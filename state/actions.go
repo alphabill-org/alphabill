@@ -24,13 +24,13 @@ type (
 	UpdateFunction func(data types.UnitData) (newData types.UnitData, err error)
 )
 
-// AddUnit adds a new unit with given identifier, owner condition, unit data.
-func AddUnit(id types.UnitID, bearer types.PredicateBytes, data types.UnitData) Action {
+// AddUnit adds a new unit with given identifier, owner predicate, unit data.
+func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
 		}
-		b := bytes.Clone(bearer)
+		o := bytes.Clone(owner)
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
@@ -44,7 +44,7 @@ func AddUnit(id types.UnitID, bearer types.PredicateBytes, data types.UnitData) 
 		subTreeSummaryHash := hasher.Sum(nil)
 		u := &Unit{
 			logs:                []*Log{},
-			bearer:              b,
+			owner:               o,
 			data:                d,
 			subTreeSummaryValue: unitDataSummaryValue,
 			subTreeSummaryHash:  subTreeSummaryHash,
@@ -56,13 +56,13 @@ func AddUnit(id types.UnitID, bearer types.PredicateBytes, data types.UnitData) 
 	}
 }
 
-// AddUnitWithLock adds a new unit with given identifier, owner condition, unit data and lock.
-func AddUnitWithLock(id types.UnitID, bearer types.PredicateBytes, data types.UnitData, l []byte) Action {
+// AddUnitWithLock adds a new unit with given identifier, owner predicate, unit data and lock.
+func AddUnitWithLock(id types.UnitID, owner types.PredicateBytes, data types.UnitData, l []byte) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
 		}
-		b := bytes.Clone(bearer)
+		o := bytes.Clone(owner)
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
@@ -76,7 +76,7 @@ func AddUnitWithLock(id types.UnitID, bearer types.PredicateBytes, data types.Un
 		subTreeSummaryHash := hasher.Sum(nil)
 		u := &Unit{
 			logs:                []*Log{},
-			bearer:              b,
+			owner:               o,
 			data:                d,
 			stateLockTx:         l,
 			subTreeSummaryValue: unitDataSummaryValue,
@@ -114,7 +114,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 }
 
 // SetOwner changes the owner of the item, leaves data as is
-func SetOwner(id types.UnitID, bearer types.PredicateBytes) Action {
+func SetOwner(id types.UnitID, owner types.PredicateBytes) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
@@ -125,7 +125,7 @@ func SetOwner(id types.UnitID, bearer types.PredicateBytes) Action {
 		}
 
 		cloned := u.Clone()
-		cloned.bearer = bearer
+		cloned.owner = owner
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}

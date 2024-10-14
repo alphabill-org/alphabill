@@ -3,6 +3,7 @@ package partition
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
@@ -13,15 +14,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &types.SystemDescriptionRecord{
-	SystemIdentifier: 1,
-	T2Timeout:        2500,
+var systemDescription = &types.PartitionDescriptionRecord{
+	NetworkIdentifier: 5,
+	SystemIdentifier:  1,
+	TypeIdLen:         8,
+	UnitIdLen:         256,
+	T2Timeout:         2500 * time.Millisecond,
 }
 
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *types.SystemDescriptionRecord
+		systemDescription *types.PartitionDescriptionRecord
 		rootTrustBase     types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
@@ -71,7 +75,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -92,7 +96,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *types.SystemDescriptionRecord
+		systemDescription *types.PartitionDescriptionRecord
 		trustBase         types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
@@ -143,7 +147,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{
+	ir := &types.InputRecord{Version: 1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),

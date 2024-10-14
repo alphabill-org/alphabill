@@ -53,6 +53,7 @@ type (
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
+var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
 func NewDefaultTxValidator(systemIdentifier types.SystemID) (TxValidator, error) {
@@ -68,9 +69,9 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
-	if dtv.systemIdentifier != tx.SystemID() {
+	if dtv.systemIdentifier != tx.SystemID {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %s, got %s: %w", dtv.systemIdentifier, tx.SystemID(), errInvalidSystemIdentifier)
+		return fmt.Errorf("expected %s, got %s: %w", dtv.systemIdentifier, tx.SystemID, errInvalidSystemIdentifier)
 	}
 
 	if tx.Timeout() <= latestBlockNumber {
@@ -78,10 +79,8 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
 	}
 
-	if tx.Payload != nil && tx.Payload.ClientMetadata != nil {
-		if n := len(tx.Payload.ClientMetadata.ReferenceNumber); n > 32 {
-			return fmt.Errorf("maximum allowed length of the ReferenceNumber is 32 bytes, got %d bytes", n)
-		}
+	if n := len(tx.ReferenceNumber()); n > 32 {
+		return fmt.Errorf("maximum allowed length of the ReferenceNumber is 32 bytes, got %d bytes", n)
 	}
 
 	return nil
@@ -89,7 +88,7 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *types.SystemDescriptionRecord,
+	systemDescription *types.PartitionDescriptionRecord,
 	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
@@ -114,7 +113,7 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *types.SystemDescriptionRecord,
+	systemDescription *types.PartitionDescriptionRecord,
 	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {

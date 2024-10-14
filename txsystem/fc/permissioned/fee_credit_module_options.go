@@ -11,3 +11,9 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 		f.hashAlgorithm = hashAlgorithm
 	}
 }
+
+func WithFeelessMode(feelessMode bool) Option {
+	return func(f *FeeCreditModule) {
+		f.feelessMode = feelessMode
+	}
+}

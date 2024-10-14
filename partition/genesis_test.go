@@ -3,6 +3,11 @@ package partition
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
+
+	"github.com/btcsuite/btcd/btcutil/base58"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
@@ -10,12 +15,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/btcsuite/btcd/btcutil/base58"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
-
-const systemIdentifier types.SystemID = 1
 
 var zeroHash = make([]byte, 32)
 var nodeID peer.ID = "test"
@@ -24,8 +24,17 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+	validPDR := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  1,
+		TypeIdLen:         8,
+		UnitIdLen:         128,
+		T2Timeout:         5 * time.Second,
+	}
+
 	type args struct {
 		state *state.State
+		pdr   types.PartitionDescriptionRecord
 		opts  []GenesisOption
 	}
 
@@ -36,14 +45,15 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	}{
 		{
 			name:    "state is nil",
-			args:    args{state: nil},
+			args:    args{state: nil, pdr: validPDR},
 			wantErr: ErrStateIsNil,
 		},
 		{
 			name: "client signer is nil",
 			args: args{
 				state: state.NewEmptyState(),
-				opts:  []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+				pdr:   validPDR,
+				opts:  []GenesisOption{WithPeerID("1"), WithEncryptionPubKey(pubKeyBytes)},
 			},
 			wantErr: ErrSignerIsNil,
 		},
@@ -51,8 +61,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			name: "encryption public key is nil",
 			args: args{
 				state: state.NewEmptyState(),
+				pdr:   validPDR,
 				opts: []GenesisOption{
-					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
 					WithEncryptionPubKey(nil),
 					WithPeerID("1")},
@@ -60,25 +70,11 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			wantErr: ErrEncryptionPubKeyIsNil,
 		},
 		{
-			name: "invalid system identifier",
-			args: args{
-				state: state.NewEmptyState(),
-				opts: []GenesisOption{
-					WithSystemIdentifier(0),
-					WithPeerID("1"),
-					WithSigningKey(signer),
-					WithEncryptionPubKey(pubKeyBytes),
-					WithHashAlgorithm(gocrypto.SHA256),
-				},
-			},
-			wantErr: errInvalidSystemIdentifier,
-		},
-		{
 			name: "peer ID is empty",
 			args: args{
 				state: state.NewEmptyState(),
+				pdr:   validPDR,
 				opts: []GenesisOption{
-					WithSystemIdentifier(systemIdentifier),
 					WithSigningKey(signer),
 					WithPeerID(""),
 				},
@@ -86,45 +82,58 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			wantErr: genesis.ErrNodeIdentifierIsEmpty,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewNodeGenesis(tt.args.state, tt.args.opts...)
+			got, err := NewNodeGenesis(tt.args.state, tt.args.pdr, tt.args.opts...)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+
+	// invalid system identifier
+	got, err := NewNodeGenesis(
+		state.NewEmptyState(),
+		types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 0},
+		WithPeerID("1"),
+		WithSigningKey(signer),
+		WithEncryptionPubKey(pubKeyBytes),
+		WithHashAlgorithm(gocrypto.SHA256),
+	)
+	require.Nil(t, got)
+	require.EqualError(t, err, `calculating genesis block hash: block hash calculation failed: invalid block: system identifier is unassigned`)
 }
 
 func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pn := createPartitionNode(t, signer, verifier, systemIdentifier, nodeID)
+	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
+	pn := createPartitionNode(t, signer, verifier, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
 	require.Equal(t, pubKey, pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
-	require.Equal(t, systemIdentifier, blockCertificationRequestRequest.SystemIdentifier)
+	require.Equal(t, pdr.SystemIdentifier, blockCertificationRequestRequest.Partition)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := make([]byte, 32)
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(systemIdentifier, nil, true), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(pdr.SystemIdentifier, nil, true), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier types.SystemID, nodeIdentifier peer.ID) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, pdr types.PartitionDescriptionRecord, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()
 	require.NoError(t, err)
 	pn, err := NewNodeGenesis(
 		state.NewEmptyState(),
+		pdr,
 		WithPeerID(nodeIdentifier),
-		WithSystemIdentifier(systemIdentifier),
 		WithSigningKey(nodeSigningKey),
 		WithEncryptionPubKey(encPubKeyBytes),
-		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
 	return pn
@@ -139,10 +148,9 @@ func calculateBlockHash(systemIdentifier types.SystemID, previousHash []byte, is
 	hasher.Write(systemIdentifier.Bytes())
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)
-	hasher.Reset()
 
-	txsHash := hasher.Sum(nil)
 	hasher.Reset()
+	txsHash := hasher.Sum(nil)
 
 	treeHash := make([]byte, gocrypto.SHA256.Size())
 

@@ -20,11 +20,12 @@ func NewLockFC(t *testing.T, signer abcrypto.Signer, attr *fc.LockFeeCreditAttri
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(NewFeeCreditRecordID(t, signer)),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(fc.PayloadTypeLockFeeCredit),
+		testtransaction.WithTransactionType(fc.TransactionTypeLockFeeCredit),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
+		testtransaction.WithAuthProof(fc.LockFeeCreditAuthProof{}),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

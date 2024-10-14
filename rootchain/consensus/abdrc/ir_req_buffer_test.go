@@ -21,13 +21,13 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 }
 
 func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
-	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
+	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
 const sysID1 types.SystemID = 1
 const sysID2 types.SystemID = 2
 
-var inputRecord1 = &types.InputRecord{
+var inputRecord1 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -35,7 +35,7 @@ var inputRecord1 = &types.InputRecord{
 	RoundNumber:     5,
 	SumOfEarnedFees: 6,
 }
-var inputRecord2 = &types.InputRecord{
+var inputRecord2 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{5, 5, 5},
 	BlockHash:       []byte{3, 3, 3},
@@ -55,14 +55,14 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1,
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+		Partition:      sysID1,
+		NodeIdentifier: "1",
+		InputRecord:    inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		SystemIdentifier: sysID1,
-		CertReason:       drctypes.Quorum,
-		Requests:         []*certification.BlockCertificationRequest{req1},
+		Partition:  sysID1,
+		CertReason: drctypes.Quorum,
+		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := make([]types.SystemID, 0, 2)
 	isPending := func(id types.SystemID) *types.InputRecord {
@@ -112,10 +112,10 @@ func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
-	require.Equal(t, sysID1, payload.Requests[0].SystemIdentifier)
+	require.Equal(t, sysID1, payload.Requests[0].Partition)
 	require.Equal(t, drctypes.T2Timeout, payload.Requests[0].CertReason)
 	require.Empty(t, payload.Requests[0].Requests)
-	require.Equal(t, sysID2, payload.Requests[1].SystemIdentifier)
+	require.Equal(t, sysID2, payload.Requests[1].Partition)
 	require.Equal(t, drctypes.T2Timeout, payload.Requests[1].CertReason)
 	require.Empty(t, payload.Requests[1].Requests)
 }
@@ -125,14 +125,14 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1,
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+		Partition:      sysID1,
+		NodeIdentifier: "1",
+		InputRecord:    inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		SystemIdentifier: sysID1,
-		CertReason:       drctypes.Quorum,
-		Requests:         []*certification.BlockCertificationRequest{req1},
+		Partition:  sysID1,
+		CertReason: drctypes.Quorum,
+		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := []types.SystemID{sysID1}
 	isPending := func(id types.SystemID) *types.InputRecord {
@@ -150,18 +150,18 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1,
-		NodeIdentifier:   "1",
-		InputRecord:      inputRecord1,
+		Partition:      sysID1,
+		NodeIdentifier: "1",
+		InputRecord:    inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		SystemIdentifier: sysID1,
-		CertReason:       drctypes.Quorum,
-		Requests:         []*certification.BlockCertificationRequest{req1},
+		Partition:  sysID1,
+		CertReason: drctypes.Quorum,
+		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
 	timeouts := []types.SystemID{sysID1}
 	isPending := func(id types.SystemID) *types.InputRecord {
-		return &types.InputRecord{}
+		return &types.InputRecord{Version: 1}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)

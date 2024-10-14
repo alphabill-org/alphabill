@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	basetypes "github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/permissioned"
@@ -25,7 +25,6 @@ const (
 	ErrStrInvalidUnitID         = "invalid unit ID"
 	ErrStrInvalidTokenTypeID    = "invalid token type ID"
 	ErrStrInvalidParentTypeID   = "invalid parent type ID"
-	ErrStrInvalidSystemID       = "system identifier is not assigned"
 	ErrStrStateIsNil            = "state is nil"
 	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"
 	ErrStrInvalidNameLength     = "name length exceeds the allowed maximum of 256 bytes"
@@ -33,17 +32,14 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
-		return nil, fmt.Errorf("tokens tx system default config: %w", err)
+		return nil, fmt.Errorf("tokens transaction system default config: %w", err)
 	}
 
 	for _, opt := range opts {
 		opt(options)
-	}
-	if options.systemIdentifier == 0 {
-		return nil, errors.New(ErrStrInvalidSystemID)
 	}
 	if options.state == nil {
 		return nil, errors.New(ErrStrStateIsNil)
@@ -63,22 +59,18 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 	}
 
 	var feeCreditModule txtypes.FeeCreditModule
-	if len(options.adminKey) > 0 {
-		adminOwnerCondition := predtempl.NewP2pkh256BytesFromKey(options.adminKey)
+	if len(options.adminOwnerPredicate) > 0 {
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			options.systemIdentifier, options.state, tokens.FeeCreditRecordUnitType, adminOwnerCondition,
+			pdr.NetworkIdentifier, pdr.SystemIdentifier, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
+			permissioned.WithFeelessMode(options.feelessMode),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(
-			fc.WithState(options.state),
+		feeCreditModule, err = fc.NewFeeCreditModule(pdr.NetworkIdentifier, pdr.SystemIdentifier, options.moneySystemID, options.state, options.trustBase,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
-			fc.WithTrustBase(options.trustBase),
-			fc.WithSystemIdentifier(options.systemIdentifier),
-			fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)
 		if err != nil {
@@ -86,7 +78,8 @@ func NewTxSystem(observe txsystem.Observability, opts ...Option) (*txsystem.Gene
 		}
 	}
 	return txsystem.NewGenericTxSystem(
-		options.systemIdentifier,
+		pdr,
+		shardID,
 		options.trustBase,
 		[]txtypes.Module{nft, fungible, lockTokens},
 		observe,

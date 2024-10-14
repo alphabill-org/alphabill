@@ -24,12 +24,13 @@ var (
 
 type RootGenesis struct {
 	_          struct{}                  `cbor:",toarray"`
+	Version    types.ABVersion           `json:"version,omitempty"`
 	Root       *GenesisRootRecord        `json:"root,omitempty"`
 	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
 }
 
 type SystemDescriptionRecordGetter interface {
-	GetSystemDescriptionRecord() *types.SystemDescriptionRecord
+	GetSystemDescriptionRecord() *types.PartitionDescriptionRecord
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
@@ -48,6 +49,9 @@ func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](reco
 func (x *RootGenesis) IsValid() error {
 	if x == nil {
 		return ErrRootGenesisIsNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if x.Root == nil {
 		return ErrRootGenesisRecordIsNil
@@ -112,7 +116,7 @@ func (x *RootGenesis) Verify() error {
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
-				p.SystemDescriptionRecord.SystemIdentifier)
+				p.PartitionDescription.SystemIdentifier)
 		}
 	}
 	return nil
@@ -130,8 +134,8 @@ func (x *RootGenesis) GetPartitionRecords() []*PartitionRecord {
 	records := make([]*PartitionRecord, len(x.Partitions))
 	for i, partition := range x.Partitions {
 		records[i] = &PartitionRecord{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Validators:              partition.Nodes,
+			PartitionDescription: partition.PartitionDescription,
+			Validators:           partition.Nodes,
 		}
 	}
 	return records
@@ -177,4 +181,18 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 		return nil, fmt.Errorf("failed to create new genesis trust base")
 	}
 	return trustBase, nil
+}
+
+func (x *RootGenesis) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *RootGenesis) MarshalCBOR() ([]byte, error) {
+	type alias RootGenesis
+	return types.Cbor.MarshalTaggedValue(types.RootGenesisTag, (*alias)(x))
+}
+
+func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
+	type alias RootGenesis
+	return types.Cbor.UnmarshalTaggedValue(types.RootGenesisTag, data, (*alias)(x))
 }

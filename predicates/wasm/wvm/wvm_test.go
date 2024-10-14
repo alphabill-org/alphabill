@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
@@ -24,6 +24,9 @@ import (
 
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm
 var addOneWasm []byte
+
+//go:embed testdata/conference_tickets/v2/conf_tickets.wasm
+var ticketsWasm []byte
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
@@ -54,7 +57,7 @@ func TestReadHeapBase(t *testing.T) {
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
 	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
-	require.EqualValues(t, 8400, wvm.ctx.MemMngr.(*allocator.BumpAllocator).HeapBase())
+	require.EqualValues(t, 8400, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
 }
 
 //go:embed testdata/stack_height.wasm
@@ -174,19 +177,15 @@ func Benchmark_wazero_call_wasm_fn(b *testing.B) {
 
 type mockTxContext struct {
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
-	payloadBytes func(txo *types.TransactionOrder) ([]byte, error)
 	curRound     func() uint64
 	trustBase    func() (types.RootTrustBase, error)
 	GasRemaining uint64
 	calcCost     func() uint64
+	txo          *types.TransactionOrder
 }
 
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return env.getUnit(id, committed)
-}
-
-func (env *mockTxContext) PayloadBytes(txo *types.TransactionOrder) ([]byte, error) {
-	return env.payloadBytes(txo)
 }
 
 func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }
@@ -208,6 +207,8 @@ func (env *mockTxContext) SpendGas(gas uint64) error {
 }
 
 func (env *mockTxContext) CalculateCost() uint64 { return env.calcCost() }
+
+func (env *mockTxContext) TransactionOrder() (*types.TransactionOrder, error) { return env.txo, nil }
 
 type mockRootTrustBase struct {
 	verifyQuorumSignatures func(data []byte, signatures map[string][]byte) (error, []error)

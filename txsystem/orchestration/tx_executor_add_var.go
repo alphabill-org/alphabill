@@ -12,20 +12,20 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
-func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ *orchestration.AddVarAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// try to update unit
-	err := m.state.Apply(state.UpdateUnitData(tx.UnitID(),
+	err := m.state.Apply(state.UpdateUnitData(tx.UnitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			vd, ok := data.(*orchestration.VarData)
 			if !ok {
-				return nil, fmt.Errorf("unit %v does not contain var data", tx.UnitID())
+				return nil, fmt.Errorf("unit %v does not contain var data", tx.UnitID)
 			}
 			vd.EpochNumber = attr.Var.EpochNumber
 			return vd, nil
 		}))
 	// if unit is not created yet, update will return not found, in that case create the unit
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
-		err = m.state.Apply(state.AddUnit(tx.UnitID(), m.ownerPredicate, &orchestration.VarData{EpochNumber: 0}))
+		err = m.state.Apply(state.AddUnit(tx.UnitID, m.ownerPredicate, &orchestration.VarData{EpochNumber: 0}))
 	}
 	// either update or add failed, report error and return
 	if err != nil {
@@ -33,20 +33,20 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	}
 	processingDetails, err := types.Cbor.Marshal(attr.Var)
 	if err != nil {
-		return nil, fmt.Errorf("addVar: failed to encode tx processing result: %w", err)
+		return nil, fmt.Errorf("addVar: failed to encode transaction processing result: %w", err)
 	}
 	return &types.ServerMetadata{
-		TargetUnits:       []types.UnitID{tx.UnitID()},
+		TargetUnits:       []types.UnitID{tx.UnitID},
 		SuccessIndicator:  types.TxStatusSuccessful,
 		ProcessingDetails: processingDetails,
 	}, nil
 }
 
-func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, exeCtx txtypes.ExecutionContext) error {
-	if !tx.UnitID().HasType(orchestration.VarUnitType) {
+func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, authProof *orchestration.AddVarAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if !tx.UnitID.HasType(orchestration.VarUnitType) {
 		return errors.New("invalid unit identifier: type is not VAR type")
 	}
-	unit, err := m.state.GetUnit(tx.UnitID(), false)
+	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
@@ -65,7 +65,7 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestratio
 		}
 	}
 	// Always check owner predicate, do it as a last step because it is the most expensive check
-	if err = m.execPredicate(m.ownerPredicate, tx.OwnerProof, tx, exeCtx); err != nil {
+	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

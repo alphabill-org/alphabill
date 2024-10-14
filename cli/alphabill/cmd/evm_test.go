@@ -7,39 +7,50 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 )
 
 func TestRunEvmNode_StartStop(t *testing.T) {
-	homeDir := setupTestHomeDir(t, evmDir)
+	homeDir := t.TempDir()
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  33,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
+	}
+	pdrFilename := filepath.Join(homeDir, "pdr.json")
+	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
+
 	logF := testobserve.NewFactory(t)
-	appStoppedWg := sync.WaitGroup{}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
 	// generate node genesis
 	cmd := New(logF)
 	args := "evm-genesis --home " + homeDir +
+		" --partition-description " + pdrFilename +
 		" -o " + nodeGenesisFileLocation +
 		" --output-state " + nodeGenesisStateFileLocation +
 		" -g -k " + keysFileLocation
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, cmd.Execute(ctx))
 
 	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
 	require.NoError(t, err)
@@ -66,6 +77,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 
 	listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 	// start the node in background
+	appStoppedWg := sync.WaitGroup{}
 	appStoppedWg.Add(1)
 	go func() {
 		defer appStoppedWg.Done()

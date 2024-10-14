@@ -3,6 +3,7 @@ package genesis
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -27,12 +28,19 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 	}
+	validPDR := &types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  1,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         1 * time.Second,
+	}
 
 	type fields struct {
-		SystemDescriptionRecord *types.SystemDescriptionRecord
-		Certificate             *types.UnicityCertificate
-		RootValidators          []*PublicKeyInfo
-		Keys                    []*PublicKeyInfo
+		PDR            *types.PartitionDescriptionRecord
+		Certificate    *types.UnicityCertificate
+		RootValidators []*PublicKeyInfo
+		Keys           []*PublicKeyInfo
 	}
 	type args struct {
 		verifier      types.RootTrustBase
@@ -65,10 +73,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "keys are missing",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           nil,
 			},
@@ -78,10 +83,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "node signing key info is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{nil},
 			},
@@ -92,10 +94,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "key info identifier is empty",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys: []*PublicKeyInfo{
 					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
@@ -107,10 +106,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "signing pub key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
 			},
@@ -120,10 +116,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption pub key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
@@ -133,10 +126,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "invalid root signing public key",
 			args: args{verifier: trustBase},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
@@ -146,10 +136,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "certificate is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				Certificate:    nil,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
@@ -160,10 +147,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption key is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
@@ -173,10 +157,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "encryption key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				SystemDescriptionRecord: &types.SystemDescriptionRecord{
-					SystemIdentifier: 1,
-					T2Timeout:        100,
-				},
+				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
@@ -186,10 +167,10 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionGenesis{
-				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
-				Certificate:             tt.fields.Certificate,
-				RootValidators:          tt.fields.RootValidators,
-				Keys:                    tt.fields.Keys,
+				PartitionDescription: tt.fields.PDR,
+				Certificate:          tt.fields.Certificate,
+				RootValidators:       tt.fields.RootValidators,
+				Keys:                 tt.fields.Keys,
 			}
 			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
 			if tt.wantErrStr != "" {

@@ -13,7 +13,9 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -31,38 +33,65 @@ func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability)
 
 /*
 txSignedByPKH attempts to verify transaction's OwnerProof (stack[0] is handle
-of txOrder) against P2PKH predicate (address of the pkh is stack[1]).
-Returns bool (ie was/was not signed by given PubKey hash).
-
-When the OwnerProof is NOT data structure expected by the P2PKH predicate
-"false" is returned (ie instead of error/stopping the predicate). This API
-should allow to check has the tx been signed by given PubKey and if not
-then carry on with some other logic.
+of the txOrder) against P2PKH predicate (address of the pkh is stack[1]).
+Returns:
+  - 0: true, ie the txOrder was signed by the PubKey hash;
+  - 1: false, ie the txOrder OwnerProof is valid argument for P2PKH but signed
+    by different key;
+  - 2: error, most likely the tx.OwnerProof is not valid argument for P2PKH ie
+    some other (bearer) predicate is used;
+  - 3: error, argument stack[0] is not valid tx handle;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
-	vec := vmContext(ctx)
+	vec := extractVMContext(ctx)
 
 	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
 	if err != nil {
-		vec.log.DebugContext(ctx, fmt.Sprintf("invalid tx order parameter: %v", err))
-		stack[0] = 1
+		vec.log.DebugContext(ctx, "argument is not valid tx order handle", logger.Error(err))
+		stack[0] = 3
 		return
 	}
 	pkh := read(mod, stack[1])
 
-	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, txo.OwnerProof, txo, vec.curPrg.env)
-	if err != nil || !ok {
-		vec.log.DebugContext(ctx, "p2pkh evaluated to false or returned error", "error", err)
-		stack[0] = 1
+	var proof []byte
+	var unmarshalErr error
+	switch txo.Type {
+	case tokens.TransactionTypeTransferNFT:
+		var authProof tokens.TransferNonFungibleTokenAuthProof
+		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
+			proof = authProof.OwnerProof
+		}
+	case tokens.TransactionTypeUpdateNFT:
+		var authProof tokens.UpdateNonFungibleTokenAuthProof
+		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
+			proof = authProof.TokenDataUpdateProof
+		}
+	default:
+		unmarshalErr = errors.New("failed to extract OwnerProof from tx order")
+	}
+	if unmarshalErr != nil {
+		vec.log.DebugContext(ctx, "unknown tx order type", logger.Error(err))
+		stack[0] = 3
 		return
 	}
-	stack[0] = 0
+
+	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
+	ok, err := vec.engines(ctx, predicate, proof, txo.AuthProofSigBytes, vec.curPrg.env)
+	//ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
+	switch {
+	case err != nil:
+		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
+		stack[0] = 2
+	case ok:
+		stack[0] = 0
+	default:
+		stack[0] = 1
+	}
 }
 
-func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
+func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	// args: handle of txProof, handle of txRec
-	proof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
+	txProof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
 	if err != nil {
 		return fmt.Errorf("tx proof: %w", err)
 	}
@@ -75,7 +104,11 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)
 	}
-	if err := types.VerifyTxProof(proof, txRec, tb, crypto.SHA256); err != nil {
+	txRecordProof := &types.TxRecordProof{
+		TxRecord: txRec,
+		TxProof:  txProof,
+	}
+	if err := types.VerifyTxProof(txRecordProof, tb, crypto.SHA256); err != nil {
 		vec.log.Debug(fmt.Sprintf("%s.verifyTxProof: %v", mod.Name(), err))
 		stack[0] = 1
 	} else {
@@ -84,7 +117,7 @@ func verifyTxProof(vec *VmContext, mod api.Module, stack []uint64) error {
 	return nil
 }
 
-func digestSHA256(vec *VmContext, mod api.Module, stack []uint64) error {
+func digestSHA256(vec *vmContext, mod api.Module, stack []uint64) error {
 	data := read(mod, stack[0])
 	addr, err := vec.writeToMemory(mod, hash.Sum256(data))
 	if err != nil {
@@ -105,12 +138,12 @@ Arguments in "stack":
   - [2] ref_no: address (if given, ie not zero) of the reference number transfer(s)
     must have in order to be counted;
 */
-func amountTransferred(vec *VmContext, mod api.Module, stack []uint64) error {
+func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
 	}
-	var txs []types.TxRecordProof
+	var txs []*types.TxRecordProof
 	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
@@ -140,11 +173,11 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+func amountTransferredSum(trustBase types.RootTrustBase, proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
-		sum, err := transferredSum(trustBase, v.TxRecord, v.TxProof, receiverPKH, refNo)
+		sum, err := transferredSum(trustBase, v, receiverPKH, refNo)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
 		}
@@ -157,34 +190,36 @@ func amountTransferredSum(trustBase types.RootTrustBase, proofs []types.TxRecord
 transferredSum returns the sum transferred to the "receiverPKH" by given transaction
 record.
 Arguments:
-  - receiverPKH: public key hash of the recipient - currently only ptpkh template is
-    supported as owner condition;
+  - receiverPKH: public key hash of the recipient - currently only p2pkh template is
+    supported as owner predicate;
   - refNo: reference number of the transaction, if nil then ignored, otherwise must match
     (use not nil zero length slice to get sum of transfers without reference number);
 
 unknown / invalid transactions are ignored (not error)?
 */
-func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecord, txProof *types.TxProof, receiverPKH []byte, refNo []byte) (uint64, error) {
-	if txRec == nil || txProof == nil || txRec.TransactionOrder == nil || trustBase == nil {
-		return 0, errors.New("invalid input: either trustbase, tx proof, tx record or tx order is unassigned")
+func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+	if err := txRecordProof.IsValid(); err != nil {
+		return 0, fmt.Errorf("invalid input: %w", err)
 	}
-
-	txo := txRec.TransactionOrder
-	if txo.SystemID() != money.DefaultSystemID {
-		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID())
+	if trustBase == nil {
+		return 0, errors.New("invalid input: trustbase is unassigned")
 	}
-	if refNo != nil && (txo.Payload == nil || txo.Payload.ClientMetadata == nil || !bytes.Equal(refNo, txo.Payload.ClientMetadata.ReferenceNumber)) {
+	txo := txRecordProof.TransactionOrder()
+	if txo.SystemID != money.DefaultSystemID {
+		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID)
+	}
+	if refNo != nil && !bytes.Equal(refNo, txo.ReferenceNumber()) {
 		return 0, errors.New("reference number mismatch")
 	}
 
 	var sum uint64
-	switch txo.PayloadType() {
-	case money.PayloadTypeTransfer:
+	switch txo.Type {
+	case money.TransactionTypeTransfer:
 		attr := money.TransferAttributes{}
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding transfer attributes: %w", err)
 		}
-		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewBearer)
+		ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(attr.NewOwnerPredicate)
 		if err != nil {
 			return 0, fmt.Errorf("extracting bearer pkh: %w", err)
 		}
@@ -192,13 +227,13 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 			return 0, nil
 		}
 		sum = attr.TargetValue
-	case money.PayloadTypeSplit:
+	case money.TransactionTypeSplit:
 		attr := money.SplitAttributes{}
 		if err := txo.UnmarshalAttributes(&attr); err != nil {
 			return 0, fmt.Errorf("decoding split attributes: %w", err)
 		}
 		for _, v := range attr.TargetUnits {
-			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerCondition)
+			ownerPKH, err := templates.ExtractPubKeyHashFromP2pkhPredicate(v.OwnerPredicate)
 			if err != nil {
 				return 0, fmt.Errorf("extracting owner pkh: %w", err)
 			}
@@ -212,7 +247,7 @@ func transferredSum(trustBase types.RootTrustBase, txRec *types.TransactionRecor
 	}
 
 	// potentially costly operation so we do it last
-	if err := types.VerifyTxProof(txProof, txRec, trustBase, crypto.SHA256); err != nil {
+	if err := types.VerifyTxProof(txRecordProof, trustBase, crypto.SHA256); err != nil {
 		return 0, fmt.Errorf("verification of transaction: %w", err)
 	}
 

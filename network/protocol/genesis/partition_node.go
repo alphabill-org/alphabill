@@ -18,17 +18,18 @@ var (
 
 type PartitionNode struct {
 	_                         struct{}                                 `cbor:",toarray"`
+	Version                   types.ABVersion                          `json:"version,omitempty"`
 	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
 	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
 	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
 	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
-	T2Timeout                 uint32                                   `json:"t2timeout,omitempty"`
 	Params                    []byte                                   `json:"params,omitempty"`
+	PartitionDescription      types.PartitionDescriptionRecord         `json:"partition_description"`
 }
 
 type MoneyPartitionParams struct {
-	_                        struct{} `cbor:",toarray"`
-	SystemDescriptionRecords []*types.SystemDescriptionRecord
+	_          struct{} `cbor:",toarray"`
+	Partitions []*types.PartitionDescriptionRecord
 }
 
 type EvmPartitionParams struct {
@@ -43,13 +44,17 @@ type OrchestrationPartitionParams struct {
 }
 
 type TokensPartitionParams struct {
-	_        struct{} `cbor:",toarray"`
-	AdminKey []byte
+	_                   struct{} `cbor:",toarray"`
+	AdminOwnerPredicate []byte
+	FeelessMode         bool
 }
 
 func (x *PartitionNode) IsValid() error {
 	if x == nil {
 		return ErrPartitionNodeIsNil
+	}
+	if x.Version == 0 {
+		return types.ErrInvalidVersion(x)
 	}
 	if x.NodeIdentifier == "" {
 		return ErrNodeIdentifierIsEmpty
@@ -100,4 +105,18 @@ func nodesUnique(x []*PartitionNode) error {
 		encryptionKeys[encPubKey] = node.EncryptionPublicKey
 	}
 	return nil
+}
+
+func (x *PartitionNode) GetVersion() types.ABVersion {
+	return x.Version
+}
+
+func (x *PartitionNode) MarshalCBOR() ([]byte, error) {
+	type alias PartitionNode
+	return types.Cbor.MarshalTaggedValue(types.PartitionNodeTag, (*alias)(x))
+}
+
+func (x *PartitionNode) UnmarshalCBOR(data []byte) error {
+	type alias PartitionNode
+	return types.Cbor.UnmarshalTaggedValue(types.PartitionNodeTag, data, (*alias)(x))
 }

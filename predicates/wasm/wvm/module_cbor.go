@@ -27,7 +27,7 @@ func addCBORModule(ctx context.Context, rt wazero.Runtime, _ Observability) erro
 encodes plain old data types only!
 - 0: handle of var
 */
-func cborParse(vec *VmContext, mod api.Module, stack []uint64) error {
+func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
@@ -57,7 +57,7 @@ func cborParse(vec *VmContext, mod api.Module, stack []uint64) error {
 cborParseArrayRaw, given handle of an raw CBOR buffer (stack[0]) parses it as
 array of raw CBOR items. Returns list of (item) handles.
 */
-func cborParseArrayRaw(vec *VmContext, mod api.Module, stack []uint64) error {
+func cborParseArrayRaw(vec *vmContext, mod api.Module, stack []uint64) error {
 	data, err := vec.getBytesVariable(stack[0])
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
@@ -72,7 +72,7 @@ func cborParseArrayRaw(vec *VmContext, mod api.Module, stack []uint64) error {
 	var enc encoder.TVEnc
 	enc.WriteUInt32(uint32(len(items)))
 	for _, v := range items {
-		enc.WriteUInt64(vec.curPrg.AddVar(v))
+		enc.WriteUInt64(vec.curPrg.addVar(v))
 	}
 	buf, err := enc.Bytes()
 	if err != nil {

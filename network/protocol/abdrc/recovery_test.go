@@ -157,8 +157,8 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
-						Ir: &types.InputRecord{
+						Partition: 1,
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -177,6 +177,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -185,6 +186,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -201,8 +203,8 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
-						Ir: &types.InputRecord{
+						Partition: 1,
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -223,14 +225,14 @@ func TestStateMsg_Verify(t *testing.T) {
 							CurrentRootHash:   test.RandomBytes(32),
 							Timestamp:         types.NewTimestamp(),
 						},
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: test.RandomBytes(32),
 						},
 					},
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -238,7 +240,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -255,8 +257,8 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
-						Ir: &types.InputRecord{
+						Partition: 1,
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -272,7 +274,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
@@ -281,7 +283,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -289,7 +291,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -310,8 +312,8 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
-						SysID: 1,
-						Ir: &types.InputRecord{
+						Partition: 1,
+						Ir: &types.InputRecord{Version: 1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -327,7 +329,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{
+						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 						},
@@ -336,7 +338,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -344,7 +346,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string][]byte{"test": test.RandomBytes(65)},
 					},
@@ -356,7 +358,7 @@ func TestStateMsg_Verify(t *testing.T) {
 				Payload: &drctypes.Payload{},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash:         r5vInfo.Hash(gocrypto.SHA256),
 						RootChainRoundNumber: 5,
 						Hash:                 test.RandomBytes(32),
@@ -385,7 +387,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -406,16 +408,16 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir:    nil,
-					Sdrh:  make([]byte, 32),
+					Partition: 1,
+					Ir:        nil,
+					Sdrh:      make([]byte, 32),
 				},
 			},
 		}
@@ -426,8 +428,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Block: nil,
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir: &types.InputRecord{
+					Partition: 1,
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -452,15 +454,15 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash: test.RandomBytes(32),
 						Timestamp:       types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir: &types.InputRecord{
+					Partition: 1,
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -486,15 +488,15 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir: &types.InputRecord{
+					Partition: 1,
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -520,15 +522,15 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir: &types.InputRecord{
+					Partition: 1,
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -555,15 +557,15 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{
+					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
 			},
 			Ir: []*InputData{
 				{
-					SysID: 1,
-					Ir: &types.InputRecord{
+					Partition: 1,
+					Ir: &types.InputRecord{Version: 1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -584,16 +586,16 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 func TestInputData_IsValid(t *testing.T) {
 	t.Run("input record is nil", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
-			Ir:    nil,
-			Sdrh:  nil,
+			Partition: 0,
+			Ir:        nil,
+			Sdrh:      nil,
 		}
 		require.ErrorContains(t, i.IsValid(), "input record is nil")
 	})
 	t.Run("system description hash is not set", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
-			Ir: &types.InputRecord{
+			Partition: 0,
+			Ir: &types.InputRecord{Version: 1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),
@@ -607,8 +609,8 @@ func TestInputData_IsValid(t *testing.T) {
 	})
 	t.Run("ok", func(t *testing.T) {
 		i := &InputData{
-			SysID: 0,
-			Ir: &types.InputRecord{
+			Partition: 0,
+			Ir: &types.InputRecord{Version: 1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),

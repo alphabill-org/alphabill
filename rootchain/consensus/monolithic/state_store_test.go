@@ -4,17 +4,19 @@ import (
 	gocrypto "crypto"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
-var mockUc = &types.UnicityCertificate{
-	InputRecord: &types.InputRecord{
+var mockUc = &types.UnicityCertificate{Version: 1,
+	InputRecord: &types.InputRecord{Version: 1,
 		RoundNumber:  1,
 		Hash:         zeroHash,
 		PreviousHash: zeroHash,
@@ -22,11 +24,12 @@ var mockUc = &types.UnicityCertificate{
 		SummaryValue: []byte{0, 0, 0, 0},
 	},
 	UnicityTreeCertificate: &types.UnicityTreeCertificate{
-		SystemIdentifier:      sysID3,
-		SiblingHashes:         nil,
-		SystemDescriptionHash: nil,
+		SystemIdentifier:         sysID3,
+		HashSteps:                nil,
+		PartitionDescriptionHash: nil,
 	},
 	UnicitySeal: &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: 1,
 		Hash:                 make([]byte, gocrypto.SHA256.Size()),
 		Signatures:           types.SignatureMap{},
@@ -38,17 +41,19 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
-				SystemIdentifier: sysID3,
-				T2Timeout:        2500,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				NetworkIdentifier: 5,
+				SystemIdentifier:  sysID3,
+				T2Timeout:         2500 * time.Millisecond,
 			},
 		},
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			SystemDescriptionRecord: &types.SystemDescriptionRecord{
-				SystemIdentifier: sysID1,
-				T2Timeout:        2500,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				NetworkIdentifier: 5,
+				SystemIdentifier:  sysID1,
+				T2Timeout:         2500 * time.Millisecond,
 			},
 		},
 	},
@@ -67,7 +72,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	require.NoError(t, store.Init(testGenesis))
 	lastCert, err := store.GetCertificate(sysID3)
 	require.NoError(t, err)
-	require.Equal(t, mockUc, lastCert)
+	require.Equal(t, mockUc, &lastCert.UC)
 	round, err = store.GetRound()
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), round)
@@ -80,27 +85,27 @@ func storeTest(t *testing.T, store *StateStore) {
 	require.Error(t, store.Update(1, nil))
 	require.Error(t, store.Update(2, nil))
 
-	newUC := &types.UnicityCertificate{
-		UnicityTreeCertificate: mockUc.UnicityTreeCertificate,
-		UnicitySeal:            mockUc.UnicitySeal,
-		InputRecord: &types.InputRecord{
-			RoundNumber:  2,
-			Hash:         []byte{1, 2, 3},
-			PreviousHash: []byte{3, 2, 1},
-			SummaryValue: []byte{2, 4, 6, 8},
-			BlockHash:    []byte{3, 3, 3},
-		}}
-	update := map[types.SystemID]*types.UnicityCertificate{
-		sysID3: newUC,
-	}
-	require.NoError(t, store.Update(3, update))
+	newUC := &certification.CertificationResponse{
+		Partition: sysID3,
+		UC: types.UnicityCertificate{
+			Version:                1,
+			UnicityTreeCertificate: mockUc.UnicityTreeCertificate,
+			UnicitySeal:            mockUc.UnicitySeal,
+			InputRecord: &types.InputRecord{Version: 1,
+				RoundNumber:  2,
+				Hash:         []byte{1, 2, 3},
+				PreviousHash: []byte{3, 2, 1},
+				SummaryValue: []byte{2, 4, 6, 8},
+				BlockHash:    []byte{3, 3, 3},
+			}}}
+	require.NoError(t, store.Update(3, []*certification.CertificationResponse{newUC}))
 	lastCert, err = store.GetCertificate(sysID3)
 	require.NoError(t, err)
 	require.Equal(t, lastCert, newUC)
 	IRmap, err := store.GetLastCertifiedInputRecords()
 	require.NoError(t, err)
 	require.Contains(t, IRmap, sysID3)
-	require.Equal(t, IRmap[sysID3], newUC.InputRecord)
+	require.Equal(t, IRmap[sysID3], newUC.UC.InputRecord)
 	// read non-existing system id
 	lastCert, err = store.GetCertificate(sysID2)
 	require.ErrorContains(t, err, "no certificate for partition 00000002 in DB")
@@ -108,7 +113,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	// read sys id 1
 	lastCert, err = store.GetCertificate(sysID1)
 	require.NoError(t, err)
-	require.Equal(t, lastCert, mockUc)
+	require.Equal(t, &lastCert.UC, mockUc)
 }
 
 func TestInMemState(t *testing.T) {

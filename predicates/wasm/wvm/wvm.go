@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/allocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
 	"github.com/alphabill-org/alphabill/state"
 )
@@ -40,15 +40,15 @@ const (
 )
 
 type (
-	Allocator interface {
-		Alloc(mem allocator.Memory, size uint32) (uint32, error)
-		Free(mem allocator.Memory, ptr uint32) error
+	allocator interface {
+		Alloc(mem bumpallocator.Memory, size uint32) (uint32, error)
+		Free(mem bumpallocator.Memory, ptr uint32) error
 	}
 
-	VmContext struct {
-		MemMngr Allocator
-		Storage keyvaluedb.KeyValueDB
-		curPrg  *EvalContext
+	vmContext struct {
+		memMngr allocator
+		storage keyvaluedb.KeyValueDB
+		curPrg  *evalContext
 		encoder Encoder
 		factory ABTypesFactory
 		engines predicates.PredicateExecutor
@@ -57,11 +57,11 @@ type (
 
 	WasmVM struct {
 		runtime wazero.Runtime
-		ctx     *VmContext
+		ctx     *vmContext
 	}
 
 	// "evaluation context" of current program
-	EvalContext struct {
+	evalContext struct {
 		mod    api.Module // created from the WASM of the predicate
 		vars   map[uint64]any
 		varIdx uint64          // "handle generator" for vars
@@ -70,12 +70,12 @@ type (
 
 	EvalEnvironment interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
-		PayloadBytes(txo *types.TransactionOrder) ([]byte, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64
 		SpendGas(gas uint64) error
 		CalculateCost() uint64
+		TransactionOrder() (*types.TransactionOrder, error)
 	}
 
 	// translates AB types to WASM consumable representation
@@ -93,9 +93,9 @@ type (
 )
 
 /*
-AddVar adds the "obj" into list of variables in current context and returns it's handle
+addVar adds the "obj" into list of variables in current context and returns it's handle
 */
-func (ec *EvalContext) AddVar(obj any) uint64 {
+func (ec *evalContext) addVar(obj any) uint64 {
 	ec.varIdx++
 	ec.vars[ec.varIdx] = obj
 	return ec.varIdx
@@ -118,7 +118,7 @@ func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
 getBytesVariable returns "[]byte compatible" variable as []byte (the getVar
 generic implementation can only return exact type, not underlying type)
 */
-func (vmc *VmContext) getBytesVariable(handle uint64) ([]byte, error) {
+func (vmc *vmContext) getBytesVariable(handle uint64) ([]byte, error) {
 	v, ok := vmc.curPrg.vars[handle]
 	if !ok {
 		return nil, fmt.Errorf("variable with handle %d not found", handle)
@@ -134,13 +134,17 @@ func (vmc *VmContext) getBytesVariable(handle uint64) ([]byte, error) {
 	}
 }
 
-func (vmc *VmContext) EndEval() {
+/*
+reset clears the "variable part" (specific to the predicate evaluated) of
+the context.
+*/
+func (vmc *vmContext) reset() {
 	vmc.curPrg.mod = nil
 	vmc.curPrg.env = nil
 	clear(vmc.curPrg.vars)
 }
 
-func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error) {
+func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error) {
 	if mod == nil {
 		return 0, errors.New("module is unassigned")
 	}
@@ -150,7 +154,7 @@ func (vmCtx *VmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 	}
 
 	size := uint32(len(buf))
-	addr, err := vmCtx.MemMngr.Alloc(mem, size)
+	addr, err := vmCtx.memMngr.Alloc(mem, size)
 	if err != nil {
 		return 0, fmt.Errorf("allocating memory: %w", err)
 
@@ -176,7 +180,7 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 	}
 	// host utility APIs
 	if err := addHostModule(ctx, rt, observe); err != nil {
-		return nil, fmt.Errorf("failed to init host module: %w", err)
+		return nil, fmt.Errorf("adding host module: %w", err)
 	}
 	// predicate execution context API
 	if err := addContextModule(ctx, rt, observe); err != nil {
@@ -185,21 +189,20 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 	if err := addCBORModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding CBOR API module: %w", err)
 	}
-
 	if err := addAlphabillModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding alphabill API module: %w", err)
 	}
 
 	return &WasmVM{
 		runtime: rt,
-		ctx: &VmContext{
-			curPrg: &EvalContext{
+		ctx: &vmContext{
+			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
 			encoder: enc,
 			engines: engines,
 			factory: ABTypesFactory{},
-			Storage: options.storage,
+			storage: options.storage,
 			log:     observe.Logger(),
 		},
 	}, nil
@@ -210,7 +213,7 @@ Exec loads the WASM module passed in as "predicate" argument and calls the "conf
   - The entrypoint function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
+func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, sigBytesFn func() ([]byte, error), env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -228,8 +231,8 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	}
 	defer m.Close(ctx)
 
-	global := m.ExportedGlobal("__heap_base")
-	if global == nil {
+	heapBase := m.ExportedGlobal("__heap_base")
+	if heapBase == nil {
 		return 0, fmt.Errorf("__heap_base is not exported from the predicate module")
 	}
 	gas, ok := m.ExportedGlobal(instrument.GasCounterName).(api.MutableGlobal)
@@ -238,14 +241,13 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	}
 	initialGas := env.GasAvailable()
 	gas.Set(initialGas)
-	// do we need to create new mem manager for each predicate?
-	hb := api.DecodeU32(global.Get())
-	vm.ctx.MemMngr = allocator.NewBumpAllocator(hb, m.Memory().Definition())
+
+	defer vm.ctx.reset()
+	vm.ctx.memMngr = bumpallocator.New(api.DecodeU32(heapBase.Get()), m.Memory().Definition())
 	vm.ctx.curPrg.mod = m
-	vm.ctx.curPrg.varIdx = handle_max_reserved
 	vm.ctx.curPrg.env = env
-	defer vm.ctx.EndEval()
-	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
+	vm.ctx.curPrg.varIdx = handle_max_reserved
+	//vm.ctx.curPrg.vars[handle_current_tx_order] = txo // TODO AB-1724
 	vm.ctx.curPrg.vars[handle_current_args] = args
 	vm.ctx.curPrg.vars[handle_predicate_conf] = conf.Args
 
@@ -282,8 +284,8 @@ func (vm *WasmVM) Close(ctx context.Context) error {
 	return vm.runtime.Close(ctx)
 }
 
-func vmContext(ctx context.Context) *VmContext {
-	rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+func extractVMContext(ctx context.Context) *vmContext {
+	rtCtx := ctx.Value(runtimeContextKey).(*vmContext)
 	if rtCtx == nil {
 		// when ctx doesn't contain the value something has gone very wrong...
 		panic("context doesn't contain VM context value")
@@ -297,9 +299,9 @@ module functions.
   - the execution context is extracted from env and passed as param to the func;
   - when API func returns error we stop the execution of the predicate;
 */
-func hostAPI(f func(vec *VmContext, mod api.Module, stack []uint64) error) api.GoModuleFunc {
+func hostAPI(f func(vec *vmContext, mod api.Module, stack []uint64) error) api.GoModuleFunc {
 	return func(ctx context.Context, mod api.Module, stack []uint64) {
-		rtCtx := ctx.Value(runtimeContextKey).(*VmContext)
+		rtCtx := ctx.Value(runtimeContextKey).(*vmContext)
 		if rtCtx == nil {
 			// when ctx doesn't contain the value something has gone very wrong...
 			// instead of panic attempt to close the module?

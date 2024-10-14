@@ -233,7 +233,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 		return fmt.Errorf("creating counter for processed tx: %w", err)
 	}
 	n.execTxDur, err = m.Float64Histogram("exec.tx.time",
-		metric.WithDescription("How long it took to process tx (validate and execute)"),
+		metric.WithDescription("How long it took to process transaction (validate and execute)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(200e-6, 400e-6, 800e-6, 0.0016, 0.003, 0.006, 0.015, 0.03))
 	if err != nil {
@@ -360,17 +360,18 @@ func (n *Node) currentRoundNumber() uint64 {
 
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "sending handshake to root chain")
-	// select two random root nodes
+	// select some random root nodes
 	rootIDs, err := randomNodeSelector(n.rootNodes, defaultHandshakeNodes)
-	// error should only happen in case the root nodes are not initialized
 	if err != nil {
+		// error should only happen in case the root nodes are not initialized
 		n.log.WarnContext(ctx, "selecting root nodes for handshake", logger.Error(err))
 		return
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.peer.ID().String(),
+			Partition:      n.configuration.GetSystemIdentifier(),
+			Shard:          n.configuration.shardID,
+			NodeIdentifier: n.peer.ID().String(),
 		},
 		rootIDs...); err != nil {
 		n.log.WarnContext(ctx, "error sending handshake", logger.Error(err))
@@ -382,11 +383,11 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 		return errors.New("unicity certificate input record is nil")
 	}
 	if !bytes.Equal(ucIR.Hash, state.Root()) {
-		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
+		return fmt.Errorf("transaction system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
-		return fmt.Errorf("tx system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
+		return fmt.Errorf("transaction system summary value %X not equal to unicity certificate value %X", ucIR.SummaryValue, state.Summary())
 	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
-		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
+		return fmt.Errorf("transaction system sum of earned fees %d not equal to unicity certificate value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
 }
@@ -402,8 +403,8 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
 		if err != nil {
-			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
-			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.TransactionOrder.UnitID(), err)
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.UnitID(), err)
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
@@ -412,6 +413,17 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 		return nil, 0, err
 	}
 	return state, sumOfEarnedFees, nil
+}
+
+func getUCv1(b *types.Block) (*types.UnicityCertificate, error) {
+	if b == nil {
+		return nil, errors.New("block is nil")
+	}
+	if b.UnicityCertificate == nil {
+		return nil, errors.New("block unicity certificate is nil")
+	}
+	uc := &types.UnicityCertificate{Version: 1}
+	return uc, types.Cbor.Unmarshal(b.UnicityCertificate, uc)
 }
 
 func (n *Node) restoreBlockProposal(ctx context.Context) {
@@ -428,8 +440,13 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.log.DebugContext(ctx, "No pending block proposal stored")
 		return
 	}
+	uc, err := getUCv1(pr)
+	if err != nil {
+		n.log.WarnContext(ctx, "Error unmarshalling unicity certificate", logger.Error(err))
+		return
+	}
 	// make sure proposal extends the committed state
-	if !bytes.Equal(n.committedUC().GetStateHash(), pr.UnicityCertificate.GetPreviousStateHash()) {
+	if !bytes.Equal(n.committedUC().GetStateHash(), uc.GetPreviousStateHash()) {
 		n.log.DebugContext(ctx, "Stored block proposal does not extend previous state, stale proposal")
 		return
 	}
@@ -442,18 +459,18 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if !bytes.Equal(pr.UnicityCertificate.GetStateHash(), state.Root()) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.UnicityCertificate.InputRecord.Hash, state.Root()))
+	if !bytes.Equal(uc.GetStateHash(), state.Root()) {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", uc.InputRecord.Hash, state.Root()))
 		n.revertState()
 		return
 	}
-	if !bytes.Equal(pr.UnicityCertificate.GetSummaryValue(), state.Summary()) {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.UnicityCertificate.InputRecord.SummaryValue, state.Summary()))
+	if !bytes.Equal(uc.GetSummaryValue(), state.Summary()) {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", uc.InputRecord.SummaryValue, state.Summary()))
 		n.revertState()
 		return
 	}
-	if pr.GetBlockFees() != sumOfEarnedFees {
-		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.GetBlockFees(), sumOfEarnedFees))
+	if uc.GetFeeSum() != sumOfEarnedFees {
+		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", uc.GetFeeSum(), sumOfEarnedFees))
 		n.revertState()
 		return
 	}
@@ -573,15 +590,15 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr er
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
-	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID()))
+	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID))
 	return nil
 }
 
 func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.ServerMetadata, rErr error) {
 	defer func(start time.Time) {
-		txtattr := attribute.String("tx", tx.PayloadType())
-		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txtattr, attribute.String("status", statusCodeOfTxError(rErr)))))
-		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txtattr)))
+		txTypeAttr := attribute.Int("tx", int(tx.Type))
+		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
+		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)))
 	}(time.Now())
 
 	if err := n.txValidator.Validate(tx, round); err != nil {
@@ -589,7 +606,7 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 	}
 	sm, err := n.transactionSystem.Execute(tx)
 	if err != nil {
-		return nil, fmt.Errorf("executing transaction in tx system: %w", err)
+		return nil, fmt.Errorf("executing transaction in transaction system: %w", err)
 	}
 	return sm, nil
 }
@@ -646,14 +663,14 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	prevHash := uc.InputRecord.Hash
 	txState, err := n.transactionSystem.StateSummary()
 	if err != nil {
-		return fmt.Errorf("tx system state error, %w", err)
+		return fmt.Errorf("transaction system state error, %w", err)
 	}
 	// check previous state matches before processing transactions
 	if !bytes.Equal(prevHash, txState.Root()) {
-		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
+		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
 	if err := n.transactionSystem.BeginBlock(n.currentRoundNumber()); err != nil {
-		return fmt.Errorf("tx system BeginBlock error, %w", err)
+		return fmt.Errorf("transaction system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
 		if err = n.process(ctx, tx.TransactionOrder); err != nil {
@@ -679,7 +696,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 	}
 
 	luc := n.luc.Load()
-	if n.status.Load() == recovering && luc.GetRoundNumber() > uc.GetRoundNumber() {
+	if n.status.Load() == recovering && luc.GetRootRoundNumber() > uc.GetRootRoundNumber() {
 		// During recovery, UC from a recovered block is usually older than the LUC.
 		// Do not attempt to update LUC in that case.
 		return nil
@@ -833,7 +850,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		state, err := n.transactionSystem.StateSummary()
 		if err != nil {
 			n.startRecovery(ctx)
-			return fmt.Errorf("recovery needed, failed to get tx system state: %w", err)
+			return fmt.Errorf("recovery needed, failed to get transaction system state: %w", err)
 		}
 		// if state hash does not match - start recovery
 		if !bytes.Equal(uc.GetStateHash(), state.Root()) {
@@ -859,16 +876,19 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return ErrNodeDoesNotHaveLatestBlock
 	}
 	// replace UC
-	n.pendingBlockProposal.UnicityCertificate = uc
+	n.pendingBlockProposal.UnicityCertificate, err = types.Cbor.Marshal(uc)
+	if err != nil {
+		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
+	}
 	// UC certifies pending block proposal
-	if err := n.finalizeBlock(ctx, n.pendingBlockProposal); err != nil {
+	if err := n.finalizeBlock(ctx, n.pendingBlockProposal, uc); err != nil {
 		n.startRecovery(ctx)
-		return fmt.Errorf("block %v finalize failed: %w", n.pendingBlockProposal.GetRoundNumber(), err)
+		return fmt.Errorf("block %v finalize failed: %w", uc.GetRoundNumber(), err)
 	}
 
 	if err = n.network.PublishBlock(ctx, n.pendingBlockProposal); err != nil {
 		n.log.WarnContext(ctx, fmt.Sprintf("failed to publish block %d: %v",
-			n.pendingBlockProposal.GetRoundNumber(), err))
+			uc.GetRoundNumber(), err))
 	}
 
 	return n.startNewRound(ctx)
@@ -882,8 +902,8 @@ func (n *Node) revertState() {
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
-	blockNumber := b.GetRoundNumber()
+func (n *Node) finalizeBlock(ctx context.Context, b *types.Block, uc *types.UnicityCertificate) error {
+	blockNumber := uc.GetRoundNumber()
 	_, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.number", int64(blockNumber))))
 	defer span.End()
 
@@ -899,7 +919,7 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 		}
 	}
 
-	if err := n.transactionSystem.Commit(b.UnicityCertificate); err != nil {
+	if err := n.transactionSystem.Commit(uc); err != nil {
 		err = fmt.Errorf("unable to finalize block %d: %w", blockNumber, err)
 
 		if !isInitializing {
@@ -913,7 +933,7 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block) error {
 
 	if isInitializing {
 		// ProofIndexer not running yet, index synchronously
-		if err := n.proofIndexer.IndexBlock(ctx, b, n.transactionSystem.State()); err != nil {
+		if err := n.proofIndexer.IndexBlock(ctx, b, blockNumber, n.transactionSystem.State()); err != nil {
 			return fmt.Errorf("failed to index block: %w", err)
 		}
 	} else {
@@ -1133,63 +1153,67 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 
 func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	committedUC := n.committedUC()
+	blockUC, err := getUCv1(b)
+	if err != nil {
+		return fmt.Errorf("failed to extract UC from block: %w", err)
+	}
 	algo := n.configuration.hashAlgorithm
-	if err := b.IsValid(algo, n.configuration.genesis.SystemDescriptionRecord.Hash(algo)); err != nil {
+	if err := b.IsValid(algo, n.configuration.genesis.PartitionDescription.Hash(algo)); err != nil {
 		// sends invalid blocks, do not trust the response and try again
-		return fmt.Errorf("invalid block for round %v: %w", b.GetRoundNumber(), err)
+		return fmt.Errorf("invalid block for round %v: %w", blockUC.GetRoundNumber(), err)
 	}
 
 	// LUC is the latest UC we have seen, it's ok to update it as soon as we see it.
-	if err := n.updateLUC(ctx, b.UnicityCertificate); err != nil {
+	if err := n.updateLUC(ctx, blockUC); err != nil {
 		return fmt.Errorf("failed to update LUC: %w", err)
 	}
 
 	// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
-	if b.GetRoundNumber() <= committedUC.GetRoundNumber() {
-		n.log.DebugContext(ctx, fmt.Sprintf("latest committed block %v, skipping block %v", committedUC.GetRoundNumber(), b.GetRoundNumber()))
+	if blockUC.GetRoundNumber() <= committedUC.GetRoundNumber() {
+		n.log.DebugContext(ctx, fmt.Sprintf("latest committed block %v, skipping block %v", committedUC.GetRoundNumber(), blockUC.GetRoundNumber()))
 		return nil
-	} else if b.GetRoundNumber() > committedUC.GetRoundNumber()+1 {
+	} else if blockUC.GetRoundNumber() > committedUC.GetRoundNumber()+1 {
 		// No point in starting recovery during initialization - node won't start. Perhaps it should?
 		if n.status.Load() != initializing {
 			n.startRecovery(ctx)
 		}
-		return fmt.Errorf("missing blocks between rounds %v and %v", committedUC.GetRoundNumber(), b.GetRoundNumber())
+		return fmt.Errorf("missing blocks between rounds %v and %v", committedUC.GetRoundNumber(), blockUC.GetRoundNumber())
 	}
 
 	if !bytes.Equal(b.Header.PreviousBlockHash, committedUC.InputRecord.BlockHash) {
 		return fmt.Errorf("invalid block %v (expected previous block hash='%X', actual previous block hash='%X', )",
-			b.GetRoundNumber(), b.Header.PreviousBlockHash, committedUC.InputRecord.BlockHash)
+			blockUC.GetRoundNumber(), b.Header.PreviousBlockHash, committedUC.InputRecord.BlockHash)
 	}
 
-	n.log.DebugContext(ctx, fmt.Sprintf("Applying block from round %d", b.GetRoundNumber()))
+	n.log.DebugContext(ctx, fmt.Sprintf("Applying block from round %d", blockUC.GetRoundNumber()))
 
 	// make sure it extends current state
 	var state txsystem.StateSummary
-	state, err := n.transactionSystem.StateSummary()
+	state, err = n.transactionSystem.StateSummary()
 	if err != nil {
 		return fmt.Errorf("error reading current state, %w", err)
 	}
-	if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, state.Root()) {
+	if !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
 		return fmt.Errorf("block does not extend current state, expected state hash: %X, actual state hash: %X",
-			b.UnicityCertificate.InputRecord.PreviousHash, state.Root())
+			blockUC.InputRecord.PreviousHash, state.Root())
 	}
 
 	var sumOfEarnedFees uint64
-	state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, b.GetRoundNumber(), b.Transactions)
+	state, sumOfEarnedFees, err = n.applyBlockTransactions(ctx, blockUC.GetRoundNumber(), b.Transactions)
 	if err != nil {
 		n.revertState()
-		return fmt.Errorf("failed to apply block %v transactions: %w", b.GetRoundNumber(), err)
+		return fmt.Errorf("failed to apply block %v transactions: %w", blockUC.GetRoundNumber(), err)
 	}
 
-	if err = verifyTxSystemState(state, sumOfEarnedFees, b.UnicityCertificate.InputRecord); err != nil {
+	if err = verifyTxSystemState(state, sumOfEarnedFees, blockUC.InputRecord); err != nil {
 		n.revertState()
-		return fmt.Errorf("failed to verify block %v state: %w", b.GetRoundNumber(), err)
+		return fmt.Errorf("failed to verify block %v state: %w", blockUC.GetRoundNumber(), err)
 	}
 
-	if err = n.finalizeBlock(ctx, b); err != nil {
+	if err = n.finalizeBlock(ctx, b, blockUC); err != nil {
 		// TODO: Should we revert in case only indexing failed?
 		n.revertState()
-		return fmt.Errorf("failed to finalize block %v: %w", b.GetRoundNumber(), err)
+		return fmt.Errorf("failed to finalize block %v: %w", blockUC.GetRoundNumber(), err)
 	}
 
 	return nil
@@ -1267,34 +1291,39 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	luc := n.luc.Load()
-	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
-		return fmt.Errorf("tx system failed to end block, %w", err)
+		return fmt.Errorf("transaction system failed to end block, %w", err)
 	}
 	stateHash := state.Root()
 	summary := state.Summary()
+	uc := &types.UnicityCertificate{
+		Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:         1,
+			Epoch:           0, // todo: implement epoch change AB-1617, AB-1725
+			RoundNumber:     n.currentRoundNumber(),
+			PreviousHash:    luc.InputRecord.Hash,
+			Hash:            stateHash,
+			SummaryValue:    summary,
+			SumOfEarnedFees: n.sumOfEarnedFees,
+		},
+	}
+	ucBytes, err := types.Cbor.Marshal(uc)
+	if err != nil {
+		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
+	}
 	pendingProposal := &types.Block{
 		Header: &types.Header{
 			SystemID:          n.configuration.GetSystemIdentifier(),
-			ShardID:           nil,
+			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
 			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
 		},
-		Transactions: n.proposedTransactions,
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
-				RoundNumber:     n.currentRoundNumber(),
-				PreviousHash:    prevStateHash,
-				Hash:            stateHash,
-				SummaryValue:    summary,
-				SumOfEarnedFees: n.sumOfEarnedFees,
-			},
-		},
+		Transactions:       n.proposedTransactions,
+		UnicityCertificate: ucBytes,
 	}
-	blockHash, err := pendingProposal.Hash(n.configuration.hashAlgorithm)
-	// assign block hash
-	pendingProposal.UnicityCertificate.InputRecord.BlockHash = blockHash
+	ir, err := pendingProposal.CalculateBlockHash(n.configuration.hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("block hash calculation error, %w", err)
 	}
@@ -1307,16 +1336,24 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   n.peer.ID().String(),
-		InputRecord:      pendingProposal.UnicityCertificate.InputRecord,
-		RootRoundNumber:  luc.UnicitySeal.RootChainRoundNumber,
+		Partition:       systemIdentifier,
+		Shard:           n.configuration.shardID,
+		NodeIdentifier:  n.peer.ID().String(),
+		Leader:          blockAuthor,
+		InputRecord:     ir,
+		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
+	}
+	if req.BlockSize, err = pendingProposal.Size(); err != nil {
+		return fmt.Errorf("calculating block size: %w", err)
+	}
+	if req.StateSize, err = n.transactionSystem.StateSize(); err != nil {
+		return fmt.Errorf("calculating state size: %w", err)
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {
-		return fmt.Errorf("failed to sign certification req, %w", err)
+		return fmt.Errorf("failed to sign certification request: %w", err)
 	}
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
-		pendingProposal.GetRoundNumber(), stateHash, blockHash, pendingProposal.GetBlockFees()))
+		uc.GetRoundNumber(), stateHash, ir.BlockHash, uc.GetFeeSum()))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
 	rootIDs, err := rootNodesSelector(luc, n.rootNodes, defaultNofRootNodes)
 	if err != nil {
@@ -1366,25 +1403,25 @@ func (n *Node) LatestBlockNumber() (uint64, error) {
 	return n.committedUC().GetRoundNumber(), nil
 }
 
-func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*types.TxRecordProof, error) {
 	proofs := n.proofIndexer.GetDB()
-	index, err := ReadTransactionIndex(proofs, hash)
+	index, err := ReadTransactionIndex(proofs, txoHash)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
+		return nil, fmt.Errorf("unable to query tx index: %w", err)
 	}
 	b, err := n.GetBlock(ctx, index.RoundNumber)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to load block: %w", err)
+		return nil, fmt.Errorf("unable to load block: %w", err)
 	}
-	proof, record, err := types.NewTxProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
+	txRecordProof, err := types.NewTxRecordProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
+		return nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
 	}
-	h := record.TransactionOrder.Hash(n.configuration.hashAlgorithm)
-	if !bytes.Equal(h, hash) {
-		return nil, nil, errors.New("transaction index is invalid: hash mismatch")
+	h := txRecordProof.TransactionOrder().Hash(n.configuration.hashAlgorithm)
+	if !bytes.Equal(h, txoHash) {
+		return nil, errors.New("transaction index is invalid: hash mismatch")
 	}
-	return record, proof, nil
+	return txRecordProof, nil
 }
 
 /*
@@ -1398,6 +1435,10 @@ func (n *Node) GetLatestRoundNumber(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf("node not ready: %s", status)
 	}
 	return n.luc.Load().GetRoundNumber(), nil
+}
+
+func (n *Node) NetworkID() types.NetworkID {
+	return n.configuration.GetNetworkIdentifier()
 }
 
 func (n *Node) SystemID() types.SystemID {
@@ -1418,6 +1459,7 @@ func (n *Node) IsValidatorNode() bool {
 
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	// TODO verify epoch number after epoch switching is implemented
+	// fast-track solution is to restart all partition nodes with new config on epoch change
 	trustBase := n.configuration.trustBase
 	if trustBase == nil {
 		return nil, fmt.Errorf("trust base for epoch %d does not exist", epochNumber)

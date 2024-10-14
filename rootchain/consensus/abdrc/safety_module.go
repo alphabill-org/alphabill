@@ -106,9 +106,10 @@ func (s *SafetyModule) isSafeToVote(block *drctypes.BlockData, lastRoundTC *drct
 func (s *SafetyModule) constructCommitInfo(block *drctypes.BlockData, voteInfoHash []byte) *types.UnicitySeal {
 	committedRound := s.isCommitCandidate(block)
 	if committedRound == nil {
-		return &types.UnicitySeal{PreviousHash: voteInfoHash}
+		return &types.UnicitySeal{Version: 1, PreviousHash: voteInfoHash}
 	}
 	return &types.UnicitySeal{
+		Version:              1,
 		PreviousHash:         voteInfoHash,
 		RootChainRoundNumber: committedRound.RoundNumber,
 		Timestamp:            committedRound.Timestamp,

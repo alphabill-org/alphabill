@@ -21,15 +21,19 @@ func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {
 }
 
 func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
+	uc1, err := (&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: 1}}).MarshalCBOR()
+	require.NoError(t, err)
+	uc2, err := (&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1, RoundNumber: 2}}).MarshalCBOR()
+	require.NoError(t, err)
 	r := &LedgerReplicationResponse{
 		Status:  Ok,
 		Message: "",
 		Blocks: []*types.Block{
 			{
-				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+				UnicityCertificate: uc1,
 			},
 			{
-				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
+				UnicityCertificate: uc2,
 			},
 		},
 	}

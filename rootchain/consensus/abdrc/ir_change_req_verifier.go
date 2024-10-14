@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
@@ -14,8 +15,8 @@ import (
 
 type (
 	State interface {
-		GetCertificate(id types.SystemID) (*types.UnicityCertificate, error)
-		GetCertificates() map[types.SystemID]*types.UnicityCertificate
+		GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error)
+		GetCertificates() []*certification.CertificationResponse
 		IsChangeInProgress(id types.SystemID) *types.InputRecord
 	}
 
@@ -34,8 +35,8 @@ type (
 
 var ErrDuplicateChangeReq = errors.New("duplicate ir change request")
 
-func t2TimeoutToRootRounds(t2Timeout uint32, blockRate time.Duration) uint64 {
-	return uint64((time.Duration(t2Timeout)*time.Millisecond)/blockRate) + 1
+func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {
+	return uint64(t2Timeout/blockRate) + 1
 }
 
 func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*IRChangeReqVerifier, error) {
@@ -60,9 +61,9 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 		return nil, fmt.Errorf("IR change request is nil")
 	}
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
-	sysID := irChReq.SystemIdentifier
+	sysID := irChReq.Partition
 	// verify certification Request
-	luc, err := x.state.GetCertificate(sysID)
+	luc, err := x.state.GetCertificate(sysID, irChReq.Shard)
 	if err != nil {
 		return nil, fmt.Errorf("reading partition certificate: %w", err)
 	}
@@ -72,7 +73,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 		return nil, fmt.Errorf("invalid payload: unknown partition %s", sysID)
 	}
 	// verify request
-	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
+	inputRecord, err := irChReq.Verify(tb, &luc.UC, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
@@ -85,10 +86,17 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
 	}
 	// check - should never happen, somehow the root node round must have been reset
-	if round < luc.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
+	if round < luc.UC.UnicitySeal.RootChainRoundNumber {
+		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UC.UnicitySeal.RootChainRoundNumber)
 	}
-	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: sysDesRecord.Hash(x.params.HashAlgorithm)}, nil
+	return &storage.InputData{
+			Partition: irChReq.Partition,
+			Shard:     irChReq.Shard,
+			IR:        inputRecord,
+			Technical: irChReq.Technical,
+			PDRHash:   sysDesRecord.Hash(x.params.HashAlgorithm),
+		},
+		nil
 }
 
 func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*PartitionTimeoutGenerator, error) {
@@ -112,19 +120,19 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.
 	ucs := x.state.GetCertificates()
 	timeoutIds := make([]types.SystemID, 0, len(ucs))
 	var err error
-	for id, cert := range ucs {
+	for _, cert := range ucs {
 		// do not create T2 timeout requests if partition has a change already in pipeline
-		if ir := x.state.IsChangeInProgress(id); ir != nil {
+		if ir := x.state.IsChangeInProgress(cert.Partition); ir != nil {
 			continue
 		}
-		sysDesc, _, getErr := x.partitions.GetInfo(id, currentRound)
+		sysDesc, _, getErr := x.partitions.GetInfo(cert.Partition, currentRound)
 		if getErr != nil {
 			err = errors.Join(err, fmt.Errorf("read partition system description failed: %w", getErr))
 			// still try to check the rest of the partitions
 			continue
 		}
-		if currentRound-cert.UnicitySeal.RootChainRoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRate/2) {
-			timeoutIds = append(timeoutIds, id)
+		if currentRound-cert.UC.UnicitySeal.RootChainRoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRate/2) {
+			timeoutIds = append(timeoutIds, cert.Partition)
 		}
 	}
 	return timeoutIds, err

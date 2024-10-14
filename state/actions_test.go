@@ -56,7 +56,7 @@ func TestAdd(t *testing.T) {
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				bearer:              []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
+				owner:               []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
 				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
@@ -129,7 +129,7 @@ func TestUpdate(t *testing.T) {
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				bearer:              []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
+				owner:               []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:                &TestData{Value: 200},
 				subTreeSummaryValue: 10,
 			},
@@ -228,7 +228,7 @@ func TestSetOwner(t *testing.T) {
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				bearer:              []byte{1, 2, 3, 4, 5},
+				owner:               []byte{1, 2, 3, 4, 5},
 				data:                &TestData{Value: 10},
 				subTreeSummaryValue: 10,
 			},
@@ -312,5 +312,5 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 func assertUnitEqual(t *testing.T, expectedUnit *Unit, unit *Unit) {
 	require.Equal(t, expectedUnit.data, unit.data)
 	require.Equal(t, expectedUnit.subTreeSummaryValue, unit.subTreeSummaryValue)
-	require.Equal(t, expectedUnit.bearer, unit.bearer)
+	require.Equal(t, expectedUnit.owner, unit.owner)
 }

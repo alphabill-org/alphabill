@@ -18,16 +18,13 @@ import (
 var ErrStateIsNil = errors.New("state is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
-var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
 
 type (
 	genesisConf struct {
 		peerID                peer.ID
-		systemIdentifier      types.SystemID
 		hashAlgorithm         gocrypto.Hash
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
-		t2Timeout             uint32
 		params                []byte
 	}
 
@@ -44,21 +41,13 @@ func (c *genesisConf) isValid() error {
 	if len(c.encryptionPubKeyBytes) == 0 {
 		return ErrEncryptionPubKeyIsNil
 	}
-	if c.systemIdentifier == 0 {
-		return errInvalidSystemIdentifier
-	}
+
 	return nil
 }
 
 func WithPeerID(peerID peer.ID) GenesisOption {
 	return func(c *genesisConf) {
 		c.peerID = peerID
-	}
-}
-
-func WithSystemIdentifier(systemIdentifier types.SystemID) GenesisOption {
-	return func(c *genesisConf) {
-		c.systemIdentifier = systemIdentifier
 	}
 }
 
@@ -80,32 +69,17 @@ func WithEncryptionPubKey(encryptionPubKey []byte) GenesisOption {
 	}
 }
 
-func WithT2Timeout(t2Timeout uint32) GenesisOption {
-	return func(c *genesisConf) {
-		c.t2Timeout = t2Timeout
-	}
-}
-
 func WithParams(params []byte) GenesisOption {
 	return func(c *genesisConf) {
 		c.params = params
 	}
 }
 
-// NewNodeGenesis creates a new genesis.PartitionNode from the given inputs. This function creates the first
-// block certification request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and
-// system identifier and public encryption key configuration:
-//
-//	   pn, err := NewNodeGenesis(
-//						txSystem,
-//						WithPeerID(myPeerID),
-//						WithSigningKey(signer),
-//						WithSystemIdentifier(sysID),
-//						WithEncryptionPubKey(encPubKey),
-//					)
+// NewNodeGenesis creates a new genesis.PartitionNode from the given inputs.
+// Must contain PeerID, signer, and public encryption key configuration.
 //
 // This function must be called by all partition nodes in the network.
-func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.PartitionNode, error) {
+func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, opts ...GenesisOption) (*genesis.PartitionNode, error) {
 	if state == nil {
 		return nil, ErrStateIsNil
 	}
@@ -130,37 +104,41 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 		hash = zeroHash
 	}
 	// calculate block hash
-	gIR := &types.InputRecord{
+	gIR := &types.InputRecord{Version: 1,
 		PreviousHash: zeroHash, // extend zero hash
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}
 	// create genesis block
+	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{Version: 1,
+		InputRecord: gIR,
+	})
+	if err != nil {
+		return nil, err
+	}
 	gBlock := &types.Block{
 		Header: &types.Header{
-			SystemID:          c.systemIdentifier,
+			SystemID:          pdr.SystemIdentifier,
 			ProposerID:        "genesis",
 			PreviousBlockHash: zeroHash,
 		},
-		Transactions: make([]*types.TransactionRecord, 0),
-		UnicityCertificate: &types.UnicityCertificate{
-			InputRecord: gIR,
-		},
+		Transactions:       make([]*types.TransactionRecord, 0),
+		UnicityCertificate: ucBytes,
 	}
 	// calculate first block hash
-	blockHash, err := gBlock.Hash(c.hashAlgorithm)
+	gIR, err = gBlock.CalculateBlockHash(c.hashAlgorithm)
 	if err != nil {
-		return nil, fmt.Errorf("geneis block hash calculation failed")
+		return nil, fmt.Errorf("calculating genesis block hash: %w", err)
 	}
-	gIR.BlockHash = blockHash
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		SystemIdentifier: c.systemIdentifier,
-		NodeIdentifier:   id,
-		InputRecord:      gIR,
-		RootRoundNumber:  pg.RootRoundNumber,
+		Partition:       pdr.SystemIdentifier,
+		NodeIdentifier:  id,
+		Leader:          id,
+		InputRecord:     gIR,
+		RootRoundNumber: pg.RootRoundNumber,
 	}
 	if err := blockCertificationRequest.Sign(c.signer); err != nil {
 		return nil, err
@@ -182,12 +160,13 @@ func NewNodeGenesis(state *state.State, opts ...GenesisOption) (*genesis.Partiti
 
 	// partition node
 	node := &genesis.PartitionNode{
+		Version:                   1,
 		NodeIdentifier:            id,
 		SigningPublicKey:          signingPubKey,
 		EncryptionPublicKey:       c.encryptionPubKeyBytes,
 		BlockCertificationRequest: blockCertificationRequest,
-		T2Timeout:                 c.t2Timeout,
 		Params:                    c.params,
+		PartitionDescription:      pdr,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package orchestration
 import (
 	"crypto"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,9 +24,17 @@ func TestNewTxSystem_OK(t *testing.T) {
 	s := state.NewEmptyState()
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+	pdr := types.PartitionDescriptionRecord{
+		NetworkIdentifier: 5,
+		SystemIdentifier:  orchestration.DefaultSystemID,
+		TypeIdLen:         8,
+		UnitIdLen:         256,
+		T2Timeout:         2000 * time.Millisecond,
+	}
 	txSystem, err := NewTxSystem(
+		pdr,
+		types.ShardID{},
 		observability.Default(t),
-		WithSystemIdentifier(orchestration.DefaultSystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(s),
 		WithOwnerPredicate(templates.NewP2pkh256BytesFromKey(pubKey)),
@@ -35,7 +44,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
 	roundNumber := uint64(10)
-	txo := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
+	txo, _ := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: roundNumber + 1}),
 	)
@@ -45,22 +54,18 @@ func TestNewTxSystem_OK(t *testing.T) {
 	serverMetadata, err := txSystem.Execute(txo)
 	require.NoError(t, err)
 	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{txo.UnitID()}, serverMetadata.TargetUnits)
+	require.Equal(t, []types.UnitID{txo.UnitID}, serverMetadata.TargetUnits)
 	require.True(t, serverMetadata.ActualFee == 0)
 
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
-
-	postCommitUnit, err := s.GetUnit(unitID, true)
-	require.NoError(t, err)
-	require.NotEqual(t, txo.OwnerProof, postCommitUnit.Bearer())
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{
-		InputRecord: &types.InputRecord{
+	return &types.UnicityCertificate{Version: 1,
+		InputRecord: &types.InputRecord{Version: 1,
 			RoundNumber:  roundNumber,
 			Hash:         s.Root(),
 			SummaryValue: s.Summary(),

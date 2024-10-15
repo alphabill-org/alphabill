@@ -75,10 +75,7 @@ func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permiss
 	if fcrUnit != nil {
 		actionFn = unit.IncrCredit(tx.UnitID, attr.Amount, tx.Timeout())
 	} else {
-		fcr := &fc.FeeCreditRecord{
-			Balance: attr.Amount,
-			Timeout: tx.Timeout(),
-		}
+		fcr := fc.NewFeeCreditRecord(attr.Amount, attr.OwnerPredicate, tx.Timeout())
 		actionFn = unit.AddCredit(tx.UnitID, fcr)
 	}
 	if err := f.state.Apply(actionFn); err != nil {

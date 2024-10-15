@@ -121,7 +121,7 @@ func Test_runChainedPredicates(t *testing.T) {
 	t.Run("nil predicate", func(t *testing.T) {
 		// iterator callback returns nil for the predicate
 		d := &tokens.NonFungibleTokenTypeData{}
-		unit := state.NewUnit([]byte{7, 7, 7}, d)
+		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
 			txo.AuthProofSigBytes,
@@ -146,7 +146,7 @@ func Test_runChainedPredicates(t *testing.T) {
 		// exec predicate callback returns error
 		expErr := errors.New("eval predicate fails")
 		d := &tokens.NonFungibleTokenTypeData{}
-		unit := state.NewUnit([]byte{7, 7, 7}, d)
+		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
 			txo.AuthProofSigBytes,
@@ -175,7 +175,7 @@ func Test_runChainedPredicates(t *testing.T) {
 	t.Run("successful eval of one round", func(t *testing.T) {
 		// successfully evaluating chain with one item
 		d := &tokens.NonFungibleTokenTypeData{}
-		unit := state.NewUnit([]byte{7, 7, 7}, d)
+		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			testctx.NewMockExecutionContext(),
 			txo.AuthProofSigBytes,
@@ -218,7 +218,7 @@ func Test_getUnitData(t *testing.T) {
 	t.Run("unit data is of wrong type", func(t *testing.T) {
 		unitID := []byte{1, 2, 3, 4, 5, 6}
 		d := &tokens.NonFungibleTokenTypeData{}
-		unit := state.NewUnit([]byte{7, 7, 7}, d)
+		unit := state.NewUnit(d)
 		data, err := getUnitData[*mockUnitData](
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				if !bytes.Equal(id, unitID) {
@@ -235,7 +235,7 @@ func Test_getUnitData(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		unitID := []byte{1, 2, 3, 4, 5, 6}
 		d := &tokens.NonFungibleTokenTypeData{Symbol: "SYM", Name: "my NFT"}
-		unit := state.NewUnit([]byte{7, 7, 7}, d)
+		unit := state.NewUnit(d)
 		data, err := getUnitData[*tokens.NonFungibleTokenTypeData](
 			func(id types.UnitID, committed bool) (*state.Unit, error) {
 				if !bytes.Equal(id, unitID) {

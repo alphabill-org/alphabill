@@ -17,8 +17,8 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	sharedState := state.NewEmptyState()
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1}
-	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, bearer, existingFCR)))
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1, OwnerPredicate: ownerPredicate}
+	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
 	fcModule, err := NewFeeCreditModule(5, moneySystemID, moneySystemID, sharedState, trustBase)
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			tx: testtransaction.NewTransactionOrder(t,
 				testtransaction.WithTransactionType(22),
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
-				testtransaction.WithFeeProof(bearer),
+				testtransaction.WithFeeProof(ownerPredicate),
 			),
 			expectedError: "decoding predicate",
 		},

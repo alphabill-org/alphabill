@@ -23,7 +23,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 	t.Run("ok - 2-way split", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateSplitTx(tx, attr, authProof, exeCtx))
 	})
@@ -33,7 +33,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 			{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 		}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateSplitTx(tx, attr, authProof, exeCtx))
 	})
@@ -47,49 +47,49 @@ func TestModule_validateSplitTx(t *testing.T) {
 	t.Run("unit is not bill data", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 6}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 6, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: invalid data type, unit is not of BillData type")
 	})
 	t.Run("err - bill locked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{Locked: 1, V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Locked: 1, Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: bill is locked")
 	})
 	t.Run("err - invalid counter", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 20, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter+1)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: the transaction counter is not equal to the unit counter")
 	})
 	t.Run("err - target units empty", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target units are empty")
 	})
 	t.Run("err - target unit is nil", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{nil}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit is nil at index 0")
 	})
 	t.Run("err - target unit amount is 0", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 0, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit amount is zero at index 0")
 	})
 	t.Run("err - target unit owner predicate is empty", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{2})
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 1, OwnerPredicate: []byte{}}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: target unit owner predicate is empty at index 0")
 	})
@@ -99,7 +99,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			{Amount: math.MaxUint64, OwnerPredicate: templates.AlwaysTrueBytes()},
 			{Amount: 1, OwnerPredicate: templates.AlwaysTrueBytes()},
 		}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: failed to add target unit amounts: uint64 sum overflow: [18446744073709551615 1]")
 	})
@@ -109,7 +109,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()},
 			{Amount: 51, OwnerPredicate: templates.AlwaysTrueBytes()},
 		}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx),
 			"split error: the sum of the values to be transferred must be less than the value of the bill; sum=101 billValue=100")
@@ -120,7 +120,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()},
 			{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()},
 		}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx),
 			"split error: the sum of the values to be transferred must be less than the value of the bill; sum=100 billValue=100")
@@ -131,7 +131,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 			{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 			{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 		}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: billValue, Counter: counter}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), `evaluating owner predicate: predicate evaluated to "false"`)
 	})
@@ -148,7 +148,7 @@ func TestModule_executeSplitTx(t *testing.T) {
 		{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 		{Amount: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 	}, counter)
-	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: billValue, Counter: counter}))
+	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 	exeCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(6))
 	sm, err := module.executeSplitTx(tx, attr, authProof, exeCtx)
 	require.NoError(t, err)
@@ -165,28 +165,26 @@ func TestModule_executeSplitTx(t *testing.T) {
 		// verify that the amount is correct
 		u, err := module.state.GetUnit(newUnitID, false)
 		require.NoError(t, err)
-		// bill owner is changed to dust collector
-		require.EqualValues(t, u.Owner(), targetUnit.OwnerPredicate)
 		// bill value is now 0, the counter and "last round" are both updated
 		bill, ok := u.Data().(*money.BillData)
 		require.True(t, ok)
-		require.EqualValues(t, bill.V, targetUnit.Amount)
+		require.EqualValues(t, bill.Value, targetUnit.Amount)
+		// bill owner is changed to dust collector
+		require.EqualValues(t, bill.Owner(), targetUnit.OwnerPredicate)
 		// newly created bill, so counter is 0
 		require.EqualValues(t, bill.Counter, 0)
-		require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 		require.EqualValues(t, bill.Locked, 0)
-		sum += bill.V
+		sum += bill.Value
 	}
 	require.EqualValues(t, sm.TargetUnits, targets)
 	// target unit was also updated and it was credited correctly
 	u, err := module.state.GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, u.Owner(), templates.AlwaysTrueBytes())
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, bill.V, billValue-sum)
+	require.EqualValues(t, bill.Value, billValue-sum)
+	require.EqualValues(t, bill.Owner(), templates.AlwaysTrueBytes())
 	// newly created bill, so counter is 0
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 	require.EqualValues(t, bill.Locked, 0)
 }

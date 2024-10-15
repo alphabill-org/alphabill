@@ -11,29 +11,29 @@ import (
 )
 
 var (
-	id    = []byte{4}
-	owner = types.PredicateBytes{1, 2, 3}
+	id             = []byte{4}
+	ownerPredicate = types.PredicateBytes{1, 2, 3}
 )
 
 func TestAddCredit_OK(t *testing.T) {
-	counter := uint64(10)
 	fcr := &fc.FeeCreditRecord{
-		Balance: 1,
-		Counter: counter,
-		Timeout: 2,
+		Balance:        1,
+		Counter:        10,
+		Timeout:        2,
+		OwnerPredicate: ownerPredicate,
 	}
 	tr := state.NewEmptyState()
 
 	// add credit unit to state tree
-	err := tr.Apply(AddCredit(id, owner, fcr))
+	err := tr.Apply(AddCredit(id, fcr))
 	require.NoError(t, err)
 
 	// verify unit is in state tree
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	require.Equal(t, owner, unit.Owner())
-	require.Equal(t, counter, unit.Data().(*fc.FeeCreditRecord).Counter)
-	require.Equal(t, fcr, unit.Data())
+	unitData, ok := unit.Data().(*fc.FeeCreditRecord)
+	require.True(t, ok)
+	require.Equal(t, fcr, unitData)
 }
 
 func TestDelCredit_OK(t *testing.T) {
@@ -45,7 +45,7 @@ func TestDelCredit_OK(t *testing.T) {
 	tr := state.NewEmptyState()
 
 	// add credit unit to state tree
-	err := tr.Apply(AddCredit(id, owner, fcr))
+	err := tr.Apply(AddCredit(id, fcr))
 	require.NoError(t, err)
 
 	// del credit unit from state tree
@@ -58,16 +58,16 @@ func TestDelCredit_OK(t *testing.T) {
 }
 
 func TestIncrCredit_OK(t *testing.T) {
-	counter := uint64(10)
 	fcr := &fc.FeeCreditRecord{
-		Balance: 1,
-		Counter: counter,
-		Timeout: 2,
+		Balance:        1,
+		Counter:        9,
+		Timeout:        2,
+		OwnerPredicate: ownerPredicate,
 	}
 	tr := state.NewEmptyState()
 
 	// add credit unit to state tree
-	err := tr.Apply(AddCredit(id, owner, fcr))
+	err := tr.Apply(AddCredit(id, fcr))
 	require.NoError(t, err)
 
 	// increment credit balance
@@ -77,11 +77,11 @@ func TestIncrCredit_OK(t *testing.T) {
 	// verify balance is incremented
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
-	unitFCR := unit.Data().(*fc.FeeCreditRecord)
-	require.EqualValues(t, 100, unitFCR.Balance)
-	require.EqualValues(t, 200, unitFCR.Timeout)
-	require.Equal(t, counter+1, unitFCR.Counter)
-	require.Equal(t, owner, unit.Owner())
+	unitData := unit.Data().(*fc.FeeCreditRecord)
+	require.EqualValues(t, 100, unitData.Balance)
+	require.EqualValues(t, 200, unitData.Timeout)
+	require.EqualValues(t, 10, unitData.Counter)
+	require.EqualValues(t, ownerPredicate, unitData.OwnerPredicate)
 }
 
 func TestDecrCredit_OK(t *testing.T) {
@@ -93,7 +93,7 @@ func TestDecrCredit_OK(t *testing.T) {
 	tr := state.NewEmptyState()
 
 	// add credit unit to state tree
-	err := tr.Apply(AddCredit(id, owner, fcr))
+	err := tr.Apply(AddCredit(id, fcr))
 	require.NoError(t, err)
 
 	// decrement credit balance

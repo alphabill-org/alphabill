@@ -4,6 +4,7 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -25,6 +26,7 @@ func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }
 func (t *testData) Copy() types.UnitData { return &testData{} }
+func (t *testData) Owner() []byte        { return nil }
 
 func TestFeeCredit_validateCloseFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -179,7 +181,7 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 		withStateUnit(address.Bytes(), nil, &statedb.StateObject{
 			Address:   address,
 			Account:   &statedb.Account{Balance: alphaToWei(50)},
-			AlphaBill: &statedb.AlphaBillLink{Counter: 10},
+			AlphaBill: &statedb.AlphaBillLink{Counter: 10, OwnerPredicate: templates.AlwaysTrueBytes()},
 		})) // execute closeFC transaction
 	require.NoError(t, feeModule.validateCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))))
 	sm, err := feeModule.executeCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10)))
@@ -192,4 +194,5 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, 11, obj.AlphaBill.Counter)
 	require.EqualValues(t, 0, obj.Account.Balance.Uint64())
+	require.EqualValues(t, templates.AlwaysTrueBytes(), obj.AlphaBill.OwnerPredicate)
 }

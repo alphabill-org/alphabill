@@ -85,7 +85,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
-				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
 			curRound:     func() uint64 { return earlyBirdDate },
 			GasRemaining: 30000,
@@ -136,7 +136,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
-				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
 			GasRemaining: 30000,
 		}
@@ -198,7 +198,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
-				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
 			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
 			GasRemaining: 50000,
@@ -282,7 +282,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
-				return state.NewUnit([]byte{1}, &tokens.NonFungibleTokenData{Data: []byte("early-bird")}), nil
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
 			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
 			curRound:  func() uint64 { return regularDate },

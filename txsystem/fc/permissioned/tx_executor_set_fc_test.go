@@ -97,7 +97,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: ok", func(t *testing.T) {
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
@@ -107,7 +107,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: counter is nil", func(t *testing.T) {
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: invalid counter", func(t *testing.T) {
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(1)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, systemID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
@@ -126,7 +126,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: invalid target owner predicate", func(t *testing.T) {
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 

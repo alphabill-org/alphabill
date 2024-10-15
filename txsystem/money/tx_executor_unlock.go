@@ -24,7 +24,6 @@ func (m *Module) executeUnlockTx(tx *types.TransactionOrder, _ *money.UnlockAttr
 			return nil, fmt.Errorf("unlock transaction: unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = 0
-		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		return newBillData, nil
 	})
@@ -50,7 +49,7 @@ func (m *Module) validateUnlockTx(tx *types.TransactionOrder, attr *money.Unlock
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"bytes"
 	"hash"
 	"testing"
 
@@ -23,15 +24,18 @@ func TestOwnerIndexer(t *testing.T) {
 		// create initial state
 		s := state.NewEmptyState()
 		unitID := types.UnitID{1}
-		unitData := &mockUnitData{}
 		initialOwner := templates.NewP2pkh256BytesFromKeyHash([]byte{0})
-		err := s.Apply(state.AddUnit(unitID, initialOwner, unitData))
+		unitData := &mockUnitData{ownerPredicate: initialOwner}
+		err := s.Apply(state.AddUnit(unitID, unitData))
 		require.NoError(t, err)
 
 		// add units to state
 		for i := byte(1); i <= 3; i++ {
 			ownerID := templates.NewP2pkh256BytesFromKeyHash([]byte{i})
-			err = s.Apply(state.SetOwner(unitID, ownerID))
+			err = s.Apply(state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+				unitData.ownerPredicate = ownerID
+				return unitData, nil
+			}))
 			require.NoError(t, err)
 
 			err = s.AddUnitLog(unitID, []byte{i})
@@ -64,9 +68,13 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// create state where unit2 owner was changed owner1->owner2
 		s := state.NewEmptyState()
-		require.NoError(t, s.Apply(state.AddUnit(unitID2, owner1Predicate, &mockUnitData{})))
+		unitData := &mockUnitData{ownerPredicate: owner1Predicate}
+		require.NoError(t, s.Apply(state.AddUnit(unitID2, unitData)))
 		require.NoError(t, s.AddUnitLog(unitID2, test.RandomBytes(4)))
-		require.NoError(t, s.Apply(state.SetOwner(unitID2, owner2Predicate)))
+		require.NoError(t, s.Apply(state.UpdateUnitData(unitID2, func(data types.UnitData) (types.UnitData, error) {
+			unitData.ownerPredicate = owner2Predicate
+			return unitData, nil
+		})))
 		require.NoError(t, s.AddUnitLog(unitID2, test.RandomBytes(4)))
 		commitState(t, s)
 
@@ -99,9 +107,13 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// create state where unit was transferred to owner2
 		s := state.NewEmptyState()
-		require.NoError(t, s.Apply(state.AddUnit(unitID, owner1Predicate, &mockUnitData{})))
+		unitData := &mockUnitData{ownerPredicate: owner1Predicate}
+		require.NoError(t, s.Apply(state.AddUnit(unitID, unitData)))
 		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
-		require.NoError(t, s.Apply(state.SetOwner(unitID, owner2Predicate)))
+		require.NoError(t, s.Apply(state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
+			unitData.ownerPredicate = owner2Predicate
+			return unitData, nil
+		})))
 		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
 		commitState(t, s)
 
@@ -129,7 +141,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// create state with random bytes for owner predicate
 		s := state.NewEmptyState()
-		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerPredicate, &mockUnitData{})))
+		require.NoError(t, s.Apply(state.AddUnit(unitID, &mockUnitData{})))
 		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
 		commitState(t, s)
 
@@ -150,7 +162,7 @@ func TestOwnerIndexer(t *testing.T) {
 
 		// create state with alwaysTrue unit
 		s := state.NewEmptyState()
-		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerID, &mockUnitData{})))
+		require.NoError(t, s.Apply(state.AddUnit(unitID, &mockUnitData{})))
 		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
 		commitState(t, s)
 
@@ -170,7 +182,7 @@ func TestOwnerIndexer(t *testing.T) {
 		ownerID := []byte{1}
 		ownerPredicate := templates.NewP2pkh256BytesFromKeyHash(ownerID)
 		s := state.NewEmptyState()
-		require.NoError(t, s.Apply(state.AddUnit(unitID, ownerPredicate, &mockUnitData{})))
+		require.NoError(t, s.Apply(state.AddUnit(unitID, &mockUnitData{ownerPredicate: ownerPredicate})))
 		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
 		commitState(t, s)
 
@@ -185,7 +197,9 @@ func TestOwnerIndexer(t *testing.T) {
 	})
 }
 
-type mockUnitData struct{}
+type mockUnitData struct {
+	ownerPredicate []byte
+}
 
 func (m mockUnitData) Write(hash.Hash) error { return nil }
 
@@ -194,7 +208,11 @@ func (m mockUnitData) SummaryValueInput() uint64 {
 }
 
 func (m mockUnitData) Copy() types.UnitData {
-	return mockUnitData{}
+	return mockUnitData{ownerPredicate: bytes.Clone(m.ownerPredicate)}
+}
+
+func (m mockUnitData) Owner() []byte {
+	return m.ownerPredicate
 }
 
 func commitState(t *testing.T, s *state.State) {

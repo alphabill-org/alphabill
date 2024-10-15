@@ -93,7 +93,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 	var billState money.BillData
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&billState))
-	require.Equal(t, moneyInvariant-fcrAmount, billState.V)
+	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
 	ucv, err := abNet.GetValidator(pdr.SystemIdentifier)
@@ -225,7 +225,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// check that frcAmount is credited from initial bill
 	bill, err := txsState.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
-	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*money.BillData).V)
+	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*money.BillData).Value)
 	// send addFC
 	addFC := testutils.NewAddFC(t, signer,
 		testutils.NewAddFCAttr(t, signer,
@@ -350,7 +350,7 @@ func createDustTransferTxs(t *testing.T, targetID []byte, targetCounter uint64, 
 
 	for i, id := range ids {
 		_, billData := getBill(t, s, id)
-		tx, _, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
+		tx, _, _ := createDCTransfer(t, id, fcrID, billData.Value, billData.Counter, targetID, targetCounter)
 		signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey2))
 		require.NoError(t, err)
 

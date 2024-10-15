@@ -22,7 +22,6 @@ func (m *Module) executeLockTx(tx *types.TransactionOrder, attr *money.LockAttri
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
 		newBillData.Locked = attr.LockStatus
-		newBillData.T = exeCtx.CurrentRound()
 		newBillData.Counter += 1
 		return newBillData, nil
 	})
@@ -51,7 +50,7 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

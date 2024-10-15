@@ -25,8 +25,9 @@ const mockNetworkID types.NetworkID = 5
 const mockTxSystemID types.SystemID = 10
 
 type MockData struct {
-	_     struct{} `cbor:",toarray"`
-	Value uint64
+	_              struct{} `cbor:",toarray"`
+	Value          uint64
+	OwnerPredicate []byte
 }
 
 func (t *MockData) Write(hasher hash.Hash) error {
@@ -42,6 +43,9 @@ func (t *MockData) SummaryValueInput() uint64 {
 }
 func (t *MockData) Copy() types.UnitData {
 	return &MockData{Value: t.Value}
+}
+func (t *MockData) Owner() []byte {
+	return t.OwnerPredicate
 }
 
 func Test_NewGenericTxSystem(t *testing.T) {
@@ -183,11 +187,11 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
-			withStateUnit(fcrID,
-				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil),
-			withStateUnit(unitID,
-				templates.AlwaysTrueBytes(),
-				&MockData{Value: 1}, newMockLockTx(t,
+			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
+			withStateUnit(unitID, &MockData{
+				Value:          1,
+				OwnerPredicate: templates.AlwaysTrueBytes()},
+				newMockLockTx(t,
 					transaction.WithSystemID(mockTxSystemID),
 					transaction.WithTransactionType(mockTxType),
 					transaction.WithAttributes(MockTxAttributes{}),
@@ -225,11 +229,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
-			withStateUnit(fcrID,
-				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil),
-			withStateUnit(unitID,
-				templates.AlwaysTrueBytes(),
-				&MockData{Value: 1}, newMockLockTx(t,
+			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
+			withStateUnit(unitID, &MockData{Value: 1, OwnerPredicate: templates.AlwaysTrueBytes()},
+				newMockLockTx(t,
 					transaction.WithSystemID(mockTxSystemID),
 					transaction.WithTransactionType(mockTxType),
 					transaction.WithAttributes(MockTxAttributes{}),
@@ -308,11 +310,8 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		unitID := test.RandomBytes(33)
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
-			withStateUnit(unitID,
-				templates.AlwaysTrueBytes(),
-				&MockData{Value: 1}, nil),
-			withStateUnit(fcrID,
-				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil))
+			withStateUnit(unitID, &MockData{Value: 1, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
+			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithUnitID(unitID),
 			transaction.WithSystemID(mockTxSystemID),
@@ -336,8 +335,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		m := NewMockTxModule(nil)
 		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
-			withStateUnit(fcrID,
-				templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}, nil))
+			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithSystemID(mockTxSystemID),
 			transaction.WithTransactionType(mockTxType),
@@ -443,9 +441,9 @@ func (mm MockModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 
 type txSystemTestOption func(m *GenericTxSystem) error
 
-func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData, lock []byte) txSystemTestOption {
+func withStateUnit(unitID []byte, data types.UnitData, lock []byte) txSystemTestOption {
 	return func(m *GenericTxSystem) error {
-		return m.state.Apply(state.AddUnitWithLock(unitID, bearer, data, lock))
+		return m.state.Apply(state.AddUnitWithLock(unitID, data, lock))
 	}
 }
 

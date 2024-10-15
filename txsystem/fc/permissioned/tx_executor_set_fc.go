@@ -32,15 +32,15 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 		return fmt.Errorf("failed to get unit: %w", err)
 	}
 	if fcrUnit != nil {
-		// verify owner predicate
-		if !bytes.Equal(fcrUnit.Owner(), attr.OwnerPredicate) {
-			return fmt.Errorf("fee credit record owner predicate does not match the target owner predicate")
-		}
-		// verify counter
 		fcr, ok := fcrUnit.Data().(*fc.FeeCreditRecord)
 		if !ok {
 			return fmt.Errorf("fee credit record unit data type is not of *fc.FeeCreditRecord type")
 		}
+		// verify owner predicate
+		if !bytes.Equal(fcr.OwnerPredicate, attr.OwnerPredicate) {
+			return fmt.Errorf("fee credit record owner predicate does not match the target owner predicate")
+		}
+		// verify counter
 		if attr.Counter == nil {
 			return errors.New("invalid counter: must not be nil when updating an existing fee credit record")
 		}
@@ -79,7 +79,7 @@ func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permiss
 			Balance: attr.Amount,
 			Timeout: tx.Timeout(),
 		}
-		actionFn = state.AddUnit(tx.UnitID, attr.OwnerPredicate, fcr)
+		actionFn = unit.AddCredit(tx.UnitID, fcr)
 	}
 	if err := f.state.Apply(actionFn); err != nil {
 		return nil, fmt.Errorf("failed to set fee credit record: %w", err)

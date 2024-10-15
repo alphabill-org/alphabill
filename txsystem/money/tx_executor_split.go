@@ -25,15 +25,8 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 		}
 		newUnitID := money.NewBillID(unitID, newUnitPart)
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
-		actions = append(actions, state.AddUnit(
-			newUnitID,
-			targetUnit.OwnerPredicate,
-			&money.BillData{
-				V:       targetUnit.Amount,
-				T:       exeCtx.CurrentRound(),
-				Counter: 0,
-			}),
-		)
+		newUnitData := money.NewBillData(targetUnit.Amount, targetUnit.OwnerPredicate)
+		actions = append(actions, state.AddUnit(newUnitID, newUnitData))
 		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add target unit amounts: %w", err)
@@ -46,9 +39,8 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
-			bd.V -= sum
+			bd.Value -= sum
 			bd.Counter += 1
-			bd.T = exeCtx.CurrentRound()
 			return bd, nil
 		},
 	))
@@ -64,10 +56,11 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 	if err != nil {
 		return err
 	}
-	if err = validateSplit(unit.Data(), attr); err != nil {
+	unitData := unit.Data()
+	if err = validateSplit(unitData, attr); err != nil {
 		return fmt.Errorf("split error: %w", err)
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
@@ -104,8 +97,8 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 			return fmt.Errorf("failed to add target unit amounts: %w", err)
 		}
 	}
-	if sum >= bd.V {
-		return fmt.Errorf("the sum of the values to be transferred must be less than the value of the bill; sum=%d billValue=%d", sum, bd.V)
+	if sum >= bd.Value {
+		return fmt.Errorf("the sum of the values to be transferred must be less than the value of the bill; sum=%d billValue=%d", sum, bd.Value)
 	}
 	return nil
 }

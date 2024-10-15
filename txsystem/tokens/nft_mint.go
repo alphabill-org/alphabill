@@ -12,9 +12,9 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *tokens.MintNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeMintNFT(tx *types.TransactionOrder, attr *tokens.MintNonFungibleTokenAttributes, _ *tokens.MintNonFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if err := n.state.Apply(
-		state.AddUnit(tx.UnitID, attr.OwnerPredicate, tokens.NewNonFungibleTokenData(attr.TypeID, attr, exeCtx.CurrentRound(), 0)),
+		state.AddUnit(tx.UnitID, tokens.NewNonFungibleTokenData(attr.TypeID, attr)),
 	); err != nil {
 		return nil, err
 	}

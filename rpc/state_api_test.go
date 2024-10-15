@@ -61,11 +61,11 @@ func TestGetUnit(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
 		require.NoError(t, err)
 		require.NotNil(t, unit)
-
-		require.NotNil(t, unit)
 		require.NotNil(t, unit.Data)
+		d, ok := unit.Data.(*unitData)
+		require.True(t, ok)
 		require.Nil(t, unit.StateProof)
-		require.EqualValues(t, types.Bytes{0x83, 0x00, 0x41, 0x01, 0xF6}, unit.OwnerPredicate)
+		require.EqualValues(t, templates.AlwaysTrueBytes(), d.O)
 	})
 	t.Run("get unit (proof=true)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, true)
@@ -214,7 +214,7 @@ func TestGetTrustBase(t *testing.T) {
 func prepareState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
-		state.AddUnit(unitID, templates.AlwaysTrueBytes(), &unitData{I: 10}),
+		state.AddUnit(unitID, &unitData{I: 10, O: templates.AlwaysTrueBytes()}),
 	))
 
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
@@ -232,6 +232,7 @@ func prepareState(t *testing.T) *state.State {
 type unitData struct {
 	_ struct{} `cbor:",toarray"`
 	I uint64
+	O []byte
 }
 
 func (ud *unitData) Hash(hashAlgo crypto.Hash) []byte {
@@ -254,7 +255,11 @@ func (ud *unitData) SummaryValueInput() uint64 {
 }
 
 func (ud *unitData) Copy() types.UnitData {
-	return &unitData{I: ud.I}
+	return &unitData{I: ud.I, O: ud.O}
+}
+
+func (ud *unitData) Owner() []byte {
+	return ud.O
 }
 
 var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})

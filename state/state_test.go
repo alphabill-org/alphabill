@@ -28,8 +28,9 @@ var unitIdentifiers = []types.UnitID{
 }
 
 type TestData struct {
-	_     struct{} `cbor:",toarray"`
-	Value uint64
+	_              struct{} `cbor:",toarray"`
+	Value          uint64
+	OwnerPredicate []byte
 }
 
 func (t *TestData) Write(hasher hash.Hash) error {
@@ -47,6 +48,10 @@ func (t *TestData) SummaryValueInput() uint64 {
 
 func (t *TestData) Copy() types.UnitData {
 	return &TestData{Value: t.Value}
+}
+
+func (t *TestData) Owner() []byte {
+	return t.OwnerPredicate
 }
 
 func TestNewEmptyState(t *testing.T) {
@@ -67,7 +72,7 @@ func TestState_Savepoint_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 	spID := s.Savepoint()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 	s.ReleaseToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
@@ -82,7 +87,7 @@ func TestState_RollbackSavepoint(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 	spID := s.Savepoint()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 	s.RollbackToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
@@ -95,7 +100,7 @@ func TestState_RollbackSavepoint(t *testing.T) {
 func TestState_Commit_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -120,7 +125,7 @@ func TestState_Commit_OK(t *testing.T) {
 func TestState_Commit_RootNotCalculated(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 
 	require.ErrorContains(t, s.Commit(createUC(s, 0, nil)), "call CalculateRoot method before committing a state")
 	require.False(t, s.isCommitted())
@@ -130,7 +135,7 @@ func TestState_Commit_RootNotCalculated(t *testing.T) {
 func TestState_Commit_InvalidUC(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.ErrorContains(t, s.Commit(createUC(s, summaryValue, nil)), "state summary hash is not equal to the summary hash in UC")
@@ -144,7 +149,7 @@ func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 	require.ErrorContains(t, s.Apply(
-		AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData),
+		AddUnit([]byte{0, 0, 0, 1}, unitData),
 		UpdateUnitData([]byte{0, 0, 0, 2}, func(data types.UnitData) (types.UnitData, error) {
 			return data, nil
 		})), "failed to get unit: item 00000002")
@@ -157,7 +162,7 @@ func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 func TestState_Revert(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, unitData)))
 	s.Revert()
 
 	committedRoot := s.committedTree.Root()
@@ -171,11 +176,11 @@ func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
 	s := NewEmptyState()
 	id := s.Savepoint()
 	require.NoError(t,
-		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 0}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 2}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 3}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 4}, &TestData{Value: 1})),
 	)
 	s.ReleaseToSavepoint(id)
 
@@ -276,11 +281,11 @@ func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
 	s := NewEmptyState()
 	id := s.Savepoint()
 	require.NoError(t,
-		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 0}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 2}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 3}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 4}, &TestData{Value: 1})),
 	)
 	s.ReleaseToSavepoint(id)
 	value, hash, err := s.CalculateRoot()
@@ -342,11 +347,11 @@ func TestState_RevertAVLTreeRotations(t *testing.T) {
 	//		└───┤ key=0000000A, depth=2, nodeSummary=10, subtreeSummary=26,
 	//			└───┤ key=00000001, depth=1, nodeSummary=1, subtreeSummary=1,
 	require.NoError(t,
-		s.Apply(AddUnit([]byte{0, 0, 0, 20}, test.RandomBytes(20), &TestData{Value: 20})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 10}, test.RandomBytes(20), &TestData{Value: 10})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 30}, test.RandomBytes(20), &TestData{Value: 30})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
-		s.Apply(AddUnit([]byte{0, 0, 0, 15}, test.RandomBytes(20), &TestData{Value: 15})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 20}, &TestData{Value: 20})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 10}, &TestData{Value: 10})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 30}, &TestData{Value: 30})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 15}, &TestData{Value: 15})),
 	)
 
 	// commit initial state
@@ -361,7 +366,7 @@ func TestState_RevertAVLTreeRotations(t *testing.T) {
 			return data, nil
 		})),
 		// rotate left right
-		s.Apply(AddUnit([]byte{0, 0, 0, 12}, test.RandomBytes(20), &TestData{Value: 12})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 12}, &TestData{Value: 12})),
 	)
 
 	// calculate root after applying changes
@@ -379,7 +384,7 @@ func TestState_GetUnit(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 
-	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit(unitID, unitData)))
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 
 	u, err := s.GetUnit(unitID, false)
@@ -403,7 +408,6 @@ func TestState_GetUnit(t *testing.T) {
 	require.NotNil(t, u2)
 	// logRoot, subTreeSummaryHash and summaryCalculated do not get cloned - rest must match
 	require.Equal(t, u.logs, u2.logs)
-	require.Equal(t, u.owner, u2.owner)
 	require.Equal(t, u.data, u2.data)
 	require.Equal(t, u.subTreeSummaryValue, u2.subTreeSummaryValue)
 }
@@ -413,7 +417,7 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 
-	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit(unitID, unitData)))
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 	txrHash := test.RandomBytes(32)
 	require.NoError(t, s.AddUnitLog(unitID, txrHash))
@@ -426,16 +430,16 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 	s := NewEmptyState()
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 10})))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, &TestData{Value: 10})))
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32)))
 
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 20})))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 2}, &TestData{Value: 20})))
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 2}, test.RandomBytes(32)))
 
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 30})))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 3}, &TestData{Value: 30})))
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 3}, test.RandomBytes(32)))
 
-	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 42})))
+	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 4}, &TestData{Value: 42})))
 	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 4}, test.RandomBytes(32)))
 
 	summary, rootHash, err := s.CalculateRoot()
@@ -455,7 +459,7 @@ func TestState_PruneState(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewEmptyState()
 
-	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
+	require.NoError(t, s.Apply(AddUnit(unitID, unitData)))
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 
 	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
@@ -551,8 +555,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		unitData, err := MarshalUnitData(unit.Data())
 		require.NoError(t, err)
 		data := &types.StateUnitData{
-			Data:           unitData,
-			OwnerPredicate: unit.Owner(),
+			Data: unitData,
 		}
 		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
 	})
@@ -743,17 +746,17 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	//			└───┤ key=00000001
 	//				└───┤ key=00000000
 	require.NoError(t, s.Apply(
-		AddUnit([]byte{0, 0, 0, 1}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 10}),
-		AddUnit([]byte{0, 0, 0, 6}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 60}),
-		AddUnit([]byte{0, 0, 0, 2}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 20}),
-		AddUnit([]byte{0, 0, 0, 3}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 30}),
-		AddUnit([]byte{0, 0, 0, 7}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 70}),
-		AddUnit([]byte{0, 0, 0, 4}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 40}),
-		AddUnit([]byte{0, 0, 1, 0}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 100}),
-		AddUnit([]byte{0, 0, 0, 8}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 80}),
-		AddUnit([]byte{0, 0, 0, 5}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 50}),
-		AddUnit([]byte{0, 0, 0, 9}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 90}),
-		AddUnit([]byte{0, 0, 0, 0}, []byte{0x83, 0x00, 0x41, 0x01, 0xf6}, &pruneUnitData{I: 1}),
+		AddUnit([]byte{0, 0, 0, 1}, &pruneUnitData{I: 10, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 6}, &pruneUnitData{I: 60, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 2}, &pruneUnitData{I: 20, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 3}, &pruneUnitData{I: 30, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 7}, &pruneUnitData{I: 70, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 4}, &pruneUnitData{I: 40, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 1, 0}, &pruneUnitData{I: 100, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 8}, &pruneUnitData{I: 80, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 5}, &pruneUnitData{I: 50, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 9}, &pruneUnitData{I: 90, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		AddUnit([]byte{0, 0, 0, 0}, &pruneUnitData{I: 1, O: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
 	))
 	txrHash := test.RandomBytes(32)
 
@@ -824,6 +827,7 @@ func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityC
 type pruneUnitData struct {
 	_ struct{} `cbor:",toarray"`
 	I uint64
+	O []byte
 }
 
 func (p *pruneUnitData) Hash(hashAlgo crypto.Hash) []byte {
@@ -847,6 +851,10 @@ func (p *pruneUnitData) SummaryValueInput() uint64 {
 
 func (p *pruneUnitData) Copy() types.UnitData {
 	return &pruneUnitData{I: p.I}
+}
+
+func (p *pruneUnitData) Owner() []byte {
+	return p.O
 }
 
 func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {

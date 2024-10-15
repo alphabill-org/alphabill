@@ -23,13 +23,10 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
-				return &tokens.FungibleTokenData{
-					TokenType: tokenData.TokenType,
-					Value:     sum,
-					T:         exeCtx.CurrentRound(),
-					Counter:   tokenData.Counter + 1,
-					Locked:    0,
-				}, nil
+				tokenData.Value = sum
+				tokenData.Locked = 0
+				tokenData.Counter += 1
+				return tokenData, nil
 			},
 		),
 	); err != nil {
@@ -39,7 +36,7 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *tokens.JoinFungibleTokenAttributes, authProof *tokens.JoinFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
@@ -81,7 +78,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		}
 	}
 
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(tokenData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](

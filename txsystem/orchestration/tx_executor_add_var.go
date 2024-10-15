@@ -25,7 +25,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 		}))
 	// if unit is not created yet, update will return not found, in that case create the unit
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
-		err = m.state.Apply(state.AddUnit(tx.UnitID, m.ownerPredicate, &orchestration.VarData{EpochNumber: 0}))
+		err = m.state.Apply(state.AddUnit(tx.UnitID, &orchestration.VarData{EpochNumber: 0}))
 	}
 	// either update or add failed, report error and return
 	if err != nil {

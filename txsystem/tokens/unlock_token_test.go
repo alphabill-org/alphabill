@@ -37,7 +37,6 @@ func TestUnlockFT_Ok(t *testing.T) {
 	unitData := u.Data().(*tokens.FungibleTokenData)
 
 	// verify token is unlocked, counter and round number is updated
-	require.Equal(t, roundNo, unitData.T)
 	require.Equal(t, uint64(1), unitData.Counter)
 	require.EqualValues(t, 0, unitData.Locked)
 }
@@ -124,7 +123,6 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	nftUnitData := u.Data().(*tokens.NonFungibleTokenData)
 
 	// verify token is unlocked, counter and round number is updated
-	require.Equal(t, roundNo, nftUnitData.T)
 	require.Equal(t, uint64(1), nftUnitData.Counter)
 	require.EqualValues(t, 0, nftUnitData.Locked)
 }
@@ -134,7 +132,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = testtb.NewTrustBase(t, verifier)
-	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenTypeData{
+	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, &tokens.NonFungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
@@ -144,16 +142,18 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
+	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, &tokens.NonFungibleTokenData{
 		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
+		OwnerPredicate:      templates.AlwaysTrueBytes(),
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
+	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, &tokens.NonFungibleTokenData{
 		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
+		OwnerPredicate:      templates.AlwaysTrueBytes(),
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		Locked:              1,

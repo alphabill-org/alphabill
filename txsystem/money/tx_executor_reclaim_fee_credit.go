@@ -32,8 +32,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
-		newBillData.V += v
-		newBillData.T = exeCtx.CurrentRound()
+		newBillData.Value += v
 		newBillData.Counter += 1
 		newBillData.Locked = 0
 		return newBillData, nil
@@ -96,7 +95,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(bd.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return err
 	}
 	// verify proof

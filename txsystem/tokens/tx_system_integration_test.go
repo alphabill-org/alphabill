@@ -141,7 +141,6 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
 		tokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		unitID:                   fungibleTokenTypeID,
-		bearer:                   templates.AlwaysTrueBytes(),
 		symbol:                   "ALPHA",
 		name:                     "Long name for ALPHA",
 		icon:                     &tokens.Icon{Type: validIconType, Data: []byte{1, 2, 3}},
@@ -387,7 +386,7 @@ type fungibleTokenUnitData struct {
 }
 
 type fungibleTokenTypeUnitData struct {
-	parentID, unitID, bearer                                                 []byte
+	parentID, unitID                                                         []byte
 	symbol, name                                                             string
 	icon                                                                     *tokens.Icon
 	decimalPlaces                                                            uint32
@@ -399,9 +398,9 @@ func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleToken
 	u, err := s.GetUnit(e.unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.Equal(t, e.bearer, []byte(u.Owner()))
 	require.IsType(t, &tokens.FungibleTokenTypeData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenTypeData)
+	require.Nil(t, d.Owner())
 	require.Equal(t, e.tokenMintingPredicate, d.TokenMintingPredicate)
 	require.Equal(t, e.subTypeCreationPredicate, d.SubTypeCreationPredicate)
 	require.Equal(t, e.tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
@@ -418,9 +417,9 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 	u, err := s.GetUnit(e.unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.Equal(t, e.bearer, []byte(u.Owner()))
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenData)
+	require.Equal(t, e.bearer, d.Owner())
 	require.Equal(t, e.tokenValue, d.Value)
 	require.Equal(t, e.counter, d.Counter)
 	require.Equal(t, types.UnitID(e.typeUnitID), d.TokenType)
@@ -429,10 +428,11 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
-		unit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-			Balance: 100,
-			Counter: 10,
-			Timeout: 1000,
+		unit.AddCredit(feeCreditID, &fc.FeeCreditRecord{
+			Balance:        100,
+			OwnerPredicate: templates.AlwaysTrueBytes(),
+			Counter:        10,
+			Timeout:        1000,
 		}),
 	))
 	_, _, err := s.CalculateRoot()

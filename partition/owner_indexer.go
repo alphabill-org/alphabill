@@ -96,12 +96,12 @@ func (o *OwnerIndexer) indexUnit(unitID types.UnitID, logs []*state.Log) error {
 	// if unit existed before this round:
 	//   logs[0] - last tx that changed the unit from previous rounds
 	//   logs[1..n] - txs changing the unit in current round
-	currOwnerPredicate := logs[len(logs)-1].NewOwner
+	currOwnerPredicate := logs[len(logs)-1].NewUnitData.Owner()
 	if err := o.addOwnerIndex(unitID, currOwnerPredicate); err != nil {
 		return fmt.Errorf("failed to add owner index: %w", err)
 	}
 	if len(logs) > 1 {
-		prevOwnerPredicate := logs[0].NewOwner
+		prevOwnerPredicate := logs[0].NewUnitData.Owner()
 		if err := o.delOwnerIndex(unitID, prevOwnerPredicate); err != nil {
 			return fmt.Errorf("failed to remove owner index: %w", err)
 		}
@@ -140,7 +140,7 @@ func (o *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 }
 
 func (o *OwnerIndexer) extractOwnerID(unit *state.Unit) (string, error) {
-	return o.extractOwnerIDFromPredicate(unit.Owner()), nil
+	return o.extractOwnerIDFromPredicate(unit.Data().Owner()), nil
 }
 
 func (o *OwnerIndexer) extractOwnerIDFromPredicate(predicateBytes []byte) string {

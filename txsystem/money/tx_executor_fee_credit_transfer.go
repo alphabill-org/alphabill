@@ -31,8 +31,7 @@ func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.Transf
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 		}
-		newBillData.V -= attr.Amount
-		newBillData.T = exeCtx.CurrentRound()
+		newBillData.Value -= attr.Amount
 		newBillData.Counter += 1
 		return newBillData, nil
 	})
@@ -70,7 +69,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if billData.IsLocked() {
 		return ErrBillLocked
 	}
-	if attr.Amount > billData.V {
+	if attr.Amount > billData.Value {
 		return ErrInvalidFCValue
 	}
 	if tx.MaxFee() > attr.Amount {
@@ -85,7 +84,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("verify owner proof: %w", err)
 	}
 	return nil

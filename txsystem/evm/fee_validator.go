@@ -37,7 +37,7 @@ func checkFeeAccountBalanceFn(state *state.State, execPredicate func(predicate t
 			return nil
 		}
 		// owner proof verifies correctly
-		ownerPredicate := u.Owner()
+		ownerPredicate := u.Data().Owner()
 		if err = execPredicate(ownerPredicate, ownerProof, ctx.Tx.AuthProofSigBytes, ctx); err != nil {
 			return fmt.Errorf("invalid owner proof: %w [authProof.OwnerProof=0x%x unit.Owner=0x%x]", err, ownerProof, ownerPredicate)
 		}

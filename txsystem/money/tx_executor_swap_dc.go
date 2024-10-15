@@ -13,31 +13,31 @@ import (
 )
 
 func (m *Module) executeSwapTx(tx *types.TransactionOrder, _ *money.SwapDCAttributes, _ *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	// get DC-sum from execution context to avoid parsing swap tx attributes twice
-	dcSum := util.BytesToUint64(exeCtx.GetData())
+	// get swap amount from execution context to avoid parsing swap tx attributes twice
+	swapAmount := util.BytesToUint64(exeCtx.GetData())
 
-	// reduce DC-money supply by sum of dust transfer values and update timeout and backlink
+	// N[T.ιDC].D.v ← N[T.ιDC].D.v − v – decrease the DC money supply
 	updateDCMoneySupplyFn := state.UpdateUnitData(DustCollectorMoneySupplyID,
 		func(data types.UnitData) (types.UnitData, error) {
 			bd, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 			}
-			bd.V -= dcSum
-			bd.T = exeCtx.CurrentRound()
-			bd.Counter += 1
+			bd.Value -= swapAmount
 			return bd, nil
 		},
 	)
-	// increase target unit value by swap amount
+	// v ← T′1.A.v + ... + T′m.A.v – the value to join to target bill
+	// N[T.ι].D.v ← N[T.ι].D.v + v – increase the value of ι
+	// N[T.ι].D.ℓ ← 0
+	// N[T.ι].D.c ← N[T.ι].D.c + 1
 	updateTargetUnitFn := state.UpdateUnitData(tx.UnitID,
 		func(data types.UnitData) (types.UnitData, error) {
 			bd, ok := data.(*money.BillData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID)
 			}
-			bd.V += dcSum
-			bd.T = exeCtx.CurrentRound()
+			bd.Value += swapAmount
 			bd.Counter += 1
 			bd.Locked = 0
 			return bd, nil
@@ -64,7 +64,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	}
 
 	// the owner proof satisfies the bill's owner predicate
-	if err = m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("swap transaction predicate validation failed: %w", err)
 	}
 
@@ -83,7 +83,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	if !ok {
 		return errors.New("DC-money supply invalid data type")
 	}
-	if dcMoneySupplyBill.V < dcSum {
+	if dcMoneySupplyBill.Value < dcSum {
 		return errors.New("insufficient DC-money supply")
 	}
 

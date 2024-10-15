@@ -19,7 +19,7 @@ func TestModule_validateLockTx(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx))
@@ -33,21 +33,21 @@ func TestModule_validateLockTx(t *testing.T) {
 	})
 	t.Run("invalid unit type", func(t *testing.T) {
 		unitID := money.NewFeeCreditRecordID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &fcsdk.FeeCreditRecord{Balance: 10}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "lock transaction: invalid unit type")
 	})
 	t.Run("bill is already locked", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Locked: 1}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Locked: 1, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "bill is already locked")
 	})
 	t.Run("zero lock value", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Locked: 0}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Locked: 0, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		lockTx := createTx(unitID, fcrID, money.TransactionTypeLock)
 		lockTxAttr := &money.LockAttributes{
 			LockStatus: 0,
@@ -61,14 +61,14 @@ func TestModule_validateLockTx(t *testing.T) {
 	})
 	t.Run("invalid counter", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: 10, Counter: 1}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: 1, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter")
 	})
 	t.Run("invalid owner", func(t *testing.T) {
 		unitID := money.NewBillID(nil, []byte{1, 2, 3})
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysFalseBytes(), &money.BillData{V: 10}))
+		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, OwnerPredicate: templates.AlwaysFalseBytes()}))
 		lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateLockTx(lockTx, attr, authProof, exeCtx), "evaluating owner predicate")
@@ -81,7 +81,7 @@ func TestModule_executeLockTx(t *testing.T) {
 	const value = uint64(10)
 	const counter = uint64(0)
 	unitID := money.NewBillID(nil, []byte{1, 2, 3})
-	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, templates.AlwaysTrueBytes(), &money.BillData{V: value, Counter: counter}))
+	module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 	lockTx, attr, authProof := createLockTx(t, unitID, fcrID, 0)
 	exeCtx := testctx.NewMockExecutionContext()
 	sm, err := module.executeLockTx(lockTx, attr, authProof, exeCtx)
@@ -90,12 +90,11 @@ func TestModule_executeLockTx(t *testing.T) {
 	require.EqualValues(t, []types.UnitID{unitID}, sm.TargetUnits)
 	u, err := module.state.GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, u.Owner(), templates.AlwaysTrueBytes())
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, bill.V, value)
+	require.EqualValues(t, bill.Owner(), templates.AlwaysTrueBytes())
+	require.EqualValues(t, bill.Value, value)
 	// counter was 0,
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 	require.EqualValues(t, bill.Locked, 1)
 }

@@ -222,11 +222,8 @@ func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
 }
 
 func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
-	err := s.Apply(state.AddUnit(config.InitialBillID, config.InitialBillOwnerPredicate, &moneysdk.BillData{
-		V:       config.InitialBillValue,
-		T:       0,
-		Counter: 0,
-	}))
+	billData := moneysdk.NewBillData(config.InitialBillValue, config.InitialBillOwnerPredicate)
+	err := s.Apply(state.AddUnit(config.InitialBillID, billData))
 	if err == nil {
 		err = s.AddUnitLog(config.InitialBillID, zeroHash)
 	}
@@ -234,11 +231,8 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 }
 
 func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConfig) error {
-	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, money.DustCollectorPredicate, &moneysdk.BillData{
-		V:       config.DCMoneySupplyValue,
-		T:       0,
-		Counter: 0,
-	}))
+	billData := moneysdk.NewBillData(config.DCMoneySupplyValue, money.DustCollectorPredicate)
+	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, billData))
 	if err == nil {
 		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
 	}
@@ -267,12 +261,8 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 			return fmt.Errorf("fee credit bill ID may not be equal to DC money supply ID or initial bill ID")
 		}
 
-		err := s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &moneysdk.BillData{
-			V:       0,
-			T:       0,
-			Counter: 0,
-		}))
-		if err != nil {
+		billData := moneysdk.NewBillData(0, fcb.OwnerPredicate)
+		if err := s.Apply(state.AddUnit(fcb.UnitID, billData)); err != nil {
 			return err
 		}
 		if err := s.AddUnitLog(fcb.UnitID, zeroHash); err != nil {

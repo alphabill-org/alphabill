@@ -19,7 +19,6 @@ func (n *NonFungibleTokensModule) executeUpdateNFT(tx *types.TransactionOrder, a
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
 			d.Data = attr.Data
-			d.T = exeCtx.CurrentRound()
 			d.Counter += 1
 			return d, nil
 		}),

@@ -145,7 +145,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, err)
 		unit, err := s.GetUnit(defaultInitialBillID, false)
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%X", unit.Owner()), ownerPredicate)
+		require.Equal(t, fmt.Sprintf("%X", unit.Data().Owner()), ownerPredicate)
 
 		params := &genesis.MoneyPartitionParams{}
 		require.NoError(t, types.Cbor.Unmarshal(pg.Params, params))

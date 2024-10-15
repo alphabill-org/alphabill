@@ -6,23 +6,25 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-var (
-	ErrInvalidDataType  = errors.New("invalid data type")
-	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
-)
-
-func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, _ *money.TransferAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, _ *money.TransferAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	// update state
-	updateDataFunc := updateBillDataFunc(tx, exeCtx.CurrentRound())
-	setOwnerFunc := state.SetOwner(tx.UnitID, attr.NewOwnerPredicate)
+	dataUpdateFn := state.UpdateUnitData(tx.UnitID,
+		func(data types.UnitData) (types.UnitData, error) {
+			bd, ok := data.(*money.BillData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain bill data", tx.UnitID)
+			}
+			bd.Counter += 1
+			bd.OwnerPredicate = attr.NewOwnerPredicate
+			return bd, nil
+		},
+	)
 	if err := m.state.Apply(
-		setOwnerFunc,
-		updateDataFunc,
+		dataUpdateFn,
 	); err != nil {
 		return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 	}
@@ -30,50 +32,32 @@ func (m *Module) executeTransferTx(tx *types.TransactionOrder, attr *money.Trans
 }
 
 func (m *Module) validateTransferTx(tx *types.TransactionOrder, attr *money.TransferAttributes, authProof *money.TransferAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if err := m.validateTrans(tx, attr, authProof, exeCtx); err != nil {
+		return fmt.Errorf("transfer validation error: %w", err)
+	}
+	return nil
+}
+
+func (m *Module) validateTrans(tx *types.TransactionOrder, attr *money.TransferAttributes, authProof *money.TransferAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
-		return fmt.Errorf("transfer validation error: %w", err)
+		return err
 	}
-	if err = validateTransfer(unit.Data(), attr); err != nil {
-		return fmt.Errorf("transfer validation error: %w", err)
+	unitData, ok := unit.Data().(*money.BillData)
+	if !ok {
+		return errors.New("invalid unit data type")
 	}
-	if err = m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if unitData.IsLocked() {
+		return errors.New("the bill is locked")
+	}
+	if unitData.Counter != attr.Counter {
+		return errors.New("the transaction counter is not equal to the bill counter")
+	}
+	if unitData.Value != attr.TargetValue {
+		return errors.New("the transaction value is not equal to the bill value")
+	}
+	if err = m.execPredicate(unitData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
-}
-
-func validateTransfer(data types.UnitData, attr *money.TransferAttributes) error {
-	return validateAnyTransfer(data, attr.Counter, attr.TargetValue)
-}
-
-func validateAnyTransfer(data types.UnitData, counter uint64, targetValue uint64) error {
-	bd, ok := data.(*money.BillData)
-	if !ok {
-		return ErrInvalidDataType
-	}
-	if bd.IsLocked() {
-		return ErrBillLocked
-	}
-	if bd.Counter != counter {
-		return ErrInvalidCounter
-	}
-	if targetValue != bd.V {
-		return ErrInvalidBillValue
-	}
-	return nil
-}
-
-func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64) state.Action {
-	unitID := tx.GetUnitID()
-	return state.UpdateUnitData(unitID,
-		func(data types.UnitData) (types.UnitData, error) {
-			bd, ok := data.(*money.BillData)
-			if !ok {
-				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
-			}
-			bd.T = currentBlockNumber
-			bd.Counter += 1
-			return bd, nil
-		})
 }

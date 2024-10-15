@@ -10,7 +10,7 @@ import (
 )
 
 // CreateAccountAndAddCredit - creates EMV account from add fee credit
-func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, balance *uint256.Int, timeout uint64) state.Action {
+func CreateAccountAndAddCredit(addr common.Address, ownerPredicate types.PredicateBytes, balance *uint256.Int, timeout uint64) state.Action {
 	id := addr.Bytes()
 	stateObj := &StateObject{
 		Address: addr,
@@ -20,15 +20,16 @@ func CreateAccountAndAddCredit(addr common.Address, owner types.PredicateBytes, 
 			CodeHash: emptyCodeHash},
 		Storage: map[common.Hash]common.Hash{},
 		AlphaBill: &AlphaBillLink{
-			Counter: 0,
-			Timeout: timeout,
+			Counter:        0,
+			Timeout:        timeout,
+			OwnerPredicate: ownerPredicate,
 		},
 	}
-	return state.AddUnit(id, owner, stateObj)
+	return state.AddUnit(id, stateObj)
 }
 
 // UpdateEthAccountAddCredit - increments the balance and updates fee credit link
-func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64) state.Action {
+func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint64, newOwnerPredicate []byte) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		stateObj, ok := data.(*StateObject)
 		if !ok {
@@ -37,8 +38,9 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint
 		newBalance := new(uint256.Int).Add(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
-			Counter: stateObj.AlphaBill.Counter + 1,
-			Timeout: max(stateObj.AlphaBill.GetTimeout(), timeout),
+			Counter:        stateObj.AlphaBill.Counter + 1,
+			Timeout:        max(stateObj.AlphaBill.GetTimeout(), timeout),
+			OwnerPredicate: newOwnerPredicate,
 		}
 		return stateObj, nil
 	}

@@ -36,7 +36,7 @@ func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.Lo
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// ι identifies an existing fee credit record
-	fcr, fcrOwnerPredicate, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}
@@ -57,7 +57,7 @@ func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.Lo
 		return errors.New("lock status must be non-zero value")
 	}
 	// validate owner
-	if err = f.execPredicate(fcrOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

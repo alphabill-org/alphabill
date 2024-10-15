@@ -40,9 +40,6 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 		unit.logsHash = merkleTree.GetRootHash()
 	}
 
-	// owner update
-	unit.owner = unit.latestUnitBearer()
-
 	unit.stateLockTx = unit.latestStateLockTx()
 
 	// D - unit data

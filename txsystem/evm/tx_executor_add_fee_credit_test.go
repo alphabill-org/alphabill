@@ -477,7 +477,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	// check owner predicate set
 	u, err := feeCreditModule.state.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Owner())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Data().Owner())
 
 	abData := stateDB.GetAlphaBillData(addr)
 	// add more funds
@@ -513,14 +513,14 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	// check owner predicate
 	u, err = feeCreditModule.state.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Owner())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Data().Owner())
 }
 
 type feeTestOption func(m *FeeAccount) error
 
 func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData) feeTestOption {
 	return func(m *FeeAccount) error {
-		return m.state.Apply(state.AddUnit(unitID, bearer, data))
+		return m.state.Apply(state.AddUnit(unitID, data))
 	}
 }
 

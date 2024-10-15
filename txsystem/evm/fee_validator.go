@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -37,9 +38,12 @@ func checkFeeAccountBalanceFn(state *state.State, execPredicate func(predicate t
 			return nil
 		}
 		// owner proof verifies correctly
-		ownerPredicate := u.Owner()
-		if err = execPredicate(ownerPredicate, ownerProof, ctx.Tx.AuthProofSigBytes, ctx); err != nil {
-			return fmt.Errorf("invalid owner proof: %w [authProof.OwnerProof=0x%x unit.Owner=0x%x]", err, ownerProof, ownerPredicate)
+		fcr, ok := u.Data().(*fc.FeeCreditRecord)
+		if !ok {
+			return errors.New("invalid fee credit record unit data type")
+		}
+		if err = execPredicate(fcr.OwnerPredicate, ownerProof, ctx.Tx.AuthProofSigBytes, ctx); err != nil {
+			return fmt.Errorf("invalid owner proof: %w [authProof.OwnerProof=0x%x unit.Owner=0x%x]", err, ownerProof, fcr.OwnerPredicate)
 		}
 		return nil
 	}

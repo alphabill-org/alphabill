@@ -11,13 +11,12 @@ import (
 type (
 	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
 	Unit struct {
-		logs                []*Log               // state changes of the unit during the current round
-		logsHash            []byte               // root value of the hash tree built on the logs
-		owner               types.PredicateBytes // current owner predicate
-		data                types.UnitData       // current data of the unit
-		stateLockTx         []byte               // bytes of transaction that locked the unit
-		subTreeSummaryValue uint64               // current summary value of the sub-tree rooted at this node
-		subTreeSummaryHash  []byte               // summary hash of the sub-tree rooted at this node
+		logs                []*Log         // state changes of the unit during the current round
+		logsHash            []byte         // root value of the hash tree built on the logs
+		data                types.UnitData // current data of the unit
+		stateLockTx         []byte         // bytes of transaction that locked the unit
+		subTreeSummaryValue uint64         // current summary value of the sub-tree rooted at this node
+		subTreeSummaryHash  []byte         // summary hash of the sub-tree rooted at this node
 		summaryCalculated   bool
 	}
 
@@ -25,16 +24,14 @@ type (
 	Log struct {
 		TxRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		UnitLedgerHeadHash []byte // the new head hash of the unit ledger
-		NewOwner           types.PredicateBytes
 		NewUnitData        types.UnitData
 		NewStateLockTx     []byte
 	}
 )
 
-func NewUnit(owner types.PredicateBytes, data types.UnitData) *Unit {
+func NewUnit(data types.UnitData) *Unit {
 	return &Unit{
-		owner: owner,
-		data:  data,
+		data: data,
 	}
 }
 
@@ -44,7 +41,6 @@ func (u *Unit) Clone() *Unit {
 	}
 	return &Unit{
 		logs:                copyLogs(u.logs),
-		owner:               bytes.Clone(u.owner),
 		stateLockTx:         bytes.Clone(u.stateLockTx),
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,
@@ -54,10 +50,6 @@ func (u *Unit) Clone() *Unit {
 
 func (u *Unit) String() string {
 	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
-}
-
-func (u *Unit) Owner() types.PredicateBytes {
-	return bytes.Clone(u.owner)
 }
 
 func (u *Unit) IsStateLocked() bool {
@@ -99,7 +91,6 @@ func (l *Log) Clone() *Log {
 	return &Log{
 		TxRecordHash:       bytes.Clone(l.TxRecordHash),
 		UnitLedgerHeadHash: bytes.Clone(l.UnitLedgerHeadHash),
-		NewOwner:           bytes.Clone(l.NewOwner),
 		NewUnitData:        copyData(l.NewUnitData),
 		NewStateLockTx:     bytes.Clone(l.NewStateLockTx),
 	}
@@ -107,7 +98,6 @@ func (l *Log) Clone() *Log {
 
 func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
-	hasher.Write(l.NewOwner)
 	if l.NewUnitData != nil {
 		// todo: change Hash interface to allow errors
 		_ = l.NewUnitData.Write(hasher)
@@ -123,14 +113,6 @@ func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher.Write(dataHash)
 	// z_j
 	return hasher.Sum(nil)
-}
-
-func (u *Unit) latestUnitBearer() []byte {
-	l := len(u.logs)
-	if l == 0 {
-		return u.owner
-	}
-	return u.logs[l-1].NewOwner
 }
 
 func (u *Unit) latestUnitData() types.UnitData {

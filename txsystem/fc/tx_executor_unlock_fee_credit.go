@@ -37,7 +37,7 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// ι identifies an existing fee credit record
-	fcr, bearer, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}
@@ -55,7 +55,7 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return errors.New("fee credit record is already unlocked")
 	}
 	// validate owner
-	if err = f.execPredicate(bearer, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

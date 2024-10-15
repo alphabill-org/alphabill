@@ -405,7 +405,7 @@ func TestExecuteDefineNFT_ParentDoesNotExist(t *testing.T) {
 
 func TestExecuteDefineNFT_InvalidParentType(t *testing.T) {
 	txs, s := newTokenTxSystem(t)
-	require.NoError(t, s.Apply(state.AddUnit(parent1Identifier, templates.AlwaysTrueBytes(), &mockUnitData{})))
+	require.NoError(t, s.Apply(state.AddUnit(parent1Identifier, &mockUnitData{})))
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
@@ -656,7 +656,6 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.Equal(t, []byte{10}, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
-	require.Equal(t, uint64(0), d.T)
 	require.Equal(t, uint64(0), d.Counter)
 }
 
@@ -739,7 +738,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 	tokenID := newNonFungibleTokenID(t, tx)
 	tx.UnitID = tokenID
 
-	err = s.Apply(state.AddUnit(tokenID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenData(nftTypeID2, &tokens.MintNonFungibleTokenAttributes{}, 0, 0)))
+	err = s.Apply(state.AddUnit(tokenID, tokens.NewNonFungibleTokenData(nftTypeID2, &tokens.MintNonFungibleTokenAttributes{})))
 	require.NoError(t, err)
 
 	sm, err = txs.Execute(tx)
@@ -1143,9 +1142,8 @@ func TestTransferNFT_Ok(t *testing.T) {
 	require.Equal(t, []byte{10}, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
-	require.Equal(t, uint64(0), d.T)
 	require.Equal(t, uint64(1), d.Counter)
-	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Owner()))
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 }
 
 func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
@@ -1177,7 +1175,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 	u, err := txs.State().GetUnit(nftID, false)
 	require.NoError(t, err)
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
-	require.EqualValues(t, templates.AlwaysFalseBytes(), []byte(u.Owner()))
+	require.EqualValues(t, templates.AlwaysFalseBytes(), u.Data().Owner())
 
 	// the token must be considered as burned and not transferable
 	tx = testtransaction.NewTransactionOrder(
@@ -1563,9 +1561,8 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.Equal(t, updatedData, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
-	require.Equal(t, uint64(0), d.T)
 	require.Equal(t, uint64(1), d.Counter)
-	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Owner()))
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 }
 
 // Test LockFC -> UnlockFC
@@ -1689,6 +1686,10 @@ func (m mockUnitData) Copy() types.UnitData {
 	return &mockUnitData{}
 }
 
+func (m mockUnitData) Owner() []byte {
+	return nil
+}
+
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {
 	t.Helper()
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -1713,10 +1714,11 @@ func signTx(t *testing.T, tx *types.TransactionOrder, signer abcrypto.Signer, pu
 func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
-	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance: 100,
-		Counter: 10,
-		Timeout: 1000,
+	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
+		Balance:        100,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        10,
+		Timeout:        1000,
 	})))
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)

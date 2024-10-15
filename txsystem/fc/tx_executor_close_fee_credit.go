@@ -20,7 +20,8 @@ func (f *FeeCreditModule) executeCloseFC(tx *types.TransactionOrder, _ *fc.Close
 			fcr.Balance = 0
 			fcr.Counter += 1
 			return fcr, nil
-		})
+		},
+	)
 	if err := f.state.Apply(updateDataFn); err != nil {
 		return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 	}
@@ -35,7 +36,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	// ι identifies an existing fee credit record
 	// ExtrType(P.ι) = fcr – target unit is a fee credit record
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	fcr, ownerPredicate, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("fee credit error: %w", err)
 	}
@@ -47,7 +48,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	}
 	// validate owner predicate
 	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
-	if err = f.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("executing fee credit record owner predicate: %w", err)
 	}
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

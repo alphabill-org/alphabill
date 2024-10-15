@@ -15,15 +15,16 @@ import (
 func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, _ *tokens.TransferFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
 
+	// 1. N[T.ι].D.φ ← T.A.φ
+	// 2. N[T.ι].D.c ← N[T.ι].D.c + 1
 	if err := m.state.Apply(
-		state.SetOwner(unitID, attr.NewOwnerPredicate),
 		state.UpdateUnitData(unitID,
 			func(data types.UnitData) (types.UnitData, error) {
 				d, ok := data.(*tokens.FungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
-				d.T = exeCtx.CurrentRound()
+				d.OwnerPredicate = attr.NewOwnerPredicate
 				d.Counter += 1
 				return d, nil
 			}),
@@ -35,29 +36,29 @@ func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, att
 }
 
 func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, authProof *tokens.TransferFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	ownerPredicate, d, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
-	if d.Locked != 0 {
+	if tokenData.Locked != 0 {
 		return fmt.Errorf("token is locked")
 	}
-	if d.Value != attr.Value {
-		return fmt.Errorf("invalid token value: expected %v, got %v", d.Value, attr.Value)
+	if tokenData.Value != attr.Value {
+		return fmt.Errorf("invalid token value: expected %v, got %v", tokenData.Value, attr.Value)
 	}
-	if d.Counter != attr.Counter {
-		return fmt.Errorf("invalid counter: expected %d, got %d", d.Counter, attr.Counter)
+	if tokenData.Counter != attr.Counter {
+		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
-	if !bytes.Equal(attr.TypeID, d.TokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.TokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, tokenData.TokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(tokenData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx.AuthProofSigBytes,
-		d.TokenType,
+		tokenData.TokenType,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {
@@ -71,21 +72,21 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	return nil
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State) (types.PredicateBytes, *tokens.FungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (*tokens.FungibleTokenData, error) {
 	if !unitID.HasType(tokens.FungibleTokenUnitType) {
-		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
+		return nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}
 
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
-			return nil, nil, fmt.Errorf("unit %v does not exist: %w", unitID, err)
+			return nil, fmt.Errorf("unit %v does not exist: %w", unitID, err)
 		}
-		return nil, nil, err
+		return nil, err
 	}
-	tokenData, ok := u.Data().(*tokens.FungibleTokenData)
+	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
-		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
+		return nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
-	return u.Owner(), tokenData, nil
+	return d, nil
 }

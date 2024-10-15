@@ -8,21 +8,19 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/holiman/uint256"
-
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/ethereum/go-ethereum/common"
 	ethstate "github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 var _ vm.StateDB = (*StateDB)(nil)
@@ -97,11 +95,8 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		return
 	}
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Adding an account: %v", address))
-	s.errDB = s.tree.Apply(state.AddUnit(
-		unitID,
-		templates.AlwaysFalseBytes(),
-		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: uint256.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
-	))
+	unitData := &StateObject{Address: address, Account: &Account{Nonce: 0, Balance: uint256.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}}
+	s.errDB = s.tree.Apply(state.AddUnit(unitID, unitData))
 	if s.errDB == nil {
 		s.created[address] = struct{}{}
 		s.journal.append(accountChange{account: &address})

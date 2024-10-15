@@ -16,7 +16,7 @@ func (m *FungibleTokensModule) executeMintFT(tx *types.TransactionOrder, attr *t
 	typeID := attr.TypeID
 
 	if err := m.state.Apply(
-		state.AddUnit(tokenID, attr.OwnerPredicate, tokens.NewFungibleTokenData(typeID, attr.Value, exeCtx.CurrentRound(), 0, tx.Timeout())),
+		state.AddUnit(tokenID, tokens.NewFungibleTokenData(typeID, attr.Value, attr.OwnerPredicate, tx.Timeout())),
 	); err != nil {
 		return nil, err
 	}

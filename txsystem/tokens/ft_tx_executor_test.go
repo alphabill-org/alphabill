@@ -458,11 +458,10 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	d := u.Data().(*tokens.FungibleTokenData)
 	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, attributes.Value, d.Value)
-	require.Equal(t, uint64(10), d.T)
 	require.Equal(t, uint64(0), d.Counter)
-	require.Equal(t, uint64(1000), d.T1)
+	require.Equal(t, uint64(1000), d.Timeout)
 	require.Equal(t, uint64(0), d.Locked)
-	require.Equal(t, attributes.OwnerPredicate, []byte(u.Owner()))
+	require.Equal(t, attributes.OwnerPredicate, d.Owner())
 }
 
 func TestTransferFungibleToken_NotOk(t *testing.T) {
@@ -592,10 +591,9 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenData)
 
-	require.Equal(t, transferAttributes.NewOwnerPredicate, []byte(u.Owner()))
+	require.Equal(t, transferAttributes.NewOwnerPredicate, d.Owner())
 	require.Equal(t, transferAttributes.Value, d.Value)
 	require.Equal(t, uint64(1), d.Counter)
-	require.Equal(t, roundNo, d.T)
 }
 
 func TestSplitFungibleToken_NotOk(t *testing.T) {
@@ -745,10 +743,9 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenData)
 
-	require.EqualValues(t, templates.AlwaysTrueBytes(), []byte(u.Owner()))
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 	require.Equal(t, remainingBillValue, d.Value)
 	require.Equal(t, uint64(1), d.Counter)
-	require.Equal(t, roundNo, d.T)
 
 	unitPart, err := tokens.HashForNewTokenID(tx, opts.hashAlgorithm)
 	require.NoError(t, err)
@@ -760,10 +757,9 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	newUnitData := newUnit.Data().(*tokens.FungibleTokenData)
 
-	require.Equal(t, attr.NewOwnerPredicate, []byte(newUnit.Owner()))
+	require.Equal(t, attr.NewOwnerPredicate, newUnitData.Owner())
 	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.Value)
 	require.Equal(t, uint64(0), newUnitData.Counter)
-	require.Equal(t, roundNo, newUnitData.T)
 }
 
 func TestBurnFungibleToken_NotOk(t *testing.T) {
@@ -886,17 +882,14 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
-	// verify owner is dc predicate
-	require.Equal(t, templates.AlwaysFalseBytes(), u.Owner())
-
 	// verify unit data
-	unitData, ok := u.Data().(*tokens.FungibleTokenData)
+	d, ok := u.Data().(*tokens.FungibleTokenData)
 	require.True(t, ok)
-	require.Equal(t, existingTokenTypeID, unitData.TokenType)
-	require.Equal(t, uint64(0), unitData.Value)
-	require.Equal(t, roundNo, unitData.T)
-	require.Equal(t, uint64(1), unitData.Counter)
-	require.Equal(t, uint64(0), unitData.Locked)
+	require.EqualValues(t, templates.AlwaysFalseBytes(), d.Owner())
+	require.Equal(t, existingTokenTypeID, d.TokenType)
+	require.Equal(t, uint64(0), d.Value)
+	require.Equal(t, uint64(1), d.Counter)
+	require.Equal(t, uint64(0), d.Locked)
 }
 
 func TestJoinFungibleToken_Ok(t *testing.T) {
@@ -1131,7 +1124,7 @@ func defaultOpts(t *testing.T) *Options {
 
 func initState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
-	err := s.Apply(state.AddUnit(existingTokenTypeID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err := s.Apply(state.AddUnit(existingTokenTypeID, &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
@@ -1142,7 +1135,7 @@ func initState(t *testing.T) *state.State {
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenTypeID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err = s.Apply(state.AddUnit(existingTokenTypeID2, &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA2",
 		Name:                     "A long name for ALPHA2",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
@@ -1153,32 +1146,33 @@ func initState(t *testing.T) *state.State {
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeID,
-		Value:     existingTokenValue,
-		T:         0,
-		Counter:   0,
+	err = s.Apply(state.AddUnit(existingTokenID, &tokens.FungibleTokenData{
+		TokenType:      existingTokenTypeID,
+		Value:          existingTokenValue,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        0,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenID2, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeID2,
-		Value:     existingTokenValue,
-		T:         0,
-		Counter:   0,
+	err = s.Apply(state.AddUnit(existingTokenID2, &tokens.FungibleTokenData{
+		TokenType:      existingTokenTypeID2,
+		Value:          existingTokenValue,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        0,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingLockedTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeID,
-		Value:     existingTokenValue,
-		T:         0,
-		Counter:   0,
-		Locked:    1,
+	err = s.Apply(state.AddUnit(existingLockedTokenID, &tokens.FungibleTokenData{
+		TokenType:      existingTokenTypeID,
+		Value:          existingTokenValue,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        0,
+		Locked:         1,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance: 100,
-		Counter: 10,
-		Timeout: 100,
+	err = s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
+		Balance:        100,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        10,
+		Timeout:        100,
 	}))
 	require.NoError(t, err)
 	return s

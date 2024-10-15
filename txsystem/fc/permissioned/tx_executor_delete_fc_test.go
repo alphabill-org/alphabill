@@ -42,7 +42,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		err = m.validateDeleteFC(tx, attr, authProof, exeCtx)
 		require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 		signer, _ := testsig.CreateSignerAndVerifier(t)
 		tx, attr, authProof, err := newDeleteFeeTx(signer, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		err = m.validateDeleteFC(tx, attr, authProof, exeCtx)
 		require.ErrorContains(t, err, "invalid owner proof")
@@ -93,7 +93,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	t.Run("Invalid counter", func(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, systemID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
-		fcrUnit := state.NewUnit(fcrOwnerPredicate, &fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, Counter: 1})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, Counter: 1, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		err = m.validateDeleteFC(tx, attr, authProof, exeCtx)
 		require.ErrorContains(t, err, "invalid counter: tx.Counter=0 fcr.Counter=1")
@@ -123,7 +123,7 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
 	fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
-	err = stateTree.Apply(state.AddUnit(fcrID, fcrOwnerPredicate, &fc.FeeCreditRecord{}))
+	err = stateTree.Apply(state.AddUnit(fcrID, &fc.FeeCreditRecord{}))
 	require.NoError(t, err)
 
 	// create tx
@@ -145,7 +145,9 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	unit, err := stateTree.GetUnit(fcrID, false)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
-	require.Equal(t, templates.AlwaysFalseBytes(), unit.Owner())
+	unitData, ok := unit.Data().(*fc.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, templates.AlwaysFalseBytes(), unitData.OwnerPredicate)
 }
 
 func newDeleteFeeTx(adminSigner crypto.Signer, systemID types.SystemID, unitID []byte, timeout uint64, fcrID, feeProof []byte) (*types.TransactionOrder, *permissioned.DeleteFeeCreditAttributes, *permissioned.DeleteFeeCreditAuthProof, error) {

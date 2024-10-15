@@ -66,18 +66,17 @@ func TestNewTxSystem(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
 
-	u, err := txsState.GetUnit(initialBill.ID, false)
-	require.NoError(t, err)
+	u, d := getBill(t, txsState, initialBill.ID)
 	require.NotNil(t, u)
-	require.Equal(t, initialBill.Value, u.Data().SummaryValueInput())
-	require.Equal(t, initialBill.Owner, u.Owner())
-
-	d, err := txsState.GetUnit(DustCollectorMoneySupplyID, false)
-	require.NoError(t, err)
 	require.NotNil(t, d)
+	require.Equal(t, initialBill.Value, d.SummaryValueInput())
+	require.EqualValues(t, initialBill.Owner, d.OwnerPredicate)
 
-	require.Equal(t, initialDustCollectorMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, DustCollectorPredicate, d.Owner())
+	u, d = getBill(t, txsState, DustCollectorMoneySupplyID)
+	require.NotNil(t, u)
+	require.NotNil(t, d)
+	require.Equal(t, initialDustCollectorMoneyAmount, d.SummaryValueInput())
+	require.EqualValues(t, DustCollectorPredicate, d.OwnerPredicate)
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
@@ -178,7 +177,6 @@ func TestExecute_TransferOk(t *testing.T) {
 
 	_, data2 := getBill(t, rmaTree, initialBill.ID)
 	require.Equal(t, data.SummaryValueInput(), data2.SummaryValueInput())
-	require.Equal(t, roundNumber, data2.T)
 	require.EqualValues(t, 1, data2.Counter)
 }
 
@@ -186,7 +184,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	totalValue, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
-	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
+	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
@@ -207,11 +205,11 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NoError(t, err)
 	err = txSystem.Commit(createUC(stateSummary, 1))
 	require.NoError(t, err)
-	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
+	_, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
 
 	// bill value was reduced
-	require.NotEqual(t, initBillData.V, initBillDataAfterUpdate.V)
-	require.Equal(t, remaining, initBillDataAfterUpdate.V)
+	require.NotEqual(t, initBillData.Value, initBillDataAfterUpdate.Value)
+	require.Equal(t, remaining, initBillDataAfterUpdate.Value)
 
 	// and bill was not locked
 	require.EqualValues(t, 0, initBillDataAfterUpdate.Locked)
@@ -222,27 +220,25 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.Equal(t, totalValue, total)
 
 	// bearer of the initial bill was not changed
-	require.Equal(t, initBill.Owner(), initBillAfterUpdate.Owner())
-	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
+	require.Equal(t, initBillData.OwnerPredicate, initBillDataAfterUpdate.OwnerPredicate)
 
 	// counter was incremented
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
-	newBill, bd := getBill(t, rmaTree, expectedNewUnitID)
+	newBill, newBillData := getBill(t, rmaTree, expectedNewUnitID)
 	require.NotNil(t, newBill)
-	require.NotNil(t, bd)
-	require.Equal(t, amount, bd.V)
-	require.EqualValues(t, 0, bd.Counter)
-	require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerPredicate), newBill.Owner())
-	require.Equal(t, roundNumber, bd.T)
-	require.EqualValues(t, 0, bd.Locked)
+	require.NotNil(t, newBillData)
+	require.Equal(t, amount, newBillData.Value)
+	require.EqualValues(t, 0, newBillData.Counter)
+	require.EqualValues(t, splitAttr.TargetUnits[0].OwnerPredicate, newBillData.OwnerPredicate)
+	require.EqualValues(t, 0, newBillData.Locked)
 }
 
 func TestExecute_SplitNWayOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	totalValue, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
-	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
+	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	remaining := initialBill.Value
 	amount := uint64(10)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
@@ -268,11 +264,11 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	require.NoError(t, err)
 	err = txSystem.Commit(createUC(stateSummary, 1))
 	require.NoError(t, err)
-	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
+	_, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
 
 	// bill value was reduced
-	require.NotEqual(t, initBillData.V, initBillDataAfterUpdate.V)
-	require.Equal(t, remaining, initBillDataAfterUpdate.V)
+	require.NotEqual(t, initBillData.Value, initBillDataAfterUpdate.Value)
+	require.Equal(t, remaining, initBillDataAfterUpdate.Value)
 
 	// total value was not changed
 	total, _, err := rmaTree.CalculateRoot()
@@ -280,8 +276,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	require.Equal(t, totalValue, total)
 
 	// bearer of the initial bill was not changed
-	require.Equal(t, initBill.Owner(), initBillAfterUpdate.Owner())
-	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
+	require.Equal(t, initBillData.OwnerPredicate, initBillDataAfterUpdate.OwnerPredicate)
 
 	// counter was incremented
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
@@ -291,13 +286,12 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		require.NoError(t, err)
 		expectedNewUnitId := money.NewBillID(nil, unitPart)
 		require.Contains(t, sm.TargetUnits, expectedNewUnitId) // target, new bills and fcr
-		newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
+		newBill, newBillData := getBill(t, rmaTree, expectedNewUnitId)
 		require.NotNil(t, newBill)
-		require.NotNil(t, bd)
-		require.Equal(t, amount, bd.V)
-		require.EqualValues(t, 0, bd.Counter)
-		require.Equal(t, types.PredicateBytes(splitAttr.TargetUnits[0].OwnerPredicate), newBill.Owner())
-		require.Equal(t, roundNumber, bd.T)
+		require.NotNil(t, newBillData)
+		require.Equal(t, amount, newBillData.Value)
+		require.EqualValues(t, 0, newBillData.Counter)
+		require.EqualValues(t, splitAttr.TargetUnits[0].OwnerPredicate, newBillData.OwnerPredicate)
 	}
 }
 
@@ -321,7 +315,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	billID := money.NewBillID(nil, unitPart)
 	_, splitBillData := getBill(t, rmaTree, billID)
 
-	transferDCOk, _, _ := createDCTransfer(t, billID, fcrID, splitBillData.V, splitBillData.Counter, test.RandomBytes(32), 0)
+	transferDCOk, _, _ := createDCTransfer(t, billID, fcrID, splitBillData.Value, splitBillData.Counter, test.RandomBytes(32), 0)
 	require.NoError(t, err)
 
 	sm, err = txSystem.Execute(transferDCOk)
@@ -331,10 +325,9 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.Equal(t, []types.UnitID{transferDCOk.UnitID, DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
-	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
-	require.EqualValues(t, DustCollectorPredicate, transferDCBill.Owner())
+	_, transferDCBillData := getBill(t, rmaTree, billID)
+	require.EqualValues(t, DustCollectorPredicate, transferDCBillData.OwnerPredicate)
 	require.EqualValues(t, 0, transferDCBillData.SummaryValueInput()) // dust transfer sets bill value to 0
-	require.Equal(t, roundNumber, transferDCBillData.T)
 	require.EqualValues(t, initialBillData.Counter+1, transferDCBillData.Counter)
 }
 
@@ -392,7 +385,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	// calculate dust bill value + dc money supply before commit
 	_, dustBillData := getBill(t, s, splitBillID)
 	_, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
-	beforeCommitValue := dustBillData.V + dcBillData.V
+	beforeCommitValue := dustBillData.Value + dcBillData.Value
 
 	// verify DC money supply is correctly preserved at the end of round
 	stateSummary, err := txSystem.EndBlock()
@@ -402,7 +395,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	// calculate dust bill value + dc money supply after commit
 	_, dustBillData = getBill(t, s, splitBillID)
 	_, dcBillData = getBill(t, s, DustCollectorMoneySupplyID)
-	afterCommitValue := dustBillData.V + dcBillData.V
+	afterCommitValue := dustBillData.Value + dcBillData.Value
 	require.Equal(t, beforeCommitValue, afterCommitValue)
 
 	require.NoError(t, txSystem.BeginBlock(roundNumber+1))
@@ -410,28 +403,27 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
-	require.Equal(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
+	require.EqualValues(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID, fcrID}, sm.TargetUnits)
 	require.True(t, sm.ActualFee > 0)
 
 	_, billData = getBill(t, s, swapTx.UnitID)
-	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
+	require.Equal(t, initialBill.Value, billData.Value) // initial bill value is the same after swap
 	counter += 1
 	require.EqualValues(t, counter, billData.Counter)
 	require.EqualValues(t, 0, billData.Locked) // verify bill got unlocked
 
 	_, dcBillData = getBill(t, s, DustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.V) // dust collector money supply is the same after swap
-	require.EqualValues(t, 2, dcBillData.Counter)                   // dust collector money supply counter is incremented
+	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.Value) // dust collector money supply is the same after swap
 
 	// verify DC money supply is correctly preserved at the end of round
-	beforeCommitValue = dcBillData.V
+	beforeCommitValue = dcBillData.Value
 	stateSummary, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 
 	require.NoError(t, txSystem.BeginBlock(roundNumber+2))
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
-	require.Equal(t, beforeCommitValue, dcBillData.V)
+	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
 	require.Equal(t, 1, len(dcBill.Logs()))
 }
@@ -461,7 +453,6 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 
 	_, bd := getBill(t, rmaTree, initialBill.ID)
 	require.EqualValues(t, 1, bd.Locked)                // bill is locked
-	require.EqualValues(t, roundNumber, bd.T)           // round number updated
 	require.EqualValues(t, 1, bd.Counter)               // counter updated
 	require.EqualValues(t, 110, bd.SummaryValueInput()) // value not changed
 
@@ -486,15 +477,13 @@ func TestExecute_LockAndUnlockOk(t *testing.T) {
 
 	_, bd = getBill(t, rmaTree, initialBill.ID)
 	require.EqualValues(t, 0, bd.Locked)                // bill is unlocked
-	require.EqualValues(t, roundNumber, bd.T)           // round number updated
 	require.EqualValues(t, 110, bd.SummaryValueInput()) // value not changed
 	require.EqualValues(t, 2, bd.Counter)               // counter updated
 }
 
 func TestBillData_Value(t *testing.T) {
 	bd := &money.BillData{
-		V:       10,
-		T:       0,
+		Value:   10,
 		Counter: 0,
 	}
 
@@ -504,8 +493,7 @@ func TestBillData_Value(t *testing.T) {
 
 func TestBillData_AddToHasher(t *testing.T) {
 	bd := &money.BillData{
-		V:       10,
-		T:       50,
+		Value:   10,
 		Counter: 0,
 		Locked:  1,
 	}
@@ -529,7 +517,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	t.Skip("TODO AB-1133 implement dust bills deletion")
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
-	remaining := initBillData.V
+	remaining := initBillData.Value
 	var splitBillIDs = make([]types.UnitID, 10)
 	counter := initBillData.Counter
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
@@ -570,9 +558,9 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	_, err := txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swapTx.UnitID)
-	require.Equal(t, uint64(10), newBillData.V)
+	require.Equal(t, uint64(10), newBillData.Value)
 	_, dustCollectorBill := getBill(t, rmaTree, DustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.Value)
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
 	err = txSystem.Commit(createUC(stateSummary, 999))
@@ -588,7 +576,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 
 	_, dustCollectorBill = getBill(t, rmaTree, DustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.Value)
 }
 
 // Test scenario:
@@ -702,8 +690,8 @@ func TestRegisterData_RevertSplit(t *testing.T) {
 
 func TestRegisterData_RevertTransDC(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
-	u, initBillData := getBill(t, rmaTree, initialBill.ID)
-	unitBearer := bytes.Clone(u.Owner())
+	_, initBillData := getBill(t, rmaTree, initialBill.ID)
+	unitBearer := bytes.Clone(initBillData.OwnerPredicate)
 	vdState, err := txSystem.StateSummary()
 	require.NoError(t, err)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
@@ -718,17 +706,17 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 	require.NotNil(t, sm)
 	_, err = txSystem.StateSummary()
 	require.ErrorIs(t, err, txsystem.ErrStateContainsUncommittedChanges)
-	u, bd := getBill(t, rmaTree, initialBill.ID)
-	require.EqualValues(t, DustCollectorPredicate, u.Owner())
+	_, bd := getBill(t, rmaTree, initialBill.ID)
+	require.EqualValues(t, DustCollectorPredicate, bd.OwnerPredicate)
 	require.EqualValues(t, 1, bd.Counter)
 
 	txSystem.Revert()
 	s, err := txSystem.StateSummary()
 	require.NoError(t, err)
 	require.Equal(t, vdState, s)
-	u, bd = getBill(t, rmaTree, initialBill.ID)
-	require.EqualValues(t, unitBearer, u.Owner())
-	require.NotEqualValues(t, DustCollectorPredicate, u.Owner())
+	_, bd = getBill(t, rmaTree, initialBill.ID)
+	require.EqualValues(t, unitBearer, bd.OwnerPredicate)
+	require.NotEqualValues(t, DustCollectorPredicate, bd.OwnerPredicate)
 	require.EqualValues(t, 0, bd.Counter)
 }
 
@@ -981,7 +969,7 @@ func createDCTransferAndSwapTxs(
 
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
-		tx, _, _ := createDCTransfer(t, id, fcrID, billData.V, billData.Counter, targetID, targetCounter)
+		tx, _, _ := createDCTransfer(t, id, fcrID, billData.Value, billData.Counter, targetID, targetCounter)
 		txr := &types.TransactionRecord{
 			TransactionOrder: tx,
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
@@ -1088,10 +1076,11 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	require.True(t, s.IsCommitted())
 	// add fee credit record with empty predicate
 	fcrData := &fcsdk.FeeCreditRecord{
-		Balance: 100,
-		Timeout: 100,
+		Balance:        100,
+		Timeout:        100,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	}
-	err = s.Apply(unit.AddCredit(fcrID, templates.AlwaysTrueBytes(), fcrData))
+	err = s.Apply(unit.AddCredit(fcrID, fcrData))
 	require.NoError(t, err)
 	summary, err = mss.EndBlock()
 	require.NoError(t, err)
@@ -1107,17 +1096,17 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.Partitio
 	zeroHash := make([]byte, crypto.SHA256.Size())
 
 	// initial bill
-	require.NoError(t, s.Apply(state.AddUnit(initialBill.ID, initialBill.Owner, &money.BillData{V: initialBill.Value})))
+	require.NoError(t, s.Apply(state.AddUnit(initialBill.ID, money.NewBillData(initialBill.Value, initialBill.Owner))))
 	require.NoError(t, s.AddUnitLog(initialBill.ID, zeroHash))
 
 	// dust collector money supply
-	require.NoError(t, s.Apply(state.AddUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &money.BillData{V: initialDustCollectorMoneyAmount})))
+	require.NoError(t, s.Apply(state.AddUnit(DustCollectorMoneySupplyID, money.NewBillData(initialDustCollectorMoneyAmount, DustCollectorPredicate))))
 	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash))
 
 	// fee credit bills
 	for _, sdr := range sdrs {
 		fcb := sdr.FeeCreditBill
-		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, fcb.OwnerPredicate, &money.BillData{})))
+		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, &money.BillData{})))
 		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
 	}
 
@@ -1163,9 +1152,9 @@ func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertifi
 
 type moneyModuleOption func(m *Module) error
 
-func withStateUnit(unitID []byte, ownerPredicate types.PredicateBytes, data types.UnitData) moneyModuleOption {
+func withStateUnit(unitID []byte, data types.UnitData) moneyModuleOption {
 	return func(m *Module) error {
-		return m.state.Apply(state.AddUnit(unitID, ownerPredicate, data))
+		return m.state.Apply(state.AddUnit(unitID, data))
 	}
 }
 

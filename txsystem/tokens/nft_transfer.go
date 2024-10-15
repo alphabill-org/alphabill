@@ -11,16 +11,18 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, _ *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, _ *tokens.TransferNonFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
+
+	// 1. N[T.ι].D.φ ← T.A.φ
+	// 2. N[T.ι].D.c ← N[T.ι].D.c + 1
 	if err := n.state.Apply(
-		state.SetOwner(unitID, attr.NewOwnerPredicate),
 		state.UpdateUnitData(unitID, func(data types.UnitData) (types.UnitData, error) {
 			d, ok := data.(*tokens.NonFungibleTokenData)
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 			}
-			d.T = exeCtx.CurrentRound()
+			d.OwnerPredicate = attr.NewOwnerPredicate
 			d.Counter += 1
 			return d, nil
 		}),
@@ -54,7 +56,7 @@ func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.TypeID)
 	}
 
-	if err = n.execPredicate(u.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = n.execPredicate(data.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](

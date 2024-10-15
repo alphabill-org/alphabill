@@ -35,7 +35,6 @@ func (s *statePruner) Traverse(n *node) {
 	clonedUnit.logs = []*Log{{
 		TxRecordHash:       nil,
 		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),
-		NewOwner:           bytes.Clone(unit.Owner()),
 		NewUnitData:        copyData(unit.Data()),
 	}}
 	s.err = s.prunedTree.Update(n.Key(), clonedUnit)

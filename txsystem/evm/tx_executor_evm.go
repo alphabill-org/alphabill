@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -9,6 +10,9 @@ import (
 	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -16,10 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
-
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 )
 
 func errorToStr(err error) string {
@@ -55,7 +55,11 @@ func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttrib
 	}
 	unit, _ := exeCtx.GetUnit(tx.UnitID, false)
 	if unit != nil {
-		if err := m.execPredicate(unit.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		unitData, ok := unit.Data().(*statedb.StateObject)
+		if !ok {
+			return errors.New("invalid evm transaction, invalid unit data type")
+		}
+		if err := m.execPredicate(unitData.AlphaBill.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 			return fmt.Errorf("evaluating owner predicate: %w", err)
 		}
 	}

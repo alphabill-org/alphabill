@@ -28,30 +28,22 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 
 	// update state
 	if err = m.state.Apply(
-		state.AddUnit(newTokenID,
-			attr.NewOwnerPredicate,
-			&tokens.FungibleTokenData{
-				TokenType: ftData.TokenType,
-				Value:     attr.TargetValue,
-				T:         exeCtx.CurrentRound(),
-				Counter:   0,
-				T1:        0,
-				Locked:    0,
-			}),
+		state.AddUnit(newTokenID, &tokens.FungibleTokenData{
+			TokenType:      ftData.TokenType,
+			Value:          attr.TargetValue,
+			OwnerPredicate: attr.NewOwnerPredicate,
+		}),
 		state.UpdateUnitData(unitID,
 			func(data types.UnitData) (types.UnitData, error) {
 				d, ok := data.(*tokens.FungibleTokenData)
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
-				return &tokens.FungibleTokenData{
-					TokenType: d.TokenType,
-					Value:     d.Value - attr.TargetValue,
-					T:         exeCtx.CurrentRound(),
-					Counter:   d.Counter + 1,
-					T1:        d.T1,
-					Locked:    d.Locked,
-				}, nil
+				// 3. N[T.ι].D.v ← N[T.ι].D.v − T.A.v
+				// 4. N[T.ι].D.c ← N[T.ι].D.c + 1
+				d.Value -= attr.TargetValue
+				d.Counter += 1
+				return d, nil
 			}),
 	); err != nil {
 		return nil, err
@@ -60,7 +52,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 }
 
 func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	ownerPredicate, tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
 	if err != nil {
 		return err
 	}
@@ -80,7 +72,7 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
 	}
 
-	if err = m.execPredicate(ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(tokenData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](

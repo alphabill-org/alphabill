@@ -32,12 +32,11 @@ type (
 	}
 
 	Unit[T any] struct {
-		NetworkID      types.NetworkID       `json:"networkId"`
-		SystemID       types.SystemID        `json:"systemId"`
-		UnitID         types.UnitID          `json:"unitId"`
-		Data           T                     `json:"data"`
-		OwnerPredicate types.Bytes           `json:"ownerPredicate,omitempty"`
-		StateProof     *types.UnitStateProof `json:"stateProof,omitempty"`
+		NetworkID  types.NetworkID       `json:"networkId"`
+		SystemID   types.SystemID        `json:"systemId"`
+		UnitID     types.UnitID          `json:"unitId"`
+		Data       T                     `json:"data"`
+		StateProof *types.UnitStateProof `json:"stateProof,omitempty"`
 	}
 
 	TransactionRecordAndProof struct {
@@ -71,12 +70,11 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 	}
 
 	resp := &Unit[any]{
-		NetworkID:      s.node.NetworkID(),
-		SystemID:       s.node.SystemID(),
-		UnitID:         unitID,
-		Data:           unit.Data(),
-		OwnerPredicate: unit.Owner(),
-		StateProof:     nil,
+		NetworkID:  s.node.NetworkID(),
+		SystemID:   s.node.SystemID(),
+		UnitID:     unitID,
+		Data:       unit.Data(),
+		StateProof: nil,
 	}
 
 	if includeStateProof {

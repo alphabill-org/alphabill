@@ -25,13 +25,8 @@ func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddF
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
 		// add credit
-		fcr := &fc.FeeCreditRecord{
-			Balance: newBalance,
-			Counter: 0,
-			Timeout: latestAdditionTime,
-			Locked:  0,
-		}
-		err = f.state.Apply(unit.AddCredit(unitID, attr.FeeCreditOwnerPredicate, fcr))
+		fcr := fc.NewFeeCreditRecord(newBalance, attr.FeeCreditOwnerPredicate, latestAdditionTime)
+		err = f.state.Apply(unit.AddCredit(unitID, fcr))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("addFC state update failed: %w", err)
@@ -45,7 +40,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	}
 
 	// target unit is a fee credit record (either new or pre-existing)
-	fcr, fcrOwnerPredicate, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
@@ -81,8 +76,8 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 			return fmt.Errorf("invalid transferFC target unit counter: transferFC.targetUnitCounter=%d unit.counter=%d", *transAttr.TargetUnitCounter, fcr.GetCounter())
 		}
 		// the owner predicate matches
-		if !bytes.Equal(fcrOwnerPredicate, attr.FeeCreditOwnerPredicate) {
-			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", fcrOwnerPredicate, attr.FeeCreditOwnerPredicate)
+		if !bytes.Equal(fcr.OwnerPredicate, attr.FeeCreditOwnerPredicate) {
+			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", fcr.OwnerPredicate, attr.FeeCreditOwnerPredicate)
 		}
 	}
 	// proof of the bill transfer order verifies

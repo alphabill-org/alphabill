@@ -37,7 +37,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
-		PartitionDescription: &types.PartitionDescriptionRecord{
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  systemIdentifier,
 			TypeIdLen:         8,
@@ -66,7 +66,7 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
-		PartitionDescription: types.PartitionDescriptionRecord{
+		PartitionDescription: types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  systemIdentifier,
 			TypeIdLen:         8,

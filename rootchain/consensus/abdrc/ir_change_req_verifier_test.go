@@ -65,7 +65,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         2000 * time.Millisecond,
@@ -265,7 +265,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         2600 * time.Millisecond,
@@ -310,7 +310,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         2600 * time.Millisecond,
@@ -353,9 +353,9 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			Certificate: &types.UnicityCertificate{
-				InputRecord: &types.InputRecord{},
-				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+			Certificate: &types.UnicityCertificate{Version: 1,
+				InputRecord: &types.InputRecord{Version: 1},
+				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				NetworkIdentifier: 5,

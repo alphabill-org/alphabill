@@ -598,7 +598,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.NoError(t, err)
 	b := &types.Block{
 		Header:             &types.Header{SystemID: evm.DefaultSystemID},
-		Transactions:       []*types.TransactionRecord{},
+		Transactions:       []*types.TransactionRecord{Version: 1},
 		UnicityCertificate: ucBytes,
 	}
 	require.NoError(t, mockDB.Write(util.Uint64ToBytes(uint64(1)), &b))

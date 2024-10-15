@@ -22,7 +22,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, encryptionKey1 := testsig.CreateSignerAndVerifier(t)
 	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
-	validPDR := &types.PartitionDescriptionRecord{
+	validPDR := &types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  1,
 		TypeIdLen:         8,

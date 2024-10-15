@@ -32,7 +32,7 @@ func DefaultOptions() *Options {
 }
 
 func DefaultSDR() *types.PartitionDescriptionRecord {
-	return &types.PartitionDescriptionRecord{
+	return &types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  money.DefaultSystemID,
 		T2Timeout:         2500 * time.Millisecond,
@@ -56,7 +56,7 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 		RoundNumber:  DefaultRoundNumber,
 		SummaryValue: make([]byte, 32),
 	}
-	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.sdr, signer)
+	b := CreateBlock(t, []*types.TransactionRecord{Version: 1, txRecord}, ir, options.sdr, signer)
 	p, err := types.NewTxRecordProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p

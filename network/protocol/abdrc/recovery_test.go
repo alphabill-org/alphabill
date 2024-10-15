@@ -149,7 +149,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: nil,
 			BlockData:     nil,
 		}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "commit head is nil")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "commit head is nil")
 	})
 	t.Run("commit head, invalid block", func(t *testing.T) {
 		sm := &StateMsg{
@@ -195,7 +195,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "invalid commit head: block data error: proposed block is missing quorum certificate")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "invalid commit head: block data error: proposed block is missing quorum certificate")
 	})
 	t.Run("commit head, invalid QC", func(t *testing.T) {
 		sm := &StateMsg{
@@ -249,7 +249,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		require.EqualError(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "block qc verification error: vote info hash verification failed")
+		require.EqualError(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "block qc verification error: vote info hash verification failed")
 	})
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := &StateMsg{

@@ -158,7 +158,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	// add an invalid proof record - just tx record, proof is missing
 	proofs := []*types.TxRecordProof{
 		{
-			TxRecord: &types.TransactionRecord{
+			TxRecord: &types.TransactionRecord{Version: 1,
 				TransactionOrder: &types.TransactionOrder{},
 				ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 			},
@@ -178,7 +178,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 	proofs = append(proofs, txRecProof)
 
@@ -198,7 +198,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	txRec = &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txRec = &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof = testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 	proofs = append(proofs, txRecProof)
 
@@ -225,7 +225,7 @@ func Test_transferredSum(t *testing.T) {
 	}
 
 	t.Run("invalid input, required argument is nil", func(t *testing.T) {
-		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(nil, txRecProof, nil, nil)
@@ -241,17 +241,17 @@ func Test_transferredSum(t *testing.T) {
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction order is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: &types.TransactionOrder{}, ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: server metadata is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}, TxProof: nil}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}, TxProof: nil}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction proof is nil`)
@@ -259,7 +259,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("tx for non-money txsystem", func(t *testing.T) {
 		// money system ID is 1, create tx for some other txs
-		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: 2}}, ServerMetadata: &types.ServerMetadata{}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: 2}}, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 		require.Zero(t, sum)
@@ -268,7 +268,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("ref number mismatch", func(t *testing.T) {
 		// if ref-no parameter is provided it must match (nil ref-no means "do not care")
-		txRec := &types.TransactionRecord{
+		txRec := &types.TransactionRecord{Version: 1,
 			TransactionOrder: &types.TransactionOrder{
 				Payload: types.Payload{
 					SystemID: money.DefaultSystemID,
@@ -298,7 +298,7 @@ func Test_transferredSum(t *testing.T) {
 		// all money tx types other than TransactionTypeSplit and TransactionTypeTransfer should
 		// be ignored ie cause no error but return zero as sum
 		txTypes := []uint16{money.TransactionTypeLock, money.TransactionTypeSwapDC, money.TransactionTypeTransDC, money.TransactionTypeUnlock}
-		txRec := &types.TransactionRecord{
+		txRec := &types.TransactionRecord{Version: 1,
 			TransactionOrder: &types.TransactionOrder{},
 			ServerMetadata:   &types.ServerMetadata{},
 		}
@@ -328,7 +328,7 @@ func Test_transferredSum(t *testing.T) {
 			TargetValue:       100,
 		})
 		require.NoError(t, err)
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
@@ -357,7 +357,7 @@ func Test_transferredSum(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
@@ -407,7 +407,7 @@ func Test_transferredSum(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 		// match without ref-no

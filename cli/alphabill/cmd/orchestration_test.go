@@ -35,7 +35,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, orchestrationGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  orchestration.DefaultSystemID,
 		TypeIdLen:         8,

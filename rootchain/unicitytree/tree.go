@@ -57,7 +57,7 @@ func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCe
 	if err != nil {
 		return nil, err
 	}
-	return &types.UnicityTreeCertificate{
+	return &types.UnicityTreeCertificate{Version: 1,
 		SystemIdentifier:         sysID,
 		PartitionDescriptionHash: sdrh,
 		HashSteps:                path[1:], // drop redundant first hash step; path is guaranteed to have size > 0

@@ -36,7 +36,7 @@ func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOpt
 }
 
 func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFeeCreditAttributes {
-	txr := &types.TransactionRecord{
+	txr := &types.TransactionRecord{Version: 1,
 		TransactionOrder: newCloseFC(t),
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        10,

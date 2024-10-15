@@ -400,11 +400,15 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
 	}
-	for _, tx := range txs {
-		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
+	for _, txr := range txs {
+		txo, err := txr.GetTransactionOrderV1()
 		if err != nil {
-			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.UnitID(), err)
+			return nil, 0, fmt.Errorf("failed to get transaction order: %w", err)
+		}
+		sm, err := n.validateAndExecuteTx(ctx, txo, round)
+		if err != nil {
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(txo.UnitID))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", txo.UnitID, err)
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
@@ -587,7 +591,11 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr er
 		n.sendEvent(event.TransactionFailed, tx)
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
-	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return fmt.Errorf("failed to marshal transaction: %w", err)
+	}
+	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
 	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID))
@@ -673,7 +681,11 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("transaction system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
-		if err = n.process(ctx, tx.TransactionOrder); err != nil {
+		txo, err := tx.GetTransactionOrderV1()
+		if err != nil {
+			return fmt.Errorf("failed to get transaction order: %w", err)
+		}
+		if err = n.process(ctx, txo); err != nil {
 			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
@@ -1332,7 +1344,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to store pending block proposal: %w", err)
 	}
 	n.pendingBlockProposal = pendingProposal
-	n.proposedTransactions = []*types.TransactionRecord{}
+	n.proposedTransactions = []*types.TransactionRecord{Version: 1}
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
@@ -1363,7 +1375,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 }
 
 func (n *Node) resetProposal() {
-	n.proposedTransactions = []*types.TransactionRecord{}
+	n.proposedTransactions = []*types.TransactionRecord{Version: 1}
 	n.pendingBlockProposal = nil
 }
 

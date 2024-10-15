@@ -27,7 +27,7 @@ var inputRecord1 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr1 = &types.PartitionDescriptionRecord{
+var sdr1 = &types.PartitionDescriptionRecord{Version: 1,
 	NetworkIdentifier: 5,
 	SystemIdentifier:  sysID1,
 	T2Timeout:         2500 * time.Millisecond,
@@ -40,7 +40,7 @@ var inputRecord2 = &types.InputRecord{
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
 }
-var sdr2 = &types.PartitionDescriptionRecord{
+var sdr2 = &types.PartitionDescriptionRecord{Version: 1,
 	NetworkIdentifier: 5,
 	SystemIdentifier:  sysID2,
 	T2Timeout:         2500 * time.Millisecond,
@@ -57,7 +57,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord1,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier:         sysID1,
 				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
@@ -79,7 +79,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord2,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier:         sysID2,
 				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},

@@ -20,7 +20,7 @@ succeed IsValid and Verify checks.
 type structBuilder struct {
 	verifiers map[string]abcrypto.Verifier
 	signers   map[string]abcrypto.Signer
-	trustBase *types.RootTrustBaseV0
+	trustBase *types.RootTrustBaseV1
 }
 
 func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
@@ -29,7 +29,7 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 	sb := &structBuilder{
 		verifiers: map[string]abcrypto.Verifier{},
 		signers:   map[string]abcrypto.Signer{},
-		trustBase: &types.RootTrustBaseV0{},
+		trustBase: &types.RootTrustBaseV1{Version: 1},
 	}
 
 	var nodes []*types.NodeInfo

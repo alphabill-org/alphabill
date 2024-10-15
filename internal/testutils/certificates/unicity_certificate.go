@@ -40,7 +40,7 @@ func CreateUnicityCertificate(
 	}
 	return &types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 			SystemIdentifier:         cert.SystemIdentifier,
 			HashSteps:                cert.HashSteps,
 			PartitionDescriptionHash: pdr.Hash(gocrypto.SHA256),

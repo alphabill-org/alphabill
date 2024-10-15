@@ -259,7 +259,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 			UC: types.UnicityCertificate{
 				Version:     1,
 				InputRecord: ir.IR,
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 					SystemIdentifier:         utCert.SystemIdentifier,
 					HashSteps:                utCert.HashSteps,
 					PartitionDescriptionHash: utCert.PartitionDescriptionHash,

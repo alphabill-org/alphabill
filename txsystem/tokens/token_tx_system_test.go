@@ -48,7 +48,7 @@ var (
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  0,
 		TypeIdLen:         8,
@@ -61,7 +61,7 @@ func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  tokens.DefaultSystemID,
 		TypeIdLen:         8,
@@ -1727,7 +1727,7 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  tokens.DefaultSystemID,
 		TypeIdLen:         8,

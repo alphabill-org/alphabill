@@ -35,7 +35,7 @@ var (
 	defaultInitialBillID             = moneysdk.NewBillID(nil, []byte{1})
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
-	defaultMoneyPDR = &types.PartitionDescriptionRecord{
+	defaultMoneyPDR = &types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: types.NetworkLocal,
 		SystemIdentifier:  moneysdk.DefaultSystemID,
 		TypeIdLen:         8,
@@ -111,7 +111,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
-	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{Version: 1})
 	if err != nil {
 		return fmt.Errorf("loading partition description: %w", err)
 	}
@@ -193,7 +193,7 @@ func (c *moneyGenesisConfig) getSDRs() ([]*types.PartitionDescriptionRecord, err
 		sdrs = append(sdrs, defaultMoneyPDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &types.PartitionDescriptionRecord{})
+			sdr, err := util.ReadJsonFile(sdrFile, &types.PartitionDescriptionRecord{Version: 1})
 			if err != nil {
 				return nil, err
 			}

@@ -384,7 +384,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 		&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, txPayment, signer)}),
 	)
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithSystemIdentifier(money.DefaultSystemID))
 
 	b, err := types.Cbor.Marshal(txRec)

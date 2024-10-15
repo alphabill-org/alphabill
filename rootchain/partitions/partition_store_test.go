@@ -26,7 +26,7 @@ func Test_PartitionStore_Init(t *testing.T) {
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         2600 * time.Millisecond,
@@ -146,7 +146,7 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         1000 * time.Millisecond,
@@ -158,7 +158,7 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 			},
 		},
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  2,
 				T2Timeout:         2000 * time.Millisecond,
@@ -241,7 +241,7 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	t.Run("data from genesis store is invalid", func(t *testing.T) {
 		invalidPartitions := []*genesis.GenesisPartitionRecord{
 			{
-				PartitionDescription: &types.PartitionDescriptionRecord{
+				PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 					NetworkIdentifier: 5,
 					SystemIdentifier:  1,
 					T2Timeout:         1000 * time.Millisecond,
@@ -280,7 +280,7 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	t.Run("successfully load config for next range of rounds", func(t *testing.T) {
 		nextConfig := []*genesis.GenesisPartitionRecord{
 			{
-				PartitionDescription: &types.PartitionDescriptionRecord{
+				PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 					NetworkIdentifier: 5,
 					SystemIdentifier:  3,
 					T2Timeout:         3000 * time.Millisecond,

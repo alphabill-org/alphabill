@@ -115,7 +115,7 @@ func Test_MoneyGenesis(t *testing.T) {
 
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
-		sdr := &types.PartitionDescriptionRecord{
+		sdr := &types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  moneysdk.DefaultSystemID,
 			TypeIdLen:         4,
@@ -156,7 +156,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
-		sdr := &types.PartitionDescriptionRecord{
+		sdr := &types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  moneysdk.DefaultSystemID,
 			T2Timeout:         10 * time.Second,
@@ -179,7 +179,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
-		sdr := &types.PartitionDescriptionRecord{
+		sdr := &types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  moneysdk.DefaultSystemID,
 			T2Timeout:         10 * time.Second,
@@ -202,7 +202,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, evmGenesisFileName)
 
-		sdr := types.PartitionDescriptionRecord{
+		sdr := types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  55,
 			TypeIdLen:         4,

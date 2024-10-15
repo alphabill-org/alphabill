@@ -121,7 +121,7 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 	for _, o := range options {
 		require.NoError(t, o(tx))
 	}
-	return &types.TransactionRecord{
+	return &types.TransactionRecord{Version: 1,
 		TransactionOrder: tx,
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,

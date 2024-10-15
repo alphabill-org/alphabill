@@ -23,7 +23,7 @@ var mockUc = &types.UnicityCertificate{Version: 1,
 		BlockHash:    zeroHash,
 		SummaryValue: []byte{0, 0, 0, 0},
 	},
-	UnicityTreeCertificate: &types.UnicityTreeCertificate{
+	UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 		SystemIdentifier:         sysID3,
 		HashSteps:                nil,
 		PartitionDescriptionHash: nil,
@@ -41,7 +41,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID3,
 				T2Timeout:         2500 * time.Millisecond,
@@ -50,7 +50,7 @@ var testGenesis = &genesis.RootGenesis{
 		{
 			Nodes:       nil,
 			Certificate: mockUc,
-			PartitionDescription: &types.PartitionDescriptionRecord{
+			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID1,
 				T2Timeout:         2500 * time.Millisecond,

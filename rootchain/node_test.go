@@ -398,7 +398,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		UC: types.UnicityCertificate{
 			Version:     1,
 			InputRecord: newIR,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
@@ -498,7 +498,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		UC: types.UnicityCertificate{
 			Version:     1,
 			InputRecord: newIR,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
@@ -538,7 +538,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 		UC: types.UnicityCertificate{
 			Version:     1,
 			InputRecord: newIR,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier: unknownID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},

@@ -33,7 +33,7 @@ func NewTestNode(t *testing.T) *TestNode {
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
-		PartitionDescription: &types.PartitionDescriptionRecord{
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  systemID,
 			TypeIdLen:         8,

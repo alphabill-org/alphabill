@@ -54,9 +54,14 @@ func (f *feeCreditTxRecorder) recordTransferFC(tx *transferFeeCreditTx) {
 	f.transferFeeCredits[sid] = append(f.transferFeeCredits[sid], tx)
 }
 
-func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
-	sid := tx.attr.CloseFeeCreditProof.TxRecord.TransactionOrder.SystemID
+func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) error {
+	txo, err := tx.attr.CloseFeeCreditProof.TxRecord.GetTransactionOrderV1()
+	if err != nil {
+		return fmt.Errorf("failed to get transaction order: %w", err)
+	}
+	sid := txo.SystemID
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
+	return nil
 }
 
 func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) uint64 {

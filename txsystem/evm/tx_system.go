@@ -153,7 +153,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 			m.state.RollbackToSavepoint(savepointID)
 			return
 		}
-		trx := &types.TransactionRecord{
+		trx := &types.TransactionRecord{Version: 1,
 			TransactionOrder: tx,
 			ServerMetadata:   sm,
 		}

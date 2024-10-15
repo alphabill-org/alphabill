@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &types.PartitionDescriptionRecord{
+var systemDescription = &types.PartitionDescriptionRecord{Version: 1,
 	NetworkIdentifier: 5,
 	SystemIdentifier:  1,
 	TypeIdLen:         8,
@@ -167,7 +167,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions: []*types.TransactionRecord{
+		Transactions: []*types.TransactionRecord{Version: 1,
 			{
 				TransactionOrder: testtransaction.NewTransactionOrder(t),
 				ServerMetadata: &types.ServerMetadata{

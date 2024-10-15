@@ -49,7 +49,7 @@ func createPartition(systemID types.SystemID, nodeID string, partitionSigner abc
 	req := createInputRequest(systemID, nodeID, partitionSigner)
 	pubKey := getPubKey(partitionSigner)
 
-	pdr := &types.PartitionDescriptionRecord{
+	pdr := &types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  systemID,
 		TypeIdLen:         8,

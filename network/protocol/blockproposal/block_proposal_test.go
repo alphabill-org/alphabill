@@ -43,7 +43,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				Transactions:     []*types.TransactionRecord{Version: 1},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
@@ -59,7 +59,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				Transactions:     []*types.TransactionRecord{Version: 1},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -75,7 +75,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				Transactions:     []*types.TransactionRecord{Version: 1},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -90,7 +90,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			name: "block proposer id is missing",
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
-				Transactions:     []*types.TransactionRecord{},
+				Transactions:     []*types.TransactionRecord{Version: 1},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -107,7 +107,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				SystemIdentifier:   systemIdentifier,
 				NodeIdentifier:     "1",
 				UnicityCertificate: nil,
-				Transactions:       []*types.TransactionRecord{},
+				Transactions:       []*types.TransactionRecord{Version: 1},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -161,14 +161,14 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier:         systemIdentifier,
 				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*types.TransactionRecord{{
+		Transactions: []*types.TransactionRecord{Version: 1, {
 			TransactionOrder: &types.TransactionOrder{
 				Payload: types.Payload{
 					SystemID:       0,
@@ -212,14 +212,14 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 				SystemIdentifier:         systemIdentifier,
 				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
+		Transactions: []*types.TransactionRecord{Version: 1, {TransactionOrder: &types.TransactionOrder{
 			Payload: types.Payload{
 				SystemID:       0,
 				Type:           22,

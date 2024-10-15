@@ -22,7 +22,7 @@ import (
 
 func Test_EvmGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  evmsdk.DefaultSystemID,
 		TypeIdLen:         8,

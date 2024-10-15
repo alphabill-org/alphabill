@@ -73,9 +73,9 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitionStore, err := partitions.NewPartitionStore(
 		testgenesis.NewGenesisStoreFromPartitions(
 			[]*genesis.GenesisPartitionRecord{
-				{PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: sysID3, T2Timeout: 2500 * time.Millisecond}},
-				{PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: sysID1, T2Timeout: 2500 * time.Millisecond}},
-				{PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: sysID2, T2Timeout: 2500 * time.Millisecond}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, SystemIdentifier: sysID3, T2Timeout: 2500 * time.Millisecond}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, SystemIdentifier: sysID1, T2Timeout: 2500 * time.Millisecond}},
+				{PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, SystemIdentifier: sysID2, T2Timeout: 2500 * time.Millisecond}},
 			}))
 	require.NoError(t, err)
 	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
@@ -89,7 +89,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			UC: types.UnicityCertificate{
 				Version:                1,
 				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 3, Hash: []byte{1}}}, // no timeout (5 - 3) * 900 = 1800 ms,
 		},
 		{
@@ -97,7 +97,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			UC: types.UnicityCertificate{
 				Version:                1,
 				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2, Hash: []byte{1}}}, // timeout (5 - 2) * 900 = 2700 ms
 		},
 		{
@@ -105,7 +105,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			UC: types.UnicityCertificate{
 				Version:                1,
 				InputRecord:            &types.InputRecord{Version: 1, Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1},
 				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 4, Hash: []byte{1}}}, // no timeout
 		},
 	}

@@ -25,7 +25,7 @@ const (
 )
 
 func Test_OrchestrationGenesis(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  123,
 		TypeIdLen:         8,
@@ -108,7 +108,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "not-default-name.json")
 
-		sdr := types.PartitionDescriptionRecord{
+		sdr := types.PartitionDescriptionRecord{Version: 1,
 			NetworkIdentifier: 5,
 			SystemIdentifier:  55,
 			TypeIdLen:         4,

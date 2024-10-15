@@ -111,7 +111,7 @@ func Test_cbor_parse_array_raw(t *testing.T) {
 	// handle and handle2 should now point to raw CBOR of txRecord and txProof respectively
 	buf, err := getVar[types.RawCBOR](vm.curPrg.vars, handle)
 	require.NoError(t, err)
-	txRec := &types.TransactionRecord{}
+	txRec := &types.TransactionRecord{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(buf, txRec))
 
 	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, handle2)

@@ -52,7 +52,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TransactionRecord ok", func(t *testing.T) {
-		txr := types.TransactionRecord{
+		txr := types.TransactionRecord{Version: 1,
 			TransactionOrder: &types.TransactionOrder{},
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,

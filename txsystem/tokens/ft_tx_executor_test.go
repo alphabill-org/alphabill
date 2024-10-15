@@ -1180,7 +1180,7 @@ func initState(t *testing.T) *state.State {
 
 func createTxRecord(t *testing.T, unitID types.UnitID, transactionType uint16, attr any, opts ...testtransaction.Option) *types.TransactionRecord {
 	txo := createTxOrder(t, unitID, transactionType, attr, opts...)
-	return &types.TransactionRecord{
+	return &types.TransactionRecord{Version: 1,
 		TransactionOrder: txo,
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,

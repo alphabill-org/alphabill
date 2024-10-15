@@ -629,7 +629,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 			testutils.WithCloseFCTargetUnitCounter(1),
 		),
 	)
-	closeFCRecord := &types.TransactionRecord{
+	closeFCRecord := &types.TransactionRecord{Version: 1,
 		TransactionOrder: closeFC,
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
@@ -752,7 +752,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.True(t, sm.ActualFee > 0)
 
 	// send addFC
-	transferFCTransactionRecord := &types.TransactionRecord{
+	transferFCTransactionRecord := &types.TransactionRecord{Version: 1,
 		TransactionOrder: transferFC,
 		ServerMetadata:   sm,
 	}
@@ -826,7 +826,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.EqualValues(t, 0, fcrUnitData.Balance)
 
 	// send reclaimFC
-	closeFCTransactionRecord := &types.TransactionRecord{
+	closeFCTransactionRecord := &types.TransactionRecord{Version: 1,
 		TransactionOrder: closeFC,
 		ServerMetadata:   sm,
 	}
@@ -970,7 +970,7 @@ func createDCTransferAndSwapTxs(
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
 		tx, _, _ := createDCTransfer(t, id, fcrID, billData.Value, billData.Counter, targetID, targetCounter)
-		txr := &types.TransactionRecord{
+		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: tx,
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
@@ -1129,7 +1129,7 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 }
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
-	return []*types.PartitionDescriptionRecord{{
+	return []*types.PartitionDescriptionRecord{Version: 1, {
 		NetworkIdentifier: 5,
 		SystemIdentifier:  money.DefaultSystemID,
 		TypeIdLen:         8,

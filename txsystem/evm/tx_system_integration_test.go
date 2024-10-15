@@ -52,7 +52,7 @@ const networkIdentifier types.NetworkID = 5
 const systemIdentifier types.SystemID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: networkIdentifier,
 		SystemIdentifier:  0x00000402,
 		TypeIdLen:         8,

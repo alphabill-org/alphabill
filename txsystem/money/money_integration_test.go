@@ -44,7 +44,7 @@ func TestPartition_Ok(t *testing.T) {
 		Value: moneyInvariant,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: 5,
 		SystemIdentifier:  money.DefaultSystemID,
 		TypeIdLen:         8,
@@ -176,7 +176,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			Owner: templates.AlwaysTrueBytes(),
 		}
 	)
-	pdr := types.PartitionDescriptionRecord{
+	pdr := types.PartitionDescriptionRecord{Version: 1,
 		NetworkIdentifier: networkID,
 		SystemIdentifier:  money.DefaultSystemID,
 		TypeIdLen:         8,

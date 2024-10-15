@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &types.PartitionDescriptionRecord{
+var systemDescription = &types.PartitionDescriptionRecord{Version: 1,
 	NetworkIdentifier: 5,
 	SystemIdentifier:  1,
 	TypeIdLen:         8,
@@ -55,7 +55,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 		{
 			name: "invalid validator system identifier",
 			fields: fields{
-				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
+				SystemDescriptionRecord: &types.PartitionDescriptionRecord{Version: 1,
 					NetworkIdentifier: 5,
 					SystemIdentifier:  2,
 					TypeIdLen:         8,

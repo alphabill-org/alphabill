@@ -56,7 +56,7 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 }
 
 func NewTransferFeeCreditProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {
-	txRecord := &types.TransactionRecord{
+	txRecord := &types.TransactionRecord{Version: 1,
 		TransactionOrder: NewTransferFC(t, signer, nil),
 		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 	}

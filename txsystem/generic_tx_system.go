@@ -178,16 +178,25 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 	return sm, nil
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (txr *types.TransactionRecord, retErr error) {
 	var txExecErr error
-	result := &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		retErr = fmt.Errorf("marshalling transaction: %w", err)
+		return
+	}
+	txr = &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
+	}
 	savepointID := m.state.Savepoint()
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
 			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
-			result.SetError(txExecErr)
+			txr.ServerMetadata.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order
 			m.state.RollbackToSavepoint(savepointID)
 		}
@@ -195,35 +204,32 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		// charge user according to gas used
-		sm.ActualFee = exeCtx.CalculateCost()
-		if sm.ActualFee > 0 {
+		txr.ServerMetadata.ActualFee = exeCtx.CalculateCost()
+		if txr.ServerMetadata.ActualFee > 0 {
 			// credit the cost from
 			feeCreditRecordID := tx.FeeCreditRecordID()
-			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
+			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, txr.ServerMetadata.ActualFee)); err != nil {
 				// Tx must not be added to block - FCR could not be credited.
 				// Otherwise, Tx would be for free, and there are no funds taken to pay validators
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
-				sm = nil
+				txr = nil
 				retErr = fmt.Errorf("handling transaction fee: %w", err)
 			}
 			// add fee credit record unit log
-			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+			txr.ServerMetadata.TargetUnits = append(txr.ServerMetadata.TargetUnits, feeCreditRecordID)
 		}
-		trx := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
+
 		// update unit log's
-		for _, targetID := range sm.TargetUnits {
+		for _, targetID := range txr.ServerMetadata.TargetUnits {
 			// add log for each target unit
-			if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+			if err := m.state.AddUnitLog(targetID, txr.Hash(m.hashAlgorithm)); err != nil {
 				// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 				// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 				// an attack vector.
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
-				sm = nil
+				txr = nil
 				retErr = fmt.Errorf("adding unit log: %w", err)
 				return
 			}
@@ -233,34 +239,34 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	}()
 	// check conditional state unlock and release it, either roll back or execute the pending Tx
 	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
-	result = appendServerMetadata(result, unlockSm)
+	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, unlockSm)
 	if err != nil {
 		txExecErr = fmt.Errorf("unit state lock error: %w", err)
-		return result, nil
+		return txr, nil
 	}
 	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
-		return result, nil
+		return txr, nil
 	}
 	// either state lock or execute Tx
 	if tx.HasStateLock() {
 		// handle conditional lock of units
-		sm, err = m.executeLockUnitState(tx, exeCtx)
-		result = appendServerMetadata(result, sm)
+		sm, err := m.executeLockUnitState(tx, exeCtx)
+		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 		if err != nil {
 			txExecErr = fmt.Errorf("unit state lock error: %w", err)
 		}
-		return result, nil
+		return txr, nil
 	}
 	// proceed with the transaction execution, if not state lock
-	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
-	result = appendServerMetadata(result, sm)
+	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
+	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 	if err != nil {
 		txExecErr = fmt.Errorf("execute error: %w", err)
 	}
-	return result, nil
+	return txr, nil
 }
 
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
@@ -288,8 +294,13 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
-	trx := &types.TransactionRecord{
-		TransactionOrder: tx,
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
+	}
+	trx := &types.TransactionRecord{Version: 1,
+		TransactionOrder: txBytes,
 		ServerMetadata:   sm,
 	}
 	// update unit log's

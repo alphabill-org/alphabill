@@ -57,8 +57,9 @@ func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int) state.Acti
 		newBalance := new(uint256.Int).Sub(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
-			Counter: stateObj.AlphaBill.Counter + 1,
-			Timeout: stateObj.AlphaBill.GetTimeout(),
+			Counter:        stateObj.AlphaBill.Counter + 1,
+			Timeout:        stateObj.AlphaBill.GetTimeout(),
+			OwnerPredicate: stateObj.Owner(),
 		}
 		return stateObj, nil
 	}

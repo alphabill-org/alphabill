@@ -193,6 +193,7 @@ func TestExecuteSetFC(t *testing.T) {
 	require.EqualValues(t, 0, fcr.Counter)
 	require.EqualValues(t, 10, fcr.Timeout)
 	require.EqualValues(t, 0, fcr.Locked)
+	require.EqualValues(t, fcrOwnerPredicate, fcr.OwnerPredicate)
 }
 
 func newFeeCreditRecordID(ownerPredicate []byte, fcrUnitType []byte, timeout uint64) types.UnitID {

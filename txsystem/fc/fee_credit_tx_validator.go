@@ -54,12 +54,12 @@ func ValidateCloseFC(attr *fc.CloseFeeCreditAttributes, fcr *fc.FeeCreditRecord)
 }
 
 func parseFeeCreditRecord(id types.UnitID, fcrType []byte, state *state.State) (*fc.FeeCreditRecord, error) {
+	if !id.HasType(fcrType) {
+		return nil, ErrUnitTypeIsNotFCR
+	}
 	bd, err := state.GetUnit(id, false)
 	if err != nil {
 		return nil, fmt.Errorf("get fcr unit error: %w", err)
-	}
-	if !id.HasType(fcrType) {
-		return nil, ErrUnitTypeIsNotFCR
 	}
 	fcr, ok := bd.Data().(*fc.FeeCreditRecord)
 	if !ok {

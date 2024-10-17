@@ -37,10 +37,6 @@ type (
 		curRound func() uint64 // returns current round number.
 		cfgStore GenesisStore
 	}
-
-	MsgVerification interface {
-		IsValid(v abcrypto.Verifier) error
-	}
 )
 
 func NewPartitionTrustBase(tb map[string]abcrypto.Verifier) PartitionTrustBase {
@@ -63,12 +59,12 @@ func (v *TrustBase) NodeIDs() []string {
 	return slices.Collect(maps.Keys(v.PartitionTrustBase))
 }
 
-func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {
+func (v *TrustBase) Verify(nodeId string, f func(v abcrypto.Verifier) error) error {
 	ver, found := v.PartitionTrustBase[nodeId]
 	if !found {
 		return fmt.Errorf("node %s is not part of partition trustbase", nodeId)
 	}
-	return req.IsValid(ver)
+	return f(ver)
 }
 
 /*

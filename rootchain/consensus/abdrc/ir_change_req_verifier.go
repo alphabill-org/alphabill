@@ -9,27 +9,26 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
 
 type (
 	State interface {
-		GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error)
-		GetCertificates() []*certification.CertificationResponse
+		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		GetCertificates() []*types.UnicityCertificate
 		IsChangeInProgress(id types.SystemID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
-		params     *consensus.Parameters
-		state      State
-		partitions partitions.PartitionConfiguration
+		params        *consensus.Parameters
+		state         State
+		orchestration Orchestration
 	}
 
 	PartitionTimeoutGenerator struct {
-		params     *consensus.Parameters
-		state      State
-		partitions partitions.PartitionConfiguration
+		blockRate     time.Duration
+		state         State
+		orchestration Orchestration
 	}
 )
 
@@ -39,100 +38,111 @@ func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uin
 	return uint64(t2Timeout/blockRate) + 1
 }
 
-func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*IRChangeReqVerifier, error) {
+func NewIRChangeReqVerifier(c *consensus.Parameters, orchestration Orchestration, sMonitor State) (*IRChangeReqVerifier, error) {
 	if sMonitor == nil {
-		return nil, errors.New("error state monitor is nil")
+		return nil, errors.New("state monitor is nil")
 	}
-	if pInfo == nil {
-		return nil, errors.New("error partition store is nil")
+	if orchestration == nil {
+		return nil, errors.New("orchestration is nil")
 	}
 	if c == nil {
-		return nil, errors.New("error consensus params is nil")
+		return nil, errors.New("consensus params is nil")
 	}
 	return &IRChangeReqVerifier{
-		params:     c,
-		partitions: pInfo,
-		state:      sMonitor,
+		params:        c,
+		orchestration: orchestration,
+		state:         sMonitor,
 	}, nil
 }
 
-func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.IRChangeReq) (*storage.InputData, error) {
+func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
 	if irChReq == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
-	sysID := irChReq.Partition
-	// verify certification Request
-	luc, err := x.state.GetCertificate(sysID, irChReq.Shard)
+	si, err := x.state.ShardInfo(irChReq.Partition, irChReq.Shard)
 	if err != nil {
-		return nil, fmt.Errorf("reading partition certificate: %w", err)
+		return nil, fmt.Errorf("acquiring shard info: %w", err)
 	}
-	// Find if the SystemIdentifier is known by partition store
-	sysDesRecord, tb, err := x.partitions.GetInfo(sysID, round)
+	// timeout IR change request do not have BCR
+	var bcr *certification.BlockCertificationRequest
+	if len(irChReq.Requests) > 0 {
+		bcr = irChReq.Requests[0]
+	}
+	tr, err := si.TechnicalRecord(bcr, x.orchestration)
 	if err != nil {
-		return nil, fmt.Errorf("invalid payload: unknown partition %s", sysID)
+		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
+	pg, err := x.orchestration.ShardConfig(irChReq.Partition, irChReq.Shard, tr.Epoch)
+	if err != nil {
+		return nil, fmt.Errorf("acquiring shard config: %w", err)
+	}
+	luc := si.LastCR.UC
 	// verify request
-	inputRecord, err := irChReq.Verify(tb, &luc.UC, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
+	inputRecord, err := irChReq.Verify(si, &luc, round, t2TimeoutToRootRounds(pg.PartitionDescription.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	if ir := x.state.IsChangeInProgress(sysID); ir != nil {
+	if ir := x.state.IsChangeInProgress(irChReq.Partition); ir != nil {
 		// If the same change is already in progress then report duplicate error
 		if types.EqualIR(inputRecord, ir) {
 			return nil, ErrDuplicateChangeReq
 		}
-		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
+		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", irChReq.Partition)
 	}
 	// check - should never happen, somehow the root node round must have been reset
-	if round < luc.UC.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UC.UnicitySeal.RootChainRoundNumber)
+	if round < luc.UnicitySeal.RootChainRoundNumber {
+		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return &storage.InputData{
 			Partition: irChReq.Partition,
 			Shard:     irChReq.Shard,
 			IR:        inputRecord,
-			Technical: irChReq.Technical,
-			PDRHash:   sysDesRecord.Hash(x.params.HashAlgorithm),
+			Technical: tr,
+			PDRHash:   pg.PartitionDescription.Hash(x.params.HashAlgorithm),
 		},
 		nil
 }
 
-func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*PartitionTimeoutGenerator, error) {
+func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, orchestration Orchestration, sMonitor State) (*PartitionTimeoutGenerator, error) {
 	if sMonitor == nil {
-		return nil, errors.New("error state monitor is nil")
+		return nil, errors.New("state monitor is nil")
 	}
-	if pInfo == nil {
-		return nil, errors.New("error partition store is nil")
+	if orchestration == nil {
+		return nil, errors.New("orchestration is nil")
 	}
 	if c == nil {
-		return nil, errors.New("error consensus params is nil")
+		return nil, errors.New("consensus params is nil")
 	}
 	return &PartitionTimeoutGenerator{
-		params:     c,
-		partitions: pInfo,
-		state:      sMonitor,
+		blockRate:     c.BlockRate,
+		orchestration: orchestration,
+		state:         sMonitor,
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID, error) {
-	ucs := x.state.GetCertificates()
-	timeoutIds := make([]types.SystemID, 0, len(ucs))
-	var err error
-	for _, cert := range ucs {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.SystemID, retErr error) {
+	configs, err := x.orchestration.RoundPartitions(currentRound)
+	if err != nil {
+		return nil, err
+	}
+	timeoutIds := make([]types.SystemID, 0, len(configs))
+	for _, partition := range configs {
+		partitionID := partition.PartitionDescription.SystemIdentifier
 		// do not create T2 timeout requests if partition has a change already in pipeline
-		if ir := x.state.IsChangeInProgress(cert.Partition); ir != nil {
+		if ir := x.state.IsChangeInProgress(partitionID); ir != nil {
 			continue
 		}
-		sysDesc, _, getErr := x.partitions.GetInfo(cert.Partition, currentRound)
-		if getErr != nil {
-			err = errors.Join(err, fmt.Errorf("read partition system description failed: %w", getErr))
+		si, err := x.state.ShardInfo(partitionID, types.ShardID{})
+		if err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("read shard %s info: %w", partitionID, err))
 			// still try to check the rest of the partitions
 			continue
 		}
-		if currentRound-cert.UC.UnicitySeal.RootChainRoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRate/2) {
-			timeoutIds = append(timeoutIds, cert.Partition)
+		US := si.LastCR.UC.UnicitySeal
+		if currentRound-US.RootChainRoundNumber >= t2TimeoutToRootRounds(partition.PartitionDescription.T2Timeout, x.blockRate/2) {
+			timeoutIds = append(timeoutIds, partitionID)
 		}
 	}
 	return timeoutIds, err

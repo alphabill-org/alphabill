@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 )
@@ -119,6 +120,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID, shard 
 		return nil, fmt.Errorf("loading certificate for partition %s from state store: %w", id, err)
 	}
 	return luc, nil
+}
+
+func (x *ConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+	return nil, fmt.Errorf("ShardInfo not implemented")
 }
 
 func (x *ConsensusManager) loop(ctx context.Context) error {

@@ -1,6 +1,7 @@
 package partitions
 
 import (
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
@@ -8,12 +9,7 @@ type (
 	PartitionTrustBase interface {
 		GetQuorum() uint64
 		GetTotalNodes() uint64
-		Verify(nodeId string, req MsgVerification) error
-	}
-
-	ShardTrustBase interface {
-		// NodeIDs returns list of validator node IDs
-		NodeIDs() []string
+		Verify(nodeId string, f func(v abcrypto.Verifier) error) error
 	}
 
 	PartitionConfiguration interface {

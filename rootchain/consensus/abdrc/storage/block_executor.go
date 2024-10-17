@@ -130,7 +130,7 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 			Shard:     d.Shard,
 			IR:        d.Ir,
 			Technical: d.Technical,
-			PDRHash:   d.Sdrh,
+			PDRHash:   d.PDRHash,
 		}
 	}
 	// calculate root hash

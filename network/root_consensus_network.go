@@ -25,7 +25,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		{protocolID: ProtocolRootProposal, timeout: sendTimeout, msgType: abdrc.ProposalMsg{}},
 		{protocolID: ProtocolRootVote, timeout: sendTimeout, msgType: abdrc.VoteMsg{}},
 		{protocolID: ProtocolRootTimeout, timeout: sendTimeout, msgType: abdrc.TimeoutMsg{}},
-		{protocolID: ProtocolRootStateReq, timeout: sendTimeout, msgType: abdrc.GetStateMsg{}},
+		{protocolID: ProtocolRootStateReq, timeout: sendTimeout, msgType: abdrc.StateRequestMsg{}},
 		{protocolID: ProtocolRootStateResp, timeout: sendTimeout, msgType: abdrc.StateMsg{}},
 	}
 	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
@@ -50,7 +50,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		},
 		{
 			protocolID: ProtocolRootStateReq,
-			typeFn:     func() any { return &abdrc.GetStateMsg{} },
+			typeFn:     func() any { return &abdrc.StateRequestMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateResp,

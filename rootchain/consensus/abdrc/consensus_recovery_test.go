@@ -14,7 +14,6 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abtypes "github.com/alphabill-org/alphabill-go-base/types"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -107,7 +106,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 		var sawM sync.Mutex
 		sawMsg := map[peer.ID]struct{}{}
 		nw.SetFirewall(func(from, to peer.ID, msg any) bool {
-			if _, ok := msg.(*abdrc.GetStateMsg); !ok || from != nodeID {
+			if _, ok := msg.(*abdrc.StateRequestMsg); !ok || from != nodeID {
 				return false
 			}
 
@@ -155,7 +154,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			select {
 			case msg := <-authorCon.ReceivedChannel():
 				var err error
-				if m, ok := msg.(*abdrc.GetStateMsg); ok {
+				if m, ok := msg.(*abdrc.StateRequestMsg); ok {
 					if m.NodeId != nodeID.String() {
 						err = errors.Join(err, fmt.Errorf("expected receiver %s got %s", nodeID.String(), m.NodeId))
 					}
@@ -578,7 +577,7 @@ func Test_recoverState(t *testing.T) {
 				round = mt.Block.Round
 			case *abdrc.TimeoutMsg:
 				round = mt.GetRound()
-			case *abdrc.GetStateMsg, *abdrc.StateMsg:
+			case *abdrc.StateRequestMsg, *abdrc.StateMsg:
 				return false
 			}
 
@@ -778,10 +777,8 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	for _, v := range rootG.Root.RootValidators {
 		nodeID, err := peer.Decode(v.NodeIdentifier)
 		require.NoError(t, err)
-		pStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootG))
-		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, trustBase, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, trustBase, partitions.NewOrchestration(rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

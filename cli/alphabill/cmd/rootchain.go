@@ -245,7 +245,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 			host.ID(),
 			rootGenesis,
 			trustBase,
-			partitionCfg,
+			partitions.NewOrchestration(rootGenesis),
 			rootNet,
 			keys.SigningPrivateKey,
 			obs,
@@ -261,7 +261,6 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	node, err := rootchain.New(
 		host,
 		partitionNet,
-		partitionCfg,
 		cm,
 		obs,
 	)

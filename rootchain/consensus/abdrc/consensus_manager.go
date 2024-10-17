@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -28,7 +28,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/leader"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 // how long to wait before repeating status request
@@ -62,6 +61,12 @@ type (
 		Logger() *slog.Logger
 	}
 
+	Orchestration interface {
+		ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
+		ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		RoundPartitions(rootRound uint64) ([]*genesis.GenesisPartitionRecord, error)
+	}
+
 	certRequest struct {
 		ircr consensus.IRChangeRequest
 		rsc  trace.SpanContext
@@ -84,7 +89,7 @@ type (
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
 		blockStore     *storage.BlockStore
-		partitions     partitions.PartitionConfiguration
+		orchestration  Orchestration
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
 		// votes need to be buffered when CM will be the next leader (so other nodes
@@ -116,9 +121,9 @@ func NewDistributedAbConsensusManager(
 	nodeID peer.ID,
 	rg *genesis.RootGenesis,
 	trustBase types.RootTrustBase,
-	partitionStore partitions.PartitionConfiguration,
+	orchestration Orchestration,
 	net RootNet,
-	signer crypto.Signer,
+	signer abcrypto.Signer,
 	observe Observability,
 	opts ...consensus.Option,
 ) (*ConsensusManager, error) {
@@ -140,15 +145,15 @@ func NewDistributedAbConsensusManager(
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
 	// init storage
-	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
+	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage, orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
-	reqVerifier, err := NewIRChangeReqVerifier(cParams, partitionStore, bStore)
+	reqVerifier, err := NewIRChangeReqVerifier(cParams, orchestration, bStore)
 	if err != nil {
 		return nil, fmt.Errorf("block verifier construct error: %w", err)
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, partitionStore, bStore)
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, orchestration, bStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
@@ -177,7 +182,7 @@ func NewDistributedAbConsensusManager(
 		irReqBuffer:    NewIrReqBuffer(observe.Logger()),
 		safety:         safetyModule,
 		blockStore:     bStore,
-		partitions:     partitionStore,
+		orchestration:  orchestration,
 		irReqVerifier:  reqVerifier,
 		t2Timeouts:     t2TimeoutGen,
 		voteBuffer:     make(map[string]*abdrc.VoteMsg),
@@ -288,10 +293,6 @@ func (x *ConsensusManager) CertificationResult() <-chan *certification.Certifica
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(partition types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
-	return x.blockStore.GetCertificate(partition, shard)
-}
-
 func (x *ConsensusManager) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -307,9 +308,6 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to read last TC from block store: %w", err)
 		}
 		x.pacemaker.Reset(ctx, hQc.GetRound(), lastTC, vote)
-		if err := x.partitions.Reset(x.pacemaker.GetCurrentRound); err != nil {
-			return fmt.Errorf("resetting partition store: %w", err)
-		}
 		currentRound := x.pacemaker.GetCurrentRound()
 		x.log.InfoContext(ctx, fmt.Sprintf("CM starting, leader is %s", x.leaderSelector.GetLeaderForRound(currentRound)), logger.Round(currentRound))
 		return x.loop(ctx)
@@ -373,7 +371,7 @@ func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) (rErr 
 		return x.onVoteMsg(ctx, mt)
 	case *abdrc.TimeoutMsg:
 		return x.onTimeoutMsg(ctx, mt)
-	case *abdrc.GetStateMsg:
+	case *abdrc.StateRequestMsg:
 		return x.onStateReq(ctx, mt)
 	case *abdrc.StateMsg:
 		return x.onStateResponse(ctx, mt)
@@ -455,7 +453,6 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 		Partition: req.Partition,
 		Shard:     req.Shard,
 		Requests:  req.Requests,
-		Technical: req.Technical,
 	}
 	switch req.Reason {
 	case consensus.Quorum:
@@ -907,7 +904,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	}
 }
 
-func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.GetStateMsg) error {
+func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.StateRequestMsg) error {
 	if x.recovery != nil {
 		return fmt.Errorf("node is in recovery: %s", x.recovery.String())
 	}
@@ -941,12 +938,12 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB())
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB(), x.orchestration)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
 	// create new verifier
-	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.partitions, blockStore)
+	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.orchestration, blockStore)
 	if err != nil {
 		return fmt.Errorf("verifier construction failed: %w", err)
 	}
@@ -967,7 +964,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
 		}
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.partitions, blockStore)
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.orchestration, blockStore)
 	if err != nil {
 		return fmt.Errorf("recovery T2 timeout generator init failed: %w", err)
 	}
@@ -1046,7 +1043,7 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 	// round) or after current request "times out"...
 	x.recovery = info
 
-	if err = x.net.Send(ctx, &abdrc.GetStateMsg{NodeId: x.id.String()},
+	if err = x.net.Send(ctx, &abdrc.StateRequestMsg{NodeId: x.id.String()},
 		selectRandomNodeIdsFromSignatureMap(signatures, 2)...); err != nil {
 		return fmt.Errorf("failed to send recovery request: %w", err)
 	}
@@ -1099,6 +1096,10 @@ func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes 
 		}
 	}
 	return nodes
+}
+
+func (x *ConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+	return x.blockStore.ShardInfo(partition, shard)
 }
 
 /*

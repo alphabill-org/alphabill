@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -24,12 +27,11 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 const partitionID types.SystemID = 0x00FF0001
@@ -46,11 +48,11 @@ var partitionInputRecord = &types.InputRecord{Version: 1,
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan *certification.CertificationResponse
-	partitions   partitions.PartitionConfiguration
 	certs        map[types.SystemID]*certification.CertificationResponse
+	shardInfo    map[types.SystemID]*drctypes.ShardInfo // only single shard partitions
 }
 
-func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
+func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
 	var c = make(map[types.SystemID]*certification.CertificationResponse)
 	for _, partition := range rg.Partitions {
 		c[partition.PartitionDescription.GetSystemIdentifier()] = &certification.CertificationResponse{
@@ -59,12 +61,22 @@ func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.Partiti
 		}
 	}
 
+	orchestration := partitions.NewOrchestration(rg)
+	shardInfo := map[types.SystemID]*drctypes.ShardInfo{}
+	for _, partition := range rg.Partitions {
+		si, err := drctypes.NewShardInfoFromGenesis(partition, orchestration)
+		if err != nil {
+			return nil, fmt.Errorf("creating shard info: %w", err)
+		}
+		shardInfo[partition.PartitionDescription.SystemIdentifier] = si
+	}
+
 	return &MockConsensusManager{
 		// use buffered channels here, we just want to know if a tlg is received
 		certReqCh:    make(chan consensus.IRChangeRequest, 1),
 		certResultCh: make(chan *certification.CertificationResponse, 1),
-		partitions:   partitionStore,
 		certs:        c,
+		shardInfo:    shardInfo,
 	}, nil
 }
 
@@ -94,6 +106,13 @@ func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID, sh
 	return luc, nil
 }
 
+func (m *MockConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+	if si, ok := m.shardInfo[partition]; ok {
+		return si, nil
+	}
+	return nil, fmt.Errorf("no ShardInfo for %s - %s", partition, shard)
+}
+
 func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	t.Helper()
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
@@ -104,15 +123,12 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
-	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
-	cm, err := NewMockConsensus(rootGenesis, partitionStore)
+	cm, err := NewMockConsensus(rootGenesis)
 	require.NoError(t, err)
 
 	observe := testobservability.Default(t)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, net, partitionStore, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	validator, err := New(p, net, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -146,7 +162,7 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 
 	observe := testobservability.Default(t)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, mockNet, partitionStore, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	validator, err := New(p, mockNet, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }
@@ -163,9 +179,6 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
-	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
 	trustBase, err := createTrustBaseFromRootGenesis(rootGenesis)
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
@@ -173,13 +186,13 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
 		trustBase,
-		partitionStore,
+		partitions.NewOrchestration(rootGenesis),
 		rootNetMock,
 		rootHost.Signer,
 		observe)
 	require.NoError(t, err)
 	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, partitionNetMock, partitionStore, cm, observe)
+	validator, err := New(p, partitionNetMock, cm, observe)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }
@@ -226,7 +239,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	// unknown node gets rejected
 	unknownNode := testutils.NewTestNode(t)
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, unknownNode)
-	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), fmt.Sprintf("node %s is not part of partition trustbase", unknownNode.PeerConf.ID))
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), fmt.Sprintf("node %q is not in the trustbase of the shard", unknownNode.PeerConf.ID))
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 	// signature does not verify
 	invalidNode := testutils.TestNode{
@@ -235,7 +248,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		Verifier: unknownNode.Verifier,
 	}
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), "rejected: signature verification failed")
+	require.EqualError(t, rootValidator.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification failed`)
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 }
 
@@ -475,6 +488,13 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	}
 	cr := certification.CertificationResponse{
 		Partition: partitionID,
+		Technical: certification.TechnicalRecord{
+			Round:    3,
+			Epoch:    1,
+			Leader:   rg.Partitions[0].Nodes[0].NodeIdentifier,
+			StatHash: []byte{1},
+			FeeHash:  []byte{2},
+		},
 		UC: types.UnicityCertificate{
 			Version:     1,
 			InputRecord: newIR,

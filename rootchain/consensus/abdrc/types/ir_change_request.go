@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 const (
@@ -27,8 +27,13 @@ type IRChangeReq struct {
 	Shard      types.ShardID
 	CertReason IRChangeReason
 	// IR change (quorum or no quorum possible of block certification requests)
-	Requests  []*certification.BlockCertificationRequest
-	Technical certification.TechnicalRecord
+	Requests []*certification.BlockCertificationRequest
+}
+
+type TrustBase interface {
+	GetQuorum() uint64
+	GetTotalNodes() uint64
+	Verify(nodeID string, f func(v abcrypto.Verifier) error) error
 }
 
 func (r IRChangeReason) String() string {
@@ -61,7 +66,7 @@ func (x *IRChangeReq) IsValid() error {
 	return nil
 }
 
-func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.UnicityCertificate, round, t2InRounds uint64) (*types.InputRecord, error) {
+func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round, t2InRounds uint64) (*types.InputRecord, error) {
 	if tb == nil {
 		return nil, errors.New("trust base is nil")
 	}
@@ -79,7 +84,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 	nodeIDs := make(map[string]struct{})
 	// validate all block request in the proof
 	for _, req := range x.Requests {
-		if err := tb.Verify(req.NodeIdentifier, req); err != nil {
+		if err := tb.Verify(req.NodeIdentifier, req.IsValid); err != nil {
 			return nil, fmt.Errorf("request proof from partition %s node %v is not valid: %w",
 				req.Partition, req.NodeIdentifier, err)
 		}

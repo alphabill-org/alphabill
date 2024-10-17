@@ -2,7 +2,6 @@ package rootchain
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -22,7 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 )
 
 type (
@@ -42,20 +41,17 @@ type (
 		RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *certification.CertificationResponse
-		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
-		GetLatestUnicityCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error)
+		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
 
 	Node struct {
 		peer             *network.Peer // p2p network host for partition
-		partitions       partitions.PartitionConfiguration
 		incomingRequests *CertRequestBuffer
 		subscription     *Subscriptions
 		net              PartitionNet
 		consensusManager ConsensusManager
-		shardInfo        map[partitionShard]*shardInfo
 
 		log    *slog.Logger
 		tracer trace.Tracer
@@ -68,7 +64,6 @@ type (
 func New(
 	p *network.Peer,
 	pNet PartitionNet,
-	ps partitions.PartitionConfiguration,
 	cm ConsensusManager,
 	observe Observability,
 ) (*Node, error) {
@@ -82,12 +77,10 @@ func New(
 	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", p.ID())))
 	node := &Node{
 		peer:             p,
-		partitions:       ps,
 		incomingRequests: NewCertificationRequestBuffer(),
 		subscription:     NewSubscriptions(meter),
 		net:              pNet,
 		consensusManager: cm,
-		shardInfo:        make(map[partitionShard]*shardInfo),
 		log:              observe.Logger(),
 		tracer:           observe.Tracer("rootchain.node"),
 	}
@@ -157,6 +150,10 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, cr *certificatio
 	if err != nil {
 		return fmt.Errorf("invalid receiver id: %w", err)
 	}
+
+	if err := cr.IsValid(); err != nil {
+		return fmt.Errorf("invalid certification response: %w", err)
+	}
 	// TODO: send the CertResponse instead of just UC! (AB-1725)
 	return v.net.Send(ctx, &cr.UC, peerID)
 }
@@ -165,11 +162,11 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(req.Partition, req.Shard)
+	si, err := v.consensusManager.ShardInfo(req.Partition, req.Shard)
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", req.Partition, err)
 	}
-	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
+	if err = v.sendResponse(ctx, req.NodeIdentifier, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
 	return nil
@@ -198,48 +195,27 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
 	}()
 
-	// todo: we need shard TrustBase but as we only support single shard
-	// partitions "partition TB == shard TB" (AB-1716)
-	// Also, the TB should be part of the ShardInfo, to be refactored
-	// with epoch/conf change support...
-	pdr, pTrustBase, err := v.partitions.GetInfo(sysID, req.RootRound())
+	si, err := v.consensusManager.ShardInfo(sysID, req.Shard)
 	if err != nil {
-		return fmt.Errorf("reading partition info: %w", err)
-	}
-	if err := pdr.IsValidShard(req.Shard); err != nil {
-		return fmt.Errorf("invalid shard: %w", err)
-	}
-	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
-		return fmt.Errorf("partition %s node %v rejected: %w", sysID, req.NodeIdentifier, err)
-	}
-
-	// we need the leader ID so we require that it's sent to us as part of the request
-	// however, per YP rootchain should select the shard leader (for the next round) and
-	// send it back as part of CertificationResponse (AB-1719)
-	if req.Leader == "" {
-		return errors.New("leader ID must be assigned")
-	}
-
-	SI := v.getShardInfo(sysID, req.Shard)
-	// todo: add SI based validations. However, first SI must be part of recovery? (AB-1718)
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID, req.Shard)
-	if err != nil {
-		return fmt.Errorf("reading last certified state: %w", err)
+		return fmt.Errorf("acquiring shard info: %w", err)
 	}
 	v.subscription.Subscribe(sysID, req.NodeIdentifier)
-	if err = consensus.CheckBlockCertificationRequest(req, &latestUnicityCertificate.UC); err != nil {
+	// we got the shard info thus it's a valid partition/shard
+	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
-		if se := v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); se != nil {
+		if se := v.sendResponse(ctx, req.NodeIdentifier, si.LastCR); se != nil {
 			err = errors.Join(err, fmt.Errorf("sending latest cert: %w", se))
 		}
 		return err
 	}
+
 	// check if consensus is already achieved
-	if res := v.incomingRequests.IsConsensusReceived(sysID, req.Shard, pTrustBase); res != QuorumInProgress {
-		return fmt.Errorf("rejecting stale block certification request: %s", res)
+	if res := v.incomingRequests.IsConsensusReceived(sysID, req.Shard, si); res != QuorumInProgress {
+		v.log.DebugContext(ctx, fmt.Sprintf("dropping stale block certification request (%s) for partition %s", res, sysID))
+		return
 	}
 	// store the new request and see if quorum is now achieved
-	res, requests, err := v.incomingRequests.Add(req, pTrustBase)
+	res, requests, err := v.incomingRequests.Add(req, si)
 	if err != nil {
 		return fmt.Errorf("storing request: %w", err)
 	}
@@ -256,21 +232,12 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return nil
 	}
 
-	SI.Update(req)
-	SI.Leader = "" // todo: select leader for the next round (AB-1719)
 	if err = v.consensusManager.RequestCertification(ctx,
 		consensus.IRChangeRequest{
 			Partition: sysID,
 			Shard:     req.Shard,
 			Reason:    reason,
 			Requests:  requests,
-			Technical: certification.TechnicalRecord{
-				Round:    SI.Round + 1,
-				Epoch:    SI.Epoch,
-				Leader:   SI.Leader,
-				StatHash: SI.StatHash(crypto.SHA256),
-				FeeHash:  SI.FeeHash(crypto.SHA256),
-			},
 		}); err != nil {
 		return fmt.Errorf("requesting certification: %w", err)
 	}
@@ -311,28 +278,3 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 		v.subscription.ResponseSent(cr.Partition, node)
 	}
 }
-
-func (rcn *Node) getShardInfo(partition types.SystemID, shard types.ShardID) *shardInfo {
-	key := partitionShard{partition: partition, shard: shard.Key()}
-	if si, ok := rcn.shardInfo[key]; ok {
-		return si
-	}
-
-	// todo: once ShardInfo recovery and epoch are implemented we expect all valid
-	// SI to be in the registry! Here we currently use lazy initialization as we
-	// do not have "SI registry init" in the beginning of the epoch yet
-
-	si := &shardInfo{
-		Fees:  make(map[string]uint64),
-		Epoch: 0,
-		// as we currently do not support epochs the data of the previous epoch
-		// is "zero value constant", ie we can use precalculated "genesis values".
-		// Once we implement epochs correct value must be recovered on node startup!
-		PrevEpochStat: emptyStatRecSerialized,
-		PrevEpochFees: nil,
-	}
-	rcn.shardInfo[key] = si
-	return si
-}
-
-var emptyStatRecSerialized = (&certification.StatisticalRecord{}).Bytes()

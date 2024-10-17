@@ -8,13 +8,11 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/tree/avl"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func getTransferPayloadAttributes(proof *types.TxRecordProof) (*fc.TransferFeeCreditAttributes, error) {
@@ -49,11 +47,8 @@ func (f *FeeAccount) executeAddFC(_ *types.TransactionOrder, attr *fc.AddFeeCred
 	v := transFC.Amount - proof.ActualFee() - fee
 
 	// if unit exists update balance and alphabill fee credit link data
-	addCredit := []state.Action{
-		statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transFC.LatestAdditionTime),
-		state.SetOwner(unitID, attr.FeeCreditOwnerPredicate),
-	}
-	err = f.state.Apply(addCredit...)
+	addCredit := statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transFC.LatestAdditionTime, attr.FeeCreditOwnerPredicate)
+	err = f.state.Apply(addCredit)
 	// if unable to increment credit because there unit is not found, then create one
 	if err != nil && errors.Is(err, avl.ErrNotFound) {
 		err = f.state.Apply(statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerPredicate, alphaToWei(v), transFC.LatestAdditionTime))
@@ -87,13 +82,14 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	var counter *uint64
 	if u != nil {
 		stateObj, ok := u.Data().(*statedb.StateObject)
-		if !ok || stateObj.AlphaBill == nil {
+		abLink := stateObj.AlphaBill
+		if !ok || abLink == nil {
 			return fmt.Errorf("invalid fcr data")
 		}
-		counter = &(stateObj.AlphaBill.Counter)
+		counter = &(abLink.Counter)
 		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
-		if !bytes.Equal(u.Owner(), attr.FeeCreditOwnerPredicate) {
-			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", u.Owner(), attr.FeeCreditOwnerPredicate)
+		if !bytes.Equal(abLink.OwnerPredicate, attr.FeeCreditOwnerPredicate) {
+			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", abLink.OwnerPredicate, attr.FeeCreditOwnerPredicate)
 		}
 	}
 

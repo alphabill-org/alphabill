@@ -86,16 +86,17 @@ func (a *API) callContract(clonedState *state.State, call *evmsdk.TxAttributes) 
 	}
 	// Execute the call.
 	msg := &core.Message{
-		From:              call.FromAddr(),
-		To:                call.ToAddr(),
-		Value:             call.Value,
-		GasLimit:          call.Gas,
-		GasPrice:          a.gasUnitPrice,
-		GasFeeCap:         a.gasUnitPrice,
-		GasTipCap:         big.NewInt(0),
-		Data:              call.Data,
-		AccessList:        ethtypes.AccessList{},
-		SkipAccountChecks: true,
+		From:             call.FromAddr(),
+		To:               call.ToAddr(),
+		Value:            call.Value,
+		GasLimit:         call.Gas,
+		GasPrice:         a.gasUnitPrice,
+		GasFeeCap:        a.gasUnitPrice,
+		GasTipCap:        big.NewInt(0),
+		Data:             call.Data,
+		AccessList:       ethtypes.AccessList{},
+		SkipNonceChecks:  true,
+		SkipFromEOACheck: true,
 	}
 	db, err := memorydb.New()
 	if err != nil {

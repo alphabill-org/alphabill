@@ -171,7 +171,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 				key := bytes.Join([][]byte{unitID, txoHash}, nil)
 				history.UnitProofIndexKeys = append(history.UnitProofIndexKeys, key)
 				if err = dbTx.Write(key, &types.UnitDataAndProof{
-					UnitData: &types.StateUnitData{Data: res, OwnerPredicate: unitLog.NewOwner},
+					UnitData: &types.StateUnitData{Data: res},
 					Proof:    usp,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)

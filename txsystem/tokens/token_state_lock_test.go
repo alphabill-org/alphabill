@@ -56,7 +56,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, []byte{0xa}, d.Data)
 	require.Equal(t, uint64(0), d.Counter)
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 
 	// try to update nft without state unlocking
 	updateTx := testtransaction.NewTransactionOrder(
@@ -109,5 +109,5 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, attr.Data, d.Data)
 	require.Equal(t, uint64(2), d.Counter)
-	require.Equal(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), u.Owner())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), d.Owner())
 }

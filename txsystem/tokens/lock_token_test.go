@@ -49,10 +49,9 @@ func TestLockFT_Ok(t *testing.T) {
 
 	// verify lock status, counter and round number is updated
 	// verify value and type id is not updated
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
-	require.Equal(t, roundNo, d.T)
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
 }
@@ -153,8 +152,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	d := u.Data().(*tokens.NonFungibleTokenData)
 
 	// verify lock status, counter and round number is updated
-	require.Equal(t, templates.AlwaysTrueBytes(), u.Owner())
-	require.Equal(t, roundNo, d.T)
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
 }
@@ -243,7 +241,7 @@ func defaultLockOpts(t *testing.T) *Options {
 func initStateForLockTxTests(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 
-	err := s.Apply(state.AddUnit(existingTokenTypeID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenTypeData{
+	err := s.Apply(state.AddUnit(existingTokenTypeID, &tokens.FungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
@@ -255,24 +253,24 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeID,
-		Value:     existingTokenValue,
-		T:         0,
-		Counter:   0,
+	err = s.Apply(state.AddUnit(existingTokenID, &tokens.FungibleTokenData{
+		TokenType:      existingTokenTypeID,
+		Value:          existingTokenValue,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        0,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedTokenID, templates.AlwaysTrueBytes(), &tokens.FungibleTokenData{
-		TokenType: existingTokenTypeID,
-		Value:     existingTokenValue,
-		T:         0,
-		Counter:   0,
-		Locked:    1,
+	err = s.Apply(state.AddUnit(existingLockedTokenID, &tokens.FungibleTokenData{
+		TokenType:      existingTokenTypeID,
+		Value:          existingTokenValue,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        0,
+		Locked:         1,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenTypeData{
+	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, &tokens.NonFungibleTokenTypeData{
 		Symbol:                   "ALPHA",
 		Name:                     "A long name for ALPHA",
 		Icon:                     &tokens.Icon{Type: validIconType, Data: test.RandomBytes(10)},
@@ -283,27 +281,30 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
+	err = s.Apply(state.AddUnit(existingNFTUnitID, &tokens.NonFungibleTokenData{
 		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
+		OwnerPredicate:      templates.AlwaysTrueBytes(),
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &tokens.NonFungibleTokenData{
+	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, &tokens.NonFungibleTokenData{
 		TypeID:              existingNFTTypeUnitID,
 		Name:                "ALPHA",
+		OwnerPredicate:      templates.AlwaysTrueBytes(),
 		Counter:             0,
 		DataUpdatePredicate: templates.AlwaysTrueBytes(),
 		Locked:              1,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{
-		Balance: 100,
-		Counter: 10,
-		Timeout: 100,
+	err = s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
+		Balance:        100,
+		OwnerPredicate: templates.AlwaysTrueBytes(),
+		Counter:        10,
+		Timeout:        100,
 	}))
 	require.NoError(t, err)
 

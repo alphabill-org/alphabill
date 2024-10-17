@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -25,12 +24,11 @@ type (
 )
 
 // AddUnit adds a new unit with given identifier, owner predicate, unit data.
-func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) Action {
+func AddUnit(id types.UnitID, data types.UnitData) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
 		}
-		o := bytes.Clone(owner)
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
@@ -44,7 +42,6 @@ func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) A
 		subTreeSummaryHash := hasher.Sum(nil)
 		u := &Unit{
 			logs:                []*Log{},
-			owner:               o,
 			data:                d,
 			subTreeSummaryValue: unitDataSummaryValue,
 			subTreeSummaryHash:  subTreeSummaryHash,
@@ -57,12 +54,11 @@ func AddUnit(id types.UnitID, owner types.PredicateBytes, data types.UnitData) A
 }
 
 // AddUnitWithLock adds a new unit with given identifier, owner predicate, unit data and lock.
-func AddUnitWithLock(id types.UnitID, owner types.PredicateBytes, data types.UnitData, l []byte) Action {
+func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 	return func(s ShardState, hashAlgorithm crypto.Hash) error {
 		if id == nil {
 			return errors.New("id is nil")
 		}
-		o := bytes.Clone(owner)
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
@@ -76,7 +72,6 @@ func AddUnitWithLock(id types.UnitID, owner types.PredicateBytes, data types.Uni
 		subTreeSummaryHash := hasher.Sum(nil)
 		u := &Unit{
 			logs:                []*Log{},
-			owner:               o,
 			data:                d,
 			stateLockTx:         l,
 			subTreeSummaryValue: unitDataSummaryValue,
@@ -106,26 +101,6 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 			return fmt.Errorf("unable to update unit data: %w", err)
 		}
 		cloned.data = newData
-		if err = s.Update(id, cloned); err != nil {
-			return fmt.Errorf("unable to update unit: %w", err)
-		}
-		return nil
-	}
-}
-
-// SetOwner changes the owner of the item, leaves data as is
-func SetOwner(id types.UnitID, owner types.PredicateBytes) Action {
-	return func(s ShardState, hashAlgorithm crypto.Hash) error {
-		if id == nil {
-			return errors.New("id is nil")
-		}
-		u, err := s.Get(id)
-		if err != nil {
-			return fmt.Errorf("failed to find unit: %w", err)
-		}
-
-		cloned := u.Clone()
-		cloned.owner = owner
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}

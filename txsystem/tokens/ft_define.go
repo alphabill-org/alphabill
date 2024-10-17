@@ -4,20 +4,18 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, _ *tokens.DefineFungibleTokenAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
 
 	if err := m.state.Apply(
-		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewFungibleTokenTypeData(attr)),
+		state.AddUnit(unitID, tokens.NewFungibleTokenTypeData(attr)),
 	); err != nil {
 		return nil, err
 	}

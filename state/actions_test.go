@@ -50,13 +50,12 @@ func TestAdd(t *testing.T) {
 			args: args{
 				id:     []byte{1},
 				bearer: []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
-				data:   &TestData{Value: 123},
+				data:   &TestData{Value: 123, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
 			},
 			initialState: NewEmptyState(),
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				owner:               []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
 				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
@@ -73,7 +72,7 @@ func TestAdd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			add := AddUnit(tt.args.id, tt.args.bearer, tt.args.data)
+			add := AddUnit(tt.args.id, tt.args.data)
 			err := add(tt.initialState.latestSavepoint(), crypto.SHA256)
 			if tt.executionErrStr != "" {
 				require.ErrorContains(t, err, tt.executionErrStr)
@@ -122,15 +121,14 @@ func TestUpdate(t *testing.T) {
 			args: args{
 				id: []byte{1, 1, 1, 1},
 				f: func(data types.UnitData) (types.UnitData, error) {
-					return &TestData{Value: 200}, nil
+					return &TestData{Value: 200, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}, nil
 				},
 			},
 			initialState: newStateWithUnits(t),
 			expectedUnit: &Unit{
 				logs:                nil,
 				logsHash:            nil,
-				owner:               []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
-				data:                &TestData{Value: 200},
+				data:                &TestData{Value: 200, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
 				subTreeSummaryValue: 10,
 			},
 		},
@@ -191,62 +189,6 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestSetOwner(t *testing.T) {
-	type args struct {
-		id       types.UnitID
-		newOwner []byte
-	}
-	type testCase struct {
-		name            string
-		args            args
-		initialState    *State
-		executionErrStr string
-		expectedUnit    *Unit
-	}
-	tests := []testCase{
-		{
-			name:            "unit ID is nil",
-			args:            args{},
-			initialState:    NewEmptyState(),
-			executionErrStr: "id is nil",
-		},
-		{
-			name: "unit ID not found",
-			args: args{
-				id: []byte{1},
-			},
-			initialState:    NewEmptyState(),
-			executionErrStr: "not found",
-		},
-		{
-			name: "ok",
-			args: args{
-				id:       []byte{1, 1, 1, 1},
-				newOwner: []byte{1, 2, 3, 4, 5},
-			},
-			initialState: newStateWithUnits(t),
-			expectedUnit: &Unit{
-				logs:                nil,
-				logsHash:            nil,
-				owner:               []byte{1, 2, 3, 4, 5},
-				data:                &TestData{Value: 10},
-				subTreeSummaryValue: 10,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := SetOwner(tt.args.id, tt.args.newOwner)(tt.initialState.latestSavepoint(), crypto.SHA256)
-			if tt.executionErrStr != "" {
-				require.ErrorContains(t, err, tt.executionErrStr)
-				return
-			}
-			require.NoError(t, err)
-			assertUnit(t, tt.initialState, tt.args.id, tt.expectedUnit, false)
-		})
-	}
-}
-
 func Test_SetStateLock(t *testing.T) {
 	t.Run("id is nil", func(t *testing.T) {
 		err := SetStateLock(nil, []byte{})(NewEmptyState().latestSavepoint(), crypto.SHA256)
@@ -282,11 +224,7 @@ func newStateWithUnits(t *testing.T) *State {
 	s := NewEmptyState()
 	require.NoError(t,
 		s.Apply(
-			AddUnit(
-				[]byte{1, 1, 1, 1},
-				[]byte{0x83, 0x00, 0x41, 0x01, 0xf6},
-				&TestData{Value: 10},
-			),
+			AddUnit([]byte{1, 1, 1, 1}, &TestData{Value: 10, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
 		),
 	)
 	return s
@@ -312,5 +250,4 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 func assertUnitEqual(t *testing.T, expectedUnit *Unit, unit *Unit) {
 	require.Equal(t, expectedUnit.data, unit.data)
 	require.Equal(t, expectedUnit.subTreeSummaryValue, unit.subTreeSummaryValue)
-	require.Equal(t, expectedUnit.owner, unit.owner)
 }

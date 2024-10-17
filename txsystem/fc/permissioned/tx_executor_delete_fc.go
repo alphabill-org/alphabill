@@ -51,8 +51,22 @@ func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *per
 }
 
 func (f *FeeCreditModule) executeDeleteFC(tx *types.TransactionOrder, _ *permissioned.DeleteFeeCreditAttributes, _ *permissioned.DeleteFeeCreditAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	setOwnerFn := state.SetOwner(tx.UnitID, templates.AlwaysFalseBytes())
-	if err := f.state.Apply(setOwnerFn); err != nil {
+	// 1. N[T.ι].D.b ← 0
+	// 2. N[T.ι].D.φ ← 0
+	// 3. N[T.ι].D.c ← N[T.ι].D.c + 1
+	updateDataFn := state.UpdateUnitData(tx.UnitID,
+		func(data types.UnitData) (types.UnitData, error) {
+			fcr, ok := data.(*fc.FeeCreditRecord)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain fee credit record", tx.UnitID)
+			}
+			fcr.Balance = 0
+			fcr.OwnerPredicate = templates.AlwaysFalseBytes()
+			fcr.Counter += 1
+			return fcr, nil
+		},
+	)
+	if err := f.state.Apply(updateDataFn); err != nil {
 		return nil, fmt.Errorf("failed to delete fee credit record: %w", err)
 	}
 	return &types.ServerMetadata{

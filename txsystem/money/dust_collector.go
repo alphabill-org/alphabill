@@ -61,7 +61,7 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 			// it is safe to ignore the data because it is not a bill
 			continue
 		}
-		valueToTransfer += bd.V
+		valueToTransfer += bd.Value
 		err = d.state.Apply(state.DeleteUnit(billID))
 		if err != nil {
 			return err
@@ -74,7 +74,7 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", DustCollectorMoneySupplyID)
 				}
-				bd.V += valueToTransfer
+				bd.Value += valueToTransfer
 				return bd, nil
 			}))
 		if err != nil {

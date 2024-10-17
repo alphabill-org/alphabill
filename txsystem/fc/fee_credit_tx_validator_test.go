@@ -4,7 +4,6 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -16,7 +15,7 @@ var (
 	moneySystemID           types.SystemID = 0x00000001
 	recordID                               = []byte{0}
 	feeProof                               = []byte{1}
-	bearer                                 = []byte{2}
+	ownerPredicate                         = []byte{2}
 	feeCreditRecordUnitType                = []byte{0xff}
 )
 
@@ -29,6 +28,7 @@ func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }
 func (t *testData) Copy() types.UnitData { return &testData{} }
+func (t *testData) Owner() []byte        { return nil }
 
 // test
 func TestValidateGenericFeeCreditTx(t *testing.T) {
@@ -133,34 +133,32 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		s := state.NewEmptyState()
 		fcr := &fc.FeeCreditRecord{
-			Balance: 1,
-			Counter: 10,
-			Timeout: 2,
+			Balance:        1,
+			Counter:        10,
+			Timeout:        2,
+			OwnerPredicate: ownerPredicate,
 		}
 		unitPart := []byte{1}
 		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
-		require.NoError(t, s.Apply(state.AddUnit(fcrID, templates.AlwaysTrueBytes(), fcr)))
-		unitData, bearer, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
+		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
+		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
 		require.NoError(t, err)
-		require.EqualValues(t, bearer, templates.AlwaysTrueBytes())
 		require.EqualValues(t, fcr, unitData)
 	})
 	t.Run("unit id is not fee credit type", func(t *testing.T) {
 		s := state.NewEmptyState()
 		unitID := []byte{1}
-		require.NoError(t, s.Apply(state.AddUnit(unitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{})))
-		unitData, bearer, err := parseFeeCreditRecord(unitID, feeCreditRecordUnitType, s)
+		require.NoError(t, s.Apply(state.AddUnit(unitID, &fc.FeeCreditRecord{})))
+		unitData, err := parseFeeCreditRecord(unitID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit identifier: type is not fee credit record")
-		require.Nil(t, bearer)
 		require.Nil(t, unitData)
 	})
 	t.Run("fcr unit not found", func(t *testing.T) {
 		s := state.NewEmptyState()
 		unitPart := []byte{1}
 		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
-		unitData, bearer, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "get fcr unit error: item 00000000000000000000000000000000000000000000000000000000000000010A does not exist: not found")
-		require.Nil(t, bearer)
 		require.Nil(t, unitData)
 	})
 	t.Run("unit data is not of type fee credit", func(t *testing.T) {
@@ -168,10 +166,9 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 		fcr := &testData{}
 		unitPart := []byte{1}
 		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
-		require.NoError(t, s.Apply(state.AddUnit(fcrID, templates.AlwaysTrueBytes(), fcr)))
-		unitData, bearer, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
+		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
+		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit type: unit is not fee credit record")
-		require.Nil(t, bearer)
 		require.Nil(t, unitData)
 	})
 }

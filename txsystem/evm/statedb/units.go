@@ -40,9 +40,10 @@ type Account struct {
 
 // AlphaBillLink links Account to AB FCR bill
 type AlphaBillLink struct {
-	_       struct{} `cbor:",toarray"`
-	Counter uint64
-	Timeout uint64
+	_              struct{} `cbor:",toarray"`
+	Counter        uint64
+	Timeout        uint64
+	OwnerPredicate []byte
 }
 
 func (s *StateObject) Write(hasher hash.Hash) error {
@@ -75,13 +76,21 @@ func (s *StateObject) Copy() types.UnitData {
 	}
 }
 
+func (s *StateObject) Owner() []byte {
+	if s == nil || s.AlphaBill == nil {
+		return nil
+	}
+	return s.AlphaBill.OwnerPredicate
+}
+
 func (f *AlphaBillLink) Copy() *AlphaBillLink {
 	if f == nil {
 		return nil
 	}
 	return &AlphaBillLink{
-		Counter: f.Counter,
-		Timeout: f.Timeout,
+		Counter:        f.Counter,
+		Timeout:        f.Timeout,
+		OwnerPredicate: bytes.Clone(f.OwnerPredicate),
 	}
 }
 

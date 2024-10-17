@@ -26,95 +26,95 @@ func TestModule_validateSwapTx(t *testing.T) {
 	t.Run("Ok", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx))
 	})
 	t.Run("DC money supply < transaction target value", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 99, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 99, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "insufficient DC-money supply")
 	})
 	t.Run("target unit does not exist", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "target unit error: item FF does not exist: not found")
 	})
 	t.Run("DustTransfersInDescBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDescBillOrderSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
 	})
 	t.Run("DustTransfersInEqualBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEqualBillIdsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
 	})
 	t.Run("DustTransfersInvalidTargetSystemID", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapOrderWithInvalidTargetSystemID(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer system id is not money partition system id: expected 1 vs provided 0")
 	})
 	t.Run("invalid target unit id", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetUnitIDSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer order target unit id is not equal to swap transaction unit id")
 	})
 	t.Run("invalid target counter", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetCounterSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer target counter is not equal to target unit counter: expected 0 vs provided 7")
 	})
 	t.Run("InvalidProofsNil", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDcProofsNilSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transaction verification failed: failed to verify dust transfer at index 0: transaction proof is nil")
 	})
 	t.Run("InvalidEmptyDcProof", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEmptyDcProofsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: failed to get unicity certificate: unicity certificate is nil")
 	})
 	t.Run("InvalidDcProofInvalid", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidDcProofsSwap(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: invalid unicity certificate: unicity seal signature validation failed: quorum not reached, signed_votes=0 quorum_threshold=1")
 	})
 	t.Run("owner proof error", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, signer)
 		module := newTestMoneyModule(t, verifier,
-			withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(test.RandomBytes(10)), &money.BillData{V: 0, T: 0, Counter: 0}),
-			withStateUnit(DustCollectorMoneySupplyID, nil, &money.BillData{V: 1e8, T: 0, Counter: 0}))
+			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(test.RandomBytes(10))}),
+			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), `swap transaction predicate validation failed: predicate evaluated to "false"`)
 	})
@@ -128,8 +128,8 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.NoError(t, err)
 	swapTx, swapAttr, authProof := newSwapDC(t, signer)
 	module := newTestMoneyModule(t, verifier,
-		withStateUnit(swapTx.UnitID, templates.NewP2pkh256BytesFromKey(pubKey), &money.BillData{V: targetBillValue, T: 0, Counter: 0}),
-		withStateUnit(DustCollectorMoneySupplyID, DustCollectorPredicate, &money.BillData{V: dustAmount, T: 0, Counter: 0}))
+		withStateUnit(swapTx.UnitID, &money.BillData{Value: targetBillValue, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
+		withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: dustAmount, Counter: 0, OwnerPredicate: DustCollectorPredicate}))
 	exeCtx := testctx.NewMockExecutionContext(
 		testctx.WithCurrentRound(6),
 		testctx.WithData(util.Uint64ToBytes(dustTransferValue)),
@@ -140,24 +140,20 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.EqualValues(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID}, sm.TargetUnits)
 	u, err := module.state.GetUnit(swapTx.UnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, u.Owner(), templates.NewP2pkh256BytesFromKey(pubKey))
 	bill, ok := u.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, bill.V, targetBillValue+dustTransferValue)
+	require.EqualValues(t, bill.Owner(), templates.NewP2pkh256BytesFromKey(pubKey))
+	require.EqualValues(t, bill.Value, targetBillValue+dustTransferValue)
 	// counter was 0,
 	require.EqualValues(t, bill.Counter, 1)
-	require.EqualValues(t, bill.T, exeCtx.CurrentRound())
 	require.EqualValues(t, bill.Locked, 0)
 	// check dust bill as well
 	d, err := module.state.GetUnit(DustCollectorMoneySupplyID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, d.Owner(), DustCollectorPredicate)
 	dustBill, ok := d.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, dustBill.V, dustAmount-dustTransferValue)
-	// counter was 0,
-	require.EqualValues(t, dustBill.Counter, 1)
-	require.EqualValues(t, dustBill.T, exeCtx.CurrentRound())
+	require.EqualValues(t, dustBill.Owner(), DustCollectorPredicate)
+	require.EqualValues(t, dustBill.Value, dustAmount-dustTransferValue)
 	require.EqualValues(t, dustBill.Locked, 0)
 }
 

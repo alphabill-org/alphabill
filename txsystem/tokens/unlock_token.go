@@ -13,31 +13,29 @@ import (
 
 func (m *LockTokensModule) updateUnlockTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
 	if tx.GetUnitID().HasType(tokens.FungibleTokenUnitType) {
-		return updateUnlockFungibleTokenData(data, tx, roundNumber)
+		return updateUnlockFungibleTokenData(data, tx)
 	} else if tx.GetUnitID().HasType(tokens.NonFungibleTokenUnitType) {
-		return updateUnlockNonFungibleTokenData(data, tx, roundNumber)
+		return updateUnlockNonFungibleTokenData(data, tx)
 	} else {
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID)
 	}
 }
 
-func updateUnlockNonFungibleTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
+func updateUnlockNonFungibleTokenData(data types.UnitData, tx *types.TransactionOrder) (types.UnitData, error) {
 	d, ok := data.(*tokens.NonFungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID)
 	}
-	d.T = roundNumber
 	d.Counter += 1
 	d.Locked = 0
 	return d, nil
 }
 
-func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
+func updateUnlockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder) (types.UnitData, error) {
 	d, ok := data.(*tokens.FungibleTokenData)
 	if !ok {
 		return nil, fmt.Errorf("unit %v does not contain fungible token data", tx.UnitID)
 	}
-	d.T = roundNumber
 	d.Counter += 1
 	d.Locked = 0
 	return d, nil
@@ -82,7 +80,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(u.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
@@ -96,7 +94,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(u.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -16,7 +15,7 @@ func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, a
 	// update state
 	unitID := tx.GetUnitID()
 	if err := n.state.Apply(
-		state.AddUnit(unitID, templates.AlwaysTrueBytes(), tokens.NewNonFungibleTokenTypeData(attr)),
+		state.AddUnit(unitID, tokens.NewNonFungibleTokenTypeData(attr)),
 	); err != nil {
 		return nil, err
 	}

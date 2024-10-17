@@ -26,6 +26,9 @@ func (t *TestData) SummaryValueInput() uint64 {
 	return 0
 }
 func (t *TestData) Copy() types.UnitData { return &TestData{} }
+func (t *TestData) Owner() []byte {
+	return nil
+}
 
 func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -63,9 +66,6 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	// verify epoch number is 0
 	require.EqualValues(t, 0, unitData.EpochNumber)
 
-	// and owner is the correct predicate
-	require.Equal(t, opts.ownerPredicate, u.Owner())
-
 	// and tx processing result contains the validator assignment record from the tx
 	processingDetails, err := types.Cbor.Marshal(attr.Var)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 
 	// add existing unit
 	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
-	err = opts.state.Apply(state.AddUnit(unitID, opts.ownerPredicate, &orchestration.VarData{EpochNumber: 0}))
+	err = opts.state.Apply(state.AddUnit(unitID, &orchestration.VarData{EpochNumber: 0}))
 	require.NoError(t, err)
 
 	// exec addVar tx
@@ -112,9 +112,6 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 
 	// verify epoch number is incremented by one
 	require.EqualValues(t, 1, unitData.EpochNumber)
-
-	// and owner predicate remains the same
-	require.Equal(t, opts.ownerPredicate, u.Owner())
 }
 
 func TestAddVar_NOK(t *testing.T) {
@@ -226,7 +223,7 @@ type varModuleOption func(m *Module) error
 
 func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitData) varModuleOption {
 	return func(m *Module) error {
-		return m.state.Apply(state.AddUnit(unitID, bearer, data))
+		return m.state.Apply(state.AddUnit(unitID, data))
 	}
 }
 

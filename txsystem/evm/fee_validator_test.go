@@ -3,7 +3,7 @@ package evm
 import (
 	"testing"
 
-	templates2 "github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -30,9 +30,8 @@ func Test_checkFeeAccountBalance(t *testing.T) {
 	s := state.NewEmptyState()
 	addr, _ := getAddressFromPredicateArg(ownerProof)
 	unitID := addr.Bytes()
-	err = s.Apply(state.AddUnit(unitID, templates2.NewP2pkh256BytesFromKey(publicKey), &fc.FeeCreditRecord{
-		Balance: 100,
-	}))
+	fcr := fc.NewFeeCreditRecord(100, basetemplates.NewP2pkh256BytesFromKey(publicKey), 0)
+	err = s.Apply(state.AddUnit(unitID, fcr))
 	require.NoError(t, err)
 
 	// create checkFeeAccountBalance function

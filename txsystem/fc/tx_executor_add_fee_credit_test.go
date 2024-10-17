@@ -418,7 +418,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{Version: 1}, TxRecord: nil}}),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -432,7 +432,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{FeeCreditTransferProof: &types.TxRecordProof{TxProof: &types.TxProof{Version: 1}, TxRecord: &types.TransactionRecord{TransactionOrder: nil}}}),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}))
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -452,7 +452,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			}),
 			testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -472,7 +472,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -493,7 +493,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -515,7 +515,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -528,7 +528,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -549,7 +549,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -562,7 +562,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil, testtransaction.WithUnitID([]byte{1}))
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withFeeCreditType([]byte{0xff}),
-			withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -587,7 +587,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		}
 		feeCreditModule := newTestFeeModule(t, trustBase,
 			withFeePredicateRunner(feePredicateRunner),
-			withStateUnit(tx.UnitID, templates.NewP2pkh256BytesFromKey([]byte{1, 2, 3}), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -608,7 +608,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -629,7 +629,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -650,7 +650,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, templates.AlwaysTrueBytes(), &fc.FeeCreditRecord{Balance: 10}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -671,7 +671,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Counter: 11}))
+		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -693,7 +693,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID, nil, &fc.FeeCreditRecord{Counter: 11}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -714,7 +714,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID, templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Counter: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 10, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubkey)}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -735,7 +735,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID, templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(11))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -757,7 +757,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID, templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10, Counter: 10, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubkey)}))
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -779,7 +779,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 		)
 		feeCreditModule := newTestFeeModule(t, trustBase,
-			withStateUnit(tx.UnitID, templates.NewP2pkh256BytesFromKey(pubkey), &fc.FeeCreditRecord{Balance: 10}))
+			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -845,8 +845,8 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	attr := testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCProof(transTxRecordProof))
 	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1}
-	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, attr.FeeCreditOwnerPredicate, existingFCR))
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1, OwnerPredicate: attr.FeeCreditOwnerPredicate}
+	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, existingFCR))
 
 	exeCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
 	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, exeCtx))
@@ -861,7 +861,8 @@ func TestAddFC_ExecuteUpdateExistingFeeCreditRecord(t *testing.T) {
 	require.EqualValues(t, 58, fcr.Balance) // existing (10) + transferFC.amount (50) - transferFC.fee (1) - addFC.fee (1)
 	require.EqualValues(t, 5, fcr.Counter)  // counter is incremented
 	require.EqualValues(t, 10, fcr.Timeout) // transferFC.latestAdditionTime
-	require.EqualValues(t, 0, fcr.Locked)   // unit is unlocked
+	require.EqualValues(t, 0, fcr.Locked)   // unit is automatically unlocked
+	require.EqualValues(t, existingFCR.OwnerPredicate, fcr.OwnerPredicate)
 }
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {

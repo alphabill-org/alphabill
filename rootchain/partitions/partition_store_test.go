@@ -378,27 +378,18 @@ func Test_TrustBase_Verify(t *testing.T) {
 	ptb := NewPartitionTrustBase(tb)
 
 	t.Run("node not found in the trustbase", func(t *testing.T) {
-		mv := mockMsgVerification{
-			isValid: func(v abcrypto.Verifier) error { return fmt.Errorf("unexpected call") },
-		}
-		err := ptb.Verify("foobar", mv)
+		err := ptb.Verify("foobar", func(v abcrypto.Verifier) error { return fmt.Errorf("unexpected call") })
 		require.EqualError(t, err, `node foobar is not part of partition trustbase`)
 	})
 
 	t.Run("message does NOT verify", func(t *testing.T) {
 		expErr := fmt.Errorf("nope, thats invalid")
-		mv := mockMsgVerification{
-			isValid: func(v abcrypto.Verifier) error { return expErr },
-		}
-		err := ptb.Verify("node1", mv)
+		err := ptb.Verify("node1", func(v abcrypto.Verifier) error { return expErr })
 		require.ErrorIs(t, err, expErr)
 	})
 
 	t.Run("message does verify", func(t *testing.T) {
-		mv := mockMsgVerification{
-			isValid: func(v abcrypto.Verifier) error { return nil },
-		}
-		require.NoError(t, ptb.Verify("node1", mv))
+		require.NoError(t, ptb.Verify("node1", func(v abcrypto.Verifier) error { return nil }))
 	})
 }
 
@@ -413,9 +404,3 @@ func (gs *mockGenesisStore) AddConfiguration(round uint64, cfg *genesis.RootGene
 func (gs *mockGenesisStore) PartitionRecords(round uint64) ([]*genesis.GenesisPartitionRecord, uint64, error) {
 	return gs.partitionRecords(round)
 }
-
-type mockMsgVerification struct {
-	isValid func(v abcrypto.Verifier) error
-}
-
-func (mv mockMsgVerification) IsValid(v abcrypto.Verifier) error { return mv.isValid(v) }

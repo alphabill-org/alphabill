@@ -14,9 +14,13 @@ import (
 	"testing"
 	"time"
 
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -33,10 +37,6 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	p2ptest "github.com/libp2p/go-libp2p/core/test"
-	"github.com/stretchr/testify/require"
 )
 
 const partitionID types.SystemID = 0x00FF0001
@@ -72,10 +72,8 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
-	require.NoError(t, err)
 	observe := testobservability.Default(t)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, trustBase, partitionStore, net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, trustBase, partitions.NewOrchestration(rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -122,8 +120,6 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	// we need to init pacemaker into correct round, otherwise IR validation fails
 	cm.pacemaker.Reset(context.Background(), cm.blockStore.GetHighQc().VoteInfo.RoundNumber, nil, nil)
 	defer cm.pacemaker.Stop()
-	// as CM is actually not running we need to manually reset the partition store in order to init it
-	require.NoError(t, cm.partitions.Reset(cm.pacemaker.GetCurrentRound))
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
@@ -263,7 +259,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
 	require.Equal(t, uint64(3), lastProposalMsg.LastRoundTc.Timeout.Round)
 	// query state
-	getStateMsg := &abdrc.GetStateMsg{
+	getStateMsg := &abdrc.StateRequestMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),
 	}
 	// no change requests added, previous changes still not committed as timeout occurred
@@ -318,19 +314,19 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.Equal(t, partitionID, result.UnicityTreeCertificate.SystemIdentifier)
 	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID))
 	// verify certificates have been updated when recovery query is sent
-	getCertsMsg := &abdrc.GetStateMsg{
+	getCertsMsg := &abdrc.StateRequestMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),
 	}
 	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootStateReq, getCertsMsg)
 	// As the node is the leader, next round will trigger a proposal
 	certsMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
-	require.Equal(t, len(rg.Partitions), len(certsMsg.Certificates))
-	idx := slices.IndexFunc(certsMsg.Certificates, func(c *certification.CertificationResponse) bool {
+	require.Equal(t, len(rg.Partitions), len(certsMsg.ShardInfo))
+	idx := slices.IndexFunc(certsMsg.ShardInfo, func(c abdrc.ShardInfo) bool {
 		return c.UC.UnicityTreeCertificate.SystemIdentifier == partitionID
 	})
 	require.False(t, idx == -1)
-	require.True(t, certsMsg.Certificates[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
+	require.True(t, certsMsg.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
 	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootStateReq, getStateMsg)
 	// As the node is the leader, next round will trigger a proposal
@@ -476,7 +472,7 @@ func TestGetState(t *testing.T) {
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
-	getStateMsg := &abdrc.GetStateMsg{
+	getStateMsg := &abdrc.StateRequestMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),
 	}
 	// simulate IR change request message
@@ -486,7 +482,7 @@ func TestGetState(t *testing.T) {
 	// at this stage there is only genesis block
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, 0, len(stateMsg.BlockData))
-	require.Len(t, stateMsg.Certificates, 1)
+	require.Len(t, stateMsg.ShardInfo, 1)
 }
 
 func Test_ConsensusManager_onVoteMsg(t *testing.T) {
@@ -842,7 +838,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		defer waitExit(t, cancel, done)
 
 		// cmB sends state request to cmA
-		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}
+		msg := &abdrc.StateRequestMsg{NodeId: cmB.id.String()}
 		require.NoError(t, cmB.net.Send(ctx, msg, cmA.id))
 
 		// cmB should receive state response
@@ -854,7 +850,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.NotNil(t, state)
 			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
 			require.Empty(t, state.BlockData)
-			require.Len(t, state.Certificates, 1)
+			require.Len(t, state.ShardInfo, 1)
 		}
 	})
 }
@@ -1210,13 +1206,12 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
-	require.NoError(t, err)
 	// store timeout vote to DB
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// init DB from genesis
-	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db)
+	orchestration := partitions.NewOrchestration(rootGenesis)
+	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db, orchestration)
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 2}, Author: "test"}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))
@@ -1225,7 +1220,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 		id,
 		rootGenesis,
 		trustBase,
-		partitionStore,
+		orchestration,
 		net,
 		rootNode.Signer,
 		observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))),

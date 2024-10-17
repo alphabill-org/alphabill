@@ -75,7 +75,7 @@ func NewRootMockNetwork() *MockNet {
 		{protocolID: network.ProtocolRootProposal, msgStruct: abdrc.ProposalMsg{}},
 		{protocolID: network.ProtocolRootVote, msgStruct: abdrc.VoteMsg{}},
 		{protocolID: network.ProtocolRootTimeout, msgStruct: abdrc.TimeoutMsg{}},
-		{protocolID: network.ProtocolRootStateReq, msgStruct: abdrc.GetStateMsg{}},
+		{protocolID: network.ProtocolRootStateReq, msgStruct: abdrc.StateRequestMsg{}},
 		{protocolID: network.ProtocolRootStateResp, msgStruct: abdrc.StateMsg{}},
 	})
 	if err != nil {

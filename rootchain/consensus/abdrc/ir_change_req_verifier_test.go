@@ -2,25 +2,25 @@ package abdrc
 
 import (
 	"crypto"
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/stretchr/testify/require"
 )
 
 type (
 	MockState struct {
 		inProgress   []types.SystemID
 		irInProgress *types.InputRecord
+		shardInfo    func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error)
 	}
 )
 
@@ -33,28 +33,21 @@ var irSysID1 = &types.InputRecord{Version: 1,
 	SumOfEarnedFees: 0,
 }
 
-func (s *MockState) GetCertificates() []*certification.CertificationResponse {
-	return []*certification.CertificationResponse{{
-		Partition: 1,
-		Shard:     types.ShardID{},
-		UC: types.UnicityCertificate{
-			Version:                1,
-			InputRecord:            irSysID1,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
-				RootChainRoundNumber: 1,
-			},
+func (s *MockState) GetCertificates() []*types.UnicityCertificate {
+	return []*types.UnicityCertificate{{
+		Version:                1,
+		InputRecord:            irSysID1,
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{SystemIdentifier: 1},
+		UnicitySeal: &types.UnicitySeal{
+			Version:              1,
+			RootChainRoundNumber: 1,
 		},
-	}}
+	},
+	}
 }
 
-func (s *MockState) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
-	for _, cr := range s.GetCertificates() {
-		if cr.Partition == id && shard.Equal(cr.Shard) {
-			return cr, nil
-		}
-	}
-	return nil, fmt.Errorf("no UC for partition %s", id)
+func (s *MockState) ShardInfo(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+	return s.shardInfo(partition, shard)
 }
 
 func (s *MockState) IsChangeInProgress(id types.SystemID) *types.InputRecord {
@@ -80,17 +73,29 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
 			},
+			Certificate: &types.UnicityCertificate{
+				InputRecord: irSysID1,
+				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+			},
 		},
 	}
-	pConf, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
-	require.NoError(t, err)
-	require.NoError(t, pConf.Reset(func() uint64 { return 1 }))
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	stateProvider := func(partitions []types.SystemID, irs *types.InputRecord) *MockState {
+		return &MockState{
+			inProgress:   partitions,
+			irInProgress: irs,
+			shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+				si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0], orchestration)
+				return si, err
+			},
+		}
+	}
 
 	t.Run("ir change request nil", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
+			state:         stateProvider([]types.SystemID{sysID1}, nil),
+			orchestration: orchestration,
 		}
 		data, err := ver.VerifyIRChangeReq(2, nil)
 		require.Nil(t, data)
@@ -99,9 +104,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("error change in progress", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
+			state:         stateProvider([]types.SystemID{sysID1}, &types.InputRecord{Version: 1}),
+			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
@@ -128,11 +133,11 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.EqualError(t, err, "add state failed: partition 00000001 has pending changes in pipeline")
 	})
 
-	t.Run("invalid sys ID", func(t *testing.T) {
+	t.Run("invalid partition ID", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: &types.InputRecord{Version: 1}},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
+			state:         stateProvider([]types.SystemID{sysID1}, &types.InputRecord{Version: 1}),
+			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
@@ -156,7 +161,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "reading partition certificate: no UC for partition 00000002")
+		require.EqualError(t, err, "acquiring shard config: no configuration for 00000002 -  epoch 0")
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
@@ -169,9 +174,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-			state:      &MockState{inProgress: []types.SystemID{sysID1}, irInProgress: newIR},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
+			state:         stateProvider([]types.SystemID{sysID1}, newIR),
+			orchestration: orchestration,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:       sysID1,
@@ -192,9 +197,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("invalid root round, luc round is bigger", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
-			state:      &MockState{},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
+			state:         stateProvider(nil, nil),
+			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
@@ -223,9 +228,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
-			state:      &MockState{},
-			partitions: pConf,
+			params:        &consensus.Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
+			state:         stateProvider(nil, nil),
+			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
 			PreviousHash:    irSysID1.Hash,
@@ -272,30 +277,28 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 			},
 		},
 	}
-	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
-	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
 
-	t.Run("partition store is nil", func(t *testing.T) {
+	t.Run("orchestration is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, nil, &MockState{})
-		require.EqualError(t, err, "error partition store is nil")
+		require.EqualError(t, err, "orchestration is nil")
 		require.Nil(t, ver)
 	})
 
 	t.Run("state monitor is nil", func(t *testing.T) {
-		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, pInfo, nil)
-		require.EqualError(t, err, "error state monitor is nil")
+		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, orchestration, nil)
+		require.EqualError(t, err, "state monitor is nil")
 		require.Nil(t, ver)
 	})
 
 	t.Run("params is nil", func(t *testing.T) {
-		ver, err := NewIRChangeReqVerifier(nil, pInfo, &MockState{})
-		require.EqualError(t, err, "error consensus params is nil")
+		ver, err := NewIRChangeReqVerifier(nil, orchestration, &MockState{})
+		require.EqualError(t, err, "consensus params is nil")
 		require.Nil(t, ver)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, pInfo, &MockState{})
+		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, orchestration, &MockState{})
 		require.NoError(t, err)
 		require.NotNil(t, ver)
 	})
@@ -317,30 +320,28 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 			},
 		},
 	}
-	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
-	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
 
 	t.Run("state monitor is nil", func(t *testing.T) {
-		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, pInfo, nil)
-		require.EqualError(t, err, "error state monitor is nil")
+		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, orchestration, nil)
+		require.EqualError(t, err, "state monitor is nil")
 		require.Nil(t, tmoGen)
 	})
 
-	t.Run("partition store is nil", func(t *testing.T) {
+	t.Run("orchestration is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, nil, &MockState{})
-		require.EqualError(t, err, "error partition store is nil")
+		require.EqualError(t, err, "orchestration is nil")
 		require.Nil(t, tmoGen)
 	})
 
 	t.Run("params is nil", func(t *testing.T) {
-		tmoGen, err := NewLucBasedT2TimeoutGenerator(nil, pInfo, &MockState{})
-		require.EqualError(t, err, "error consensus params is nil")
+		tmoGen, err := NewLucBasedT2TimeoutGenerator(nil, orchestration, &MockState{})
+		require.EqualError(t, err, "consensus params is nil")
 		require.Nil(t, tmoGen)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, pInfo, &MockState{})
+		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, orchestration, &MockState{})
 		require.NoError(t, err)
 		require.NotNil(t, tmoGen)
 	})
@@ -352,6 +353,10 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Certificate: &types.UnicityCertificate{
+				InputRecord: &types.InputRecord{},
+				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID1,
@@ -362,14 +367,17 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 		},
 	}
-	pInfo, err := partitions.NewPartitionStore(testgenesis.NewGenesisStoreFromPartitions(genesisPartitions))
-	require.NoError(t, err)
-	require.NoError(t, pInfo.Reset(func() uint64 { return 1 }))
-	state := &MockState{}
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	state := &MockState{
+		shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0], orchestration)
+			return si, err
+		},
+	}
 	tmoGen := &PartitionTimeoutGenerator{
-		params:     &consensus.Parameters{BlockRate: 500 * time.Millisecond},
-		state:      state,
-		partitions: pInfo,
+		blockRate:     500 * time.Millisecond,
+		state:         state,
+		orchestration: orchestration,
 	}
 	var tmos []types.SystemID
 	// last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout

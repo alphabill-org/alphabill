@@ -145,7 +145,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	}
 	t.Run("commit head is nil", func(t *testing.T) {
 		sm := &StateMsg{
-			Certificates:  nil,
+			ShardInfo:     nil,
 			CommittedHead: nil,
 			BlockData:     nil,
 		}
@@ -153,7 +153,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	})
 	t.Run("commit head, invalid block", func(t *testing.T) {
 		sm := &StateMsg{
-			Certificates: nil,
+			ShardInfo: nil,
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
@@ -166,7 +166,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:     3,
 							SumOfEarnedFees: 10,
 						},
-						Sdrh: make([]byte, 32),
+						PDRHash: make([]byte, 32),
 					},
 				},
 				Block: &drctypes.BlockData{
@@ -199,7 +199,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	})
 	t.Run("commit head, invalid QC", func(t *testing.T) {
 		sm := &StateMsg{
-			Certificates: nil,
+			ShardInfo: nil,
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
@@ -212,7 +212,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:     3,
 							SumOfEarnedFees: 10,
 						},
-						Sdrh: make([]byte, 32),
+						PDRHash: make([]byte, 32),
 					},
 				},
 				Block: &drctypes.BlockData{
@@ -253,7 +253,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	})
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := &StateMsg{
-			Certificates: nil,
+			ShardInfo: nil,
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
@@ -266,7 +266,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:     3,
 							SumOfEarnedFees: 10,
 						},
-						Sdrh: make([]byte, 32),
+						PDRHash: make([]byte, 32),
 					},
 				},
 				Block: &drctypes.BlockData{
@@ -308,7 +308,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	})
 	t.Run("ok", func(t *testing.T) {
 		sm := &StateMsg{
-			Certificates: nil,
+			ShardInfo: nil,
 			CommittedHead: &CommittedBlock{
 				Ir: []*InputData{
 					{
@@ -321,7 +321,7 @@ func TestStateMsg_Verify(t *testing.T) {
 							RoundNumber:     3,
 							SumOfEarnedFees: 10,
 						},
-						Sdrh: make([]byte, 32),
+						PDRHash: make([]byte, 32),
 					},
 				},
 				Block: &drctypes.BlockData{
@@ -417,7 +417,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				{
 					Partition: 1,
 					Ir:        nil,
-					Sdrh:      make([]byte, 32),
+					PDRHash:   make([]byte, 32),
 				},
 			},
 		}
@@ -437,7 +437,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:     3,
 						SumOfEarnedFees: 10,
 					},
-					Sdrh: make([]byte, 32),
+					PDRHash: make([]byte, 32),
 				},
 			},
 		}
@@ -470,7 +470,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:     3,
 						SumOfEarnedFees: 10,
 					},
-					Sdrh: make([]byte, 32),
+					PDRHash: make([]byte, 32),
 				},
 			},
 		}
@@ -504,7 +504,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:     3,
 						SumOfEarnedFees: 10,
 					},
-					Sdrh: make([]byte, 32),
+					PDRHash: make([]byte, 32),
 				},
 			},
 		}
@@ -538,7 +538,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:     3,
 						SumOfEarnedFees: 10,
 					},
-					Sdrh: make([]byte, 32),
+					PDRHash: make([]byte, 32),
 				},
 			},
 			Qc: &drctypes.QuorumCert{},
@@ -573,7 +573,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						RoundNumber:     3,
 						SumOfEarnedFees: 10,
 					},
-					Sdrh: make([]byte, 32),
+					PDRHash: make([]byte, 32),
 				},
 			},
 			Qc:       &drctypes.QuorumCert{},
@@ -588,7 +588,7 @@ func TestInputData_IsValid(t *testing.T) {
 		i := &InputData{
 			Partition: 0,
 			Ir:        nil,
-			Sdrh:      nil,
+			PDRHash:   nil,
 		}
 		require.ErrorContains(t, i.IsValid(), "input record is nil")
 	})
@@ -603,7 +603,7 @@ func TestInputData_IsValid(t *testing.T) {
 				RoundNumber:     3,
 				SumOfEarnedFees: 10,
 			},
-			Sdrh: nil,
+			PDRHash: nil,
 		}
 		require.ErrorContains(t, i.IsValid(), "system description hash not set")
 	})
@@ -618,7 +618,7 @@ func TestInputData_IsValid(t *testing.T) {
 				RoundNumber:     3,
 				SumOfEarnedFees: 10,
 			},
-			Sdrh: test.RandomBytes(32),
+			PDRHash: test.RandomBytes(32),
 		}
 		require.NoError(t, i.IsValid())
 	})

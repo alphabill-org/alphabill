@@ -25,7 +25,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -215,20 +214,16 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
 
-		partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(r.rcGenesis))
-		if err != nil {
-			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
-		}
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitionStore, rootConsensusNet, rn.RootSigner, obs)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitions.NewOrchestration(r.rcGenesis), rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, cm, obs)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}

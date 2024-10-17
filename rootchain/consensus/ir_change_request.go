@@ -22,7 +22,6 @@ type (
 		Shard     types.ShardID
 		Reason    CertReqReason
 		Requests  []*certification.BlockCertificationRequest
-		Technical certification.TechnicalRecord
 	}
 
 	CertRequestVerifier interface {

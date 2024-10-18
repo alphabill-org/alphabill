@@ -34,22 +34,8 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxRecord = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		//tx := testtransaction.NewTransactionOrder(t,
-		//	testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
-		//	testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
-		//		FeeCreditTransferProof: &types.TxRecordProof{
-		//			TxRecord: nil,
-		//			TxProof:  &types.TxProof{Version: 1},
-		//		}},
-		//	),
-		//	testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
-		//)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
-		//var attr fc.AddFeeCreditAttributes
-		//require.NoError(t, tx.UnmarshalAttributes(&attr))
-		//var authProof fc.AddFeeCreditAuthProof
-		//require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction record is nil")
 	})
@@ -58,23 +44,8 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxRecord.TransactionOrder = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		//tx := testtransaction.NewTransactionOrder(t,
-		//	testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
-		//		FeeCreditTransferProof: &types.TxRecordProof{
-		//			TxRecord: &types.TransactionRecord{TransactionOrder: nil},
-		//			TxProof:  &types.TxProof{Version: 1},
-		//		}},
-		//	),
-		//	testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{
-		//		OwnerProof: templates.EmptyArgument(),
-		//	}),
-		//)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
-		//var attr fc.AddFeeCreditAttributes
-		//require.NoError(t, tx.UnmarshalAttributes(&attr))
-		//var authProof fc.AddFeeCreditAuthProof
-		//require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction order is nil")
 	})
@@ -83,21 +54,8 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxProof = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		//tx := testtransaction.NewTransactionOrder(t,
-		//	testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
-		//		FeeCreditTransferProof: &types.TxRecordProof{
-		//			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}},
-		//			TxProof:  nil,
-		//		}},
-		//	),
-		//	testtransaction.WithAuthProof(&fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}),
-		//)
 		feeCreditModule := newTestFeeModule(t, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
-		//var attr fc.AddFeeCreditAttributes
-		//require.NoError(t, tx.UnmarshalAttributes(&attr))
-		//var authProof fc.AddFeeCreditAuthProof
-		//require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction proof is nil")
 	})

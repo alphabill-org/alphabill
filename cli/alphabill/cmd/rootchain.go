@@ -32,7 +32,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
@@ -220,40 +219,24 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("creating partition store: %w", err)
 	}
 
-	var cm rootchain.ConsensusManager
-	if len(rootGenesis.Root.RootValidators) == 1 {
-		// use monolithic consensus algorithm
-		cm, err = monolithic.NewMonolithicConsensusManager(
-			host.ID().String(),
-			trustBase,
-			rootGenesis,
-			partitionCfg,
-			keys.SigningPrivateKey,
-			log,
-			consensus.WithStorage(rootStore),
-		)
-		if err != nil {
-			return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
-		}
-	} else {
-		rootNet, err := network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
-		if err != nil {
-			return fmt.Errorf("failed initiate root network, %w", err)
-		}
-		// Create distributed consensus manager function
-		cm, err = abdrc.NewDistributedAbConsensusManager(
-			host.ID(),
-			rootGenesis,
-			trustBase,
-			partitions.NewOrchestration(rootGenesis),
-			rootNet,
-			keys.SigningPrivateKey,
-			obs,
-			consensus.WithStorage(rootStore),
-		)
-		if err != nil {
-			return fmt.Errorf("failed initiate distributed consensus manager: %w", err)
-		}
+	rootNet, err := network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
+	if err != nil {
+		return fmt.Errorf("failed initiate root network, %w", err)
+	}
+
+	// Create distributed consensus manager
+	cm, err := abdrc.NewDistributedAbConsensusManager(
+		host.ID(),
+		rootGenesis,
+		trustBase,
+		partitions.NewOrchestration(rootGenesis),
+		rootNet,
+		keys.SigningPrivateKey,
+		obs,
+		consensus.WithStorage(rootStore),
+	)
+	if err != nil {
+		return fmt.Errorf("failed initiate distributed consensus manager: %w", err)
 	}
 	if err = host.BootstrapConnect(ctx, log); err != nil {
 		return err

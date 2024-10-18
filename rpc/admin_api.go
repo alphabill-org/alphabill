@@ -24,6 +24,8 @@ type (
 		NetworkID           types.NetworkID `json:"networkId"` // hex encoded network identifier
 		SystemID            types.SystemID  `json:"systemId"`  // hex encoded system identifier
 		Name                string          `json:"name"`      // one of [money node | tokens node | evm node]
+		PermissionedMode    bool            `json:"permissionedMode"`
+		FeelessMode         bool            `json:"feelessMode"`
 		Self                PeerInfo        `json:"self"`      // information about this peer
 		BootstrapNodes      []PeerInfo      `json:"bootstrapNodes"`
 		RootValidators      []PeerInfo      `json:"rootValidators"`
@@ -41,12 +43,14 @@ func NewAdminAPI(node partitionNode, name string, self *network.Peer, log *slog.
 	return &AdminAPI{node: node, name: name, self: self, log: log}
 }
 
-// GetNodeInfo returns status information about the node.
+// GetNodeInfo returns information about the node.
 func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 	return &NodeInfoResponse{
-		NetworkID: s.node.NetworkID(),
-		SystemID:  s.node.SystemID(),
-		Name:      s.name,
+		NetworkID:        s.node.NetworkID(),
+		SystemID:         s.node.SystemID(),
+		Name:             s.name,
+		PermissionedMode: s.node.IsPermissionedMode(),
+		FeelessMode:      s.node.IsFeelessMode(),
 		Self: PeerInfo{
 			Identifier: s.self.ID().String(),
 			Addresses:  s.self.MultiAddresses(),

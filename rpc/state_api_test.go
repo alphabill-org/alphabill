@@ -357,6 +357,14 @@ func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error
 	return mn.trustBase, nil
 }
 
+func (m *MockNode) IsPermissionedMode() bool {
+	return false
+}
+
+func (m *MockNode) IsFeelessMode() bool {
+	return false
+}
+
 func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
 	if mn.err != nil {
 		return nil, mn.err

@@ -34,3 +34,11 @@ func (f *NoFeeHandling) IsCredible(_ txtypes.ExecutionContext, _ *types.Transact
 func (f *NoFeeHandling) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 	return false
 }
+
+func (m *NoFeeHandling) IsPermissionedMode() bool {
+	return false
+}
+
+func (m *NoFeeHandling) IsFeelessMode() bool {
+	return true
+}

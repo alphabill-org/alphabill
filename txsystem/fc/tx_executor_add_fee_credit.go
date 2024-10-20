@@ -61,10 +61,6 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		if transAttr.TargetUnitCounter != nil {
 			return errors.New("invalid transferFC target unit counter (target counter must be nil if creating fee credit record for the first time)")
 		}
-		// the identifier must agree with the owner predicate
-		if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
-			return fmt.Errorf("executing fee credit predicate: %w", err)
-		}
 	} else {
 		// if the target exists,
 		// bill transfer order contains correct target unit counter value
@@ -82,7 +78,11 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	}
 	// proof of the bill transfer order verifies
 	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, f.trustBase, f.hashAlgorithm); err != nil {
-		return fmt.Errorf("proof is not valid: %w", err)
+		return fmt.Errorf("transFC proof is not valid: %w", err)
+	}
+	// the owner proof satisfies the bill's owner predicate
+	if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil
 }

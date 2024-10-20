@@ -1457,6 +1457,14 @@ func (n *Node) IsValidatorNode() bool {
 	return slices.Contains(n.validatorNodes, n.Peer().ID())
 }
 
+func (n *Node) IsPermissionedMode() bool {
+	return n.transactionSystem.IsPermissionedMode()
+}
+
+func (n *Node) IsFeelessMode() bool {
+	return n.transactionSystem.IsFeelessMode()
+}
+
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	// TODO verify epoch number after epoch switching is implemented
 	// fast-track solution is to restart all partition nodes with new config on epoch change

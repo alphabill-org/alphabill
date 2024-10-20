@@ -159,6 +159,14 @@ func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetad
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil
 }
 
+func (m *CounterTxSystem) IsPermissionedMode() bool {
+	return false
+}
+
+func (m *CounterTxSystem) IsFeelessMode() bool {
+	return false
+}
+
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {
 	return m.Err
 }

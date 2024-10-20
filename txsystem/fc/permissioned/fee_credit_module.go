@@ -123,3 +123,11 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 func (f *FeeCreditModule) IsCredible(exeCtx txtypes.ExecutionContext, tx *types.TransactionOrder) error {
 	return f.feeBalanceValidator.IsCredible(exeCtx, tx)
 }
+
+func (f *FeeCreditModule) IsPermissionedMode() bool {
+	return true
+}
+
+func (f *FeeCreditModule) IsFeelessMode() bool {
+	return f.feelessMode
+}

@@ -53,7 +53,7 @@ func TestRootValidator_DefaultDBPath(t *testing.T) {
 	require.Contains(t, conf.getStorageDir(), filepath.Join(conf.Base.HomeDir, "rootchain"))
 }
 
-func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
+func generateSingleNodeSetup(t *testing.T, homeDir string) (string, string) {
 	t.Helper()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyPartitionDir, defaultKeysFileName)
@@ -137,9 +137,9 @@ func Test_rootNodeConfig_defaultPath(t *testing.T) {
 	})
 }
 
-func Test_StartMonolithicNode(t *testing.T) {
+func Test_StartSingleNode(t *testing.T) {
 	homeDir := t.TempDir()
-	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
+	rootDir, nodeDir := generateSingleNodeSetup(t, homeDir)
 	observe := observability.Default(t)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	testtime.MustRunInTime(t, 500*time.Second, func() {
@@ -198,7 +198,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 
 func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	homeDir := t.TempDir()
-	rootDir, _ := generateMonolithicSetup(t, homeDir)
+	rootDir, _ := generateSingleNodeSetup(t, homeDir)
 	cmd := New(observability.NewFactory(t))
 	dbLocation := filepath.Join(homeDir, defaultRootChainDir)
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
@@ -216,7 +216,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	homeDir := t.TempDir()
-	rootDir, _ := generateMonolithicSetup(t, homeDir)
+	rootDir, _ := generateSingleNodeSetup(t, homeDir)
 	cmd := New(observability.NewFactory(t))
 	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
 	args := "root --home " + homeDir + " --db=/foobar/doesnotexist3454/" + " --genesis-file " + rootGenesis

@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type StateRequestMsg struct {

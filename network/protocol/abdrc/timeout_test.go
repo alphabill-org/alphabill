@@ -7,8 +7,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/testutils"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/stretchr/testify/require"
 )
 

@@ -5,12 +5,13 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	consensustypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCheckBlockCertificationRequest(t *testing.T) {
 	t.Run("request is nil", func(t *testing.T) {
-		require.EqualError(t, CheckBlockCertificationRequest(nil, nil), "block certification request is nil")
+		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(nil, nil), "block certification request is nil")
 	})
 	t.Run("luc is nil", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
@@ -18,7 +19,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 				RoundNumber: 1,
 			},
 		}
-		require.EqualError(t, CheckBlockCertificationRequest(req, nil), "unicity certificate is nil")
+		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, nil), "unicity certificate is nil")
 	})
 	t.Run("invalid partition round", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
@@ -31,7 +32,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 				RoundNumber: 1,
 			},
 		}
-		require.EqualError(t, CheckBlockCertificationRequest(req, luc), "invalid partition round number 1, last certified round number 1")
+		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, luc), "invalid partition round number 1, last certified round number 1")
 	})
 	t.Run("hash mismatch", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
@@ -46,7 +47,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 				Hash:        []byte{1, 1, 1, 1},
 			},
 		}
-		require.EqualError(t, CheckBlockCertificationRequest(req, luc), "request extends unknown state: expected hash: [1 1 1 1], got: [0 0 0 0]")
+		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, luc), "request extends unknown state: expected hash: [1 1 1 1], got: [0 0 0 0]")
 	})
 	t.Run("root round does not match", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
@@ -63,7 +64,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 0},
 		}
-		require.EqualError(t, CheckBlockCertificationRequest(req, luc), "request root round number 1 does not match luc root round 0")
+		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, luc), "request root round number 1 does not match luc root round 0")
 	})
 	t.Run("ok", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
@@ -78,6 +79,6 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 				Hash:        []byte{0, 0, 0, 0},
 			},
 		}
-		require.NoError(t, CheckBlockCertificationRequest(req, luc))
+		require.NoError(t, consensustypes.CheckBlockCertificationRequest(req, luc))
 	})
 }

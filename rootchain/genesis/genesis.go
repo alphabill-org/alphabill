@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 )
 

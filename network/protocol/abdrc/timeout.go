@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
-	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type TimeoutMsg struct {

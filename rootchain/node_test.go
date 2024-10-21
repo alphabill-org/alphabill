@@ -24,8 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -147,7 +146,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
 	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
-	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
+	cm, err := consensus.NewConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
 		trustBase,
 		partitions.NewOrchestration(rootGenesis),

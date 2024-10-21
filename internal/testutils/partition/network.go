@@ -36,7 +36,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
+	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
@@ -219,7 +219,7 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitions.NewOrchestration(r.rcGenesis), rootConsensusNet, rn.RootSigner, obs)
+		cm, err := consensus.NewConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitions.NewOrchestration(r.rcGenesis), rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}

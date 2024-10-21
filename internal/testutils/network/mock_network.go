@@ -20,7 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/txbuffer"
 )
 

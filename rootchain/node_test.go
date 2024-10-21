@@ -14,8 +14,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
@@ -26,9 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/monolithic"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -134,39 +130,6 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	return validator, node, partitionNodes, rootGenesis
 }
 
-func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
-	node := testutils.NewTestNode(t)
-	verifier := node.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	id := node.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
-	require.NoError(t, err)
-	mockNet := testnetwork.NewMockNetwork(t)
-	partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(rootGenesis))
-	require.NoError(t, err)
-	require.NoError(t, partitionStore.Reset(func() uint64 { return 1 }))
-	log := testlogger.New(t).With(logger.NodeID(id))
-	trustBase, err := rootGenesis.GenerateTrustBase()
-	require.NoError(t, err)
-	cm, err := monolithic.NewMonolithicConsensusManager(
-		node.PeerConf.ID.String(),
-		trustBase,
-		rootGenesis,
-		partitionStore,
-		node.Signer,
-		log,
-	)
-	require.NoError(t, err)
-
-	observe := testobservability.Default(t)
-	p := peer.CreatePeer(t, node.PeerConf)
-	validator, err := New(p, mockNet, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
-	require.NoError(t, err)
-	require.NotNil(t, validator)
-}
-
 func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
@@ -183,7 +146,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
 	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
-	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.PeerConf.ID,
+	cm, err := consensus.NewConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
 		trustBase,
 		partitions.NewOrchestration(rootGenesis),

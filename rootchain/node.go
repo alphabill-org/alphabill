@@ -21,7 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type (

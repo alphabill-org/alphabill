@@ -31,7 +31,6 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
@@ -225,7 +224,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	}
 
 	// Create distributed consensus manager
-	cm, err := abdrc.NewDistributedAbConsensusManager(
+	cm, err := consensus.NewConsensusManager(
 		host.ID(),
 		rootGenesis,
 		trustBase,

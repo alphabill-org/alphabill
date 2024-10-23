@@ -1,5 +1,7 @@
 FROM golang:1.23-bookworm AS builder
 
+RUN mkdir -p /target/lib && cp /lib/$(uname -m)-linux-gnu/libgcc_s.so.1 /target/lib/libgcc_s.so.1
+
 WORKDIR /usr/src/app
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
@@ -12,5 +14,5 @@ SHELL [ "/busybox/sh", "-c" ]
 WORKDIR /app
 ENV PATH="/app:${PATH}"
 COPY --from=builder /usr/src/app/build/alphabill /app/
-COPY --from=builder /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/x86_64-linux-gnu/libgcc_s.so.1
+COPY --from=builder /target/lib/libgcc_s.so.1 /lib/libgcc_s.so.1
 ENTRYPOINT ["alphabill"]

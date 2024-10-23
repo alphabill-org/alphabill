@@ -12,6 +12,9 @@ build:
     # https://github.com/golang/go/issues/51279
 	cd ./cli/alphabill && go build -o ../../build/alphabill
 
+build-docker: build
+	docker build --file scripts/Dockerfile.local --tag alphabill:local .
+
 gosec:
 	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...
 
@@ -25,4 +28,5 @@ tools:
 	tools \
 	test \
 	build \
+	build-docker \
 	gosec

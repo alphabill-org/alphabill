@@ -62,7 +62,7 @@ build-docker:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
   script:
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
-    - docker build --push --tag ${IMAGE_TAG} --file cli/alphabill/Dockerfile .
+    - docker build --push --tag ${IMAGE_TAG} --file scripts/Dockerfile .
   needs: []
 
 build:

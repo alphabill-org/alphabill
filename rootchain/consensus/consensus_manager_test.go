@@ -1212,7 +1212,13 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	orchestration := partitions.NewOrchestration(rootGenesis)
 	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db, orchestration)
 	require.NoError(t, err)
-	timeoutVote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 2}, Author: "test"}
+	timeoutVote := &abdrc.TimeoutMsg{
+		Timeout: &drctypes.Timeout{Round: 2},
+		Author: "test",
+		LastTC: &drctypes.TimeoutCert{
+			Timeout: &drctypes.Timeout{Round: 1},
+		},
+	}
 	require.NoError(t, storage.WriteVote(db, timeoutVote))
 	observe := testobservability.Default(t)
 	cm, err := NewConsensusManager(
@@ -1242,4 +1248,5 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	// make sure the stored timeout vote is broadcast
 	require.EqualValues(t, 2, lastTimeoutMsg.Timeout.Round)
 	require.EqualValues(t, "test", lastTimeoutMsg.Author)
+	require.EqualValues(t, 1, lastTimeoutMsg.LastTC.GetRound())
 }

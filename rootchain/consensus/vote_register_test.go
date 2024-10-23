@@ -52,7 +52,7 @@ func NewDummyVote(author string, round uint64, rootHash []byte) *abdrc.VoteMsg {
 }
 
 func NewDummyTimeoutVote(hqc *drctypes.QuorumCert, round uint64, author string) *abdrc.TimeoutMsg {
-	timeoutMsg := abdrc.NewTimeoutMsg(drctypes.NewTimeout(round, 0, hqc, nil), author)
+	timeoutMsg := abdrc.NewTimeoutMsg(drctypes.NewTimeout(round, 0, hqc), author, nil)
 	// will not actually sign it, but just create a dummy sig
 	timeoutMsg.Signature = []byte{0, 1, 2, 3}
 	return timeoutMsg

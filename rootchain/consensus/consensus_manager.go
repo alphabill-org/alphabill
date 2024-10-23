@@ -416,8 +416,9 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if timeoutVoteMsg == nil {
 		// create timeout vote
 		timeoutVoteMsg = abdrc.NewTimeoutMsg(
-			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC()),
-			x.id.String())
+			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc()),
+			x.id.String(),
+			x.pacemaker.LastRoundTC())
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			x.log.WarnContext(ctx, "signing timeout", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			return
@@ -617,7 +618,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 	// when there is multiple consecutive timeout rounds and instance is in one of the previous round
 	// (ie haven't got enough timeout votes for the latest round quorum) recovery is not triggered as
 	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
-	x.processTC(ctx, vote.Timeout.LastTC)
+	x.processTC(ctx, vote.LastTC)
 
 	tc, err := x.pacemaker.RegisterTimeoutVote(ctx, vote, x.trustBase)
 	if err != nil {
@@ -1018,7 +1019,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
 		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
 		// todo: timeout votes are not buffered
-		x.processTC(ctx, tmo.Timeout.LastTC)
+		x.processTC(ctx, tmo.LastTC)
 	}
 	x.replayVoteBuffer(ctx)
 	return nil

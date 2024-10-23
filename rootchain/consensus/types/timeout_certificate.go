@@ -13,7 +13,6 @@ type Timeout struct {
 	Epoch  uint64       `json:"epoch,omitempty"`   // Epoch to establish valid configuration
 	Round  uint64       `json:"round,omitempty"`   // Root round number
 	HighQc *QuorumCert  `json:"high_qc,omitempty"` // Highest quorum certificate of the validator
-	LastTC *TimeoutCert `json:"last_tc,omitempty"` // TC for Round−1 if HighQC.Round != Round−1 (nil otherwise)
 }
 
 type TimeoutVote struct {
@@ -29,8 +28,8 @@ type TimeoutCert struct {
 }
 
 // NewTimeout creates new Timeout for round (epoch) and highest QC seen
-func NewTimeout(round, epoch uint64, hqc *QuorumCert, lastTC *TimeoutCert) *Timeout {
-	return &Timeout{Epoch: epoch, Round: round, HighQc: hqc, LastTC: lastTC}
+func NewTimeout(round, epoch uint64, hqc *QuorumCert) *Timeout {
+	return &Timeout{Epoch: epoch, Round: round, HighQc: hqc}
 }
 
 func (x *Timeout) IsValid() error {
@@ -45,19 +44,6 @@ func (x *Timeout) IsValid() error {
 		return fmt.Errorf("timeout round (%d) must be greater than high QC round (%d)", x.Round, x.HighQc.VoteInfo.RoundNumber)
 	}
 
-	// if highQC is not for previous round we must have TC for previous round
-	if prevRound := x.Round - 1; prevRound != x.HighQc.GetRound() {
-		if x.LastTC == nil {
-			return fmt.Errorf("last TC is missing")
-		}
-		if err := x.LastTC.IsValid(); err != nil {
-			return fmt.Errorf("invalid timeout certificate: %w", err)
-		}
-		if prevRound != x.LastTC.GetRound() {
-			return fmt.Errorf("last TC must be for round %d but is for round %d", prevRound, x.LastTC.GetRound())
-		}
-	}
-
 	return nil
 }
 
@@ -69,12 +55,6 @@ func (x *Timeout) Verify(tb types.RootTrustBase) error {
 
 	if err := x.HighQc.Verify(tb); err != nil {
 		return fmt.Errorf("invalid high QC: %w", err)
-	}
-
-	if x.LastTC != nil {
-		if err := x.LastTC.Verify(tb); err != nil {
-			return fmt.Errorf("invalid last TC: %w", err)
-		}
 	}
 
 	return nil

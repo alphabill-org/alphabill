@@ -27,11 +27,10 @@ build: install-targets download-sdk
 	cargo build --release --target aarch64-unknown-linux-gnu
 	cargo build --release --target x86_64-unknown-linux-gnu
         ifeq ($(UNAME_S),Linux)
-        # NB! replace 'absolute-path-to-ab' before running
-		SDKROOT=absolute-path-to-ab/predicates/wasm/wvm/instrument/wasm-instrument-rust/MacOSX14.0.sdk/ \
+		SDKROOT=$(shell pwd)/MacOSX14.0.sdk/ \
 		CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=rust-lld \
 		cargo build --release --target x86_64-apple-darwin
-		SDKROOT=absolute-path-to-ab/predicates/wasm/wvm/instrument/wasm-instrument-rust/MacOSX14.0.sdk/ \
+		SDKROOT=$(shell pwd)/MacOSX14.0.sdk/ \
 		CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=rust-lld \
 		cargo build --release --target aarch64-apple-darwin
         endif

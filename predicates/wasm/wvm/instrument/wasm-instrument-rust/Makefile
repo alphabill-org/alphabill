@@ -10,6 +10,7 @@ install-targets:
 	rustup target add x86_64-apple-darwin
 	rustup target add x86_64-pc-windows-gnu
 
+# Note: Mac SDK dependency is disabled. If needed, revert commit 7f97889108d0bfdafc7be0112a5f7fc56e68087b
 build: install-targets
 	cargo build --release --target aarch64-unknown-linux-gnu
 	cargo build --release --target x86_64-unknown-linux-gnu

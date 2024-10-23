@@ -168,7 +168,6 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			},
 			wantErr: false,
 		},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -118,3 +118,22 @@ building (this is `bash` example):
 See [gitlab-ci.yml](.gitlab-ci.yml) for details.
 
 GitLab runs the CI job inside docker container defined in `alphabill/gitlab-ci-image`.
+
+# Build Docker image with local dependencies
+
+For example, if go.work is defined as follows:
+
+```plain
+go 1.23.2
+
+use (
+    .
+    ../alphabill-go-base
+)
+```
+
+The folder can add be added into Docker build context by specifying it as follow:
+
+```console
+DOCKER_GO_DEPENDENCY=../alphabill-go-base make build-docker
+```

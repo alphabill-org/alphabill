@@ -1,5 +1,0 @@
-FROM debian:bookworm-slim
-WORKDIR /app
-ENV PATH="/app:${PATH}"
-COPY build/alphabill /app/alphabill
-ENTRYPOINT ["alphabill"]

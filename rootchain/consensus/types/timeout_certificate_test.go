@@ -237,24 +237,24 @@ func TestTimeoutCert_GetHqcRound(t *testing.T) {
 
 func Test_Timeout_IsValid(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	require.NoError(t, sb.Timeout(t, nil).IsValid(), `sb.Timeout must return valid Timeout struct`)
+	require.NoError(t, sb.Timeout(t).IsValid(), `sb.Timeout must return valid Timeout struct`)
 
 	t.Run("high QC unassigned", func(t *testing.T) {
-		timeout := sb.Timeout(t, nil)
+		timeout := sb.Timeout(t)
 		timeout.HighQc = nil
 		require.EqualError(t, timeout.IsValid(), "high QC is unassigned")
 	})
 
 	t.Run("high QC invalid", func(t *testing.T) {
 		// basically check that HighQC.IsValid is called
-		timeout := sb.Timeout(t, nil)
+		timeout := sb.Timeout(t)
 		timeout.HighQc.VoteInfo = nil
 		require.EqualError(t, timeout.IsValid(), "invalid high QC: vote info is nil")
 	})
 
 	t.Run("invalid round", func(t *testing.T) {
 		// Round must be greater than highQC.Round
-		timeout := sb.Timeout(t, nil)
+		timeout := sb.Timeout(t)
 
 		timeout.Round = 0
 		require.EqualError(t, timeout.IsValid(), "timeout round (0) must be greater than high QC round (10)")
@@ -265,39 +265,17 @@ func Test_Timeout_IsValid(t *testing.T) {
 		timeout.Round = timeout.HighQc.GetRound()
 		require.EqualError(t, timeout.IsValid(), "timeout round (10) must be greater than high QC round (10)")
 	})
-
-	t.Run("last TC is unassigned", func(t *testing.T) {
-		// if highQC is not for the previous round then lastTC must be
-		timeout := sb.Timeout(t, nil)
-		timeout.Round = timeout.HighQc.GetRound() + 2 // normally TO.Round==HighQC.Round+1
-		require.EqualError(t, timeout.IsValid(), "last TC is missing")
-	})
-
-	t.Run("last TC is for wrong round", func(t *testing.T) {
-		tc := sb.TimeoutCert(t)
-		timeout := sb.Timeout(t, tc)
-		timeout.Round = tc.GetRound() + 2
-		require.EqualError(t, timeout.IsValid(), "last TC must be for round 12 but is for round 11")
-	})
 }
 
 func Test_Timeout_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
 	rootTrust := sb.trustBase
-	require.NoError(t, sb.Timeout(t, nil).Verify(rootTrust), `sb.Timeout must return valid Timeout struct`)
+	require.NoError(t, sb.Timeout(t).Verify(rootTrust), `sb.Timeout must return valid Timeout struct`)
 
 	t.Run("IsValid is called", func(t *testing.T) {
-		timeout := sb.Timeout(t, nil)
+		timeout := sb.Timeout(t)
 		timeout.HighQc = nil
 		require.EqualError(t, timeout.Verify(rootTrust), `invalid timeout data: high QC is unassigned`)
-	})
-
-	t.Run("invalid lastTC", func(t *testing.T) {
-		// check that lastTC.Verify is called
-		tc := sb.TimeoutCert(t)
-		timeout := sb.Timeout(t, tc)
-		tc.Timeout.Epoch += 1 // epoch is part of signature so changing it should make it invalid
-		require.ErrorContains(t, timeout.Verify(rootTrust), `invalid last TC: timeout certificate signature verification failed: verify bytes failed: verification failed`)
 	})
 }
 

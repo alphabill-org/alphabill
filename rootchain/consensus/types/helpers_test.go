@@ -103,28 +103,20 @@ func (sb structBuilder) QC(t *testing.T, round uint64) *QuorumCert {
 	return qc
 }
 
-/*
-"lastTC" may be nil (ie previous round was not a timeout round)
-*/
-func (sb structBuilder) Timeout(t *testing.T, lastTC *TimeoutCert) *Timeout {
+func (sb structBuilder) Timeout(t *testing.T) *Timeout {
 	var round uint64 = 11
 	qcRound := round - 1
-	if lastTC != nil {
-		round = lastTC.GetRound() + 1
-		qcRound = lastTC.GetRound() - 1
-	}
 
 	return &Timeout{
 		Epoch:  0,
 		Round:  round,
 		HighQc: sb.QC(t, qcRound),
-		LastTC: lastTC,
 	}
 }
 
 func (sb structBuilder) TimeoutCert(t *testing.T) *TimeoutCert {
 	tc := &TimeoutCert{
-		Timeout:    sb.Timeout(t, nil),
+		Timeout:    sb.Timeout(t),
 		Signatures: map[string]*TimeoutVote{},
 	}
 
@@ -165,10 +157,7 @@ func Test_structBuilder(t *testing.T) {
 	tc := sb.TimeoutCert(t)
 	require.NoError(t, tc.Verify(tb))
 
-	to := sb.Timeout(t, tc)
-	require.NoError(t, to.IsValid())
-	require.NoError(t, to.Verify(tb))
-	to = sb.Timeout(t, nil)
+	to := sb.Timeout(t)
 	require.NoError(t, to.IsValid())
 	require.NoError(t, to.Verify(tb))
 

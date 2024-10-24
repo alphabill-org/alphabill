@@ -63,14 +63,16 @@ type (
 	}
 
 	ledgerReplicationConfig struct {
-		maxBlocks uint64
-		maxTx     uint32
+		maxFetchBlocks  uint64
+		maxReturnBlocks uint64
+		maxTx           uint32
 	}
 )
 
-func WithReplicationParams(maxBlocks uint64, maxTx uint32) NodeOption {
+func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32) NodeOption {
 	return func(c *configuration) {
-		c.replicationConfig.maxBlocks = maxBlocks
+		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
+		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
 		c.replicationConfig.maxTx = maxTx
 	}
 }
@@ -208,8 +210,11 @@ func (c *configuration) initMissingDefaults() error {
 			return err
 		}
 	}
-	if c.replicationConfig.maxBlocks == 0 {
-		c.replicationConfig.maxBlocks = DefaultReplicationMaxBlocks
+	if c.replicationConfig.maxFetchBlocks == 0 {
+		c.replicationConfig.maxFetchBlocks = DefaultReplicationMaxBlocks
+	}
+	if c.replicationConfig.maxReturnBlocks == 0 {
+		c.replicationConfig.maxReturnBlocks = DefaultReplicationMaxBlocks
 	}
 	if c.replicationConfig.maxTx == 0 {
 		c.replicationConfig.maxTx = DefaultReplicationMaxTx

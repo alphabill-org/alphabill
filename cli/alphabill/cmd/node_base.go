@@ -39,18 +39,19 @@ type baseNodeConfiguration struct {
 }
 
 type startNodeConfiguration struct {
-	Address                    string
-	AnnounceAddrs              []string
-	Genesis                    string
-	StateFile                  string
-	TrustBaseFile              string
-	KeyFile                    string
-	DbFile                     string
-	TxIndexerDBFile            string
-	WithOwnerIndex             bool
-	LedgerReplicationMaxBlocks uint64
-	LedgerReplicationMaxTx     uint32
-	BootStrapAddresses         string // boot strap addresses (libp2p multiaddress format)
+	Address                         string
+	AnnounceAddrs                   []string
+	Genesis                         string
+	StateFile                       string
+	TrustBaseFile                   string
+	KeyFile                         string
+	DbFile                          string
+	TxIndexerDBFile                 string
+	WithOwnerIndex                  bool
+	LedgerReplicationMaxBlocksFetch uint64
+	LedgerReplicationMaxBlocks      uint64
+	LedgerReplicationMaxTx          uint32
+	BootStrapAddresses              string // boot strap addresses (libp2p multiaddress format)
 }
 
 func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
@@ -183,7 +184,7 @@ func createNode(ctx context.Context,
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
-		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocksFetch, cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 		partition.WithProofIndex(proofStore, 20), // TODO history size!
 		partition.WithOwnerIndex(ownerIndexer),
 	}
@@ -231,11 +232,11 @@ func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConst
 	}
 	defer stateFile.Close()
 
-	state, err := state.NewRecoveredState(stateFile, unitDataConstructor)
+	s, err := state.NewRecoveredState(stateFile, unitDataConstructor)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build state tree from state file: %w", err)
 	}
-	return state, nil
+	return s, nil
 }
 
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
@@ -249,6 +250,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
 	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
+	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

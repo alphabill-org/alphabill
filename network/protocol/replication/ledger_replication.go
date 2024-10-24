@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/google/uuid"
 )
 
 const (
@@ -26,6 +27,7 @@ var (
 type (
 	LedgerReplicationRequest struct {
 		_                struct{} `cbor:",toarray"`
+		UUID             uuid.UUID
 		SystemIdentifier types.SystemID
 		NodeIdentifier   string
 		BeginBlockNumber uint64
@@ -34,6 +36,7 @@ type (
 
 	LedgerReplicationResponse struct {
 		_                struct{} `cbor:",toarray"`
+		UUID             uuid.UUID
 		Status           Status
 		Message          string
 		Blocks           []*types.Block
@@ -48,7 +51,7 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	count := len(r.Blocks)
 	// error message or no blocks
 	if r.Message != "" {
-		return fmt.Sprintf("status: %s, message: %s, %v blocks", r.Status.String(), r.Message, count)
+		return fmt.Sprintf("status: %s, message: %s, %v blocks, uuid: %s", r.Status.String(), r.Message, count, r.UUID.String())
 	}
 	blockInfo := ""
 	if count > 0 {
@@ -68,7 +71,7 @@ func (r *LedgerReplicationResponse) Pretty() string {
 			}
 		}
 	}
-	return fmt.Sprintf("status: %s, %v blocks%s", r.Status.String(), count, blockInfo)
+	return fmt.Sprintf("status: %s, %v blocks %s, uuid: %s", r.Status.String(), count, blockInfo, r.UUID.String())
 }
 
 func (r *LedgerReplicationResponse) IsValid() error {

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -137,11 +138,11 @@ The following restrictions apply to the inputs:
 func NewNode(
 	ctx context.Context,
 	peerConf *network.PeerConfiguration,
-	signer crypto.Signer,                // used to sign block proposals and block certification requests
+	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
-	genesis *genesis.PartitionGenesis,   // partition genesis file, created by root chain.
-	trustBase types.RootTrustBase,       // root trust base file
-	network ValidatorNetwork,            // network layer of the validator node
+	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
+	trustBase types.RootTrustBase, // root trust base file
+	network ValidatorNetwork, // network layer of the validator node
 	observe Observability,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
@@ -1000,7 +1001,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 }
 
 func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replication.LedgerReplicationResponse, toId string) error {
-	n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication response to %s: %s", toId, msg.Pretty()))
+	n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication response '%s' to %s: %s", msg.UUID.String(), toId, msg.Pretty()))
 	recoveringNodeID, err := peer.Decode(toId)
 	if err != nil {
 		return fmt.Errorf("decoding peer id %q: %w", toId, err)
@@ -1014,13 +1015,14 @@ func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replicati
 }
 
 func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replication.LedgerReplicationRequest) error {
-	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request from '%s', starting block %d", lr.NodeIdentifier, lr.BeginBlockNumber))
+	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request '%s' from '%s', starting block %d", lr.UUID.String(), lr.NodeIdentifier, lr.BeginBlockNumber))
 	if err := lr.IsValid(); err != nil {
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
 	if lr.SystemIdentifier != n.configuration.GetSystemIdentifier() {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.UnknownSystemIdentifier,
 			Message: fmt.Sprintf("Unknown system identifier: %s", lr.SystemIdentifier),
 		}
@@ -1030,6 +1032,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	// the node has been started with a later state and does not have the needed data
 	if startBlock <= n.fuc.GetRoundNumber() {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, first block: %v", startBlock, n.fuc.GetRoundNumber()+1),
 		}
@@ -1039,6 +1042,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	latestBlock := n.committedUC().GetRoundNumber()
 	if latestBlock < startBlock {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, latest block: %v", startBlock, latestBlock),
 		}
@@ -1080,6 +1084,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			}
 		}
 		resp := &replication.LedgerReplicationResponse{
+			UUID:             lr.UUID,
 			Status:           replication.Ok,
 			Blocks:           blocks,
 			FirstBlockNumber: firstFetchedBlockNumber,
@@ -1102,7 +1107,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		n.log.DebugContext(ctx, fmt.Sprintf("Stale Ledger Replication response, node is not recovering: %s", lr.Pretty()))
 		return nil
 	}
-	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response received: %s, ", lr.Pretty()))
+	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response '%s' received: %s, ", lr.UUID.String(), lr.Pretty()))
 	if lr.Status != replication.Ok {
 		recoverFrom := n.committedUC().GetRoundNumber() + 1
 		n.log.DebugContext(ctx, fmt.Sprintf("Resending replication request starting with round %d", recoverFrom))
@@ -1243,6 +1248,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	defer span.End()
 
 	req := &replication.LedgerReplicationRequest{
+		UUID:             uuid.New(),
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		NodeIdentifier:   n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
@@ -1262,7 +1268,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 		if n.peer.ID() == p {
 			continue
 		}
-		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request to %v", p))
+		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request '%s' to %v", req.UUID.String(), p))
 		// break loop on successful send, otherwise try again but different node, until all either
 		// able to send or all attempts have failed
 		if err := n.network.Send(ctx, req, p); err != nil {

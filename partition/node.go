@@ -137,11 +137,11 @@ The following restrictions apply to the inputs:
 func NewNode(
 	ctx context.Context,
 	peerConf *network.PeerConfiguration,
-	signer crypto.Signer, // used to sign block proposals and block certification requests
+	signer crypto.Signer,                // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
-	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
-	trustBase types.RootTrustBase, // root trust base file
-	network ValidatorNetwork, // network layer of the validator node
+	genesis *genesis.PartitionGenesis,   // partition genesis file, created by root chain.
+	trustBase types.RootTrustBase,       // root trust base file
+	network ValidatorNetwork,            // network layer of the validator node
 	observe Observability,
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
@@ -1055,6 +1055,8 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 				n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
 			}
 		}()
+		var firstFetchedBlockNumber uint64
+		var lastFetchedBlockNumber uint64
 		var lastFetchedBlock *types.Block
 		for ; dbIt.Valid(); dbIt.Next() {
 			var bl types.Block
@@ -1064,17 +1066,24 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 				break
 			}
 			lastFetchedBlock = &bl
+			if firstFetchedBlockNumber == 0 {
+				firstFetchedBlockNumber = roundNo
+			}
+			lastFetchedBlockNumber = roundNo
 			blocks = append(blocks, lastFetchedBlock)
 			blockCnt++
 			countTx += uint32(len(bl.Transactions))
 			if countTx >= n.configuration.replicationConfig.maxTx ||
-				blockCnt >= n.configuration.replicationConfig.maxBlocks {
+				blockCnt >= n.configuration.replicationConfig.maxReturnBlocks ||
+				(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
 				break
 			}
 		}
 		resp := &replication.LedgerReplicationResponse{
-			Status: replication.Ok,
-			Blocks: blocks,
+			Status:           replication.Ok,
+			Blocks:           blocks,
+			FirstBlockNumber: firstFetchedBlockNumber,
+			LastBlockNumber:  lastFetchedBlockNumber,
 		}
 		if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier); err != nil {
 			n.log.WarnContext(ctx, fmt.Sprintf("Problem sending ledger replication response, %s", resp.Pretty()), logger.Error(err))
@@ -1099,6 +1108,15 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		n.log.DebugContext(ctx, fmt.Sprintf("Resending replication request starting with round %d", recoverFrom))
 		n.sendLedgerReplicationRequest(ctx)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
+	}
+
+	// check for duplicate requests:
+	// if we have already seen the first block in the replication response then the replication must have timed out and
+	// multiple replication requests must have been performed, discard the last arrived duplicate batch
+	lastCommittedRoundNumber := n.committedUC().GetRoundNumber()
+	if lr.FirstBlockNumber <= lastCommittedRoundNumber {
+		n.log.DebugContext(ctx, fmt.Sprintf("Duplicate Ledger Replication response, received blocks %d to %d but have latest commited block %d (replication timed out and node sent multiple replication requests?): %s", lr.FirstBlockNumber, lr.LastBlockNumber, lastCommittedRoundNumber, lr.Pretty()))
+		return nil
 	}
 
 	for _, b := range lr.Blocks {
@@ -1228,6 +1246,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		NodeIdentifier:   n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
+		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 

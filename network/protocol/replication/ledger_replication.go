@@ -33,10 +33,12 @@ type (
 	}
 
 	LedgerReplicationResponse struct {
-		_       struct{} `cbor:",toarray"`
-		Status  Status
-		Message string
-		Blocks  []*types.Block
+		_                struct{} `cbor:",toarray"`
+		Status           Status
+		Message          string
+		Blocks           []*types.Block
+		FirstBlockNumber uint64
+		LastBlockNumber  uint64
 	}
 
 	Status int

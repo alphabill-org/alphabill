@@ -86,7 +86,9 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxFetchBlocks)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxReturnBlocks)
 	require.Equal(t, DefaultReplicationMaxTx, conf.replicationConfig.maxTx)
+	require.Equal(t, DefaultLedgerReplicationTimeout, conf.replicationConfig.timeout)
 	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
+	require.Equal(t, DefaultBlockSubscriptionTimeout, conf.blockSubscriptionTimeout)
 }
 
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
@@ -106,7 +108,8 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 		WithLeaderSelector(selector),
 		WithBlockStore(blockStore),
 		WithT1Timeout(t1Timeout),
-		WithReplicationParams(1, 2, 3),
+		WithReplicationParams(1, 2, 3, 1000),
+		WithBlockSubscriptionTimeout(3500),
 	)
 
 	require.NoError(t, err)
@@ -120,6 +123,8 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.EqualValues(t, 1, conf.replicationConfig.maxFetchBlocks)
 	require.EqualValues(t, 2, conf.replicationConfig.maxReturnBlocks)
 	require.EqualValues(t, 3, conf.replicationConfig.maxTx)
+	require.EqualValues(t, 1000, conf.replicationConfig.timeout)
+	require.EqualValues(t, 3500, conf.blockSubscriptionTimeout)
 }
 
 func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPubKey crypto.Verifier, rootSigner crypto.Signer, peerConf *network.PeerConfiguration) *genesis.PartitionGenesis {

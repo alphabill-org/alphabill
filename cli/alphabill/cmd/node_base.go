@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -51,6 +52,8 @@ type startNodeConfiguration struct {
 	LedgerReplicationMaxBlocksFetch uint64
 	LedgerReplicationMaxBlocks      uint64
 	LedgerReplicationMaxTx          uint32
+	LedgerReplicationTimeoutMs      uint64
+	BlockSubscriptionTimeoutMs      uint64
 	BootStrapAddresses              string // boot strap addresses (libp2p multiaddress format)
 }
 
@@ -184,9 +187,10 @@ func createNode(ctx context.Context,
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
-		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocksFetch, cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocksFetch, cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx, time.Duration(cfg.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithProofIndex(proofStore, 20), // TODO history size!
 		partition.WithOwnerIndex(ownerIndexer),
+		partition.WithBlockSubscriptionTimeout(time.Duration(cfg.BlockSubscriptionTimeoutMs) * time.Millisecond),
 	}
 
 	node, err := partition.NewNode(
@@ -253,6 +257,8 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
+	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
+	nodeCmd.Flags().Uint64Var(&config.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000, "time since last received block when when to trigger recovery (in ms) for non-validating nodes")
 }
 
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {

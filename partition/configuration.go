@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10000
+	DefaultT1Timeout                       = 750 * time.Millisecond
+	DefaultReplicationMaxBlocks     uint64 = 1000
+	DefaultReplicationMaxTx         uint32 = 10000
+	DefaultBlockSubscriptionTimeout        = 3000 * time.Millisecond
+	DefaultLedgerReplicationTimeout        = 1500 * time.Millisecond
 )
 
 var (
@@ -48,6 +50,7 @@ type (
 		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
+		blockSubscriptionTimeout    time.Duration // time since last block when to start recovery on non-validating node
 	}
 
 	NodeOption func(c *configuration)
@@ -66,14 +69,16 @@ type (
 		maxFetchBlocks  uint64
 		maxReturnBlocks uint64
 		maxTx           uint32
+		timeout         time.Duration
 	}
 )
 
-func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32) NodeOption {
+func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32, timeout time.Duration) NodeOption {
 	return func(c *configuration) {
 		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
 		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
 		c.replicationConfig.maxTx = maxTx
+		c.replicationConfig.timeout = timeout
 	}
 }
 
@@ -130,6 +135,12 @@ func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 func WithTxValidator(txValidator TxValidator) NodeOption {
 	return func(c *configuration) {
 		c.txValidator = txValidator
+	}
+}
+
+func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
+	return func(c *configuration) {
+		c.blockSubscriptionTimeout = t
 	}
 }
 
@@ -218,6 +229,12 @@ func (c *configuration) initMissingDefaults() error {
 	}
 	if c.replicationConfig.maxTx == 0 {
 		c.replicationConfig.maxTx = DefaultReplicationMaxTx
+	}
+	if c.replicationConfig.timeout == 0 {
+		c.replicationConfig.timeout = DefaultLedgerReplicationTimeout
+	}
+	if c.blockSubscriptionTimeout == 0 {
+		c.blockSubscriptionTimeout = DefaultBlockSubscriptionTimeout
 	}
 	return nil
 }

@@ -51,7 +51,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// on timeout second request is sent
-	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), ledgerReplicationTimeout+time.Second, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), DefaultLedgerReplicationTimeout+time.Second, test.WaitTick)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
@@ -1121,7 +1121,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5))
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.partition.startNewRound(context.Background())
@@ -1184,7 +1184,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 }
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5))
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.partition.startNewRound(context.Background())

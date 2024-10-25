@@ -59,8 +59,6 @@ func (s status) String() string {
 // Key 0 is used for proposal, that way it is still possible to reverse iterate the DB
 // and use 4 byte key, make it incompatible with block number
 const proposalKey = uint32(0)
-const ledgerReplicationTimeout = 1500 * time.Millisecond
-const blockSubscriptionTimeout = 3000 * time.Millisecond
 
 var ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
 
@@ -989,12 +987,12 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 		n.sendHandshake(ctx)
 	}
 	// handle ledger replication timeout - no response from node is received
-	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > ledgerReplicationTimeout {
+	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > n.configuration.replicationConfig.timeout {
 		n.log.WarnContext(ctx, "Ledger replication timeout, repeat request")
 		n.sendLedgerReplicationRequest(ctx)
 	}
 	// handle block timeout - no new blocks received
-	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > blockSubscriptionTimeout {
+	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
 		n.log.WarnContext(ctx, "Block subscription timeout, starting recovery")
 		n.startRecovery(ctx)
 	}

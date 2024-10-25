@@ -108,6 +108,13 @@ func WithAttributes(attr any) Option {
 	}
 }
 
+func NewTransactionOrderBytes(t *testing.T, options ...Option) types.TaggedCBOR {
+	tx := NewTransactionOrder(t, options...)
+	txBytes, err := tx.MarshalCBOR()
+	require.NoError(t, err)
+	return txBytes
+}
+
 func NewTransactionOrder(t *testing.T, options ...Option) *types.TransactionOrder {
 	tx := defaultTx()
 	for _, o := range options {
@@ -121,12 +128,36 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 	for _, o := range options {
 		require.NoError(t, o(tx))
 	}
+	txBytes, err := tx.MarshalCBOR()
+	require.NoError(t, err)
 	return &types.TransactionRecord{Version: 1,
-		TransactionOrder: tx,
+		TransactionOrder: txBytes,
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,
 			TargetUnits:      []types.UnitID{tx.UnitID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		},
 	}
+}
+
+func TxoToBytes(t *testing.T, tx *types.TransactionOrder) types.TaggedCBOR {
+	txBytes, err := tx.MarshalCBOR()
+	require.NoError(t, err)
+	return txBytes
+}
+
+func TxoFromBytes(t *testing.T, txBytes types.TaggedCBOR) *types.TransactionOrder {
+	tx := &types.TransactionOrder{}
+	require.NoError(t, tx.UnmarshalCBOR(txBytes))
+	return tx
+}
+
+type TxoV1Fetcher interface {
+	GetTransactionOrderV1() (*types.TransactionOrder, error)
+}
+
+func FetchTxoV1(t *testing.T, tx TxoV1Fetcher) *types.TransactionOrder {
+	txoV1, err := tx.GetTransactionOrderV1()
+	require.NoError(t, err)
+	return txoV1
 }

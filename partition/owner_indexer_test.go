@@ -44,7 +44,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index with given state and block
-		b := &types.Block{Transactions: []*types.TransactionRecord{Version: 1, testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID))}}
+		b := &types.Block{Transactions: []*types.TransactionRecord{testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID))}}
 		err = ownerIndexer.IndexBlock(b, s)
 		require.NoError(t, err)
 
@@ -79,7 +79,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index
-		b := &types.Block{Transactions: []*types.TransactionRecord{Version: 1,
+		b := &types.Block{Transactions: []*types.TransactionRecord{
 			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID2)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
@@ -118,7 +118,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index
-		b := &types.Block{Transactions: []*types.TransactionRecord{Version: 1,
+		b := &types.Block{Transactions: []*types.TransactionRecord{
 			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
@@ -146,7 +146,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index
-		b := &types.Block{Transactions: []*types.TransactionRecord{Version: 1,
+		b := &types.Block{Transactions: []*types.TransactionRecord{
 			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))
@@ -167,7 +167,7 @@ func TestOwnerIndexer(t *testing.T) {
 		commitState(t, s)
 
 		// update index
-		b := &types.Block{Transactions: []*types.TransactionRecord{Version: 1,
+		b := &types.Block{Transactions: []*types.TransactionRecord{
 			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
 		}}
 		require.NoError(t, ownerIndexer.IndexBlock(b, s))

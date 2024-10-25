@@ -34,7 +34,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	fcrID := testfc.NewFeeCreditRecordID(t, signer)
 
 	txRecord := &types.TransactionRecord{Version: 1,
-		TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID))),
+		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
 	txRecordProof := testblock.CreateTxRecordProof(t, txRecord, signer)
@@ -105,7 +105,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
 			&fcsdk.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}},
+					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{}), ServerMetadata: &types.ServerMetadata{}},
 				},
 			},
 		))
@@ -123,7 +123,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
 					TxRecord: &types.TransactionRecord{Version: 1,
-						TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(4))),
+						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(4)))),
 						ServerMetadata:   nil,
 					},
 				}),
@@ -140,8 +140,8 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("transferFC attributes unmarshal error", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewAddFC(t, signer, nil,
-				testtransaction.WithTransactionType(fcsdk.TransactionTypeTransferFeeCredit)),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewAddFC(t, signer, nil,
+				testtransaction.WithTransactionType(fcsdk.TransactionTypeTransferFeeCredit))),
 			ServerMetadata: &types.ServerMetadata{},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -173,7 +173,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -193,7 +193,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("Invalid fee credit owner predicate", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -212,7 +212,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("invalid system id", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF)),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -231,7 +231,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("Invalid target systemID", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF)))),
 			ServerMetadata:   &types.ServerMetadata{},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -250,10 +250,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("Invalid target recordID", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
-					testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
+					testfc.WithTargetRecordID([]byte("not equal to transaction.unitId"))))),
 			ServerMetadata: &types.ServerMetadata{},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -272,10 +272,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("invalid target unit counter (fee credit record does not exist)", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
-					testfc.WithTargetUnitCounter(4))),
+					testfc.WithTargetUnitCounter(4)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -294,10 +294,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("invalid target unit counter (tx.targetUnitCounter < unit.counter)", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
-					testfc.WithTargetUnitCounter(4))),
+					testfc.WithTargetUnitCounter(4)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -317,11 +317,11 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	t.Run("ok target unit counter (tx target unit counter equals fee credit record counter)", func(t *testing.T) {
 		t.SkipNow() // TODO fix EVM fee credit records
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
 					testfc.WithTargetUnitCounter(4)),
-				testtransaction.WithUnitID(fcrID)),
+				testtransaction.WithUnitID(fcrID))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -346,11 +346,11 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("LatestAdditionTime in the past NOK", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
 					testfc.WithLatestAdditionTime(9)),
-				testtransaction.WithUnitID(fcrID)),
+				testtransaction.WithUnitID(fcrID))),
 			ServerMetadata: &types.ServerMetadata{},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -369,10 +369,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
-					testfc.WithAmount(100))),
+					testfc.WithAmount(100)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -391,10 +391,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("Invalid transaction fee", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testfc.NewTransferFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
 					testfc.WithTargetSystemID(evm.DefaultSystemID),
-					testfc.WithAmount(100))),
+					testfc.WithAmount(100)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -439,14 +439,14 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	privKeyHash := hashOfPrivateKey(t, signer)
 	feeCreditModule := newTestFeeModule(t, trustBase)
 	transFcRecord := &types.TransactionRecord{Version: 1,
-		TransactionOrder: testfc.NewTransferFC(t, signer,
+		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 			testfc.NewTransferFCAttr(t, signer,
 				testfc.WithAmount(100),
 				testfc.WithTargetRecordID(privKeyHash),
 				testfc.WithTargetSystemID(evm.DefaultSystemID),
 			),
 			testtransaction.WithSystemID(0x00000001),
-			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)})),
+			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)}))),
 		ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 	}
 	addFeeOrder := newAddFCTx(t,
@@ -482,7 +482,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	abData := stateDB.GetAlphaBillData(addr)
 	// add more funds
 	transFcRecord = &types.TransactionRecord{Version: 1,
-		TransactionOrder: testfc.NewTransferFC(t, signer,
+		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 			testfc.NewTransferFCAttr(t, signer,
 				testfc.WithAmount(10),
 				testfc.WithTargetRecordID(privKeyHash),
@@ -490,7 +490,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 				testfc.WithTargetUnitCounter(abData.Counter),
 			),
 			testtransaction.WithSystemID(0x00000001),
-			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)})),
+			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)}))),
 		ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 	}
 	addFeeOrder = newAddFCTx(t,
@@ -541,11 +541,11 @@ func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOptio
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {
 	txRecord := &types.TransactionRecord{Version: 1,
-		TransactionOrder: testfc.NewTransferFC(t, signer,
+		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 			testfc.NewTransferFCAttr(t, signer,
 				testfc.WithTargetSystemID(evm.DefaultSystemID),
 				testfc.WithAmount(100)),
-		),
+		)),
 		ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
 	txRecordProof := testblock.CreateTxRecordProof(t, txRecord, signer)

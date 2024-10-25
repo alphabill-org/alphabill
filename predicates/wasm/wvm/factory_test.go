@@ -52,14 +52,17 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TransactionRecord ok", func(t *testing.T) {
+		tx := &types.TransactionOrder{}
+		require.NoError(t, tx.SetAuthProof([]byte{0, 0, 0}))
+		txBytes, err := tx.MarshalCBOR()
+		require.NoError(t, err)
 		txr := types.TransactionRecord{Version: 1,
-			TransactionOrder: &types.TransactionOrder{},
+			TransactionOrder: txBytes,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,
 				SuccessIndicator: types.TxStatusSuccessful,
 			},
 		}
-		txr.TransactionOrder.SetAuthProof([]byte{0, 0, 0})
 		buf, err := types.Cbor.Marshal(txr)
 		require.NoError(t, err)
 

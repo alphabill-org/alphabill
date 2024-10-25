@@ -889,7 +889,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// submit transaction
-	require.NoError(t, tp.SubmitTx(newBlock1.Transactions[0].TransactionOrder))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -964,7 +965,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	require.Len(t, newBlock1.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
-	require.NoError(t, tp.SubmitTx(newBlock1.Transactions[0].TransactionOrder))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -1220,7 +1222,9 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 
 	for i, txr := range txrs {
 		transactions[i] = txr
-		_, err := txs.Execute(txr.TransactionOrder)
+		tx, err := txr.GetTransactionOrderV1()
+		require.NoError(t, err)
+		_, err = txs.Execute(tx)
 		require.NoError(t, err)
 	}
 	state, err := txs.EndBlock()
@@ -1235,7 +1239,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 		},
 	}).MarshalCBOR()
 	newBlock := &types.Block{
-		Header: &types.Header{
+		Header: &types.Header{Version: 1,
 			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
 			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",

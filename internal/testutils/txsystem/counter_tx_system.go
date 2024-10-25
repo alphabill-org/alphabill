@@ -150,13 +150,13 @@ func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error
 	return nil
 }
 
-func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
+func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.TransactionRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.ExecuteCountDelta++
 	m.uncommitted = true
-	return &types.ServerMetadata{ActualFee: m.Fee}, nil
+	return &types.TransactionRecord{ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}, nil
 }
 
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {

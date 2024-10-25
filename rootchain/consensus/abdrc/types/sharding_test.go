@@ -194,13 +194,15 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 			{NodeIdentifier: "2222", SigningPublicKey: validKey},
 		},
 		Certificate: &types.UnicityCertificate{
+			Version: 1,
 			InputRecord: &types.InputRecord{
+				Version:     1,
 				RoundNumber: 101,
 				Epoch:       2,
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, SystemIdentifier: 7},
 	}
 
 	orc := mockOrchestration{
@@ -282,13 +284,15 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 			{NodeIdentifier: "1111", SigningPublicKey: validKey},
 		},
 		Certificate: &types.UnicityCertificate{
+			Version: 1,
 			InputRecord: &types.InputRecord{
+				Version:     1,
 				RoundNumber: 900,
 				Epoch:       1,
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, SystemIdentifier: 7},
 	}
 
 	t.Run("no shard info in orchestration", func(t *testing.T) {

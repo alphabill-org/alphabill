@@ -167,9 +167,9 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions: []*types.TransactionRecord{Version: 1,
+		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: testtransaction.NewTransactionOrder(t),
+				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),
 				ServerMetadata: &types.ServerMetadata{
 					ActualFee: 10,
 				},

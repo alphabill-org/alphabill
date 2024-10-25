@@ -142,7 +142,7 @@ func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.Exec
 	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
 
-func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
@@ -171,11 +171,11 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
 		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
-	sm, err := m.doExecute(tx, exeCtx)
+	tr, err := m.doExecute(tx, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
-	return sm, nil
+	return tr, nil
 }
 
 func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (txr *types.TransactionRecord, retErr error) {
@@ -269,7 +269,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	return txr, nil
 }
 
-func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.TransactionRecord, error) {
 	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
 	if tx.StateLock != nil {
 		return nil, fmt.Errorf("error fc transaction contains state lock")
@@ -303,10 +303,11 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		TransactionOrder: txBytes,
 		ServerMetadata:   sm,
 	}
+	trHash := trx.Hash(m.hashAlgorithm)
 	// update unit log's
 	for _, targetID := range sm.TargetUnits {
 		// add log for each target unit
-		if err = m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+		if err = m.state.AddUnitLog(targetID, trHash); err != nil {
 			// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 			// an attack vector.
@@ -316,7 +317,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// transaction execution succeeded
 	m.state.ReleaseToSavepoint(savepointID)
-	return sm, nil
+	return trx, nil
 }
 
 /*

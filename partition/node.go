@@ -405,12 +405,12 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get transaction order: %w", err)
 		}
-		sm, err := n.validateAndExecuteTx(ctx, txo, round)
+		trx, err := n.validateAndExecuteTx(ctx, txo, round)
 		if err != nil {
 			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(txo.UnitID))
 			return nil, 0, fmt.Errorf("processing transaction '%v': %w", txo.UnitID, err)
 		}
-		sumOfEarnedFees += sm.ActualFee
+		sumOfEarnedFees += trx.ServerMetadata.ActualFee
 	}
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
@@ -586,23 +586,19 @@ func statusCodeOfTxError(err error) string {
 }
 
 func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
-	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
+	trx, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
-	txBytes, err := tx.MarshalCBOR()
-	if err != nil {
-		return fmt.Errorf("failed to marshal transaction: %w", err)
-	}
-	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: sm})
-	n.sumOfEarnedFees += sm.GetActualFee()
+	n.proposedTransactions = append(n.proposedTransactions, trx)
+	n.sumOfEarnedFees += trx.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
 	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID))
 	return nil
 }
 
-func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.ServerMetadata, rErr error) {
+func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.TransactionRecord, rErr error) {
 	defer func(start time.Time) {
 		txTypeAttr := attribute.Int("tx", int(tx.Type))
 		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
@@ -612,11 +608,11 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 	if err := n.txValidator.Validate(tx, round); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	sm, err := n.transactionSystem.Execute(tx)
+	trx, err := n.transactionSystem.Execute(tx)
 	if err != nil {
 		return nil, fmt.Errorf("executing transaction in transaction system: %w", err)
 	}
-	return sm, nil
+	return trx, nil
 }
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
@@ -1326,7 +1322,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}
 	pendingProposal := &types.Block{
-		Header: &types.Header{
+		Header: &types.Header{Version: 1,
 			SystemID:          n.configuration.GetSystemIdentifier(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
@@ -1344,7 +1340,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to store pending block proposal: %w", err)
 	}
 	n.pendingBlockProposal = pendingProposal
-	n.proposedTransactions = []*types.TransactionRecord{Version: 1}
+	n.proposedTransactions = []*types.TransactionRecord{}
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
@@ -1375,7 +1371,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 }
 
 func (n *Node) resetProposal() {
-	n.proposedTransactions = []*types.TransactionRecord{Version: 1}
+	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
 }
 
@@ -1429,7 +1425,11 @@ func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
 	}
-	h := txRecordProof.TransactionOrder().Hash(n.configuration.hashAlgorithm)
+	txo, err := txRecordProof.GetTransactionOrderV1()
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract transaction order from the block: %w", err)
+	}
+	h := txo.Hash(n.configuration.hashAlgorithm)
 	if !bytes.Equal(h, txoHash) {
 		return nil, errors.New("transaction index is invalid: hash mismatch")
 	}

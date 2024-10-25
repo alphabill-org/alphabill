@@ -41,9 +41,14 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		return err
 	}
 	sum := tokenData.Value
+	var prevUnitID types.UnitID
 	for i, btx := range attr.BurnTokenProofs {
+		burnTxo, err := btx.GetTransactionOrderV1()
+		if err != nil {
+			return fmt.Errorf("failed to get burn transaction order: %w", err)
+		}
 		btxAttr := &tokens.BurnFungibleTokenAttributes{}
-		if err := btx.TransactionOrder().UnmarshalAttributes(btxAttr); err != nil {
+		if err := burnTxo.UnmarshalAttributes(btxAttr); err != nil {
 			return fmt.Errorf("failed to unmarshal burn fungible token attributes")
 		}
 
@@ -53,7 +58,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 			return errors.New("invalid sum of tokens: uint64 overflow")
 		}
 
-		if i > 0 && btx.UnitID().Compare(attr.BurnTokenProofs[i-1].UnitID()) != 1 {
+		if i > 0 && burnTxo.UnitID.Compare(prevUnitID) != 1 {
 			// burning transactions orders are listed in strictly increasing order of token identifiers
 			// this ensures that no source token can be included multiple times
 			return errors.New("burn transaction orders are not listed in strictly increasing order of token identifiers")
@@ -61,11 +66,11 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if !bytes.Equal(btxAttr.TypeID, tokenData.TokenType) {
 			return fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", tokenData.TokenType, btxAttr.TypeID)
 		}
-		if btx.NetworkID() != tx.NetworkID {
-			return fmt.Errorf("burn transaction network id does not match with join transaction network id: burn transaction %d join transaction %d", btx.NetworkID(), tx.NetworkID)
+		if burnTxo.NetworkID != tx.NetworkID {
+			return fmt.Errorf("burn transaction network id does not match with join transaction network id: burn transaction %d join transaction %d", burnTxo.NetworkID, tx.NetworkID)
 		}
-		if btx.SystemID() != tx.SystemID {
-			return fmt.Errorf("burn transaction system id does not match with join transaction system id: burn transaction %d, join transaction %d", btx.SystemID(), tx.SystemID)
+		if burnTxo.SystemID != tx.SystemID {
+			return fmt.Errorf("burn transaction system id does not match with join transaction system id: burn transaction %d, join transaction %d", burnTxo.SystemID, tx.SystemID)
 		}
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID) {
 			return fmt.Errorf("burn transaction target token id does not match with join transaction unit id: burn transaction %s, join transaction %s", btxAttr.TargetTokenID, tx.UnitID)
@@ -76,6 +81,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if err = types.VerifyTxProof(btx, m.trustBase, m.hashAlgorithm); err != nil {
 			return fmt.Errorf("proof is not valid: %w", err)
 		}
+		prevUnitID = burnTxo.UnitID
 	}
 
 	if err = m.execPredicate(tokenData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {

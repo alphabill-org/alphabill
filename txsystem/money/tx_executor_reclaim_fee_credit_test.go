@@ -83,12 +83,12 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 	})
 	t.Run("Invalid transaction fee", func(t *testing.T) {
 		closeFC := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testutils.NewCloseFC(t, signer,
+			TransactionOrder: testtransaction.TxoToBytes(t, testutils.NewCloseFC(t, signer,
 				testutils.NewCloseFCAttr(
 					testutils.WithCloseFCAmount(2),
 					testutils.WithCloseFCTargetUnitCounter(counter),
 				),
-			),
+			)),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 10},
 		}
 		tx := testutils.NewReclaimFC(t, signer,

@@ -43,7 +43,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{Version: 1},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
@@ -59,7 +59,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{Version: 1},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -75,7 +75,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{Version: 1},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -90,7 +90,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			name: "block proposer id is missing",
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
-				Transactions:     []*types.TransactionRecord{Version: 1},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -107,7 +107,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				SystemIdentifier:   systemIdentifier,
 				NodeIdentifier:     "1",
 				UnicityCertificate: nil,
-				Transactions:       []*types.TransactionRecord{Version: 1},
+				Transactions:       []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -151,6 +151,18 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Hash:                 test.RandomBytes(32),
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
+	tx, err := (&types.TransactionOrder{
+		Payload: types.Payload{
+			SystemID:       0,
+			Type:           22,
+			UnitID:         nil,
+			Attributes:     nil,
+			ClientMetadata: nil,
+		},
+		AuthProof: nil,
+		FeeProof:  nil,
+	}).MarshalCBOR()
+	require.NoError(t, err)
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
@@ -168,28 +180,16 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*types.TransactionRecord{Version: 1, {
-			TransactionOrder: &types.TransactionOrder{
-				Payload: types.Payload{
-					SystemID:       0,
-					Type:           22,
-					UnitID:         nil,
-					Attributes:     nil,
-					ClientMetadata: nil,
-				},
-				AuthProof: nil,
-				FeeProof:  nil,
-			},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: tx,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
 			},
 		}},
 	}
-	err := bp.Sign(gocrypto.SHA256, signer)
-	require.NoError(t, err)
+	require.NoError(t, bp.Sign(gocrypto.SHA256, signer))
 
-	err = bp.Verify(gocrypto.SHA256, verifier)
-	require.NoError(t, err)
+	require.NoError(t, bp.Verify(gocrypto.SHA256, verifier))
 }
 
 func TestBlockProposal_InvalidSignature(t *testing.T) {
@@ -202,6 +202,18 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		Timestamp:            10000,
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
+	tx, err := (&types.TransactionOrder{
+		Payload: types.Payload{
+			SystemID:       0,
+			Type:           22,
+			UnitID:         nil,
+			Attributes:     nil,
+			ClientMetadata: nil,
+		},
+		AuthProof: nil,
+		FeeProof:  nil,
+	}).MarshalCBOR()
+	require.NoError(t, err)
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
@@ -219,22 +231,13 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*types.TransactionRecord{Version: 1, {TransactionOrder: &types.TransactionOrder{
-			Payload: types.Payload{
-				SystemID:       0,
-				Type:           22,
-				UnitID:         nil,
-				Attributes:     nil,
-				ClientMetadata: nil,
-			},
-			AuthProof: nil,
-			FeeProof:  nil,
-		},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: tx,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
 			}}},
 	}
-	err := bp.Sign(gocrypto.SHA256, signer)
+	err = bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
 	bp.Signature = test.RandomBytes(64)
 

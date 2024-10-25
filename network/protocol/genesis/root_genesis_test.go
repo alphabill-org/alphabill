@@ -238,7 +238,7 @@ func TestRootGenesis(t *testing.T) {
 	// test CBOR marshalling
 	rgBytes, err := types.Cbor.Marshal(rg)
 	require.NoError(t, err)
-	rg2 := &RootGenesis{}
+	rg2 := &RootGenesis{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(rgBytes, rg2))
 	require.Equal(t, rg, rg2)
 }

@@ -65,6 +65,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Version: 1,
 			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
@@ -79,7 +80,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	stateProvider := func(partitions []types.SystemID, irs *types.InputRecord) *MockState {
 		return &MockState{
 			inProgress:   partitions,
@@ -265,6 +266,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Version: 1,
 			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
@@ -277,7 +279,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("orchestration is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&consensus.Parameters{}, nil, &MockState{})
@@ -310,6 +312,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Version: 1,
 			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
@@ -320,7 +323,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("state monitor is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&consensus.Parameters{}, orchestration, nil)
@@ -353,11 +356,13 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Version: 1,
 			Certificate: &types.UnicityCertificate{Version: 1,
 				InputRecord: &types.InputRecord{Version: 1},
 				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID1,
 				T2Timeout:         2500 * time.Millisecond,
@@ -367,7 +372,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	state := &MockState{
 		shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
 			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0], orchestration)

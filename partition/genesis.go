@@ -118,7 +118,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		return nil, err
 	}
 	gBlock := &types.Block{
-		Header: &types.Header{
+		Header: &types.Header{Version: 1,
 			SystemID:          pdr.SystemIdentifier,
 			ProposerID:        "genesis",
 			PreviousBlockHash: zeroHash,

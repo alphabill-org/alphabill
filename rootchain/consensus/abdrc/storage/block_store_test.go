@@ -53,7 +53,7 @@ func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg}))
+	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg}))
 	require.NoError(t, err)
 	return bStore
 }
@@ -95,7 +95,7 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 }
 
 func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
@@ -154,7 +154,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 }
 
 func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
@@ -188,7 +188,7 @@ func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg}))
+	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg}))
 	require.ErrorContains(t, err, `reading shard states from storage: shard info {00000001 - } not found`)
 	require.Nil(t, bStore)
 }
@@ -375,7 +375,7 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// state msg is used to init "shard info registry", the orchestration provides data which is not part of state msg
-	storeB, err := NewFromState(gocrypto.SHA256, state, db, partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg}))
+	storeB, err := NewFromState(gocrypto.SHA256, state, db, partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg}))
 	require.NoError(t, err)
 	require.NotNil(t, storeB)
 
@@ -398,7 +398,7 @@ func Test_BlockStore_persistance(t *testing.T) {
 	// init new (empty) DB from genesis
 	db, err := boltdb.New(filepath.Join(dbPath, "blocks.db"))
 	require.NoError(t, err)
-	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg}))
+	bStore, err := New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg}))
 	require.NoError(t, err)
 	require.NotNil(t, bStore)
 
@@ -438,7 +438,7 @@ func Test_BlockStore_persistance(t *testing.T) {
 	require.NoError(t, db.Close())
 	db, err = boltdb.New(filepath.Join(dbPath, "blocks.db"))
 	require.NoError(t, err)
-	bStore, err = New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg}))
+	bStore, err = New(gocrypto.SHA256, pg, db, partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: pg}))
 	require.NoError(t, err)
 
 	cr := certs[0]

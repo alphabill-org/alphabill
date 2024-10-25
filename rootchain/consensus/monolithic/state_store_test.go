@@ -36,21 +36,25 @@ var mockUc = &types.UnicityCertificate{Version: 1,
 	},
 }
 
-var testGenesis = &genesis.RootGenesis{
+var testGenesis = &genesis.RootGenesis{Version: 1,
 	Partitions: []*genesis.GenesisPartitionRecord{
 		{
+			Version:     1,
 			Nodes:       nil,
 			Certificate: mockUc,
-			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID3,
 				T2Timeout:         2500 * time.Millisecond,
 			},
 		},
 		{
+			Version:     1,
 			Nodes:       nil,
 			Certificate: mockUc,
-			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  sysID1,
 				T2Timeout:         2500 * time.Millisecond,

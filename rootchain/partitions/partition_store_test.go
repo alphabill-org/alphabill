@@ -26,15 +26,17 @@ func Test_PartitionStore_Init(t *testing.T) {
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+			Version: 1,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
 			},
 		},
 	}
@@ -85,7 +87,7 @@ func Test_PartitionStore_AddConfiguration(t *testing.T) {
 
 		ps.next = 100
 		ps.curRound = func() uint64 { return 50 }
-		err = ps.AddConfiguration(49, &genesis.RootGenesis{})
+		err = ps.AddConfiguration(49, &genesis.RootGenesis{Version: 1})
 		require.EqualError(t, err, `can't add config taking effect on round 49 as current round is already 50`)
 		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
 	})
@@ -102,7 +104,7 @@ func Test_PartitionStore_AddConfiguration(t *testing.T) {
 
 		ps.next = 100
 		ps.curRound = func() uint64 { return 50 }
-		err = ps.AddConfiguration(51, &genesis.RootGenesis{})
+		err = ps.AddConfiguration(51, &genesis.RootGenesis{Version: 1})
 		require.ErrorIs(t, err, expErr)
 		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
 	})
@@ -118,7 +120,7 @@ func Test_PartitionStore_AddConfiguration(t *testing.T) {
 
 		ps.next = 100
 		ps.curRound = func() uint64 { return 50 }
-		err = ps.AddConfiguration(ps.next+1, &genesis.RootGenesis{})
+		err = ps.AddConfiguration(ps.next+1, &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, 100, ps.next, "next config round marker mustn't change")
 	})
@@ -134,7 +136,7 @@ func Test_PartitionStore_AddConfiguration(t *testing.T) {
 
 		ps.next = 100
 		ps.curRound = func() uint64 { return 50 }
-		err = ps.AddConfiguration(ps.next-1, &genesis.RootGenesis{})
+		err = ps.AddConfiguration(ps.next-1, &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, 99, ps.next, "next config round marker must be updated")
 	})
@@ -146,26 +148,30 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	require.NoError(t, err)
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+			Version: 1,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  1,
 				T2Timeout:         1000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
 			},
 		},
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+			Version: 1,
+			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:           1,
 				NetworkIdentifier: 5,
 				SystemIdentifier:  2,
 				T2Timeout:         2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
 			},
 		},
 	}
@@ -241,16 +247,18 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	t.Run("data from genesis store is invalid", func(t *testing.T) {
 		invalidPartitions := []*genesis.GenesisPartitionRecord{
 			{
-				PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+				Version: 1,
+				PartitionDescription: &types.PartitionDescriptionRecord{
+					Version:           1,
 					NetworkIdentifier: 5,
 					SystemIdentifier:  1,
 					T2Timeout:         1000 * time.Millisecond,
 				},
 				// make one of the PKs invalid so building partition trust base should fail
 				Nodes: []*genesis.PartitionNode{
-					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-					{NodeIdentifier: "node2", SigningPublicKey: []byte{1, 4, 8}},
-					{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+					{Version: 1, NodeIdentifier: "node2", SigningPublicKey: []byte{1, 4, 8}},
+					{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
 				},
 			},
 		}
@@ -280,13 +288,15 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	t.Run("successfully load config for next range of rounds", func(t *testing.T) {
 		nextConfig := []*genesis.GenesisPartitionRecord{
 			{
-				PartitionDescription: &types.PartitionDescriptionRecord{Version: 1,
+				Version: 1,
+				PartitionDescription: &types.PartitionDescriptionRecord{
+					Version:           1,
 					NetworkIdentifier: 5,
 					SystemIdentifier:  3,
 					T2Timeout:         3000 * time.Millisecond,
 				},
 				Nodes: []*genesis.PartitionNode{
-					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
 				},
 			},
 		}

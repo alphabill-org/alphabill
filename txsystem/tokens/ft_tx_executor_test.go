@@ -911,7 +911,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 	burnTxRecord := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
-	sm, err := txExecutors.ValidateAndExecute(burnTxRecord.TransactionOrder, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(testtransaction.FetchTxoV1(t, burnTxRecord), testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
@@ -1181,7 +1181,7 @@ func initState(t *testing.T) *state.State {
 func createTxRecord(t *testing.T, unitID types.UnitID, transactionType uint16, attr any, opts ...testtransaction.Option) *types.TransactionRecord {
 	txo := createTxOrder(t, unitID, transactionType, attr, opts...)
 	return &types.TransactionRecord{Version: 1,
-		TransactionOrder: txo,
+		TransactionOrder: testtransaction.TxoToBytes(t, txo),
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,
 			TargetUnits:      []types.UnitID{txo.UnitID},

@@ -56,7 +56,7 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 		RoundNumber:  DefaultRoundNumber,
 		SummaryValue: make([]byte, 32),
 	}
-	b := CreateBlock(t, []*types.TransactionRecord{Version: 1, txRecord}, ir, options.sdr, signer)
+	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.sdr, signer)
 	p, err := types.NewTxRecordProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
@@ -68,7 +68,7 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	b := &types.Block{
-		Header: &types.Header{
+		Header: &types.Header{Version: 1,
 			SystemID:          types.SystemID(1),
 			ProposerID:        "test",
 			PreviousBlockHash: make([]byte, 32),

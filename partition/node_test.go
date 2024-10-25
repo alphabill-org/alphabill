@@ -525,7 +525,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 		SystemIdentifier:   uc2.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
-		Transactions:       []*types.TransactionRecord{Version: 1},
+		Transactions:       []*types.TransactionRecord{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
@@ -547,7 +547,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 		SystemIdentifier:   uc2.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
-		Transactions:       []*types.TransactionRecord{Version: 1},
+		Transactions:       []*types.TransactionRecord{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
@@ -569,7 +569,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 		SystemIdentifier:   uc2.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
-		Transactions:       []*types.TransactionRecord{Version: 1},
+		Transactions:       []*types.TransactionRecord{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
@@ -600,7 +600,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		SystemIdentifier:   uc2.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
-		Transactions:       []*types.TransactionRecord{Version: 1},
+		Transactions:       []*types.TransactionRecord{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)

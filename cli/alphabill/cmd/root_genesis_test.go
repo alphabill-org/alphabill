@@ -39,7 +39,7 @@ func Test_RootGenesis_New(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 		// read resulting file
-		rootGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, rootGenesisFileName), &genesis.RootGenesis{})
+		rootGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.Len(t, rootGenesis.Root.RootValidators, 1)
 		require.NoError(t, rootGenesis.Verify())

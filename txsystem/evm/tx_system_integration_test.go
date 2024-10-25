@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/ethereum/go-ethereum/core/tracing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -88,13 +89,13 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
 	txProof, err := testpartition.WaitTxProof(t, evmPartition, transferTx)
 	require.NoError(t, err, "evm transfer transaction failed")
-	require.EqualValues(t, transferTx, txProof.TransactionOrder())
+	require.EqualValues(t, transferTx, testtransaction.FetchTxoV1(t, txProof))
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
 	require.NoError(t, err, "evm deploy transaction failed")
-	require.EqualValues(t, deployContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, deployContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -113,7 +114,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
 	require.NoError(t, err, "evm call transaction failed")
-	require.EqualValues(t, callContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, callContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txProof.TxRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -148,28 +149,28 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// transfer
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
-	meta, err := system.Execute(transferTx)
+	txr, err := system.Execute(transferTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
+	require.NotNil(t, txr)
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
-	meta, err = system.Execute(deployContractTx)
+	txr, err = system.Execute(deployContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
@@ -193,11 +194,11 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
 	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	count = uint256.NewInt(2)

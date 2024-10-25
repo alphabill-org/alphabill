@@ -257,6 +257,8 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			LedgerReplicationMaxBlocksFetch: 1000,
 			LedgerReplicationMaxBlocks:      1000,
 			LedgerReplicationMaxTx:          10000,
+			LedgerReplicationTimeoutMs:      1500,
+			BlockSubscriptionTimeoutMs:      3000,
 			WithOwnerIndex:                  true,
 		},
 		rpcServer: &rpc.ServerConfiguration{

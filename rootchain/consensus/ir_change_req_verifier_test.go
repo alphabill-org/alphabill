@@ -84,7 +84,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			inProgress:   partitions,
 			irInProgress: irs,
 			shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
-				si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0], orchestration)
+				si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
 				return si, err
 			},
 		}
@@ -366,17 +366,16 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
 	state := &MockState{
 		shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
-			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0], orchestration)
+			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
 			return si, err
 		},
 	}
 	tmoGen := &PartitionTimeoutGenerator{
 		blockRate:     500 * time.Millisecond,
 		state:         state,
-		orchestration: orchestration,
+		orchestration: partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions}),
 	}
 	var tmos []types.SystemID
 	// last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout

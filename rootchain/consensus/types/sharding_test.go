@@ -1,7 +1,6 @@
 package types
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,14 +24,13 @@ func Test_shardInfo_Update(t *testing.T) {
 			},
 			BlockSize: 2222,
 			StateSize: 3333,
-			Leader:    "1234567890",
 		}
-		si := ShardInfo{Fees: make(map[string]uint64)}
+		si := ShardInfo{Fees: make(map[string]uint64), Leader: "L"}
 		si.update(cr)
 
 		require.EqualValues(t, cr.InputRecord.RoundNumber, si.Round)
 		require.EqualValues(t, cr.InputRecord.Hash, si.RootHash)
-		require.EqualValues(t, cr.InputRecord.SumOfEarnedFees, si.Fees[cr.Leader])
+		require.EqualValues(t, cr.InputRecord.SumOfEarnedFees, si.Fees[si.Leader])
 		require.EqualValues(t, cr.InputRecord.SumOfEarnedFees, si.Stat.BlockFees)
 		require.EqualValues(t, cr.BlockSize, si.Stat.BlockSize)
 		require.EqualValues(t, cr.StateSize, si.Stat.StateSize)
@@ -111,6 +109,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 5555555},
 			},
 		},
+		Leader:    "1111",
 		trustBase: map[string]abcrypto.Verifier{"1111": verifier},
 	}
 
@@ -120,7 +119,6 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 			Partition:      si.LastCR.Partition,
 			Shard:          si.LastCR.Shard,
 			NodeIdentifier: "1111",
-			Leader:         "1111",
 			InputRecord: &types.InputRecord{
 				Version:      1,
 				RoundNumber:  si.Round + 1, // incoming request must be for next round
@@ -158,17 +156,6 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		bcr.InputRecord.Epoch++
 		require.NoError(t, bcr.Sign(signer))
 		require.EqualError(t, si.ValidRequest(bcr), `expected epoch 3, got 4`)
-	})
-
-	t.Run("leader", func(t *testing.T) {
-		bcr := validBCR()
-		bcr.Leader = ""
-		require.NoError(t, bcr.Sign(signer))
-		require.EqualError(t, si.ValidRequest(bcr), `unknown leader ID ""`)
-
-		bcr.Leader = "foobar"
-		require.NoError(t, bcr.Sign(signer))
-		require.EqualError(t, si.ValidRequest(bcr), `unknown leader ID "foobar"`)
 	})
 
 	t.Run("root hash", func(t *testing.T) {
@@ -229,9 +216,12 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 			MaxBlockSize: 5,
 			MaxStateSize: 6,
 		},
-		Leader: "A",
-		LastCR: &certification.CertificationResponse{},
+		Leader:  "A",
+		LastCR:  &certification.CertificationResponse{},
+		nodeIDs: []string{"A", "B", "C"},
 	}
+	require.NoError(t, si.IsValid())
+
 	// TR which was sent with that last round
 	var err error
 	si.LastCR.Technical, err = si.TechnicalRecord(nil, orc)
@@ -247,6 +237,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	nextSI, err := si.NextEpoch(pgEpoch2)
 	require.NoError(t, err)
 	require.NotNil(t, nextSI)
+	require.NoError(t, nextSI.IsValid())
 	// data which is carried on to the next epoch
 	require.Equal(t, si.RootHash, nextSI.RootHash)
 	require.Equal(t, si.Round, nextSI.Round)
@@ -269,9 +260,36 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	require.Equal(t, types.RawCBOR{0xa3, 0x61, 0x41, 0x1, 0x61, 0x42, 0x2, 0x61, 0x43, 0x3}, nextSI.PrevEpochFees)
 	// fee list is initialized to new validator list
 	require.Equal(t, map[string]uint64{"2222": 0}, nextSI.Fees)
-	// array of 7 items, sorted by field name
+	// array of 7 items, sorted by field order in the struct
 	require.Equal(t, types.RawCBOR{0x87, 0, 1, 2, 3, 4, 5, 6}, nextSI.PrevEpochStat)
 	require.Equal(t, certification.StatisticalRecord{}, nextSI.Stat, "expected stat to be reset")
+}
+
+func Test_ShardInfo_Quorum(t *testing.T) {
+	// GetQuorum depends on the items in the trustbase
+	si := ShardInfo{}
+	require.EqualValues(t, 0, si.GetTotalNodes())
+	require.EqualValues(t, 1, si.GetQuorum())
+
+	si.trustBase = map[string]abcrypto.Verifier{}
+	require.EqualValues(t, 0, si.GetTotalNodes())
+	require.EqualValues(t, 1, si.GetQuorum())
+
+	si.trustBase["1"] = nil // using nil as actual value is not important in this case
+	require.EqualValues(t, 1, si.GetTotalNodes())
+	require.EqualValues(t, 1, si.GetQuorum())
+
+	si.trustBase["2"] = nil
+	require.EqualValues(t, 2, si.GetTotalNodes())
+	require.EqualValues(t, 2, si.GetQuorum())
+
+	si.trustBase["3"] = nil
+	require.EqualValues(t, 3, si.GetTotalNodes())
+	require.EqualValues(t, 2, si.GetQuorum())
+
+	si.trustBase["4"] = nil
+	require.EqualValues(t, 4, si.GetTotalNodes())
+	require.EqualValues(t, 3, si.GetQuorum())
 }
 
 func Test_NewShardInfoFromGenesis(t *testing.T) {
@@ -291,20 +309,8 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 		PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 7},
 	}
 
-	t.Run("no shard info in orchestration", func(t *testing.T) {
-		expErr := errors.New("orchestration failure")
-		orc := mockOrchestration{
-			shardEpoch: func(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) { return 0, expErr },
-		}
-		_, err := NewShardInfoFromGenesis(pgEpoch1, orc)
-		require.ErrorIs(t, err, expErr)
-	})
-
 	t.Run("success", func(t *testing.T) {
-		orc := mockOrchestration{
-			shardEpoch: func(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) { return 1, nil },
-		}
-		si, err := NewShardInfoFromGenesis(pgEpoch1, orc)
+		si, err := NewShardInfoFromGenesis(pgEpoch1)
 		require.NoError(t, err)
 		require.Equal(t, pgEpoch1.Certificate.GetRoundNumber(), si.Round)
 		require.Equal(t, pgEpoch1.Certificate.InputRecord.Epoch, si.Epoch)
@@ -313,43 +319,28 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 		require.Equal(t, map[string]uint64{"1111": 0}, si.Fees)
 		require.Equal(t, types.RawCBOR{0xA0}, si.PrevEpochFees)
 		require.Equal(t, types.RawCBOR{0x87, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, si.PrevEpochStat)
-		require.Equal(t, "", si.Leader)
+		require.Equal(t, "1111", si.Leader)
 		require.Equal(t, "1111", si.LastCR.Technical.Leader)
 		require.Equal(t, si.Round+1, si.LastCR.Technical.Round)
 		require.Equal(t, si.Epoch, si.LastCR.Technical.Epoch)
 	})
 
-	t.Run("epoch change", func(t *testing.T) {
-		pgEpoch2 := *pgEpoch1
-		pgEpoch2.Certificate = &types.UnicityCertificate{
-			InputRecord: &types.InputRecord{
-				RoundNumber: 901,
-				Epoch:       2,
-				Hash:        []byte{2, 2, 2, 0, 0, 0, 0, 0},
-			},
-		}
-		pgEpoch2.Nodes = []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: validKey},
-		}
+	t.Run("no nodes", func(t *testing.T) {
+		pg := *pgEpoch1
+		pg.Nodes = nil
+		si, err := NewShardInfoFromGenesis(&pg)
+		require.EqualError(t, err, `shard info init: no validators in the fee list`)
+		require.Empty(t, si)
+	})
 
-		orc := mockOrchestration{
-			shardEpoch: func(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) {
-				if round > pgEpoch1.Certificate.InputRecord.RoundNumber {
-					return 2, nil
-				}
-				return 1, nil
-			},
-			shardConfig: func(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return &pgEpoch2, nil
-			},
+	t.Run("invalid key", func(t *testing.T) {
+		pg := *pgEpoch1
+		pg.Nodes = []*genesis.PartitionNode{
+			{NodeIdentifier: "1111", SigningPublicKey: []byte{1, 2, 3}},
 		}
-
-		si, err := NewShardInfoFromGenesis(pgEpoch1, orc)
-		require.NoError(t, err)
-		require.Equal(t, pgEpoch1.Certificate.GetRoundNumber(), si.Round)
-		require.Equal(t, "2222", si.LastCR.Technical.Leader, "expected leader from the new epoch")
-		require.Equal(t, si.Round+1, si.LastCR.Technical.Round)
-		require.Equal(t, si.Epoch+1, si.LastCR.Technical.Epoch)
+		si, err := NewShardInfoFromGenesis(&pg)
+		require.EqualError(t, err, `shard info init: creating verifier for the node "1111": pubkey must be 33 bytes long, but is 3`)
+		require.Empty(t, si)
 	})
 }
 

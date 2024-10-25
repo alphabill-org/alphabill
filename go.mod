@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/ainvaltin/httpsrv v0.1.2
-	github.com/alphabill-org/alphabill-go-base v0.0.0-20241015125838-7dd3f0320b56
+	github.com/alphabill-org/alphabill-go-base v0.5.0-rc1.0.20241025111545-669e8565ad21
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/ethereum/go-ethereum v1.14.11
 	github.com/fxamacker/cbor/v2 v2.7.0

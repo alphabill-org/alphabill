@@ -152,6 +152,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	tx, err := (&types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			SystemID:       0,
 			Type:           22,
@@ -202,7 +203,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		Timestamp:            10000,
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
-	tx, err := (&types.TransactionOrder{
+	tx, err := (&types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			SystemID:       0,
 			Type:           22,

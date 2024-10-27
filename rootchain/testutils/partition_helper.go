@@ -64,6 +64,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 			SigningPublicKey:          rawSigningPubKey,
 			EncryptionPublicKey:       rawEncPubKey,
 			BlockCertificationRequest: req,
+			PartitionDescription:      types.PartitionDescriptionRecord{Version: 1},
 		})
 
 		partitionNodes = append(partitionNodes, partitionNode)

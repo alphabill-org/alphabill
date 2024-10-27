@@ -88,7 +88,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		exec := make(TxExecutors)
 		mock := NewMockTxModule(errors.New("unexpected call"))
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: 23}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: 23}}
 		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		// try calling validate
 		require.EqualError(t, err, `unknown transaction type 23`)
@@ -112,7 +112,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		expErr := errors.New("transaction handler failed")
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: mockTx}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: mockTx}}
 		attr, authProof, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)
@@ -127,7 +127,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		expErr := errors.New("transaction handler failed")
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: mockTx}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: mockTx}}
 		attr, _, err := exec.Validate(txo, NewExecutionContext(txo, &txSysInfo{}, NewMockFeeModule(), nil, 10))
 		require.EqualError(t, err, "failed to unmarshal payload: EOF")
 		require.Nil(t, attr)

@@ -35,6 +35,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 
 	t.Run("TransactionOrder ok", func(t *testing.T) {
 		txo := types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				SystemID: 1,
 				Type:     22,
@@ -52,7 +53,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TransactionRecord ok", func(t *testing.T) {
-		tx := &types.TransactionOrder{}
+		tx := &types.TransactionOrder{Version: 1}
 		require.NoError(t, tx.SetAuthProof([]byte{0, 0, 0}))
 		txBytes, err := tx.MarshalCBOR()
 		require.NoError(t, err)

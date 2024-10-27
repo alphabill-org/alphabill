@@ -300,7 +300,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 
 	// create swap tx
-	swapTx := &types.TransactionOrder{
+	swapTx := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			NetworkID:  pdr.NetworkIdentifier,
 			SystemID:   pdr.SystemIdentifier,

@@ -145,7 +145,7 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, error) {
 	var pns []*genesis.PartitionNode
 	for _, p := range paths {
-		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
+		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{Version: 1})
 		if err != nil {
 			return nil, fmt.Errorf("read partition genesis file '%s' failed: %w", p, err)
 		}

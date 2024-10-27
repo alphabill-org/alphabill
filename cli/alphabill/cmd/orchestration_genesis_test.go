@@ -59,7 +59,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
@@ -123,7 +123,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, sdr, pn.PartitionDescription)
 		require.EqualValues(t, sdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)

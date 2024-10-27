@@ -236,7 +236,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	require.NoError(t, err)
 	pubKeyHash := hash.Sum256(pubKey)
 
-	validTxOrder := &types.TransactionOrder{
+	validTxOrder := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			SystemID: 1,
 			Type:     22,

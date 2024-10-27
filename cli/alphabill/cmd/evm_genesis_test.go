@@ -56,7 +56,7 @@ func Test_EvmGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		nodeGenesisFile := filepath.Join(homeDir, evmDir, evmGenesisFileName)
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, evmDir), 0700))
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "evm-genesis --gen-keys --home " + homeDir + " --partition-description " + pdrFilename
@@ -116,7 +116,7 @@ func Test_EvmGenesis(t *testing.T) {
 		require.FileExists(t, kf)
 		require.FileExists(t, nodeGenesisFile)
 
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		params := &genesis.EvmPartitionParams{}
 		require.NoError(t, types.Cbor.Unmarshal(pn.Params, params))
@@ -145,7 +145,7 @@ func Test_EvmGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescription)
 		require.EqualValues(t, pdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)

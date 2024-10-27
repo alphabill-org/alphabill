@@ -52,7 +52,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(ctx))
 
-	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 	require.NoError(t, err)
 
 	// use same keys for signing and communication encryption.

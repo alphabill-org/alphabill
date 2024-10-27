@@ -72,7 +72,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 				T2Timeout:         2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{
 				InputRecord: irSysID1,
@@ -273,9 +273,9 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 				T2Timeout:         2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -319,7 +319,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 				T2Timeout:         2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -368,7 +368,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				T2Timeout:         2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}

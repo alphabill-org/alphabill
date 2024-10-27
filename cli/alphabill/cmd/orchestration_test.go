@@ -63,7 +63,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// generate root genesis
@@ -127,6 +127,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				Type:           orchestration.TransactionTypeAddVAR,
 				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),

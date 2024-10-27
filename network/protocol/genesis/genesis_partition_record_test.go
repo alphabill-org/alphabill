@@ -168,6 +168,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 		SigningPublicKey:          node1VerifierPubKey,
 		EncryptionPublicKey:       encryptionPubKeyBytes,
 		BlockCertificationRequest: request,
+		PartitionDescription:      types.PartitionDescriptionRecord{Version: 1},
 	}
 	return pr
 }

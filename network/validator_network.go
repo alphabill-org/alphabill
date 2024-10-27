@@ -350,7 +350,7 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 	}()
 
 	for {
-		tx := &types.TransactionOrder{}
+		tx := &types.TransactionOrder{Version: 1}
 		if err := deserializeMsg(stream, tx); err != nil {
 			if !errors.Is(err, io.EOF) {
 				n.log.WarnContext(ctx, fmt.Sprintf("reading %q message", stream.Protocol()), logger.Error(err))

@@ -51,7 +51,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "money-genesis --gen-keys --home " + homeDir + pdrArgument
@@ -221,7 +221,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, sdr, pn.PartitionDescription)
 		require.EqualValues(t, sdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)

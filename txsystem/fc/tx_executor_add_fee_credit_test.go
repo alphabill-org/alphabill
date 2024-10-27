@@ -74,7 +74,7 @@ func TestFeeCredit_validateCreateFC(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{}), ServerMetadata: &types.ServerMetadata{}},
+					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{Version: 1}), ServerMetadata: &types.ServerMetadata{}},
 					TxProof:  nil,
 				}},
 			),
@@ -446,7 +446,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 			testtransaction.WithUnitID(testfc.NewFeeCreditRecordID(t, signer)),
 			testtransaction.WithAttributes(&fc.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{}), ServerMetadata: &types.ServerMetadata{}},
+					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{Version: 1}), ServerMetadata: &types.ServerMetadata{}},
 					TxProof:  nil,
 				},
 			}),

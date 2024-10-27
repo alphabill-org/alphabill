@@ -50,6 +50,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 			SigningPublicKey:          pubKey,
 			EncryptionPublicKey:       pubKey,
 			BlockCertificationRequest: req,
+			PartitionDescription:      types.PartitionDescriptionRecord{Version: 1},
 		}},
 	}
 }

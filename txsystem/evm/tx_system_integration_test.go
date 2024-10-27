@@ -246,6 +246,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			SystemID:       systemIdentifier,
@@ -271,7 +272,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	}
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
-	txo := &types.TransactionOrder{
+	txo := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			SystemID:       systemIdentifier,
@@ -297,6 +298,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			SystemID:       systemIdentifier,

@@ -105,7 +105,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
 			&fcsdk.AddFeeCreditAttributes{
 				FeeCreditTransferProof: &types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{}), ServerMetadata: &types.ServerMetadata{}},
+					TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.TxoToBytes(t, &types.TransactionOrder{Version: 1}), ServerMetadata: &types.ServerMetadata{}},
 				},
 			},
 		))
@@ -578,7 +578,7 @@ func newTxPayload(t *testing.T, txType uint16, unitID []byte, timeout uint64, fc
 }
 
 func newAddFCTx(t *testing.T, unitID []byte, attr *fcsdk.AddFeeCreditAttributes, signer abcrypto.Signer, timeout uint64) *types.TransactionOrder {
-	tx := &types.TransactionOrder{
+	tx := &types.TransactionOrder{Version: 1,
 		Payload: newTxPayload(t, fcsdk.TransactionTypeAddFeeCredit, unitID, timeout, nil, attr),
 	}
 	ownerProof := testsig.NewAuthProofSignature(t, tx, signer)

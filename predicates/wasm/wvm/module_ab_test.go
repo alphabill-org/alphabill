@@ -56,7 +56,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -80,7 +80,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -108,7 +108,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				},
 			}
 		}
-		txOrder := &types.TransactionOrder{
+		txOrder := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				Type:     tokens.TransactionTypeTransferNFT,
 				SystemID: 5,
@@ -167,7 +167,7 @@ func Test_amountTransferredSum(t *testing.T) {
 		},
 	}
 	// valid money transfer
-	txPayment := &types.TransactionOrder{
+	txPayment := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			SystemID: money.DefaultSystemID,
 			Type:     money.TransactionTypeTransfer,
@@ -186,7 +186,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	proofs = append(proofs, txRecProof)
 
 	// money transfer by split tx
-	txPayment = &types.TransactionOrder{
+	txPayment = &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			SystemID: money.DefaultSystemID,
 			Type:     money.TransactionTypeSplit,
@@ -264,7 +264,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("tx for non-money txsystem", func(t *testing.T) {
 		// money system ID is 1, create tx for some other txs
-		txPaymentBytes, err := (&types.TransactionOrder{Payload: types.Payload{SystemID: 2}}).MarshalCBOR()
+		txPaymentBytes, err := (&types.TransactionOrder{Version: 1, Payload: types.Payload{SystemID: 2}}).MarshalCBOR()
 		require.NoError(t, err)
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
@@ -275,7 +275,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("ref number mismatch", func(t *testing.T) {
 		// if ref-no parameter is provided it must match (nil ref-no means "do not care")
-		tx := &types.TransactionOrder{
+		tx := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: money.DefaultSystemID,
 				Type:     money.TransactionTypeTransfer,
@@ -308,7 +308,7 @@ func Test_transferredSum(t *testing.T) {
 		// all money tx types other than TransactionTypeSplit and TransactionTypeTransfer should
 		// be ignored ie cause no error but return zero as sum
 		txTypes := []uint16{money.TransactionTypeLock, money.TransactionTypeSwapDC, money.TransactionTypeTransDC, money.TransactionTypeUnlock}
-		tx := &types.TransactionOrder{}
+		tx := &types.TransactionOrder{Version: 1}
 		txRec := &types.TransactionRecord{Version: 1,
 			TransactionOrder: nil,
 			ServerMetadata:   &types.ServerMetadata{},
@@ -329,7 +329,7 @@ func Test_transferredSum(t *testing.T) {
 	})
 
 	t.Run("txType and attributes do not match", func(t *testing.T) {
-		txPayment := &types.TransactionOrder{
+		txPayment := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: money.DefaultSystemID,
 				Type:     money.TransactionTypeSplit,
@@ -357,7 +357,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("transfer tx", func(t *testing.T) {
 		refNo := []byte("reasons")
-		txPayment := &types.TransactionOrder{
+		txPayment := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: money.DefaultSystemID,
 				Type:     money.TransactionTypeTransfer,
@@ -406,7 +406,7 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("split tx", func(t *testing.T) {
 		refNo := []byte("reasons")
-		txPayment := &types.TransactionOrder{
+		txPayment := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: money.DefaultSystemID,
 				Type:     money.TransactionTypeSplit,

@@ -316,7 +316,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 	uc, _ := (&types.UnicityCertificate{Version: 1,
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
-	tx, _ := (&types.TransactionOrder{Payload: types.Payload{SystemID: types.SystemID(1), UnitID: unitID}}).MarshalCBOR()
+	tx, _ := (&types.TransactionOrder{Version: 1, Payload: types.Payload{SystemID: types.SystemID(1), UnitID: unitID}}).MarshalCBOR()
 	block := &types.Block{
 		Header: &types.Header{Version: 1, SystemID: 1},
 		Transactions: []*types.TransactionRecord{

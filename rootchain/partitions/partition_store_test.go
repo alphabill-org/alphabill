@@ -34,9 +34,9 @@ func Test_PartitionStore_Init(t *testing.T) {
 				T2Timeout:         2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -156,9 +156,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 				T2Timeout:         1000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{Version: 1, NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 		{
@@ -170,8 +170,8 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 				T2Timeout:         2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{Version: 1, NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
-				{Version: 1, NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
+				{Version: 1, NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{Version: 1, NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -256,9 +256,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 				},
 				// make one of the PKs invalid so building partition trust base should fail
 				Nodes: []*genesis.PartitionNode{
-					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-					{Version: 1, NodeIdentifier: "node2", SigningPublicKey: []byte{1, 4, 8}},
-					{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+					{Version: 1, NodeIdentifier: "node2", SigningPublicKey: []byte{1, 4, 8}, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+					{Version: 1, NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 				},
 			},
 		}
@@ -296,7 +296,7 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 					T2Timeout:         3000 * time.Millisecond,
 				},
 				Nodes: []*genesis.PartitionNode{
-					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+					{Version: 1, NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
 				},
 			},
 		}

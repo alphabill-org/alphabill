@@ -65,7 +65,7 @@ func TestRunTokensNode(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(ctx))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// use same keys for signing and communication encryption.
@@ -131,6 +131,7 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				SystemID:       tokens.DefaultSystemID,
 				Type:           tokens.TransactionTypeDefineNFT,

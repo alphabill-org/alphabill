@@ -21,7 +21,7 @@ func defaultTx() *types.TransactionOrder {
 		UnitID:         test.RandomBytes(33),
 		ClientMetadata: defaultClientMetadata(),
 	}
-	return &types.TransactionOrder{Payload: payload}
+	return &types.TransactionOrder{Version: 1, Payload: payload}
 }
 
 func defaultClientMetadata() *types.ClientMetadata {
@@ -147,7 +147,7 @@ func TxoToBytes(t *testing.T, tx *types.TransactionOrder) types.TaggedCBOR {
 }
 
 func TxoFromBytes(t *testing.T, txBytes types.TaggedCBOR) *types.TransactionOrder {
-	tx := &types.TransactionOrder{}
+	tx := &types.TransactionOrder{Version: 1}
 	require.NoError(t, tx.UnmarshalCBOR(txBytes))
 	return tx
 }

@@ -51,7 +51,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	unitID, err := tokens.NewRandomFungibleTokenTypeID(nil)
 	require.NoError(t, err)
 
-	validTxOrder := &types.TransactionOrder{
+	validTxOrder := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			Type:   tokens.TransactionTypeDefineFT,
 			UnitID: unitID,
@@ -67,7 +67,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	}{
 		{
 			name: "nil unitID",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: nil,
@@ -80,7 +80,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		},
 		{
 			name: "unitID has wrong type",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenID,
@@ -93,7 +93,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		},
 		{
 			name: "parentTypeID has wrong type",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenTypeID,
@@ -153,7 +153,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		},
 		{
 			name: "unit with given ID exists",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenTypeID,
@@ -342,7 +342,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name: "unit ID is nil",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nil,
@@ -354,7 +354,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "unit ID has wrong type",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: invalidFungibleTokenID,
@@ -366,7 +366,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "type ID has wrong type",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: existingTokenID,
@@ -378,7 +378,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "unit type with given ID does not exist",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,
@@ -390,7 +390,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token type does not exist",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,
@@ -406,7 +406,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value - zero",
-			tx: &types.TransactionOrder{
+			tx: &types.TransactionOrder{Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,

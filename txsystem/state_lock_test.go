@@ -20,7 +20,7 @@ import (
 
 func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		tx := &types.TransactionOrder{StateUnlock: nil}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: nil}
 
 		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
@@ -28,7 +28,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	})
 
 	t.Run("empty input", func(t *testing.T) {
-		tx := &types.TransactionOrder{StateUnlock: []byte{}}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: []byte{}}
 
 		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
@@ -39,7 +39,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		kind := StateUnlockExecute
 		proof := []byte("proof")
 
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
@@ -50,7 +50,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		kind := StateUnlockRollback
 		proof := []byte("proof")
 
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
@@ -60,7 +60,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("invalid kind", func(t *testing.T) {
 		kind := byte(2) // Invalid kind
 		proof := []byte("proof")
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{kind}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{kind}, proof...)}
 
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
@@ -73,7 +73,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 func Test_proof_check_with_nil(t *testing.T) {
 	kind := StateUnlockExecute
 	proof := []byte("proof")
-	tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+	tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 	result, err := stateUnlockProofFromTx(tx)
 	require.NoError(t, err)
 	predEng, err := predicates.Dispatcher(templates.New())

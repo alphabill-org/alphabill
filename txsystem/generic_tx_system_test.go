@@ -356,7 +356,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	// create valid order (in the sense of basic checks performed by the generic
 	// tx system) for "txs" transaction system
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
-		return &types.TransactionOrder{
+		return &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				NetworkID: txs.pdr.NetworkIdentifier,
 				SystemID:  txs.pdr.SystemIdentifier,

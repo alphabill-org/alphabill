@@ -29,7 +29,7 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
 		// getHandle is called once, always return 1 as the handle
 		getHandle := func(obj any) uint64 { return 1 }
-		tx, err := (&types.TransactionOrder{}).MarshalCBOR()
+		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
 		require.NoError(t, err)
 		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
@@ -39,7 +39,7 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	t.Run("txOrder", func(t *testing.T) {
 		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
-		txo := &types.TransactionOrder{
+		txo := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: 7,
 				Type:     22,
@@ -90,7 +90,7 @@ func Test_generate_TXSTestsData(t *testing.T) {
 
 	t.Run("txRecord", func(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
-		tx, err := (&types.TransactionOrder{}).MarshalCBOR()
+		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
 		require.NoError(t, err)
 		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func Test_generate_TXSTestsData(t *testing.T) {
 
 	t.Run("txOrder", func(t *testing.T) {
 		// ver 1 of the txOrder
-		txo := &types.TransactionOrder{
+		txo := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				SystemID: 7,
 				Type:     22,

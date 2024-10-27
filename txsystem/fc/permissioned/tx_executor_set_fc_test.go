@@ -211,7 +211,7 @@ func newSetFeeCreditTx(adminKey crypto.Signer, systemID types.SystemID, unitID, 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	txo := &types.TransactionOrder{
+	txo := &types.TransactionOrder{Version: 1,
 		Payload:  payload,
 		FeeProof: feeProof,
 	}

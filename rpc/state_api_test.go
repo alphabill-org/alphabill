@@ -374,7 +374,7 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	txo := &types.TransactionOrder{
+	txo := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
 			UnitID:         unitID,
 			Type:           money.TransactionTypeTransfer,

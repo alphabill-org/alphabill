@@ -87,7 +87,7 @@ func Test_RootGenesis_New(t *testing.T) {
 	t.Run("InvalidPartitionSignature", func(t *testing.T) {
 		homeDir := t.TempDir()
 		// create partition node genesis file with invalid signature
-		moneyGenesis, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		moneyGenesis, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		copy(moneyGenesis.BlockCertificationRequest.Signature[:], []byte{'F', 'O', 'O', 'B', 'A', 'R'})
 		invalidPGFile := filepath.Join(homeDir, "invalid-pg.json")

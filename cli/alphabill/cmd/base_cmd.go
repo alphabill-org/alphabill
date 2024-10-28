@@ -65,7 +65,7 @@ func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {
 	var baseCmd = &cobra.Command{
 		Use:           "alphabill",
 		Short:         "The alphabill CLI",
-		Long:          `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		Long:          `The alphabill CLI includes commands for shard and rootchain validators, generating genesis files etc.`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

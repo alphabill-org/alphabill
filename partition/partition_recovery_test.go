@@ -23,6 +23,7 @@ import (
 func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
+	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	order := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(order))
@@ -57,6 +58,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
+	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	order := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(order))
@@ -153,6 +155,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
+	tp.WaitHandshake(t)
 
 	// create new block
 	tp.CreateBlock(t)
@@ -164,11 +167,6 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	system := &testtxsystem.CounterTxSystem{}
 	system.Commit(tp.nodeConf.genesis.Certificate)
 	tp.nodeDeps.txSystem = system
-
-	tp.nodeDeps.nodeOptions = append(tp.nodeDeps.nodeOptions, WithLeaderSelector(&TestLeaderSelector{
-		leader:      "",
-		currentNode: "1",
-	}))
 
 	// kill current partition node and start it a new
 	cancel()
@@ -200,6 +198,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
+	tp.WaitHandshake(t)
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -255,6 +254,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
+	tp.WaitHandshake(t)
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -298,6 +298,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	ctx, cancel := context.WithCancel(context.Background())
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	done := StartSingleNodePartition(ctx, t, tp)
+	tp.WaitHandshake(t)
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -417,6 +418,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 
 func TestNode_RecoverBlocks(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
@@ -478,6 +480,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
@@ -514,6 +517,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
@@ -582,6 +586,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 
 func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
@@ -635,6 +640,7 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
@@ -689,6 +695,7 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 
 func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
@@ -736,6 +743,7 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
+	tp.WaitHandshake(t)
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -1008,6 +1016,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
@@ -1070,6 +1079,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
+	tp.WaitHandshake(t)
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.partition.startNewRound(context.Background())
@@ -1133,6 +1143,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
+	tp.WaitHandshake(t)
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.partition.startNewRound(context.Background())
@@ -1226,14 +1237,18 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	state, err := txs.EndBlock()
 	require.NoError(t, err)
 	// create new block
-	ucBytes, err := (&types.UnicityCertificate{Version: 1,
-		InputRecord: &types.InputRecord{Version: 1,
+	ucBytes, err := (&types.UnicityCertificate{
+		Version: 1,
+		TRHash:  make([]byte, 32),
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			RoundNumber:  newRound,
 			Hash:         state.Root(),
 			PreviousHash: uc.InputRecord.Hash,
 			SummaryValue: state.Summary(),
 		},
 	}).MarshalCBOR()
+	require.NoError(t, err)
 	newBlock := &types.Block{
 		Header: &types.Header{
 			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
@@ -1265,6 +1280,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 // ledger replication request is received with invalid UC.IR.SumOfEarnedFees => recovery fails
 func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1})
+	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	// create a block with single tx with fee=1 but sumOfEarnedFees=0

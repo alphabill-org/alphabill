@@ -82,7 +82,6 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	require.NotNil(t, conf.unicityCertificateValidator)
 	require.NotNil(t, conf.genesis)
 	require.NotNil(t, conf.hashAlgorithm)
-	require.NotNil(t, conf.leaderSelector)
 	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
 }
 
@@ -91,12 +90,11 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockStore, err := memorydb.New()
 	require.NoError(t, err)
-	selector := NewDefaultLeaderSelector()
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
 	trustBase, err := pg.GenerateRootTrustBase()
 	require.NoError(t, err)
-	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{}, WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
+	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{}, WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -104,7 +102,6 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))
 	require.NoError(t, conf.unicityCertificateValidator.Validate(nil))
-	require.Equal(t, selector, conf.leaderSelector)
 	require.Equal(t, t1Timeout, conf.t1Timeout)
 }
 

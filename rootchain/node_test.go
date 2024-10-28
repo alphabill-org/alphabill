@@ -57,10 +57,9 @@ func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
 		}
 	}
 
-	orchestration := partitions.NewOrchestration(rg)
 	shardInfo := map[types.SystemID]*drctypes.ShardInfo{}
 	for _, partition := range rg.Partitions {
-		si, err := drctypes.NewShardInfoFromGenesis(partition, orchestration)
+		si, err := drctypes.NewShardInfoFromGenesis(partition)
 		if err != nil {
 			return nil, fmt.Errorf("creating shard info: %w", err)
 		}
@@ -337,7 +336,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
 	// make sure certificate is sent in return
-	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
+	testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
 	subscribed := rootValidator.subscription.Get(partitionID)
 	require.Empty(t, subscribed)
@@ -399,8 +398,8 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// expect repeat UC to be sent
-	repeatCert := testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
-	require.Equal(t, rg.Partitions[0].Certificate, repeatCert)
+	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
+	require.Equal(t, rg.Partitions[0].Certificate, &repeatCert.UC)
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
@@ -427,8 +426,8 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// expect repeat UC to be sent
-	repeatCert := testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
-	require.Equal(t, rg.Partitions[0].Certificate, repeatCert)
+	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
+	require.Equal(t, rg.Partitions[0].Certificate, &repeatCert.UC)
 }
 
 func TestRootValidatorTest_SimulateResponse(t *testing.T) {
@@ -451,13 +450,6 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	}
 	cr := certification.CertificationResponse{
 		Partition: partitionID,
-		Technical: certification.TechnicalRecord{
-			Round:    3,
-			Epoch:    1,
-			Leader:   rg.Partitions[0].Nodes[0].NodeIdentifier,
-			StatHash: []byte{1},
-			FeeHash:  []byte{2},
-		},
 		UC: types.UnicityCertificate{
 			Version:     1,
 			InputRecord: newIR,
@@ -467,6 +459,14 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
 	}
+	require.NoError(t,
+		cr.SetTechnicalRecord(certification.TechnicalRecord{
+			Round:    3,
+			Epoch:    1,
+			Leader:   rg.Partitions[0].Nodes[0].NodeIdentifier,
+			StatHash: []byte{1},
+			FeeHash:  []byte{2},
+		}))
 	// simulate 2x subscriptions
 	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
@@ -474,11 +474,11 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(ctx, &cr)
 	// UC's are sent to all partition nodes
-	certs := testutils.MockNetAwaitMultiple[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 2)
+	certs := testutils.MockNetAwaitMultiple[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
 	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UnicityTreeCertificate.SystemIdentifier)
-		require.Equal(t, newIR, cert.InputRecord)
+		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.SystemIdentifier)
+		require.Equal(t, newIR, cert.UC.InputRecord)
 	}
 }
 

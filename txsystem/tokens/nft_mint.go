@@ -26,12 +26,12 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	tokenTypeID := attr.TypeID
 
 	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
-		return fmt.Errorf(ErrStrInvalidUnitID)
+		return errors.New(ErrStrInvalidUnitID)
 	}
 
 	// verify token type has correct embedded type
 	if !tokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType) {
-		return fmt.Errorf(ErrStrInvalidTokenTypeID)
+		return errors.New(ErrStrInvalidTokenTypeID)
 	}
 
 	// verify max allowed sizes

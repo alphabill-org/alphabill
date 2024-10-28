@@ -98,7 +98,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create second root
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	b10 := fakeBlock(10, &drctypes.QuorumCert{
@@ -157,7 +157,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create a second chain, that has no root
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
@@ -350,14 +350,14 @@ func TestBlockStoreStoreLastVote(t *testing.T) {
 func Test_BlockStore_ShardInfo(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	// the initBlockStoreFromGenesis fills the store from global var "pg"
-	for _, partGenesis := range pg {
+	for idx, partGenesis := range pg {
 		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.SystemIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.Epoch)
 		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber, si.Round)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
-		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC)
+		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
 		require.Equal(t, partGenesis.PartitionDescription.SystemIdentifier, si.LastCR.Partition)
 	}
 

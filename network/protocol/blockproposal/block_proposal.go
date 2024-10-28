@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )
 
 var (
@@ -20,9 +21,11 @@ var (
 
 type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
-	SystemIdentifier   types.SystemID
+	Partition          types.SystemID
+	Shard              types.ShardID
 	NodeIdentifier     string
 	UnicityCertificate *types.UnicityCertificate
+	Technical          certification.TechnicalRecord
 	Transactions       []*types.TransactionRecord
 	Signature          []byte
 }
@@ -40,8 +43,8 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if tb == nil {
 		return ErrTrustBaseIsNil
 	}
-	if systemIdentifier != x.SystemIdentifier {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
+	if systemIdentifier != x.Partition {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.Partition)
 	}
 	if err := x.UnicityCertificate.Verify(tb, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err
@@ -51,7 +54,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 
 func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher := algorithm.New()
-	hasher.Write(x.SystemIdentifier.Bytes())
+	hasher.Write(x.Partition.Bytes())
 	hasher.Write([]byte(x.NodeIdentifier))
 
 	ucBytes, err := types.Cbor.Marshal(x.UnicityCertificate)

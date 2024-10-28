@@ -35,7 +35,7 @@ func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder,
 func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, authProof *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
-		return fmt.Errorf(ErrStrInvalidUnitID)
+		return errors.New(ErrStrInvalidUnitID)
 	}
 	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {

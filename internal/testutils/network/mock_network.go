@@ -56,7 +56,7 @@ func NewMockNetwork(t *testing.T) *MockNet {
 		{protocolID: network.ProtocolLedgerReplicationReq, msgStruct: replication.LedgerReplicationRequest{}},
 		{protocolID: network.ProtocolLedgerReplicationResp, msgStruct: replication.LedgerReplicationResponse{}},
 		{protocolID: network.ProtocolHandshake, msgStruct: handshake.Handshake{}},
-		{protocolID: network.ProtocolUnicityCertificates, msgStruct: types.UnicityCertificate{}},
+		{protocolID: network.ProtocolUnicityCertificates, msgStruct: certification.CertificationResponse{}},
 	})
 	if err != nil {
 		panic(fmt.Errorf("failed to register protocols: %w", err))

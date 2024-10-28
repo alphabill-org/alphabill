@@ -38,11 +38,11 @@ type (
 	}
 )
 
-func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB, orchestration Orchestration) error {
+func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	for _, genRec := range pg {
 		partition := genRec.PartitionDescription.SystemIdentifier
 		for shard := range genRec.PartitionDescription.Shards.All() {
-			si, err := drctypes.NewShardInfoFromGenesis(genRec, orchestration)
+			si, err := drctypes.NewShardInfoFromGenesis(genRec)
 			if err != nil {
 				return fmt.Errorf("initializing shard info from genesis: %w", err)
 			}
@@ -101,7 +101,7 @@ func New(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.K
 		return nil, fmt.Errorf("failed to read block store: %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, db, orchestration); err != nil {
+		if err = storeGenesisInit(hash, pg, db); err != nil {
 			return nil, fmt.Errorf("initializing block store: %w", err)
 		}
 	}

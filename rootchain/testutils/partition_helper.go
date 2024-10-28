@@ -80,7 +80,6 @@ func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID 
 		InputRecord:     ir,
 		RootRoundNumber: 1,
 	}
-	r1.Leader = r1.NodeIdentifier
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1
 }

@@ -1,7 +1,12 @@
 package certification
 
 import (
+	"bytes"
+	"crypto"
 	"errors"
+	"fmt"
+
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 )
 
 /*
@@ -30,6 +35,24 @@ func (tr *TechnicalRecord) IsValid() error {
 	if len(tr.FeeHash) == 0 {
 		return errors.New("fee hash is unassigned")
 	}
+	return nil
+}
+
+func (tr *TechnicalRecord) Hash() ([]byte, error) {
+	h := abhash.New(crypto.SHA256.New())
+	h.Write(tr)
+	return h.Sum()
+}
+
+func (tr *TechnicalRecord) HashMatches(trh []byte) error {
+	h, err := tr.Hash()
+	if err != nil {
+		return fmt.Errorf("calculating hash: %w", err)
+	}
+	if !bytes.Equal(trh, h) {
+		return errors.New("hash mismatch")
+	}
+
 	return nil
 }
 

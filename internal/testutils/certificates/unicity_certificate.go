@@ -38,8 +38,10 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	return &types.UnicityCertificate{Version: 1,
+	return &types.UnicityCertificate{
+		Version:     1,
 		InputRecord: ir,
+		TRHash:      make([]byte, 32),
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
 			SystemIdentifier:         cert.SystemIdentifier,
 			HashSteps:                cert.HashSteps,

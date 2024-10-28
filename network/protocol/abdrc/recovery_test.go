@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/stretchr/testify/require"
 )
 

@@ -93,10 +93,11 @@ type (
 		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
+		lTR                         atomic.Pointer[certification.TechnicalRecord]
 		proposedTransactions        []*types.TransactionRecord
 		sumOfEarnedFees             uint64
 		pendingBlockProposal        *types.Block
-		leaderSelector              LeaderSelector
+		leader                      Leader
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
@@ -168,7 +169,6 @@ func NewNode(
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
-		leaderSelector:              conf.leaderSelector,
 		txValidator:                 conf.txValidator,
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
@@ -187,6 +187,7 @@ func NewNode(
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
+	n.lTR.Store(&certification.TechnicalRecord{}) // so we do not have to check for nil
 
 	if err := n.initMetrics(observe); err != nil {
 		return nil, fmt.Errorf("initialize metrics: %w", err)
@@ -267,7 +268,7 @@ func (n *Node) Run(ctx context.Context) error {
 		// They can start processing new blocks and forwarding transactions as their normal
 		// operation mode immediately.
 		n.status.Store(normal)
-		go n.network.ForwardTransactions(ctx, n.leaderSelector.GetLeader)
+		go n.network.ForwardTransactions(ctx, n.leader.Get)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -355,7 +356,7 @@ func (n *Node) committedUC() *types.UnicityCertificate {
 }
 
 func (n *Node) currentRoundNumber() uint64 {
-	return n.luc.Load().GetRoundNumber() + 1
+	return n.lTR.Load().Round
 }
 
 func (n *Node) sendHandshake(ctx context.Context) {
@@ -536,8 +537,8 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	}(time.Now())
 
 	switch mt := msg.(type) {
-	case *types.UnicityCertificate:
-		return n.handleUnicityCertificate(ctx, mt)
+	case *certification.CertificationResponse:
+		return n.handleCertificationResponse(ctx, mt)
 	case *blockproposal.BlockProposal:
 		return n.handleBlockProposal(ctx, mt)
 	case *replication.LedgerReplicationRequest:
@@ -653,7 +654,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() < lucRoundNumber {
 		return fmt.Errorf("outdated block proposal for round %v, LUC round %v", uc.GetRoundNumber(), lucRoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.validatorNodes)
+	expectedLeader := n.leader.Get()
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
@@ -731,9 +732,6 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 	}
 
 	n.luc.Store(uc)
-	// New luc means a new leader
-	n.leaderSelector.UpdateLeader(uc, n.validatorNodes)
-
 	n.log.Debug("updated LUC", logger.Round(uc.GetRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 	return nil
@@ -751,7 +749,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 	}
 
 	newRoundNumber := n.committedUC().GetRoundNumber() + 1
-	if n.leaderSelector.IsLeader(n.peer.ID()) {
+	if n.leader.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
 		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNumber, err)
@@ -784,6 +782,24 @@ func (n *Node) startRecovery(ctx context.Context) {
 		fromBlockNr, n.luc.Load().GetRoundNumber()))
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(ctx)
+}
+
+func (n *Node) handleCertificationResponse(ctx context.Context, cr *certification.CertificationResponse) error {
+	if err := cr.IsValid(); err != nil {
+		return fmt.Errorf("invalid CertificationResponse: %w", err)
+	}
+	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
+	defer span.End()
+
+	if cr.Partition != n.SystemID() || !cr.Shard.Equal(n.configuration.shardID) {
+		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
+	}
+
+	if err := n.leader.Set(cr.Technical.Leader); err != nil {
+		return fmt.Errorf("setting leader: %w", err)
+	}
+	n.lTR.Store(&cr.Technical)
+	return n.handleUnicityCertificate(ctx, &cr.UC)
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
@@ -961,7 +977,6 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	defer span.End()
 
 	n.stopForwardingOrHandlingTransactions()
-	defer func() { n.leaderSelector.UpdateLeader(nil, n.validatorNodes) }()
 
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -969,7 +984,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 	n.log.InfoContext(ctx, "Handling T1 timeout")
 	// if node is not leader, then do not do anything
-	if !n.leaderSelector.IsLeader(n.peer.ID()) {
+	if !n.leader.IsLeader(n.peer.ID()) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
@@ -1270,13 +1285,15 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	ctx, span := n.tracer.Start(ctx, "node.sendBlockProposal")
 	defer span.End()
 
-	systemIdentifier := n.configuration.GetSystemIdentifier()
+	tr := n.lTR.Load()
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		SystemIdentifier:   systemIdentifier,
+		Partition:          n.configuration.GetSystemIdentifier(),
+		Shard:              n.configuration.shardID,
 		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: n.luc.Load(),
 		Transactions:       n.proposedTransactions,
+		Technical:          *tr,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "created BlockProposal", logger.Data(prop))
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
@@ -1297,23 +1314,27 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	ctx, span := n.tracer.Start(ctx, "node.sendCertificationRequest", trace.WithAttributes(attribute.String("author", blockAuthor)))
 	defer span.End()
 
-	systemIdentifier := n.configuration.GetSystemIdentifier()
-	luc := n.luc.Load()
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
-		return fmt.Errorf("transaction system failed to end block, %w", err)
+		return fmt.Errorf("transaction system failed to end block: %w", err)
 	}
+	ltr := n.lTR.Load()
+	trh, err := ltr.Hash()
+	if err != nil {
+		return fmt.Errorf("calculating TR hash: %w", err)
+	}
+	luc := n.luc.Load()
 	stateHash := state.Root()
-	summary := state.Summary()
 	uc := &types.UnicityCertificate{
 		Version: 1,
+		TRHash:  trh,
 		InputRecord: &types.InputRecord{
 			Version:         1,
-			Epoch:           0, // todo: implement epoch change AB-1617, AB-1725
+			Epoch:           ltr.Epoch,
 			RoundNumber:     n.currentRoundNumber(),
 			PreviousHash:    luc.InputRecord.Hash,
 			Hash:            stateHash,
-			SummaryValue:    summary,
+			SummaryValue:    state.Summary(),
 			SumOfEarnedFees: n.sumOfEarnedFees,
 		},
 	}
@@ -1333,7 +1354,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	}
 	ir, err := pendingProposal.CalculateBlockHash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return fmt.Errorf("block hash calculation error, %w", err)
+		return fmt.Errorf("calculating block hash: %w", err)
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		n.transactionSystem.Revert()
@@ -1344,10 +1365,9 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:       systemIdentifier,
+		Partition:       n.configuration.GetSystemIdentifier(),
 		Shard:           n.configuration.shardID,
 		NodeIdentifier:  n.peer.ID().String(),
-		Leader:          blockAuthor,
 		InputRecord:     ir,
 		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
 	}
@@ -1469,6 +1489,14 @@ func (n *Node) IsValidatorNode() bool {
 	return slices.Contains(n.validatorNodes, n.Peer().ID())
 }
 
+func (n *Node) IsPermissionedMode() bool {
+	return n.transactionSystem.IsPermissionedMode()
+}
+
+func (n *Node) IsFeelessMode() bool {
+	return n.transactionSystem.IsFeelessMode()
+}
+
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	// TODO verify epoch number after epoch switching is implemented
 	// fast-track solution is to restart all partition nodes with new config on epoch change
@@ -1503,7 +1531,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 
 	n.stopForwardingOrHandlingTransactions()
 
-	leader := n.leaderSelector.GetLeader()
+	leader := n.leader.Get()
 	if leader == UnknownLeader {
 		n.log.Warn("unknown round leader", logger.Round(n.currentRoundNumber()))
 		return
@@ -1528,9 +1556,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 		if leader == n.peer.ID() {
 			n.network.ProcessTransactions(ctx, n.process)
 		} else {
-			n.network.ForwardTransactions(ctx, func() peer.ID {
-				return leader
-			})
+			n.network.ForwardTransactions(ctx, n.leader.Get)
 		}
 	}()
 

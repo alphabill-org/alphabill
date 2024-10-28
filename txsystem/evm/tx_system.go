@@ -209,6 +209,14 @@ func (m *TxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
 }
 
+func (m *TxSystem) IsPermissionedMode() bool {
+	return false
+}
+
+func (m *TxSystem) IsFeelessMode() bool {
+	return false
+}
+
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return vc.state.GetUnit(id, committed)
 }

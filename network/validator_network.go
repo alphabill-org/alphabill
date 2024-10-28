@@ -168,7 +168,7 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 			},
 			receiveProtocolDescription{
 				protocolID: ProtocolUnicityCertificates,
-				typeFn:     func() any { return &types.UnicityCertificate{Version: 1} },
+				typeFn:     func() any { return &certification.CertificationResponse{} },
 			},
 		)
 	}

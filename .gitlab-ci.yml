@@ -10,21 +10,6 @@ image: $CI_REGISTRY/alphabill/gitlab-ci-image:main
     # Configure go caching
     - mkdir -p .go
 
-    # Configure SSH agent
-    - eval "$(ssh-agent -s)"
-    - chmod 600 ${ALPHABILL_PRIVATE_KEY}
-    - ssh-add ${ALPHABILL_PRIVATE_KEY}
-
-    # Add SSH keys
-    - ssh-keyscan ${CI_SERVER_SHELL_SSH_HOST} > ci/known_hosts
-    - mkdir -p ~/.ssh
-    - chmod 600 ~/.ssh
-    - cp ci/known_hosts ~/.ssh/known_hosts
-
-    # Configure SSH mirror repository
-    - printf "[url \"ssh://git@${CI_SERVER_SHELL_SSH_HOST}/${CI_PROJECT_NAMESPACE}/\"]\n    insteadOf = https://github.com/alphabill-org/\n" > ci/.gitconfig
-    - cp ci/.gitconfig ~/.gitconfig
-
 .go-cache:
   variables:
     GOPATH: "$CI_PROJECT_DIR/.go:/root/go"
@@ -77,7 +62,7 @@ build-docker:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
   script:
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
-    - docker build --ssh default --push --tag ${IMAGE_TAG} --file cli/alphabill/Dockerfile .
+    - docker build --push --tag ${IMAGE_TAG} --file scripts/Dockerfile .
   needs: []
 
 build:

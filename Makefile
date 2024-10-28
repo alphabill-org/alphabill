@@ -1,3 +1,10 @@
+# Customizable arguments for Docker build
+DOCKER_ARGUMENTS ?=
+
+ifdef DOCKER_GO_DEPENDENCY
+	DOCKER_ARGUMENTS += --build-context go-dependency=${DOCKER_GO_DEPENDENCY} --build-arg DOCKER_GO_DEPENDENCY=${DOCKER_GO_DEPENDENCY}
+endif
+
 all: clean tools test build gosec
 
 clean:
@@ -12,6 +19,9 @@ build:
     # https://github.com/golang/go/issues/51279
 	cd ./cli/alphabill && go build -o ../../build/alphabill
 
+build-docker:
+	docker build ${DOCKER_ARGUMENTS} --file scripts/Dockerfile --tag alphabill:local .
+
 gosec:
 	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...
 
@@ -21,8 +31,8 @@ tools:
 .PHONY: \
 	all \
 	clean \
-	generate \
 	tools \
 	test \
 	build \
+	build-docker \
 	gosec

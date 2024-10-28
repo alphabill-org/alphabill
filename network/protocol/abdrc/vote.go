@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type VoteMsg struct {

@@ -1,6 +1,7 @@
 package instrument
 
 // #cgo !windows LDFLAGS: -lwasm_instrument -lm -ldl -pthread
+// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/wasm-instrument-rust/lib/aarch64-unknown-linux-gnu/
 // #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/wasm-instrument-rust/lib/x86_64-unknown-linux-gnu/
 // #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/wasm-instrument-rust/lib/aarch64-apple-darwin/
 // #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/wasm-instrument-rust/lib/x86_64-apple-darwin/

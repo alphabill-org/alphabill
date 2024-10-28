@@ -49,6 +49,13 @@ type (
 
 		// State returns clone of transaction system state
 		State() StateReader
+
+		// IsPermissionedMode returns true if permissioned mode is enabled and only transactions from approved parties
+		// are executed.
+		IsPermissionedMode() bool
+
+		// IsFeelessMode returns true if feeless mode is enabled and the cost of executing transactions is 0.
+		IsFeelessMode() bool
 	}
 
 	StateReader interface {

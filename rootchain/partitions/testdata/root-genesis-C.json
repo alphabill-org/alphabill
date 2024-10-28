@@ -4,9 +4,9 @@
     "version": 1,
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAm9L2fd7qZvLM3xBMPuyN1wwcnC6owKcKWvVrWm3vkHEP8",
-        "signing_public_key": "AxZor5lBcK5ZRr+KybTkAbo+6tfsuNYE0aG10h+BFnjB",
-        "encryption_public_key": "AxZor5lBcK5ZRr+KybTkAbo+6tfsuNYE0aG10h+BFnjB"
+        "node_identifier": "16Uiu2HAm6NELy75aGhaHx1DzgJrthqLrH95Pimeyj1ZXQhHhSLPk",
+        "signing_public_key": "A1f5tIrRKs4j0TLgfOCuXeM0KTx3A8heoFN5V2AmaoQh",
+        "encryption_public_key": "A1f5tIrRKs4j0TLgfOCuXeM0KTx3A8heoFN5V2AmaoQh"
       }
     ],
     "consensus": {
@@ -16,7 +16,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAm9L2fd7qZvLM3xBMPuyN1wwcnC6owKcKWvVrWm3vkHEP8": "j3hSXlqICsOQEN+TzgRMmxQxya6FAVpduNWlvDMh2B0UbsHhvqH97GSPyWA4HN42zOgB7AuYZ7KhrrHbLnl4vwA="
+        "16Uiu2HAm6NELy75aGhaHx1DzgJrthqLrH95Pimeyj1ZXQhHhSLPk": "EoXr2KrQe0I1xXMdpv2m0/u7NKXssk/8tUvVQ2OLaLAxojyzdZC7DBIr0k5OeYFj9kr8/yefYkGp+7HrJpx8uQE="
       }
     }
   },
@@ -26,13 +26,13 @@
       "nodes": [
         {
           "version": 1,
-          "node_identifier": "16Uiu2HAmHRjapKE7A1LePayhus3L7vvQ4XGNnB7LPDubxgLPJ6Vj",
-          "signing_public_key": "Auy8L7NjMijMAfVLIeKeJ1KVmbAmz2PCSB5eLGszNZ+L",
-          "encryption_public_key": "A0blL/BbTL38nGJFMSHrg1gkBcA4pABgzk58pKZ5BG5e",
+          "node_identifier": "16Uiu2HAm6f76Nooq2Kaco63tGjUP1LUnf4Pa6h9gE5JSbHaj6cWJ",
+          "signing_public_key": "Ar7RAEp1MEujwKDw507rzleqms8YXrFoUpV5c1FmQcjE",
+          "encryption_public_key": "AqbhgKzn9RxWUuEDOfj05Nv/t/tWWVUtHcTUf7JwwWeX",
           "block_certification_request": {
             "system_identifier": 1,
             "shard_identifier": "0x80",
-            "node_identifier": "16Uiu2HAmHRjapKE7A1LePayhus3L7vvQ4XGNnB7LPDubxgLPJ6Vj",
+            "node_identifier": "16Uiu2HAm6f76Nooq2Kaco63tGjUP1LUnf4Pa6h9gE5JSbHaj6cWJ",
             "input_record": {
               "version": 1,
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -44,8 +44,7 @@
             "root_round_number": 0,
             "block_size": 0,
             "state_size": 0,
-            "signature": "1Rr2E2ajWrPe6cfseoRCoBsMw0C3hFNxoC9f9yQZJkdJkHBp0vgEEShwdG4f/ZtU2S7MkcWr45Zs0W+LRBUt9AE=",
-            "round_leader": ""
+            "signature": "qpMZ1wtB6KT3iWwV3pgAWruwz2oDkftFLCfxpWwlYX8R4EI/CRb3Y1MiDQXCJwOJuFctAypgk4cDFHi2aYJ3jAE="
           },
           "partition_description": {
             "version": 1,
@@ -66,6 +65,7 @@
           "summary_value": "AAABAw==",
           "round_number": 1
         },
+        "tr_hash": "l87kU/Ko+DmWHWVSA2UryJ7qSxFBeEsT121091FJWHY=",
         "unicity_tree_certificate": {
           "version": 1,
           "system_identifier": 1,
@@ -78,7 +78,7 @@
           "previous_hash": "+awUgu8Zu45L3vylkjHXRhEasL8EKByfw6ho/HacR8w=",
           "hash": "tx2XO3WXDteviVIfHXg9BMxHHtVan9s4es7uYP7W+ys=",
           "signatures": {
-            "16Uiu2HAm9L2fd7qZvLM3xBMPuyN1wwcnC6owKcKWvVrWm3vkHEP8": "HoZci4ErWMK8EzwR9rUJkzCECjb8N1314tD0AVYWG8st4tygwb71ep1PXrwAdUicfDGomfvL3vTO0dAiByAAewA="
+            "16Uiu2HAm6NELy75aGhaHx1DzgJrthqLrH95Pimeyj1ZXQhHhSLPk": "iRr6SbgHQLcDBalhnD+AhornFEG+RAWHn8I3JwhrsLpAbNaN2nEXu3wttArsGntBr7qULDAjAsTBoLNgsDOkigA="
           }
         }
       },

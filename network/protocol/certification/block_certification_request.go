@@ -27,10 +27,6 @@ type BlockCertificationRequest struct {
 	BlockSize       uint64             `json:"block_size"`
 	StateSize       uint64             `json:"state_size"`
 	Signature       []byte             `json:"signature"`
-	// hack - RootChain needs to know the round leader of the shard in order to
-	// keep track of fees etc. In the future it's the RC which selects the leader
-	// of the next round and sends it as part of Certification Response. (AB-1719)
-	Leader string `json:"round_leader"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -101,6 +97,5 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
 	b.Write(util.Uint64ToBytes(x.BlockSize))
 	b.Write(util.Uint64ToBytes(x.StateSize))
-	b.WriteString(x.Leader)
 	return b.Bytes()
 }

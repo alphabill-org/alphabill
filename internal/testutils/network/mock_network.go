@@ -20,7 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/txbuffer"
 )
 
@@ -56,7 +56,7 @@ func NewMockNetwork(t *testing.T) *MockNet {
 		{protocolID: network.ProtocolLedgerReplicationReq, msgStruct: replication.LedgerReplicationRequest{}},
 		{protocolID: network.ProtocolLedgerReplicationResp, msgStruct: replication.LedgerReplicationResponse{}},
 		{protocolID: network.ProtocolHandshake, msgStruct: handshake.Handshake{}},
-		{protocolID: network.ProtocolUnicityCertificates, msgStruct: types.UnicityCertificate{}},
+		{protocolID: network.ProtocolUnicityCertificates, msgStruct: certification.CertificationResponse{}},
 	})
 	if err != nil {
 		panic(fmt.Errorf("failed to register protocols: %w", err))

@@ -31,8 +31,8 @@ const (
 type ConsensusParams struct {
 	_                   struct{}          `cbor:",toarray"`
 	Version             types.ABVersion   `json:"version,omitempty"`
-	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
-	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate (round time t3 in monolithic root chain)
+	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster
+	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate
 	ConsensusTimeoutMs  uint32            `json:"consensus_timeout_ms,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
 	HashAlgorithm       uint32            `json:"hash_algorithm,omitempty"`        // Hash algorithm for UnicityTree calculation
 	Signatures          map[string][]byte `json:"signatures,omitempty"`            // Signed hash of all fields excluding signatures

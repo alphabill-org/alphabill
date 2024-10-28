@@ -644,7 +644,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 				Counter:           0,
 			},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: fmt.Sprintf("the target value must be less than the value of the source token: targetValue=1001 tokenValue=1000"),
+			wantErrStr: "the target value must be less than the value of the source token: targetValue=1001 tokenValue=1000",
 		},
 		{
 			name: "target value equals token value",

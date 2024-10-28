@@ -1,10 +1,10 @@
 package partition
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -387,7 +387,11 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types
 
 func ContainsTransaction(block *types.Block, tx *types.TransactionOrder) bool {
 	for _, t := range block.Transactions {
-		if reflect.DeepEqual(t.TransactionOrder, tx) {
+		txBytes, err := tx.MarshalCBOR()
+		if err != nil {
+			panic(err)
+		}
+		if bytes.Equal(t.TransactionOrder, txBytes) {
 			return true
 		}
 	}

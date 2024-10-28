@@ -150,13 +150,18 @@ func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error
 	return nil
 }
 
-func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.TransactionRecord, error) {
+func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.ExecuteCountDelta++
 	m.uncommitted = true
-	return &types.TransactionRecord{ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}, nil
+
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, err
+	}
+	return &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}, nil
 }
 
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {

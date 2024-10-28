@@ -70,7 +70,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsSuccessfulTx(tokenPrt, tx), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsSuccessfulTx(t, tokenPrt, tx), test.WaitDuration, test.WaitTick)
 }
 
 func TestFungibleTokenTransactions_Ok(t *testing.T) {

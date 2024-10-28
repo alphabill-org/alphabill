@@ -222,6 +222,8 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 	}
 	rootHash := ut.GetRootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
+	fmt.Printf("rootHash: %X\n", rootHash)
+	fmt.Printf("x.rootHash: %X\n", x.RootHash)
 	if !bytes.Equal(rootHash, x.RootHash) {
 		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
 	}

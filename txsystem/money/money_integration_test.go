@@ -250,14 +250,14 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// wait for transaction to be added to block
 	txRecordProof, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
-	require.EqualValues(t, transferInitialBillTx, txRecordProof.TxRecord.TransactionOrder)
+	require.EqualValues(t, testtransaction.TxoToBytes(t, transferInitialBillTx), txRecordProof.TxRecord.TransactionOrder)
 	feeCredit, err = txsState.GetUnit(fcrID, false)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-3, feeCredit.Data().(*fcsdk.FeeCreditRecord).Balance)
 
 	// split initial bill using N-way split where N=nofDustToSwap
 	amount := uint64(1)
-	_, _, err = moneyPrt.GetTxProof(transferInitialBillTx)
+	_, _, err = moneyPrt.GetTxProof(t, transferInitialBillTx)
 	require.NoError(t, err)
 	total -= fcrAmount
 
@@ -273,7 +273,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// wait for transaction to be added to block
 	txRecordProof, err = testpartition.WaitTxProof(t, moneyPrt, splitTx)
 	require.NoError(t, err, "money split transaction failed")
-	require.EqualValues(t, splitTx, txRecordProof.TxRecord.TransactionOrder)
+	require.EqualValues(t, testtransaction.TxoToBytes(t, splitTx), txRecordProof.TxRecord.TransactionOrder)
 
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, nofDustToSwap)

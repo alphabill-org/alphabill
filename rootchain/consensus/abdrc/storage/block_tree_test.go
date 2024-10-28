@@ -51,7 +51,7 @@ var sdr2 = &types.PartitionDescriptionRecord{
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("637F77AA807367DA4AA6D585978B20BC13B245F0D374D4316479570E870D8A46"),
+	CurrentRootHash: hexToBytes("1B97D5EA8374794BFAE8722C4C79053C6E8F5A009F880706A3E6FB73C7EAE5B4"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{

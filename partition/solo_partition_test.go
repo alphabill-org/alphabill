@@ -252,10 +252,10 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
-	sdr := sn.nodeDeps.genesis.PartitionDescription
-	sdrHash := sdr.Hash(gocrypto.SHA256)
+	pdr := sn.nodeDeps.genesis.PartitionDescription
+	sdrHash := pdr.Hash(gocrypto.SHA256)
 	data := []*types.UnicityTreeData{{
-		PartitionIdentifier:      sdr.PartitionIdentifier,
+		PartitionIdentifier:      pdr.PartitionIdentifier,
 		InputRecord:              ir,
 		PartitionDescriptionHash: sdrHash,
 	},
@@ -269,7 +269,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ut.GetCertificate(sdr.PartitionIdentifier)
+	cert, err := ut.GetCertificate(pdr.PartitionIdentifier)
 	if err != nil {
 		// this should never happen. if it does then exit with panic because we cannot generate
 		// unicity tree certificates.

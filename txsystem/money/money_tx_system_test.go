@@ -1104,8 +1104,8 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.Partitio
 	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash))
 
 	// fee credit bills
-	for _, sdr := range sdrs {
-		fcb := sdr.FeeCreditBill
+	for _, pdr := range sdrs {
+		fcb := pdr.FeeCreditBill
 		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, &money.BillData{})))
 		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
 	}

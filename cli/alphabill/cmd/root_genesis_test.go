@@ -20,9 +20,9 @@ func Test_RootGenesis_New(t *testing.T) {
 	// create partition genesis to be used with the tests
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + pdrFilename
 	cmd := New(testobserve.NewFactory(t))
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))

@@ -97,13 +97,13 @@ func (f *feeCreditTxRecorder) reset() {
 
 func (f *feeCreditTxRecorder) consolidateFees() error {
 	// update fee credit bills for all known partitions with added and removed credits
-	for sid, sdr := range f.sdrs {
+	for sid, pdr := range f.sdrs {
 		addedCredit := f.getAddedCredit(sid)
 		reclaimedCredit := f.getReclaimedCredit(sid)
 		if addedCredit == reclaimedCredit {
 			continue // no update if bill value doesn't change
 		}
-		fcUnitID := types.UnitID(sdr.FeeCreditBill.UnitID)
+		fcUnitID := pdr.FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(fcUnitID, false)
 		if err != nil {
 			return err
@@ -119,12 +119,12 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", sdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionIdentifier, err)
 		}
 
 		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", sdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionIdentifier, err)
 		}
 	}
 

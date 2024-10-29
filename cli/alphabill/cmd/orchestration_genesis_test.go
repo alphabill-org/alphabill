@@ -108,25 +108,25 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, "not-default-name.json")
 
-		sdr := types.PartitionDescriptionRecord{
+		pdr := types.PartitionDescriptionRecord{
 			NetworkIdentifier:   5,
 			PartitionIdentifier: 55,
 			TypeIdLen:           4,
 			UnitIdLen:           300,
 			T2Timeout:           10 * time.Second,
 		}
-		sdrFile, err := createPDRFile(homeDir, &sdr)
+		pdrFile, err := createPDRFile(homeDir, &pdr)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		args := "orchestration-genesis -g -o " + nodeGenesisFile + " --home " + homeDir + " --owner-predicate " + ownerPredicate + " --partition-description " + sdrFile
+		args := "orchestration-genesis -g -o " + nodeGenesisFile + " --home " + homeDir + " --owner-predicate " + ownerPredicate + " --partition-description " + pdrFile
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 		require.NoError(t, err)
-		require.EqualValues(t, sdr, pn.PartitionDescriptionRecord)
-		require.EqualValues(t, sdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
+		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
 	})
 
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {

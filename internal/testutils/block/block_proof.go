@@ -19,7 +19,7 @@ const (
 
 type (
 	Options struct {
-		sdr *types.PartitionDescriptionRecord
+		pdr *types.PartitionDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -27,11 +27,11 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		sdr: DefaultSDR(),
+		pdr: DefaultPDR(),
 	}
 }
 
-func DefaultSDR() *types.PartitionDescriptionRecord {
+func DefaultPDR() *types.PartitionDescriptionRecord {
 	return &types.PartitionDescriptionRecord{
 		NetworkIdentifier:   5,
 		PartitionIdentifier: money.DefaultPartitionID,
@@ -41,7 +41,7 @@ func DefaultSDR() *types.PartitionDescriptionRecord {
 
 func WithPartitionIdentifier(partitionID types.PartitionID) Option {
 	return func(g *Options) {
-		g.sdr.PartitionIdentifier = partitionID
+		g.pdr.PartitionIdentifier = partitionID
 	}
 }
 
@@ -56,13 +56,13 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 		RoundNumber:  DefaultRoundNumber,
 		SummaryValue: make([]byte, 32),
 	}
-	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.sdr, signer)
+	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.pdr, signer)
 	p, err := types.NewTxRecordProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
 }
 
-func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
 	uc, err := (&types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
 	}).MarshalCBOR()
@@ -83,7 +83,7 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 		t,
 		signer,
 		ir,
-		sdr,
+		pdr,
 		1,
 		make([]byte, 32),
 	).MarshalCBOR()

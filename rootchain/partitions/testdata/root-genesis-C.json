@@ -2,21 +2,21 @@
   "version": 1,
   "root": {
     "version": 1,
-    "root_validators": [
+    "rootValidators": [
       {
-        "node_identifier": "16Uiu2HAmFkw3fXgXJqtc4iFNagjy1h2KKpLuz8zT9vGaBLX7XGkv",
-        "signing_public_key": "Akk1fB2VTbLa0Jqm+g8hnRRUDHgpFeYT1fHN0TuFdFqx",
-        "encryption_public_key": "Akk1fB2VTbLa0Jqm+g8hnRRUDHgpFeYT1fHN0TuFdFqx"
+        "nodeIdentifier": "16Uiu2HAm6MaPFVTv8Jm3mGCPVuHJpQKokZ35JeeG6o5jgLpNXMFj",
+        "signingPublicKey": "AztkkQVdb9M+NcrLLw1cgHWnmw5V7PSX1oUikeiDDQL8",
+        "encryptionPublicKey": "AztkkQVdb9M+NcrLLw1cgHWnmw5V7PSX1oUikeiDDQL8"
       }
     ],
     "consensus": {
       "version": 1,
-      "total_root_validators": 1,
-      "block_rate_ms": 900,
-      "consensus_timeout_ms": 10000,
-      "hash_algorithm": 5,
+      "totalRootValidators": 1,
+      "blockRateMs": 900,
+      "consensusTimeoutMs": 10000,
+      "hashAlgorithm": 5,
       "signatures": {
-        "16Uiu2HAmFkw3fXgXJqtc4iFNagjy1h2KKpLuz8zT9vGaBLX7XGkv": "WJBFzFN/e0tYUa3O4Tu/aaQ58CbHcPelXpdD6LlmXG9W923VH856yRDG7ZByg4+BT4+BLiNKAxtplI0XA2TAmwA="
+        "16Uiu2HAm6MaPFVTv8Jm3mGCPVuHJpQKokZ35JeeG6o5jgLpNXMFj": "xFb8/udHy07bhdba4NPiDPwG7h4+qWNS24mDDVPOQQcPQY3zal6hQYZf92qGwRT9WSSqlS0AR87wgFjwYKsSPgE="
       }
     }
   },
@@ -26,32 +26,37 @@
       "nodes": [
         {
           "version": 1,
-          "node_identifier": "16Uiu2HAm1J6SfRkFDU4RrZagCNtJu6zzQw5i383GC6D6gcD4EiDx",
-          "signing_public_key": "A9hQFq6eUIlWy1RbiLLv200deuQRVdAZ5OjhZEx44Fvc",
-          "encryption_public_key": "Alc1IsOM06qIBnVuydGDt/17lahGJ1J8dSG92P6HQUmr",
-          "block_certification_request": {
-            "system_identifier": 1,
-            "shard_identifier": "0x80",
-            "node_identifier": "16Uiu2HAm1J6SfRkFDU4RrZagCNtJu6zzQw5i383GC6D6gcD4EiDx",
-            "input_record": {
+          "nodeIdentifier": "16Uiu2HAmPwicCeYRGFtpkab1bsvAjhwUTBQp8AxmrDEGLiHUGMN3",
+          "signingPublicKey": "ArqgQwrhkx+q3E3uejitw0f+CO9/VGbOvxVsUR2+XxHE",
+          "encryptionPublicKey": "A6e5oR+romEGkaWXA9IcBk/eyfY9DTff7Tv9B4Kj5u9c",
+          "blockCertificationRequest": {
+            "partitionIdentifier": 1,
+            "shardIdentifier": "0x80",
+            "nodeIdentifier": "16Uiu2HAmPwicCeYRGFtpkab1bsvAjhwUTBQp8AxmrDEGLiHUGMN3",
+            "inputRecord": {
               "version": 1,
-              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "previousHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "hash": "AQEBAQ==",
-              "block_hash": "AAABAg==",
-              "summary_value": "AAABAw==",
-              "round_number": 1
+              "blockHash": "AAABAg==",
+              "summaryValue": "AAABAw==",
+              "roundNumber": 1,
+              "epoch": 0,
+              "sumOfEarnedFees": 0
             },
-            "root_round_number": 0,
-            "block_size": 0,
-            "state_size": 0,
-            "signature": "1MFxZF4oXv5nkHovZ6Tp9IBGs6wr4BdR88w7NkpU0q5ZTkD7CMapI/9yZJU7PGmAgduhvvS8Hg6ZakCnykxzCwA=",
-            "round_leader": ""
+            "rootRoundNumber": 0,
+            "blockSize": 0,
+            "stateSize": 0,
+            "signature": "4mvVjfZmaAbk7O02+vKezPpL3PRpkqiiJ2uJS+JIdehOiTQ1xiTvjsIX5/lIX+0SoteCQulOYYyDcYgwCkE0IgA="
           },
-          "partition_description": {
-            "type_id_length": 0,
-            "unit_id_length": 0,
-            "sharding_scheme": null,
-            "t2timeout": 0
+          "partitionDescriptionRecord": {
+            "networkIdentifier": 0,
+            "partitionIdentifier": 0,
+            "typeIdLength": 0,
+            "unitIdLength": 0,
+            "shardingScheme": null,
+            "summaryTrustBase": null,
+            "t2timeout": 0,
+            "feeCreditBill": null
           }
         }
       ],
@@ -59,35 +64,41 @@
         "version": 1,
         "input_record": {
           "version": 1,
-          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "previousHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "hash": "AQEBAQ==",
-          "block_hash": "AAABAg==",
-          "summary_value": "AAABAw==",
-          "round_number": 1
+          "blockHash": "AAABAg==",
+          "summaryValue": "AAABAw==",
+          "roundNumber": 1,
+          "epoch": 0,
+          "sumOfEarnedFees": 0
         },
-        "tr_hash": "hx1txTScOXS9zi4uRkhVLgTaQZcGx2M1ui0nv3o7OYw=",
+        "tr_hash": "LQxYNO4i03/gv+gWQfvwvVSZOpAmL3wuaiHeh6zHa3s=",
         "unicity_tree_certificate": {
-          "system_identifier": 1,
-          "partition_description_hash": "5Dxu7e2A+TzTJApnTi2xmHl0x30IhD8y0t7ucmcw9UY="
+          "version": 0,
+          "partitionIdentifier": 1,
+          "hashSteps": [],
+          "partitionDescriptionHash": "5Dxu7e2A+TzTJApnTi2xmHl0x30IhD8y0t7ucmcw9UY="
         },
         "unicity_seal": {
           "version": 1,
-          "root_chain_round_number": 1,
+          "rootChainRoundNumber": 1,
           "timestamp": 1681971084,
-          "previous_hash": "ksRXnkNauqpTflPWV+khZOwTiJqLG0zDZ6qSSJJIpn4=",
+          "previousHash": "ksRXnkNauqpTflPWV+khZOwTiJqLG0zDZ6qSSJJIpn4=",
           "hash": "xb9QD0MdJpkBhb1wpeoV8dKvs/O1hOMT9p41516yU5k=",
           "signatures": {
-            "16Uiu2HAmFkw3fXgXJqtc4iFNagjy1h2KKpLuz8zT9vGaBLX7XGkv": "pzzvW+y6ZHvLZ/L0p8DYHO5FTX0Y50rtVgIRe8GOexkM3gqhR9vJbdcfwfm0/pOCiK71f8+C9b/GCjR24rflfQE="
+            "16Uiu2HAm6MaPFVTv8Jm3mGCPVuHJpQKokZ35JeeG6o5jgLpNXMFj": "oAJ3daMmgj6IQcDylPnontZ0WLnucHCyC1A0LWnw66EXAtbhHagfnjvSnJP8nowdyrxPkTNWwQUolUbUKoa0RQE="
           }
         }
       },
-      "partition_description_record": {
-        "network_identifier": 5,
-        "system_identifier": 1,
-        "type_id_length": 8,
-        "unit_id_length": 256,
-        "sharding_scheme": null,
-        "t2timeout": 2500000000
+      "partitionDescriptionRecord": {
+        "networkIdentifier": 5,
+        "partitionIdentifier": 1,
+        "typeIdLength": 8,
+        "unitIdLength": 256,
+        "shardingScheme": null,
+        "summaryTrustBase": null,
+        "t2timeout": 2500000000,
+        "feeCreditBill": null
       }
     }
   ]

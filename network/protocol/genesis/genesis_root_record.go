@@ -17,7 +17,7 @@ var (
 type GenesisRootRecord struct {
 	_              struct{}         `cbor:",toarray"`
 	Version        types.ABVersion  `json:"version,omitempty"`
-	RootValidators []*PublicKeyInfo `json:"root_validators,omitempty"`
+	RootValidators []*PublicKeyInfo `json:"rootValidators,omitempty"`
 	Consensus      *ConsensusParams `json:"consensus,omitempty"`
 }
 

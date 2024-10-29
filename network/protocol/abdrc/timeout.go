@@ -15,7 +15,7 @@ type TimeoutMsg struct {
 	Timeout   *abdrc.Timeout     `json:"timeout,omitempty"`
 	Author    string             `json:"author,omitempty"`
 	Signature []byte             `json:"signature,omitempty"`
-	LastTC    *abdrc.TimeoutCert `json:"last_tc,omitempty"` // TC for Timeout.Round−1 if Timeout.HighQC.Round != Timeout.Round−1 (nil otherwise)
+	LastTC    *abdrc.TimeoutCert `json:"lastTc,omitempty"` // TC for Timeout.Round−1 if Timeout.HighQC.Round != Timeout.Round−1 (nil otherwise)
 }
 
 // NewTimeoutMsg constructs a new atomic broadcast timeout message

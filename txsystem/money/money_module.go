@@ -19,7 +19,7 @@ type (
 	Module struct {
 		state               *state.State
 		networkID           types.NetworkID
-		systemID            types.SystemID
+		partitionID         types.PartitionID
 		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
@@ -28,7 +28,7 @@ type (
 	}
 )
 
-func NewMoneyModule(networkID types.NetworkID, systemID types.SystemID, options *Options) (*Module, error) {
+func NewMoneyModule(networkID types.NetworkID, partitionID types.PartitionID, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -39,10 +39,10 @@ func NewMoneyModule(networkID types.NetworkID, systemID types.SystemID, options 
 	m := &Module{
 		state:               options.state,
 		networkID:           networkID,
-		systemID:            systemID,
+		partitionID:         partitionID,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, systemID, options.systemDescriptionRecords),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, partitionID, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}

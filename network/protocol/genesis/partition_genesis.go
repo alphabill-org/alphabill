@@ -18,9 +18,9 @@ var (
 
 type PartitionGenesis struct {
 	_                    struct{}                          `cbor:",toarray"`
-	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord,omitempty"`
 	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
-	RootValidators       []*PublicKeyInfo                  `json:"root_validators,omitempty"`
+	RootValidators       []*PublicKeyInfo                  `json:"rootValidators,omitempty"`
 	Keys                 []*PublicKeyInfo                  `json:"keys,omitempty"`
 	Params               []byte                            `json:"params,omitempty"`
 }
@@ -70,7 +70,7 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	}
 	sdrHash := x.PartitionDescription.Hash(hashAlgorithm)
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.SystemIdentifier, sdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, sdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators

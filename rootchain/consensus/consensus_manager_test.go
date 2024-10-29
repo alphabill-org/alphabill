@@ -38,7 +38,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
-const partitionID types.SystemID = 0x00FF0001
+const partitionID types.PartitionID = 0x00FF0001
 
 var partitionInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
@@ -310,7 +310,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, partitionID, result.UnicityTreeCertificate.SystemIdentifier)
+	require.Equal(t, partitionID, result.UnicityTreeCertificate.PartitionIdentifier)
 	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID))
 	// verify certificates have been updated when recovery query is sent
 	getCertsMsg := &abdrc.StateRequestMsg{
@@ -322,7 +322,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	certsMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	require.Equal(t, len(rg.Partitions), len(certsMsg.ShardInfo))
 	idx := slices.IndexFunc(certsMsg.ShardInfo, func(c abdrc.ShardInfo) bool {
-		return c.UC.UnicityTreeCertificate.SystemIdentifier == partitionID
+		return c.UC.UnicityTreeCertificate.PartitionIdentifier == partitionID
 	})
 	require.False(t, idx == -1)
 	require.True(t, certsMsg.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
@@ -860,16 +860,16 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
 	// generate UCs for given systems (with random data in QC)
-	makeUCs := func(sysID ...types.SystemID) map[partitionShard]*certification.CertificationResponse {
+	makeUCs := func(partitionIds ...types.PartitionID) map[partitionShard]*certification.CertificationResponse {
 		rUC := make(map[partitionShard]*certification.CertificationResponse)
-		for _, id := range sysID {
+		for _, id := range partitionIds {
 			cr := certification.CertificationResponse{
 				Partition: id,
 				Shard:     types.ShardID{},
 				UC: types.UnicityCertificate{
 					Version: 1,
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
-						SystemIdentifier:         id,
+						PartitionIdentifier:      id,
 						PartitionDescriptionHash: test.RandomBytes(32),
 					},
 				},
@@ -910,7 +910,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
 
 		// send some certificates into sink...
-		ucs := makeUCs(types.SystemID(1), types.SystemID(2))
+		ucs := makeUCs(1, 2)
 		select {
 		case cms[0].ucSink <- slices.Collect(maps.Values(ucs)):
 		default:
@@ -921,8 +921,8 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		require.Equal(t, ucs, rUC)
 		outputMustBeEmpty(t, cms[0])
 
-		// and repeat the exercise with different systemIDs
-		ucs = makeUCs(types.SystemID(3), types.SystemID(4))
+		// and repeat the exercise with different partition identifiers
+		ucs = makeUCs(3, 4)
 		select {
 		case cms[0].ucSink <- slices.Collect(maps.Values(ucs)):
 		default:
@@ -943,7 +943,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		// exp - expected result in the end of test, we add/overwrite certs as we send them
 		exp := map[partitionShard]*certification.CertificationResponse{}
 
-		ucs := makeUCs(types.SystemID(1), types.SystemID(2))
+		ucs := makeUCs(1, 2)
 		for k, v := range ucs {
 			exp[k] = v
 		}
@@ -956,7 +956,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 
 		// as we haven't consumed anything sending new set of certs into the sink should
 		// overwrite {0,0,0,2} and add {0,0,0,3}
-		ucs = makeUCs(types.SystemID(3), types.SystemID(2))
+		ucs = makeUCs(3, 2)
 		for k, v := range ucs {
 			exp[k] = v
 		}
@@ -968,7 +968,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		}
 
 		rUC := consumeUCs(cms[0], 100*time.Millisecond)
-		require.Len(t, rUC, 3, "number of different systemIDs")
+		require.Len(t, rUC, 3, "number of different partition identifiers")
 		require.Equal(t, exp, rUC)
 		outputMustBeEmpty(t, cms[0])
 	})
@@ -981,7 +981,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		// exp - expected result in the end of test, we add/overwrite certs as we send them
 		exp := map[partitionShard]*certification.CertificationResponse{}
 
-		ucs := makeUCs(types.SystemID(1), types.SystemID(2))
+		ucs := makeUCs(1, 2)
 		for k, v := range ucs {
 			exp[k] = v
 		}
@@ -994,7 +994,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 
 		// send another set of certs, unique sysIDs, ie no overwrites, just add (nothing
 		// has been consumed yet)
-		ucs = makeUCs(types.SystemID(3), types.SystemID(4))
+		ucs = makeUCs(3, types.PartitionID(4))
 		for k, v := range ucs {
 			exp[k] = v
 		}
@@ -1006,7 +1006,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		}
 
 		rUC := consumeUCs(cms[0], 100*time.Millisecond)
-		require.Len(t, rUC, 4, "number of different systemIDs")
+		require.Len(t, rUC, 4, "number of different partition identifiers")
 		require.Equal(t, exp, rUC)
 		outputMustBeEmpty(t, cms[0])
 	})
@@ -1024,7 +1024,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		go func() {
 			for {
 				select {
-				case cms[0].ucSink <- slices.Collect(maps.Values(makeUCs(types.SystemID(1), types.SystemID(2), types.SystemID(3)))):
+				case cms[0].ucSink <- slices.Collect(maps.Values(makeUCs(1, 2, 3))):
 				case <-ctx.Done():
 					return
 				}
@@ -1214,7 +1214,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{
 		Timeout: &drctypes.Timeout{Round: 2},
-		Author: "test",
+		Author:  "test",
 		LastTC: &drctypes.TimeoutCert{
 			Timeout: &drctypes.Timeout{Round: 1},
 		},

@@ -122,7 +122,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					Round: 10,
 					Epoch: 0,
 					HighQc: &types.QuorumCert{
-						VoteInfo: testutils.NewDummyRootRoundInfo(8),
+						VoteInfo:   testutils.NewDummyRootRoundInfo(8),
 						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
 					},
 				},
@@ -139,13 +139,13 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					Round: 10,
 					Epoch: 0,
 					HighQc: &types.QuorumCert{
-						VoteInfo: testutils.NewDummyRootRoundInfo(7),
+						VoteInfo:   testutils.NewDummyRootRoundInfo(7),
 						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "",
 				Signature: []byte{0, 1, 2},
-				LastTC:    &types.TimeoutCert{
+				LastTC: &types.TimeoutCert{
 					Timeout: &types.Timeout{Round: 8},
 				},
 			},

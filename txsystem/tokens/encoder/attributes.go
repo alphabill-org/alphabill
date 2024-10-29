@@ -12,7 +12,7 @@ import (
 func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAttributesEncoder) error) error {
 	key := func(attrID uint16) encoder.AttrEncID {
 		return encoder.AttrEncID{
-			TxSys: tokens.DefaultSystemID,
+			TxSys: tokens.DefaultPartitionID,
 			Attr:  attrID,
 		}
 	}

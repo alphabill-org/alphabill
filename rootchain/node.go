@@ -41,7 +41,7 @@ type (
 		RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *certification.CertificationResponse
-		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
@@ -260,7 +260,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 
 func (v *Node) onCertificationResult(ctx context.Context, cr *certification.CertificationResponse) {
 	// remember to clear the incoming buffer to accept new nodeRequest
-	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
+	// NB! this will try and reset the store also in the case when partition id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(cr.Partition, cr.Shard)
 		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%s'", cr.Partition))
@@ -268,7 +268,7 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 
 	subscribed := v.subscription.Get(cr.Partition)
 	v.log.DebugContext(ctx, fmt.Sprintf("sending unicity certificate to partition %s, IR Hash: %X, Block Hash: %X",
-		cr.UC.UnicityTreeCertificate.SystemIdentifier, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
+		cr.UC.UnicityTreeCertificate.PartitionIdentifier, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

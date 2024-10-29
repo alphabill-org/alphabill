@@ -47,26 +47,26 @@ var (
 	updatedData              = []byte{0, 12}
 )
 
-func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
+func TestNewTokenTxSystem_NilPartitionIdentifier(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  0,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 0,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(state.NewEmptyState()))
-	require.ErrorContains(t, err, `system identifier is missing`)
+	require.ErrorContains(t, err, `partition identifier is missing`)
 	require.Nil(t, txs)
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  tokens.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: tokens.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
@@ -78,7 +78,7 @@ func TestExecuteDefineNFT_WithoutParentID(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
@@ -105,10 +105,10 @@ func TestExecuteDefineNFT_WithoutParentID(t *testing.T) {
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
 	require.Equal(t, symbol, d.Symbol)
 	require.Nil(t, d.ParentTypeID)
-	require.Equal(t, subTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, tokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
-	require.Equal(t, dataUpdatePredicate, d.DataUpdatePredicate)
+	require.EqualValues(t, subTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, tokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, dataUpdatePredicate, d.DataUpdatePredicate)
 }
 
 func TestExecuteDefineNFT_WithParentID(t *testing.T) {
@@ -116,7 +116,7 @@ func TestExecuteDefineNFT_WithParentID(t *testing.T) {
 	createParentTx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(parent1Identifier),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -137,7 +137,7 @@ func TestExecuteDefineNFT_WithParentID(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(
 			&tokens.DefineNonFungibleTokenAttributes{
 				Symbol:                   symbol,
@@ -175,7 +175,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	createParent1Tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(parent1Identifier),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: parent1SubTypeCreationPredicate,
@@ -196,7 +196,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	unsignedCreateParent2Tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(parent2Identifier),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(
 			&tokens.DefineNonFungibleTokenAttributes{
 				Symbol:                   symbol,
@@ -213,7 +213,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	signedCreateParent2Tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(parent2Identifier),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(
 			&tokens.DefineNonFungibleTokenAttributes{
 				Symbol:                   symbol,
@@ -243,7 +243,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	createChildTx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(
 			unsignedChildTxAttributes,
 		),
@@ -263,7 +263,7 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	createChildTx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(
 			unsignedChildTxAttributes,
 		),
@@ -291,7 +291,7 @@ func TestExecuteDefineNFT_UnitIDIsNil(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nil),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{}),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
@@ -308,7 +308,7 @@ func TestExecuteDefineNFT_UnitIDHasWrongType(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(tokens.NewNonFungibleTokenID(nil, test.RandomBytes(32))),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{}),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
@@ -329,7 +329,7 @@ func TestExecuteDefineNFT_ParentTypeIDHasWrongType(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{ParentTypeID: tokens.NewNonFungibleTokenID(nil, test.RandomBytes(32))}),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
@@ -351,7 +351,7 @@ func TestExecuteDefineNFT_UnitIDExists(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
@@ -383,7 +383,7 @@ func TestExecuteDefineNFT_ParentDoesNotExist(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			ParentTypeID:             parent1Identifier,
@@ -410,7 +410,7 @@ func TestExecuteDefineNFT_InvalidParentType(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			ParentTypeID:             parent1Identifier,
@@ -429,17 +429,17 @@ func TestExecuteDefineNFT_InvalidParentType(t *testing.T) {
 	require.EqualError(t, sm.ErrDetail(), fmt.Sprintf("transaction validation error (type=2): token type SubTypeCreationPredicate: read [0] unit ID %q data: expected unit %[1]v data to be %T got %T", parent1Identifier, &tokens.NonFungibleTokenTypeData{}, &mockUnitData{}))
 }
 
-func TestExecuteDefineNFT_InvalidSystemIdentifier(t *testing.T) {
+func TestExecuteDefineNFT_InvalidPartitionIdentifier(t *testing.T) {
 	txs, _ := newTokenTxSystem(t)
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(0),
+		testtransaction.WithPartitionID(0),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{}),
 	)
 	sm, err := txs.Execute(tx)
-	require.EqualError(t, err, "invalid transaction: error invalid system identifier")
+	require.EqualError(t, err, "invalid transaction: error invalid partition identifier")
 	require.Nil(t, sm)
 }
 
@@ -448,7 +448,7 @@ func TestExecuteDefineNFT_InvalidTxType(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{}),
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithFeeProof(nil),
@@ -468,7 +468,7 @@ func TestRevertTransaction_Ok(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{ParentTypeID: nil}),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -494,7 +494,7 @@ func TestExecuteDefineNFT_InvalidSymbolLength(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{Symbol: s}),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -516,7 +516,7 @@ func TestExecuteDefineNFT_InvalidNameLength(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol: symbol,
@@ -540,7 +540,7 @@ func TestExecuteDefineNFT_InvalidIconTypeLength(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol: symbol,
@@ -564,7 +564,7 @@ func TestExecuteDefineNFT_InvalidIconDataLength(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol: symbol,
@@ -590,7 +590,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitID(nftTypeID2),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
@@ -615,7 +615,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			OwnerPredicate:      templates.AlwaysTrueBytes(),
 			TypeID:              nftTypeID2,
@@ -653,7 +653,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, nftName, d.Name)
-	require.Equal(t, []byte{10}, d.Data)
+	require.EqualValues(t, []byte{10}, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
 	require.Equal(t, uint64(0), d.Counter)
@@ -665,7 +665,7 @@ func TestMintNFT_UnitIDIsNil(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
 		testtransaction.WithUnitID(nil),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{}),
 		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -682,7 +682,7 @@ func TestMintNFT_UnitIDHasWrongType(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
 		testtransaction.WithUnitID(invalidNonFungibleTokenID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{}),
 		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -701,7 +701,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID2),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -723,7 +723,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			OwnerPredicate:      templates.AlwaysTrueBytes(),
 			TypeID:              nftTypeID2,
@@ -753,7 +753,7 @@ func TestMintNFT_NameLengthIsInvalid(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			TypeID: nftTypeID1,
 			Name:   test.RandomString(maxNameLength + 1),
@@ -775,7 +775,7 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			TypeID: nftTypeID1,
@@ -797,7 +797,7 @@ func TestMintNFT_URIFormatIsInvalid(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			TypeID: nftTypeID1,
 			URI:    "invalid_uri",
@@ -820,7 +820,7 @@ func TestMintNFT_DataLengthIsInvalid(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			TypeID: nftTypeID1,
 			URI:    validNFTURI,
@@ -845,7 +845,7 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			URI:    validNFTURI,
 			Data:   []byte{0, 0, 0, 0},
@@ -873,7 +873,7 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nonExistingUnitID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
 			Counter:           0,
@@ -897,7 +897,7 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
@@ -919,7 +919,7 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
 			Counter:           0,
@@ -946,7 +946,7 @@ func TestTransferNFT_InvalidCounter(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
 			Counter:           1,
@@ -971,7 +971,7 @@ func TestTransferNFT_InvalidTypeID(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            tokens.NewFungibleTokenTypeID(nil, test.RandomBytes(32)),
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
@@ -999,7 +999,7 @@ func TestTransferNFT_EmptyTypeID(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
 			Counter:           0,
@@ -1033,7 +1033,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: test.RandomBytes(32), // invalid owner
@@ -1054,7 +1054,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
@@ -1083,7 +1083,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
@@ -1115,7 +1115,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
@@ -1139,7 +1139,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, nftName, d.Name)
-	require.Equal(t, []byte{10}, d.Data)
+	require.EqualValues(t, []byte{10}, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
 	require.Equal(t, uint64(1), d.Counter)
@@ -1155,7 +1155,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysFalseBytes(),
@@ -1182,7 +1182,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
@@ -1211,7 +1211,7 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeLockToken),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.LockTokenAttributes{
 			LockStatus: 1,
 			Counter:    0,
@@ -1241,7 +1241,7 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.AlwaysTrueBytes(),
@@ -1268,7 +1268,7 @@ func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(dataMaxSize + 1),
 			Counter: 0,
@@ -1291,7 +1291,7 @@ func TestUpdateNFT_UnitDoesNotExist(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftUnitID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(0),
 			Counter: 0,
@@ -1313,7 +1313,7 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: subTypeCreationPredicate,
@@ -1335,7 +1335,7 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftTypeID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 0,
@@ -1360,7 +1360,7 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeLockToken),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.LockTokenAttributes{
 			LockStatus: 1,
 			Counter:    0,
@@ -1389,7 +1389,7 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 0,
@@ -1414,7 +1414,7 @@ func TestUpdateNFT_InvalidCounter(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 1,
@@ -1439,7 +1439,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID2),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -1468,7 +1468,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			OwnerPredicate:      templates.AlwaysTrueBytes(),
 			TypeID:              nftTypeID2,
@@ -1501,7 +1501,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 0,
@@ -1532,7 +1532,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(nftID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Counter: 0,
 			Data:    updatedData,
@@ -1558,7 +1558,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.Equal(t, nftName, d.Name)
-	require.Equal(t, updatedData, d.Data)
+	require.EqualValues(t, updatedData, d.Data)
 	require.Equal(t, validNFTURI, d.URI)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.DataUpdatePredicate)
 	require.Equal(t, uint64(1), d.Counter)
@@ -1577,7 +1577,7 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(10))
 	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
 		testtransaction.WithUnitID(feeCreditID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 	)
 	sm, err := txs.Execute(lockFC)
 	require.NoError(t, err)
@@ -1596,7 +1596,7 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(11))
 	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr,
 		testtransaction.WithUnitID(feeCreditID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 	)
 	sm, err = txs.Execute(unlockFC)
 	require.NoError(t, err)
@@ -1618,7 +1618,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeI
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithUnitID(nftTypeID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   symbol,
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -1647,7 +1647,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeI
 	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintNFT),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.MintNonFungibleTokenAttributes{
 			OwnerPredicate:      templates.AlwaysTrueBytes(),
 			TypeID:              nftTypeID,
@@ -1728,11 +1728,11 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  tokens.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: tokens.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 
 	txs, err := NewTxSystem(

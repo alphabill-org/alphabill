@@ -9,15 +9,15 @@ import (
 )
 
 type Timeout struct {
-	_      struct{}     `cbor:",toarray"`
-	Epoch  uint64       `json:"epoch,omitempty"`   // Epoch to establish valid configuration
-	Round  uint64       `json:"round,omitempty"`   // Root round number
-	HighQc *QuorumCert  `json:"high_qc,omitempty"` // Highest quorum certificate of the validator
+	_      struct{}    `cbor:",toarray"`
+	Epoch  uint64      `json:"epoch,omitempty"`  // Epoch to establish valid configuration
+	Round  uint64      `json:"round,omitempty"`  // Root round number
+	HighQc *QuorumCert `json:"highQc,omitempty"` // Highest quorum certificate of the validator
 }
 
 type TimeoutVote struct {
 	_         struct{} `cbor:",toarray"`
-	HqcRound  uint64   `json:"hqc_round,omitempty"` // round from timeout.high_qc.voteInfo.round
+	HqcRound  uint64   `json:"hqcRound,omitempty"`  // round from timeout.high_qc.voteInfo.round
 	Signature []byte   `json:"signature,omitempty"` // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
 }
 

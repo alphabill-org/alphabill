@@ -17,8 +17,8 @@ import (
 )
 
 type Orchestration interface {
-	ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-	ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+	ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+	ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 }
 
 func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, error) {
@@ -28,7 +28,7 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 		RootHash:      pg.Certificate.InputRecord.Hash,
 		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
 		LastCR: &certification.CertificationResponse{
-			Partition: pg.PartitionDescription.SystemIdentifier,
+			Partition: pg.PartitionDescription.PartitionIdentifier,
 			Shard:     types.ShardID{},
 			UC:        *pg.Certificate,
 		},

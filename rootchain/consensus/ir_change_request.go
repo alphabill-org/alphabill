@@ -14,7 +14,7 @@ type (
 	CertReqReason uint8
 
 	IRChangeRequest struct {
-		Partition types.SystemID
+		Partition types.PartitionID
 		Shard     types.ShardID
 		Reason    CertReqReason
 		Requests  []*certification.BlockCertificationRequest

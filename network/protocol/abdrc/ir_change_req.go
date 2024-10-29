@@ -13,7 +13,7 @@ import (
 type IrChangeReqMsg struct {
 	_           struct{}           `cbor:",toarray"`
 	Author      string             `json:"author,omitempty"`
-	IrChangeReq *abdrc.IRChangeReq `json:"ir_change_req,omitempty"`
+	IrChangeReq *abdrc.IRChangeReq `json:"irChangeReq,omitempty"`
 	Signature   []byte             `json:"signature,omitempty"`
 }
 

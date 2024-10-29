@@ -56,7 +56,7 @@ func Test_RootGenesis_New(t *testing.T) {
 		require.Len(t, rootGenesis.Partitions, 1)
 		// verify, content
 		require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
-		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, money.DefaultSystemID)
+		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, money.DefaultPartitionID)
 	})
 
 	t.Run("KeyFileNotFound", func(t *testing.T) {

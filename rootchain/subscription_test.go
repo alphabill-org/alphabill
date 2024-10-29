@@ -12,7 +12,7 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 	subscriptions := NewSubscriptions(noop.NewMeterProvider().Meter(t.Name()))
 	require.NotNil(t, subscriptions)
 	// no panic
-	var sysID1 types.SystemID = 1
+	var sysID1 types.PartitionID = 1
 	subscriptions.ResponseSent(sysID1, "1")
 	require.Empty(t, subscriptions.subs)
 	subscribed := subscriptions.Get(sysID1)
@@ -33,7 +33,7 @@ func TestNewSubscriptions(t *testing.T) {
 	subscribed = subscriptions.Get(sysID2)
 	require.Contains(t, subscribed, "1")
 	require.NotContains(t, subscribed, "2")
-	subscribed = subscriptions.Get(types.SystemID(3))
+	subscribed = subscriptions.Get(3)
 	require.Empty(t, subscribed)
 }
 

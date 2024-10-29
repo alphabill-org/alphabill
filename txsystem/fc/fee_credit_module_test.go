@@ -18,34 +18,34 @@ func TestFC_Validation(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
-	systemID := moneySystemID
+	partitionID := moneyPartitionID
 	networkID := types.NetworkID(5)
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
-		_, err := NewFeeCreditModule(0, systemID, systemID, s, trustBase)
+		_, err := NewFeeCreditModule(0, partitionID, partitionID, s, trustBase)
 		require.ErrorIs(t, err, ErrNetworkIdentifierMissing)
 
-		_, err = NewFeeCreditModule(networkID, 0, systemID, s, trustBase)
-		require.ErrorIs(t, err, ErrSystemIdentifierMissing)
+		_, err = NewFeeCreditModule(networkID, 0, partitionID, s, trustBase)
+		require.ErrorIs(t, err, ErrPartitionIdentifierMissing)
 
-		_, err = NewFeeCreditModule(networkID, systemID, 0, s, trustBase)
-		require.ErrorIs(t, err, ErrMoneySystemIdentifierMissing)
+		_, err = NewFeeCreditModule(networkID, partitionID, 0, s, trustBase)
+		require.ErrorIs(t, err, ErrMoneyPartitionIdentifierMissing)
 
-		_, err = NewFeeCreditModule(networkID, systemID, systemID, nil, trustBase)
+		_, err = NewFeeCreditModule(networkID, partitionID, partitionID, nil, trustBase)
 		require.ErrorIs(t, err, ErrStateIsNil)
 
-		_, err = NewFeeCreditModule(networkID, systemID, systemID, s, nil)
+		_, err = NewFeeCreditModule(networkID, partitionID, partitionID, s, nil)
 		require.ErrorIs(t, err, ErrTrustBaseIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(networkID, systemID, systemID, s, trustBase)
+		fc, err := NewFeeCreditModule(networkID, partitionID, partitionID, s, trustBase)
 		require.NoError(t, err)
 		require.NotNil(t, fc)
 	})
 
 	t.Run("new fc module executors", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(networkID, systemID, systemID, s, trustBase)
+		fc, err := NewFeeCreditModule(networkID, partitionID, partitionID, s, trustBase)
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
 		require.Len(t, fcExecutors, 4)

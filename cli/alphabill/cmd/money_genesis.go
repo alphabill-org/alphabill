@@ -36,11 +36,11 @@ var (
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
 	defaultMoneyPDR = &types.PartitionDescriptionRecord{
-		NetworkIdentifier: types.NetworkLocal,
-		SystemIdentifier:  moneysdk.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   types.NetworkLocal,
+		PartitionIdentifier: moneysdk.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),

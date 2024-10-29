@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	defaultNetworkID types.NetworkID = 5
-	defaultSystemID  types.SystemID  = 1
+	defaultNetworkID   types.NetworkID   = 5
+	defaultPartitionID types.PartitionID = 1
 )
 
 func defaultTx() *types.TransactionOrder {
 	payload := types.Payload{
 		NetworkID:      defaultNetworkID,
-		SystemID:       defaultSystemID,
+		PartitionID:    defaultPartitionID,
 		Type:           22,
 		UnitID:         test.RandomBytes(33),
 		ClientMetadata: defaultClientMetadata(),
@@ -37,9 +37,9 @@ func WithNetworkID(id types.NetworkID) Option {
 	}
 }
 
-func WithSystemID(id types.SystemID) Option {
+func WithPartitionID(id types.PartitionID) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.SystemID = id
+		tx.PartitionID = id
 		return nil
 	}
 }

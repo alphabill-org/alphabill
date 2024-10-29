@@ -16,7 +16,7 @@ func TestHandshake_IsValid_Error(t *testing.T) {
 		Partition:      0,
 		NodeIdentifier: "test",
 	}
-	require.ErrorIs(t, ErrInvalidSystemIdentifier, h.IsValid())
+	require.ErrorIs(t, ErrInvalidPartitionIdentifier, h.IsValid())
 
 	h = &Handshake{
 		Partition:      1,

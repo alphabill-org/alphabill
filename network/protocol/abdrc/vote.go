@@ -12,11 +12,11 @@ import (
 
 type VoteMsg struct {
 	_                struct{}             `cbor:",toarray"`
-	VoteInfo         *drctypes.RoundInfo  `json:"vote_info,omitempty"`          // Proposed block hash and resulting state hash
-	LedgerCommitInfo *types.UnicitySeal   `json:"ledger_commit_info,omitempty"` // Commit info
-	HighQc           *drctypes.QuorumCert `json:"high_qc,omitempty"`            // Sync with highest QC
-	Author           string               `json:"author,omitempty"`             // Voter node identifier
-	Signature        []byte               `json:"signature,omitempty"`          // Vote signature on hash of consensus info
+	VoteInfo         *drctypes.RoundInfo  `json:"voteInfo,omitempty"`         // Proposed block hash and resulting state hash
+	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo,omitempty"` // Commit info
+	HighQc           *drctypes.QuorumCert `json:"highQc,omitempty"`           // Sync with highest QC
+	Author           string               `json:"author,omitempty"`           // Voter node identifier
+	Signature        []byte               `json:"signature,omitempty"`        // Vote signature on hash of consensus info
 }
 
 func (x *VoteMsg) Sign(signer crypto.Signer) error {

@@ -30,7 +30,7 @@ func PeerID(key attribute.Key, id peer.ID) attribute.KeyValue {
 	return key.String(id.String())
 }
 
-func Partition(id types.SystemID) attribute.KeyValue {
+func Partition(id types.PartitionID) attribute.KeyValue {
 	return attribute.Int("partition", int(id))
 }
 

@@ -27,9 +27,9 @@ func Test_PartitionStore_Init(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         2600 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -147,9 +147,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         1000 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           1000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -159,9 +159,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		},
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  2,
-				T2Timeout:         2000 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 2,
+				T2Timeout:           2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
@@ -242,9 +242,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		invalidPartitions := []*genesis.GenesisPartitionRecord{
 			{
 				PartitionDescription: &types.PartitionDescriptionRecord{
-					NetworkIdentifier: 5,
-					SystemIdentifier:  1,
-					T2Timeout:         1000 * time.Millisecond,
+					NetworkIdentifier:   5,
+					PartitionIdentifier: 1,
+					T2Timeout:           1000 * time.Millisecond,
 				},
 				// make one of the PKs invalid so building partition trust base should fail
 				Nodes: []*genesis.PartitionNode{
@@ -281,9 +281,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		nextConfig := []*genesis.GenesisPartitionRecord{
 			{
 				PartitionDescription: &types.PartitionDescriptionRecord{
-					NetworkIdentifier: 5,
-					SystemIdentifier:  3,
-					T2Timeout:         3000 * time.Millisecond,
+					NetworkIdentifier:   5,
+					PartitionIdentifier: 3,
+					T2Timeout:           3000 * time.Millisecond,
 				},
 				Nodes: []*genesis.PartitionNode{
 					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},

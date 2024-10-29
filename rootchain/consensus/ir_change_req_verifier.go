@@ -13,9 +13,9 @@ import (
 
 type (
 	State interface {
-		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
 		GetCertificates() []*types.UnicityCertificate
-		IsChangeInProgress(id types.SystemID) *types.InputRecord
+		IsChangeInProgress(id types.PartitionID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -121,14 +121,14 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, s
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.SystemID, retErr error) {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.PartitionID, retErr error) {
 	configs, err := x.orchestration.RoundPartitions(currentRound)
 	if err != nil {
 		return nil, err
 	}
-	timeoutIds := make([]types.SystemID, 0, len(configs))
+	timeoutIds := make([]types.PartitionID, 0, len(configs))
 	for _, partition := range configs {
-		partitionID := partition.PartitionDescription.SystemIdentifier
+		partitionID := partition.PartitionDescription.PartitionIdentifier
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(partitionID); ir != nil {
 			continue

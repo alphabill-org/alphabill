@@ -100,8 +100,8 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
 	transferTx := feeCreditTransferProof.TransactionOrder()
 	// dirty hack
-	if transferTx.SystemID != f.moneySystemID {
-		return fmt.Errorf("invalid transferFC money system identifier %d (expected %d)", transferTx.SystemID, f.moneySystemID)
+	if transferTx.PartitionID != f.moneyPartitionID {
+		return fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", transferTx.PartitionID, f.moneyPartitionID)
 	}
 
 	if transferTx.Type != fc.TransactionTypeTransferFeeCredit {
@@ -114,8 +114,8 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	}
 
 	// 5. P.A.P.A.α = P.α – bill was transferred to fee credits for this system
-	if transferTxAttr.TargetSystemIdentifier != f.systemID {
-		return fmt.Errorf("invalid transferFC target system identifier: expected_target_system_id: %s actual_target_system_id=%s", f.systemID, transferTxAttr.TargetSystemIdentifier)
+	if transferTxAttr.TargetPartitionID != f.partitionID {
+		return fmt.Errorf("invalid transferFC target partition identifier: expected_target_partition_id: %s actual_target_partition_id=%s", f.partitionID, transferTxAttr.TargetPartitionID)
 	}
 
 	// 6. P.A.P.A.ιf = P.ι – bill was transferred to fee credits of the target record

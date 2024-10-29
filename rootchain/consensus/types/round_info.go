@@ -18,11 +18,11 @@ var (
 
 type RoundInfo struct {
 	_                 struct{} `cbor:",toarray"`
-	RoundNumber       uint64   `json:"root_chain_round_number,omitempty"`
-	Epoch             uint64   `json:"root_epoch,omitempty"`
+	RoundNumber       uint64   `json:"rootChainRoundNumber,omitempty"`
+	Epoch             uint64   `json:"rootEpoch,omitempty"`
 	Timestamp         uint64   `json:"timestamp,omitempty"`
-	ParentRoundNumber uint64   `json:"root_chain_parent_round_number,omitempty"`
-	CurrentRootHash   []byte   `json:"current_root_hash,omitempty"`
+	ParentRoundNumber uint64   `json:"rootChainParentRoundNumber,omitempty"`
+	CurrentRootHash   []byte   `json:"currentRootHash,omitempty"`
 }
 
 func (x *RoundInfo) GetRound() uint64 {

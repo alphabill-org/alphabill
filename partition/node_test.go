@@ -222,7 +222,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
-		Partition: tp.nodeConf.GetSystemIdentifier(),
+		Partition: tp.nodeConf.GetPartitionIdentifier(),
 		Shard:     tp.nodeConf.shardID,
 	}
 	tp.mockNet.Receive(cr)
@@ -245,7 +245,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	luc, found := tp.certs[tp.nodeConf.GetSystemIdentifier()]
+	luc, found := tp.certs[tp.nodeConf.GetPartitionIdentifier()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3)
@@ -278,7 +278,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 
 	uc2 := tp.partition.luc.Load()
 	require.Equal(t, uc1.InputRecord.RoundNumber+1, uc2.InputRecord.RoundNumber)
-	require.Equal(t, uc1.UnicityTreeCertificate.SystemIdentifier, uc2.UnicityTreeCertificate.SystemIdentifier)
+	require.Equal(t, uc1.UnicityTreeCertificate.PartitionIdentifier, uc2.UnicityTreeCertificate.PartitionIdentifier)
 	//require.Equal(t, blockHash, block2.PreviousBlockHash)
 
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.Hash)
@@ -504,7 +504,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 		UnicityCertificate: uc,
 	})
 
-	ContainsError(t, tp, "invalid system identifier")
+	ContainsError(t, tp, "invalid partition identifier")
 }
 
 func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
@@ -519,7 +519,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
-		Partition:          tp.nodeConf.GetSystemIdentifier(),
+		Partition:          tp.nodeConf.GetPartitionIdentifier(),
 		UnicityCertificate: uc,
 	})
 
@@ -536,7 +536,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.SystemIdentifier,
+		Partition:          uc2.UnicityTreeCertificate.PartitionIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
@@ -559,7 +559,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.SystemIdentifier,
+		Partition:          uc2.UnicityTreeCertificate.PartitionIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
@@ -582,7 +582,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.SystemIdentifier,
+		Partition:          uc2.UnicityTreeCertificate.PartitionIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
@@ -614,7 +614,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.SystemIdentifier,
+		Partition:          uc2.UnicityTreeCertificate.PartitionIdentifier,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},

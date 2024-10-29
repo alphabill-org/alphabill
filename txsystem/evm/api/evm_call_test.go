@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const systemIdentifier types.SystemID = 0x00000402
+const partitionIdentifier types.PartitionID = 0x00000402
 
 // SPDX-License-Identifier: GPL-3.0
 /*
@@ -77,11 +77,11 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	tree := abstate.NewEmptyState()
 	treeClean := tree.Clone()
 	a := &API{
-		state:            tree,
-		systemIdentifier: 3,
-		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              logger.New(t),
+		state:               tree,
+		partitionIdentifier: 3,
+		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 logger.New(t),
 	}
 	call := &evmsdk.CallEVMRequest{
 		From: test.RandomBytes(20),
@@ -113,11 +113,11 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              log,
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 log,
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), blockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), blockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	teststate.CommitWithUC(t, tree)
 
@@ -171,11 +171,11 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	address, _ := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              logger.New(t),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 logger.New(t),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -205,10 +205,10 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 	initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()
@@ -243,7 +243,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	details := &evmsdk.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)

@@ -33,15 +33,15 @@ func DefaultOptions() *Options {
 
 func DefaultSDR() *types.PartitionDescriptionRecord {
 	return &types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  money.DefaultSystemID,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: money.DefaultPartitionID,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 }
 
-func WithSystemIdentifier(systemID types.SystemID) Option {
+func WithPartitionIdentifier(partitionID types.PartitionID) Option {
 	return func(g *Options) {
-		g.sdr.SystemIdentifier = systemID
+		g.sdr.PartitionIdentifier = partitionID
 	}
 }
 
@@ -69,7 +69,7 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 	require.NoError(t, err)
 	b := &types.Block{
 		Header: &types.Header{
-			SystemID:          types.SystemID(1),
+			PartitionID:       1,
 			ProposerID:        "test",
 			PreviousBlockHash: make([]byte, 32),
 		},

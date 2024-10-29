@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -389,7 +390,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 			Type:           money.TransactionTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       money.DefaultSystemID,
+			PartitionID:    money.DefaultPartitionID,
 			Attributes:     attrBytes,
 		},
 	}
@@ -397,7 +398,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 
-	var res types.Bytes
+	var res hex.Bytes
 	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -416,7 +417,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 			Type:           money.TransactionTypeTransfer,
 			UnitID:         defaultInitialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
-			SystemID:       0, // invalid system id
+			PartitionID:    0, // invalid partition id
 			Attributes:     attrBytes,
 		},
 	}
@@ -424,9 +425,9 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 
-	var res types.Bytes
+	var res hex.Bytes
 	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
-	require.ErrorContains(t, err, "failed to submit transaction to the network: expected 00000001, got 00000000: invalid transaction system identifier")
+	require.ErrorContains(t, err, "failed to submit transaction to the network: expected 00000001, got 00000000: invalid transaction partition identifier")
 	require.Nil(t, res, "Failing payment should not return response")
 }
 

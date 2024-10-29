@@ -83,7 +83,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			wantErr: ErrPartitionsNotFound.Error(),
 		},
 		{
-			name: "genesis partition record duplicate system id",
+			name: "genesis partition record duplicate partition id",
 			args: args{
 				verifier: verifier,
 			},
@@ -98,17 +98,17 @@ func TestRootGenesis_IsValid(t *testing.T) {
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 				},
 			},
-			wantErr: "duplicated system identifier: ",
+			wantErr: "duplicated partition identifier: ",
 		},
 	}
 	for _, tt := range tests {

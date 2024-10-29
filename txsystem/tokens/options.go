@@ -14,7 +14,7 @@ import (
 
 type (
 	Options struct {
-		moneySystemID       types.SystemID
+		moneyPartitionID    types.PartitionID
 		hashAlgorithm       gocrypto.Hash
 		trustBase           types.RootTrustBase
 		state               *state.State
@@ -33,9 +33,9 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		moneySystemID: money.DefaultSystemID,
-		hashAlgorithm: gocrypto.SHA256,
-		exec:          predEng.Execute,
+		moneyPartitionID: money.DefaultPartitionID,
+		hashAlgorithm:    gocrypto.SHA256,
+		exec:             predEng.Execute,
 	}, nil
 }
 
@@ -45,9 +45,9 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithMoneyTransactionSystemID(moneySystemID types.SystemID) Option {
+func WithMoneyPartitionID(moneyPartitionID types.PartitionID) Option {
 	return func(c *Options) {
-		c.moneySystemID = moneySystemID
+		c.moneyPartitionID = moneyPartitionID
 	}
 }
 

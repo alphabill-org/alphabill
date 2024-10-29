@@ -187,17 +187,17 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{PartitionIdentifier: 7},
 	}
 
 	orc := mockOrchestration{
-		shardEpoch: func(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) {
+		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 			if round > 100 {
 				return 2, nil
 			}
 			return 1, nil
 		},
-		shardConfig: func(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
 			return pgEpoch2, nil
 		},
 	}
@@ -306,7 +306,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{SystemIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{PartitionIdentifier: 7},
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -345,14 +345,14 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 }
 
 type mockOrchestration struct {
-	shardEpoch  func(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-	shardConfig func(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+	shardEpoch  func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 }
 
-func (mo mockOrchestration) ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) {
+func (mo mockOrchestration) ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 	return mo.shardEpoch(partition, shard, round)
 }
 
-func (mo mockOrchestration) ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+func (mo mockOrchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
 	return mo.shardConfig(partition, shard, epoch)
 }

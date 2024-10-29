@@ -16,8 +16,8 @@ var (
 
 type ProposalMsg struct {
 	_           struct{}           `cbor:",toarray"`
-	Block       *abdrc.BlockData   `json:"block,omitempty"`         // Proposed change
-	LastRoundTc *abdrc.TimeoutCert `json:"last_round_tc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
+	Block       *abdrc.BlockData   `json:"block,omitempty"`       // Proposed change
+	LastRoundTc *abdrc.TimeoutCert `json:"lastRoundTc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
 	Signature   []byte             `json:"signature,omitempty"`
 }
 

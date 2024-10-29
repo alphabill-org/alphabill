@@ -87,9 +87,9 @@ func TestBlockData_IsValid(t *testing.T) {
 
 	/*	t.Run("invalid payload", func(t *testing.T) {
 			bd := validBlockData()
-			bd.Payload.Requests = []*IRChangeReq{{SystemIdentifier: []byte{1}}}
+			bd.Payload.Requests = []*IRChangeReq{{PartitionIdentifier: []byte{1}}}
 			err := bd.IsValid()
-			require.EqualError(t, err, `invalid payload: invalid IR change request for 01: invalid system identifier [1]`)
+			require.EqualError(t, err, `invalid payload: invalid IR change request for 01: invalid partition identifier [1]`)
 		})
 	*/
 	t.Run("missing QC", func(t *testing.T) {

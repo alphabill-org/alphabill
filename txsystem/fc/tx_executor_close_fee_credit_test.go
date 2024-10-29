@@ -198,12 +198,12 @@ func withFeePredicateRunner(r predicates.PredicateRunner) feeTestOption {
 
 func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeCreditModule {
 	m := &FeeCreditModule{
-		hashAlgorithm: crypto.SHA256,
-		state:         state.NewEmptyState(),
-		networkID:     5,
-		systemID:      moneySystemID,
-		moneySystemID: moneySystemID,
-		trustBase:     tb,
+		hashAlgorithm:    crypto.SHA256,
+		state:            state.NewEmptyState(),
+		networkID:        5,
+		partitionID:      moneyPartitionID,
+		moneyPartitionID: moneyPartitionID,
+		trustBase:        tb,
 		execPredicate: func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
 			return nil
 		},

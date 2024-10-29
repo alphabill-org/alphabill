@@ -61,8 +61,8 @@ type (
 	}
 
 	Orchestration interface {
-		ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 		RoundPartitions(rootRound uint64) ([]*genesis.GenesisPartitionRecord, error)
 	}
 
@@ -770,7 +770,7 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 }
 
 type partitionShard struct {
-	partition types.SystemID
+	partition types.PartitionID
 	shard     string // types.ShardID is not comparable
 }
 
@@ -1098,7 +1098,7 @@ func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes 
 	return nodes
 }
 
-func (x *ConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error) {
 	return x.blockStore.ShardInfo(partition, shard)
 }
 

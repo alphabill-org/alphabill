@@ -19,7 +19,7 @@ type GenesisPartitionRecord struct {
 	Version              types.ABVersion                   `json:"version,omitempty"`
 	Nodes                []*PartitionNode                  `json:"nodes,omitempty"`
 	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
-	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord,omitempty"`
 }
 
 func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {
@@ -48,9 +48,9 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 	if err := nodesUnique(x.Nodes); err != nil {
 		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
-	systemIdentifier := x.PartitionDescription.SystemIdentifier
+	partitionIdentifier := x.PartitionDescription.PartitionIdentifier
 	systemDescriptionHash := x.PartitionDescription.Hash(hashAlgorithm)
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, partitionIdentifier, systemDescriptionHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
 	return nil

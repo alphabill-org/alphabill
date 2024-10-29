@@ -17,14 +17,14 @@ var (
 )
 
 type PartitionNode struct {
-	_                         struct{}                                 `cbor:",toarray"`
-	Version                   types.ABVersion                          `json:"version,omitempty"`
-	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
-	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
-	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
-	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
-	Params                    []byte                                   `json:"params,omitempty"`
-	PartitionDescription      types.PartitionDescriptionRecord         `json:"partition_description"`
+	_                          struct{}                                 `cbor:",toarray"`
+	Version                    types.ABVersion                          `json:"version,omitempty"`
+	NodeIdentifier             string                                   `json:"nodeIdentifier,omitempty"`
+	SigningPublicKey           []byte                                   `json:"signingPublicKey,omitempty"`
+	EncryptionPublicKey        []byte                                   `json:"encryptionPublicKey,omitempty"`
+	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest,omitempty"`
+	Params                     []byte                                   `json:"params,omitempty"`
+	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
 }
 
 type MoneyPartitionParams struct {

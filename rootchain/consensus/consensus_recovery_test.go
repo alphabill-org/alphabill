@@ -786,15 +786,15 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	return cms, nw, rootG
 }
 
-func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
+func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
-			NetworkIdentifier: 5,
-			SystemIdentifier:  systemID,
-			TypeIdLen:         8,
-			UnitIdLen:         256,
-			T2Timeout:         2500 * time.Millisecond,
+			NetworkIdentifier:   5,
+			PartitionIdentifier: partitionID,
+			TypeIdLen:           8,
+			UnitIdLen:           256,
+			T2Timeout:           2500 * time.Millisecond,
 		},
 	}
 
@@ -802,19 +802,19 @@ func createPartitionRecord(t *testing.T, systemID abtypes.SystemID, ir *abtypes.
 		nodeID, signer, _, pubKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:      systemID,
+			Partition:      partitionID,
 			NodeIdentifier: nodeID.String(),
 			InputRecord:    ir,
 		}
 		require.NoError(t, req.Sign(signer))
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
-			Version:                   1,
-			NodeIdentifier:            nodeID.String(),
-			SigningPublicKey:          pubKey,
-			EncryptionPublicKey:       pubKey,
-			BlockCertificationRequest: req,
-			PartitionDescription:      *record.PartitionDescription,
+			Version:                    1,
+			NodeIdentifier:             nodeID.String(),
+			SigningPublicKey:           pubKey,
+			EncryptionPublicKey:        pubKey,
+			BlockCertificationRequest:  req,
+			PartitionDescriptionRecord: *record.PartitionDescription,
 		})
 	}
 

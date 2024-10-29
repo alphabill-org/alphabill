@@ -12,7 +12,7 @@ import (
 )
 
 func TestTxRecording(t *testing.T) {
-	const systemIDUnknown types.SystemID = 0x01020304
+	const unknownPartitionID types.PartitionID = 0x01020304
 	f := newFeeCreditTxRecorder(nil, 0, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
@@ -23,7 +23,7 @@ func TestTxRecording(t *testing.T) {
 		&transferFeeCreditTx{
 			tx: testutils.NewTransferFC(t, signer,
 				attr,
-				testtransaction.WithSystemID(moneySystemID),
+				testtransaction.WithPartitionID(moneyPartitionID),
 			),
 			fee:  transferFCFee,
 			attr: attr,
@@ -44,7 +44,7 @@ func TestTxRecording(t *testing.T) {
 	newReclaimFCAttr := testutils.NewReclaimFCAttr(t, signer, closureTx)
 	f.recordReclaimFC(
 		&reclaimFeeCreditTx{
-			tx:            testutils.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithSystemID(moneySystemID)),
+			tx:            testutils.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithPartitionID(moneyPartitionID)),
 			attr:          newReclaimFCAttr,
 			reclaimAmount: closeFCAttr.Amount - closeFCFee,
 			reclaimFee:    reclaimFCFee,
@@ -52,13 +52,13 @@ func TestTxRecording(t *testing.T) {
 		},
 	)
 
-	addedCredit := f.getAddedCredit(moneySystemID)
+	addedCredit := f.getAddedCredit(moneyPartitionID)
 	require.EqualValues(t, transferFCAmount-transferFCFee, addedCredit)
-	require.EqualValues(t, 0, f.getAddedCredit(systemIDUnknown))
+	require.EqualValues(t, 0, f.getAddedCredit(unknownPartitionID))
 
-	reclaimedCredit := f.getReclaimedCredit(moneySystemID)
+	reclaimedCredit := f.getReclaimedCredit(moneyPartitionID)
 	require.EqualValues(t, closeFCAmount-closeFCFee, reclaimedCredit)
-	require.EqualValues(t, 0, f.getReclaimedCredit(systemIDUnknown))
+	require.EqualValues(t, 0, f.getReclaimedCredit(unknownPartitionID))
 
 	spentFees := f.getSpentFeeSum()
 	require.EqualValues(t, transferFCFee+reclaimFCFee, spentFees)

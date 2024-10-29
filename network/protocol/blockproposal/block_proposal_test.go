@@ -13,22 +13,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const systemIdentifier types.SystemID = 1
+const partitionIdentifier types.PartitionID = 1
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	_, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		SystemIdentifier   types.SystemID
-		NodeIdentifier     string
-		UnicityCertificate *types.UnicityCertificate
-		Transactions       []*types.TransactionRecord
+		PartitionIdentifier types.PartitionID
+		NodeIdentifier      string
+		UnicityCertificate  *types.UnicityCertificate
+		Transactions        []*types.TransactionRecord
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
 		ucTrustBase           types.RootTrustBase
 		algorithm             gocrypto.Hash
-		systemIdentifier      types.SystemID
+		partitionIdentifier   types.PartitionID
 		systemDescriptionHash []byte
 	}
 
@@ -41,15 +41,15 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "node signature verifier is nil",
 			fields: fields{
-				SystemIdentifier: systemIdentifier,
-				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				PartitionIdentifier: partitionIdentifier,
+				NodeIdentifier:      "1",
+				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      systemIdentifier,
+				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrNodeVerifierIsNil,
@@ -57,46 +57,46 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc trust base verifier is nil",
 			fields: fields{
-				SystemIdentifier: systemIdentifier,
-				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				PartitionIdentifier: partitionIdentifier,
+				NodeIdentifier:      "1",
+				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           nil,
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      systemIdentifier,
+				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrTrustBaseIsNil,
 		},
 		{
-			name: "invalid system identifier",
+			name: "invalid partition identifier",
 			fields: fields{
-				SystemIdentifier: systemIdentifier,
-				NodeIdentifier:   "1",
-				Transactions:     []*types.TransactionRecord{},
+				PartitionIdentifier: partitionIdentifier,
+				NodeIdentifier:      "1",
+				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      2,
+				partitionIdentifier:   2,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: ErrInvalidSystemIdentifier,
+			wantErr: ErrInvalidPartitionIdentifier,
 		},
 		{
 			name: "block proposer id is missing",
 			fields: fields{
-				SystemIdentifier: systemIdentifier,
-				Transactions:     []*types.TransactionRecord{},
+				PartitionIdentifier: partitionIdentifier,
+				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      systemIdentifier,
+				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: errBlockProposerIDMissing,
@@ -104,16 +104,16 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc is nil",
 			fields: fields{
-				SystemIdentifier:   systemIdentifier,
-				NodeIdentifier:     "1",
-				UnicityCertificate: nil,
-				Transactions:       []*types.TransactionRecord{},
+				PartitionIdentifier: partitionIdentifier,
+				NodeIdentifier:      "1",
+				UnicityCertificate:  nil,
+				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				systemIdentifier:      systemIdentifier,
+				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: types.ErrUnicityCertificateIsNil,
@@ -122,12 +122,12 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &BlockProposal{
-				Partition:          tt.fields.SystemIdentifier,
+				Partition:          tt.fields.PartitionIdentifier,
 				NodeIdentifier:     tt.fields.NodeIdentifier,
 				UnicityCertificate: tt.fields.UnicityCertificate,
 				Transactions:       tt.fields.Transactions,
 			}
-			err := bp.IsValid(tt.args.nodeSignatureVerifier, tt.args.ucTrustBase, tt.args.algorithm, tt.args.systemIdentifier, tt.args.systemDescriptionHash)
+			err := bp.IsValid(tt.args.nodeSignatureVerifier, tt.args.ucTrustBase, tt.args.algorithm, tt.args.partitionIdentifier, tt.args.systemDescriptionHash)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
@@ -137,7 +137,7 @@ func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 	var bp *BlockProposal
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	ucTrustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": verifier})
-	err := bp.IsValid(verifier, ucTrustBase, gocrypto.SHA256, systemIdentifier, test.RandomBytes(32))
+	err := bp.IsValid(verifier, ucTrustBase, gocrypto.SHA256, partitionIdentifier, test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrBlockProposalIsNil)
 }
 
@@ -152,7 +152,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
-		Partition:      systemIdentifier,
+		Partition:      partitionIdentifier,
 		NodeIdentifier: "1",
 		UnicityCertificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: &types.InputRecord{Version: 1,
@@ -162,7 +162,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:         systemIdentifier,
+				PartitionIdentifier:      partitionIdentifier,
 				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
@@ -171,7 +171,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Transactions: []*types.TransactionRecord{{
 			TransactionOrder: &types.TransactionOrder{
 				Payload: types.Payload{
-					SystemID:       0,
+					PartitionID:    0,
 					Type:           22,
 					UnitID:         nil,
 					Attributes:     nil,
@@ -203,7 +203,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
-		Partition:      systemIdentifier,
+		Partition:      partitionIdentifier,
 		NodeIdentifier: "1",
 		UnicityCertificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: &types.InputRecord{Version: 1,
@@ -213,7 +213,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:         systemIdentifier,
+				PartitionIdentifier:      partitionIdentifier,
 				HashSteps:                []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PartitionDescriptionHash: sdrHash,
 			},
@@ -221,7 +221,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		},
 		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID:       0,
+				PartitionID:    0,
 				Type:           22,
 				UnitID:         nil,
 				Attributes:     nil,

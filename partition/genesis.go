@@ -119,7 +119,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	}
 	gBlock := &types.Block{
 		Header: &types.Header{
-			SystemID:          pdr.SystemIdentifier,
+			PartitionID:       pdr.PartitionIdentifier,
 			ProposerID:        "genesis",
 			PreviousBlockHash: zeroHash,
 		},
@@ -134,7 +134,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		Partition:       pdr.SystemIdentifier,
+		Partition:       pdr.PartitionIdentifier,
 		NodeIdentifier:  id,
 		InputRecord:     gIR,
 		RootRoundNumber: pg.RootRoundNumber,
@@ -159,13 +159,13 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 
 	// partition node
 	node := &genesis.PartitionNode{
-		Version:                   1,
-		NodeIdentifier:            id,
-		SigningPublicKey:          signingPubKey,
-		EncryptionPublicKey:       c.encryptionPubKeyBytes,
-		BlockCertificationRequest: blockCertificationRequest,
-		Params:                    c.params,
-		PartitionDescription:      pdr,
+		Version:                    1,
+		NodeIdentifier:             id,
+		SigningPublicKey:           signingPubKey,
+		EncryptionPublicKey:        c.encryptionPubKeyBytes,
+		BlockCertificationRequest:  blockCertificationRequest,
+		Params:                     c.params,
+		PartitionDescriptionRecord: pdr,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

@@ -31,7 +31,7 @@ type (
 	PartitionStore struct {
 		mu sync.Mutex
 		// currently active partitions configuration
-		partitions map[types.SystemID]*PartitionInfo
+		partitions map[types.PartitionID]*PartitionInfo
 
 		next     uint64        // round number when next cfg must be activated
 		curRound func() uint64 // returns current round number.
@@ -94,7 +94,7 @@ func (ps *PartitionStore) Reset(curRound func() uint64) error {
 /*
 It is expected that "round" only increases, to jump back in history Reset has to be called.
 */
-func (ps *PartitionStore) GetInfo(id types.SystemID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
+func (ps *PartitionStore) GetInfo(id types.PartitionID, round uint64) (*types.PartitionDescriptionRecord, PartitionTrustBase, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
@@ -144,7 +144,7 @@ func (ps *PartitionStore) loadConfig(round uint64) error {
 		return fmt.Errorf("loading genesis for the round %d: %w", round, err)
 	}
 
-	parts := make(map[types.SystemID]*PartitionInfo)
+	parts := make(map[types.PartitionID]*PartitionInfo)
 	for _, partition := range cfg {
 		trustBase := make(map[string]abcrypto.Verifier)
 		for _, node := range partition.Nodes {
@@ -154,7 +154,7 @@ func (ps *PartitionStore) loadConfig(round uint64) error {
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[partition.PartitionDescription.SystemIdentifier] = &PartitionInfo{
+		parts[partition.PartitionDescription.PartitionIdentifier] = &PartitionInfo{
 			PartitionDescription: partition.PartitionDescription,
 			Verifier:             NewPartitionTrustBase(trustBase),
 		}

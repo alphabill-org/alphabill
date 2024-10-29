@@ -62,13 +62,13 @@ func TestModule_validateSwapTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer orders are not listed in strictly increasing order of bill identifiers")
 	})
-	t.Run("DustTransfersInvalidTargetSystemID", func(t *testing.T) {
-		swapTx, swapAttr, authProof := newSwapOrderWithInvalidTargetSystemID(t, signer)
+	t.Run("DustTransfersInvalidTargetPartitionID", func(t *testing.T) {
+		swapTx, swapAttr, authProof := newSwapOrderWithInvalidTargetPartitionID(t, signer)
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer system id is not money partition system id: expected 1 vs provided 0")
+		require.ErrorContains(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer partition id is not money partition partition id: expected 1 vs provided 0")
 	})
 	t.Run("invalid target unit id", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetUnitIDSwap(t, signer)
@@ -160,7 +160,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *money.TransferDCAttributes) *types.TransactionRecord {
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeTransDC),
 		testtransaction.WithUnitID(transferID),
 		testtransaction.WithAttributes(attr),
@@ -189,7 +189,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) (*types.Tr
 	}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -232,7 +232,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -264,7 +264,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transacti
 	attr := &money.SwapDCAttributes{DustTransferProofs: txrProofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -280,12 +280,12 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transacti
 	return txo, attr, authProof
 }
 
-func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
+func newSwapOrderWithInvalidTargetPartitionID(t *testing.T, signer abcrypto.Signer) (*types.TransactionOrder, *money.SwapDCAttributes, *money.SwapDCAuthProof) {
 	transferId := newBillID(1)
 	swapId := newBillID(255)
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
-		testtransaction.WithSystemID(0),
+		testtransaction.WithPartitionID(0),
 		testtransaction.WithTransactionType(money.TransactionTypeTransDC),
 		testtransaction.WithUnitID(transferId),
 		testtransaction.WithAttributes(&money.TransferDCAttributes{
@@ -317,7 +317,7 @@ func newDcProofsNilSwap(t *testing.T, signer abcrypto.Signer) (*types.Transactio
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -350,7 +350,7 @@ func newEmptyDcProofsSwap(t *testing.T, signer abcrypto.Signer) (*types.Transact
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -395,7 +395,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 	attrs := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithPartitionID(partitionIdentifier),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attrs),

@@ -29,11 +29,11 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		EncryptionPublicKey: pubKey,
 	}
 	validPDR := &types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  1,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         1 * time.Second,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 1,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           1 * time.Second,
 	}
 
 	type fields struct {

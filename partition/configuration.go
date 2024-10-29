@@ -192,7 +192,7 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetSystemIdentifier())
+		c.txValidator, err = NewDefaultTxValidator(c.GetPartitionIdentifier())
 		if err != nil {
 			return err
 		}
@@ -210,8 +210,8 @@ func (c *configuration) GetNetworkIdentifier() types.NetworkID {
 	return c.genesis.PartitionDescription.NetworkIdentifier
 }
 
-func (c *configuration) GetSystemIdentifier() types.SystemID {
-	return c.genesis.PartitionDescription.SystemIdentifier
+func (c *configuration) GetPartitionIdentifier() types.PartitionID {
+	return c.genesis.PartitionDescription.PartitionIdentifier
 }
 
 func (c *configuration) GetT2Timeout() time.Duration {

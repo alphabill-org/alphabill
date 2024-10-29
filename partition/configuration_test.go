@@ -111,11 +111,11 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
 	}
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  0x01000001,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 0x01000001,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, pdr, peerConf.ID)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)

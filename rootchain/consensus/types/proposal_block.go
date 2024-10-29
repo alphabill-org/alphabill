@@ -47,8 +47,8 @@ func (x *Payload) Bytes() []byte {
 }
 
 func (x *Payload) IsValid() error {
-	// there can only be one request per system identifier in a block
-	sysIdSet := map[types.SystemID]struct{}{}
+	// there can only be one request per partition identifier in a block
+	sysIdSet := map[types.PartitionID]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {

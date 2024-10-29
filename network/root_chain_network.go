@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 )
@@ -25,7 +24,7 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 	}
 
 	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolUnicityCertificates, timeout: sendCertificateTimeout, msgType: types.UnicityCertificate{}},
+		{protocolID: ProtocolUnicityCertificates, timeout: sendCertificateTimeout, msgType: certification.CertificationResponse{}},
 	}
 	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering send protocols: %w", err)

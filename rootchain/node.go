@@ -154,8 +154,7 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, cr *certificatio
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid certification response: %w", err)
 	}
-	// TODO: send the CertResponse instead of just UC! (AB-1725)
-	return v.net.Send(ctx, &cr.UC, peerID)
+	return v.net.Send(ctx, cr, peerID)
 }
 
 func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error {

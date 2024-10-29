@@ -1,7 +1,7 @@
 package partition
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"errors"
 	"fmt"
 	"sort"
@@ -38,12 +38,11 @@ type (
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
-		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
 		ownerIndexer                *OwnerIndexer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
-		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
+		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      abcrypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		trustBase                   types.RootTrustBase
@@ -91,12 +90,6 @@ func WithUnicityCertificateValidator(unicityCertificateValidator UnicityCertific
 func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) NodeOption {
 	return func(c *configuration) {
 		c.blockProposalValidator = blockProposalValidator
-	}
-}
-
-func WithLeaderSelector(leaderSelector LeaderSelector) NodeOption {
-	return func(c *configuration) {
-		c.leaderSelector = leaderSelector
 	}
 }
 
@@ -160,7 +153,7 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	c := &configuration{
 		signer:        signer,
 		genesis:       genesis,
-		hashAlgorithm: gocrypto.SHA256,
+		hashAlgorithm: crypto.SHA256,
 		proofIndexConfig: proofIndexConfig{
 			historyLen: 20,
 		},
@@ -197,10 +190,6 @@ func (c *configuration) initMissingDefaults() error {
 		if c.blockStore, err = memorydb.New(); err != nil {
 			return fmt.Errorf("creating block store DB: %w", err)
 		}
-	}
-
-	if c.leaderSelector == nil {
-		c.leaderSelector = NewDefaultLeaderSelector()
 	}
 
 	if c.blockProposalValidator == nil {

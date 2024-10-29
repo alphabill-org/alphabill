@@ -255,7 +255,6 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 		cr := certification.CertificationResponse{
 			Partition: ir.Partition,
 			Shard:     ir.Shard,
-			Technical: ir.Technical,
 			UC: types.UnicityCertificate{
 				Version:     1,
 				InputRecord: ir.IR,
@@ -266,6 +265,9 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 				},
 				UnicitySeal: uSeal,
 			},
+		}
+		if err := cr.SetTechnicalRecord(ir.Technical); err != nil {
+			return nil, fmt.Errorf("assigning TechnicalRecord: %w", err)
 		}
 		ucs = append(ucs, &cr)
 	}

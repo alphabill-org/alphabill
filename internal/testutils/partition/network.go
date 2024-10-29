@@ -653,38 +653,45 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return reflect.DeepEqual(actualTx.TransactionOrder, tx)
 	})
 }
 
 // BlockchainContainsSuccessfulTx checks if at least one partition node has successfully executed the given transaction.
-func BlockchainContainsSuccessfulTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+func BlockchainContainsSuccessfulTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
 			reflect.DeepEqual(actualTx.TransactionOrder, tx)
 	})
 }
 
-func BlockchainContains(part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
+func BlockchainContains(t *testing.T, part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
 	return func() bool {
-		for _, n := range part.Nodes {
-			number, err := n.LatestBlockNumber()
-			if err != nil {
-				panic(err)
-			}
-			for i := uint64(0); i <= number; i++ {
-				b, err := n.GetBlock(context.Background(), number-i)
-				if err != nil || b == nil {
+		nodes := slices.Clone(part.Nodes)
+		for len(nodes) > 0 {
+			for ni, n := range nodes {
+				number, err := n.LatestBlockNumber()
+				if err != nil {
+					t.Logf("partition node %s returned error: %v", n.peerConf.ID, err)
 					continue
 				}
-				for _, t := range b.Transactions {
-					if criteria(t) {
-						return true
+				nodes[ni] = nil
+				for i := uint64(0); i <= number; i++ {
+					b, err := n.GetBlock(context.Background(), number-i)
+					if err != nil || b == nil {
+						continue
+					}
+					for _, t := range b.Transactions {
+						if criteria(t) {
+							return true
+						}
 					}
 				}
 			}
+			nodes = slices.DeleteFunc(nodes, func(pn *partitionNode) bool { return pn == nil })
+			time.Sleep(10 * time.Millisecond)
 		}
 		return false
 	}

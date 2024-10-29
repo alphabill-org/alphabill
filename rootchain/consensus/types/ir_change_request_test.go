@@ -67,7 +67,6 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 				Partition:      1,
 				Shard:          types.ShardID{},
 				NodeIdentifier: "1",
-				Leader:         "L",
 				InputRecord: &types.InputRecord{Version: 1,
 					PreviousHash: []byte{0, 1},
 					Hash:         []byte{2, 3},
@@ -97,7 +96,6 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 		0, 0, 0, 0, 0, 0, 0, 2, //root round number
 		0, 0, 0, 0, 0, 0, 0, 4, // block size
 		0, 0, 0, 0, 0, 0, 0, 5, // state size
-		'L', // leader id
 		// Is serialized without signature
 	})
 	require.Equal(t, expectedHash.Sum(nil), irHasher.Sum(nil))

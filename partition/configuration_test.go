@@ -82,12 +82,11 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	require.NotNil(t, conf.unicityCertificateValidator)
 	require.NotNil(t, conf.genesis)
 	require.NotNil(t, conf.hashAlgorithm)
-	require.NotNil(t, conf.leaderSelector)
+	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxFetchBlocks)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxReturnBlocks)
 	require.Equal(t, DefaultReplicationMaxTx, conf.replicationConfig.maxTx)
 	require.Equal(t, DefaultLedgerReplicationTimeout, conf.replicationConfig.timeout)
-	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
 	require.Equal(t, DefaultBlockSubscriptionTimeout, conf.blockSubscriptionTimeout)
 }
 
@@ -96,7 +95,6 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockStore, err := memorydb.New()
 	require.NoError(t, err)
-	selector := NewDefaultLeaderSelector()
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
 	trustBase, err := pg.GenerateRootTrustBase()
@@ -105,7 +103,6 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
-		WithLeaderSelector(selector),
 		WithBlockStore(blockStore),
 		WithT1Timeout(t1Timeout),
 		WithReplicationParams(1, 2, 3, 1000),
@@ -118,7 +115,6 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))
 	require.NoError(t, conf.unicityCertificateValidator.Validate(nil))
-	require.Equal(t, selector, conf.leaderSelector)
 	require.Equal(t, t1Timeout, conf.t1Timeout)
 	require.EqualValues(t, 1, conf.replicationConfig.maxFetchBlocks)
 	require.EqualValues(t, 2, conf.replicationConfig.maxReturnBlocks)

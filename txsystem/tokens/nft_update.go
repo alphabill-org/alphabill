@@ -34,7 +34,7 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 	}
 	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
-		return fmt.Errorf(ErrStrInvalidUnitID)
+		return errors.New(ErrStrInvalidUnitID)
 	}
 	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {

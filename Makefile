@@ -31,7 +31,6 @@ tools:
 .PHONY: \
 	all \
 	clean \
-	generate \
 	tools \
 	test \
 	build \

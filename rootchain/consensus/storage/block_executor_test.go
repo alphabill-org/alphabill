@@ -110,7 +110,10 @@ func TestExecutedBlock(t *testing.T) {
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
-	executedBlock, err := NewExecutedBlock(hash, newBlock, parent, reqVer)
+	getTRFunc := func(types.SystemID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+		return certification.TechnicalRecord{}, nil
+	}
+	executedBlock, err := NewExecutedBlock(hash, newBlock, parent, reqVer, getTRFunc)
 	require.NoError(t, err)
 	require.Equal(t, "test", executedBlock.BlockData.Author)
 	require.Equal(t, genesis.RootRound+1, executedBlock.BlockData.Round)

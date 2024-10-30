@@ -500,7 +500,7 @@ func (n *Node) loop(ctx context.Context) error {
 			n.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("received %T", m), logger.Data(m))
 
 			if err := n.handleMessage(ctx, m); err != nil {
-				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err))
+				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err), logger.Round(n.currentRoundNumber()))
 			} else if _, ok := m.(*types.UnicityCertificate); ok {
 				lastUCReceived = time.Now()
 			} else if _, ok := m.(*types.Block); ok {
@@ -654,7 +654,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	}
 	expectedLeader := n.leader.Get()
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
-		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
+		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeIdentifier)
 	}
 	if uc.GetRoundNumber() > lucRoundNumber {
 		// either the other node received it faster from root or there must be some issue with root communication?
@@ -713,8 +713,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 				uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash,
 				uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
 		}
-		n.log.DebugContext(ctx, fmt.Sprintf("Received UC:\n%s", printUC(uc)))
-		n.log.DebugContext(ctx, fmt.Sprintf("LUC:\n%s", printUC(luc)))
+		n.log.DebugContext(ctx, fmt.Sprintf("LUC:\n%s\n\nReceived UC:\n%s", printUC(luc), printUC(uc)), logger.Round(n.currentRoundNumber()))
 	}
 
 	// check for equivocation
@@ -784,6 +783,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	}
 	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
 	defer span.End()
+	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader), logger.Round(n.currentRoundNumber()))
 
 	if cr.Partition != n.SystemID() || !cr.Shard.Equal(n.configuration.shardID) {
 		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
@@ -1136,7 +1136,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	// multiple replication requests must have been performed, discard the last arrived duplicate batch
 	lastCommittedRoundNumber := n.committedUC().GetRoundNumber()
 	if lr.FirstBlockNumber <= lastCommittedRoundNumber {
-		n.log.DebugContext(ctx, fmt.Sprintf("Duplicate Ledger Replication response, received blocks %d to %d but have latest commited block %d (replication timed out and node sent multiple replication requests?): %s", lr.FirstBlockNumber, lr.LastBlockNumber, lastCommittedRoundNumber, lr.Pretty()))
+		n.log.DebugContext(ctx, fmt.Sprintf("Duplicate Ledger Replication response, received blocks %d to %d but have latest committed block %d (replication timed out and node sent multiple replication requests?): %s", lr.FirstBlockNumber, lr.LastBlockNumber, lastCommittedRoundNumber, lr.Pretty()))
 		return nil
 	}
 

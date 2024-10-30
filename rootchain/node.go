@@ -267,8 +267,8 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 	}()
 
 	subscribed := v.subscription.Get(cr.Partition)
-	v.log.DebugContext(ctx, fmt.Sprintf("sending unicity certificate to partition %s, IR Hash: %X, Block Hash: %X",
-		cr.UC.UnicityTreeCertificate.SystemIdentifier, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
+	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse to partition %s (%d receivers), IR Hash: %X, Block Hash: %X",
+		cr.Partition, len(subscribed), cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

@@ -157,7 +157,9 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 	}, nil
 }
 
-func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
+type getTRFunc func(types.SystemID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error)
+
+func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier, getTR getTRFunc) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))
 	changes := make([]types.SystemID, 0, len(newBlock.Payload.Requests))
 	// verify requests for IR change and proof of consensus
@@ -166,6 +168,16 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		if err != nil {
 			return nil, fmt.Errorf("new block verification in round %v error, %w", newBlock.Round, err)
 		}
+		// timeout IR change request do not have BCR
+		var req *certification.BlockCertificationRequest
+		if len(irChReq.Requests) > 0 {
+			req = irChReq.Requests[0]
+		}
+		tr, err := getTR(irChReq.Partition, irChReq.Shard, req)
+		if err != nil {
+			return nil, fmt.Errorf("get TechnicalRecord: %w", err)
+		}
+		irData.Technical = tr
 		changed = append(changed, irData)
 		changes = append(changes, irChReq.Partition)
 	}

@@ -546,7 +546,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	require.NoError(t, err)
 	tp.SubmitBlockProposal(bp)
 
-	ContainsError(t, tp, "invalid node identifier. leader from UC:")
+	ContainsError(t, tp, "expecting leader , leader in proposal:")
 }
 
 func TestBlockProposal_Ok(t *testing.T) {

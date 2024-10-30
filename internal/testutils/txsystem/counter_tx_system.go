@@ -26,11 +26,13 @@ type CounterTxSystem struct {
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
 
-	FixedState  txsystem.StateReader
-	ErrorState  *ErrorState
-	blockNo     uint64
-	uncommitted bool
-	committedUC *types.UnicityCertificate
+	FixedState   txsystem.StateReader
+	ErrorState   *ErrorState
+	FeelessMode  bool
+	ExecuteError error
+	blockNo      uint64
+	uncommitted  bool
+	committedUC  *types.UnicityCertificate
 
 	// fee charged for each tx
 	Fee uint64
@@ -155,16 +157,25 @@ func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetad
 	defer m.mu.Unlock()
 
 	m.ExecuteCountDelta++
+
+	if m.ExecuteError != nil {
+		sm := &types.ServerMetadata{
+			ActualFee: m.Fee,
+		}
+		sm.SetError(m.ExecuteError)
+		return sm, nil
+	}
+
 	m.uncommitted = true
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil
 }
 
 func (m *CounterTxSystem) IsPermissionedMode() bool {
-	return false
+	return m.FeelessMode
 }
 
 func (m *CounterTxSystem) IsFeelessMode() bool {
-	return false
+	return m.FeelessMode
 }
 
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {

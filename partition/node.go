@@ -583,8 +583,11 @@ func statusCodeOfTxError(err error) string {
 
 func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
 	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
-	if err != nil {
+	if err != nil || (n.IsFeelessMode() && sm.TxStatus() != types.TxStatusSuccessful) {
 		n.sendEvent(event.TransactionFailed, tx)
+		if err == nil {
+			err = sm.ErrDetail()
+		}
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})

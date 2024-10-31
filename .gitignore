@@ -12,5 +12,7 @@ gosec_report.json
 .trivycache/
 /testab/
 
+*.log
+
 go.work
 go.work.sum

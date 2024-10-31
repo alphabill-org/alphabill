@@ -7,10 +7,10 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
-type GetStateMsg struct {
+type StateRequestMsg struct {
 	_ struct{} `cbor:",toarray"`
 	// ID of the node which requested the state, ie response should
 	// be sent to that node
@@ -23,7 +23,7 @@ type InputData struct {
 	Shard     types.ShardID
 	Ir        *types.InputRecord
 	Technical certification.TechnicalRecord
-	Sdrh      []byte
+	PDRHash   []byte // Partition Description Record Hash
 }
 
 type CommittedBlock struct {
@@ -34,9 +34,37 @@ type CommittedBlock struct {
 	CommitQc *drctypes.QuorumCert // commit certificate
 }
 
+type ShardInfo struct {
+	_         struct{} `cbor:",toarray"`
+	Partition types.SystemID
+	Shard     types.ShardID
+	Round     uint64
+	Epoch     uint64
+	RootHash  []byte // last certified root hash
+
+	// statistical record of the previous epoch. As we only need
+	// it for hashing we keep it in serialized representation
+	PrevEpochStat []byte
+
+	// statistical record of the current epoch
+	Stat certification.StatisticalRecord
+
+	// per validator total, invariant fees of the previous epoch
+	// but as with statistical record of the previous epoch we need it
+	// for hashing so we keep it in serialized representation
+	PrevEpochFees []byte
+
+	Fees   map[string]uint64 // per validator summary fees of the current epoch
+	Leader string            // identifier of the Round leader
+
+	// last CertificationResponse
+	UC types.UnicityCertificate
+	TR certification.TechnicalRecord
+}
+
 type StateMsg struct {
 	_             struct{} `cbor:",toarray"`
-	Certificates  []*certification.CertificationResponse
+	ShardInfo     []ShardInfo
 	CommittedHead *CommittedBlock
 	BlockData     []*drctypes.BlockData
 }
@@ -52,7 +80,7 @@ func (sm *StateMsg) CanRecoverToRound(round uint64) error {
 		return fmt.Errorf("can't recover to round %d with committed block for round %d", round, sm.CommittedHead.Block.GetRound())
 	}
 	// commit head matches recover round
-	if sm.CommittedHead.Block.GetRound() == round {
+	if round == sm.CommittedHead.Block.GetRound() {
 		return nil
 	}
 	if !slices.ContainsFunc(sm.BlockData, func(b *drctypes.BlockData) bool { return b.GetRound() == round }) {
@@ -89,9 +117,9 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 			}
 		}
 	}
-	for _, c := range sm.Certificates {
+	for _, c := range sm.ShardInfo {
 		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.SystemIdentifier, c.UC.UnicityTreeCertificate.PartitionDescriptionHash); err != nil {
-			return fmt.Errorf("certificate for %X is invalid: %w", c.UC.UnicityTreeCertificate.SystemIdentifier, err)
+			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.SystemIdentifier, err)
 		}
 	}
 	return nil
@@ -135,7 +163,7 @@ func (i *InputData) IsValid() error {
 	if err := i.Ir.IsValid(); err != nil {
 		return fmt.Errorf("input record error: %w", err)
 	}
-	if len(i.Sdrh) == 0 {
+	if len(i.PDRHash) == 0 {
 		return fmt.Errorf("system description hash not set")
 	}
 	return nil

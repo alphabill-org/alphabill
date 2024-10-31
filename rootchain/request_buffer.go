@@ -8,11 +8,15 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 type (
 	QuorumStatus uint8
+
+	QuorumInfo interface {
+		GetQuorum() uint64
+		GetTotalNodes() uint64
+	}
 
 	CertRequestBuffer struct {
 		mu    sync.RWMutex
@@ -66,7 +70,7 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new nodeRequest
-func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
+func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb QuorumInfo) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(request.Partition, request.Shard)
@@ -74,7 +78,7 @@ func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest
 }
 
 // IsConsensusReceived has partition with id reached consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID, shard types.ShardID, tb partitions.PartitionTrustBase) QuorumStatus {
+func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID, shard types.ShardID, tb QuorumInfo) QuorumStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id, shard)
@@ -120,7 +124,7 @@ func newRequestStore() *requestBuffer {
 }
 
 // add stores a new input record received from the node.
-func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
+func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb QuorumInfo) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	if _, f := rs.nodeRequest[req.NodeIdentifier]; f {
 		return QuorumUnknown, nil, errors.New("request of the node in this round already stored")
 	}
@@ -137,7 +141,7 @@ func (rs *requestBuffer) reset() {
 	clear(rs.requests)
 }
 
-func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) ([]*certification.BlockCertificationRequest, QuorumStatus) {
+func (rs *requestBuffer) isConsensusReceived(tb QuorumInfo) ([]*certification.BlockCertificationRequest, QuorumStatus) {
 	// find most voted IR
 	votes := 0
 	var bcReqs []*certification.BlockCertificationRequest

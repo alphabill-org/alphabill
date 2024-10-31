@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/stretchr/testify/require"
 )
 

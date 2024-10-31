@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -58,8 +59,6 @@ func (s status) String() string {
 // Key 0 is used for proposal, that way it is still possible to reverse iterate the DB
 // and use 4 byte key, make it incompatible with block number
 const proposalKey = uint32(0)
-const ledgerReplicationTimeout = 1500 * time.Millisecond
-const blockSubscriptionTimeout = 3000 * time.Millisecond
 
 var ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
 
@@ -93,10 +92,11 @@ type (
 		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
+		lTR                         atomic.Pointer[certification.TechnicalRecord]
 		proposedTransactions        []*types.TransactionRecord
 		sumOfEarnedFees             uint64
 		pendingBlockProposal        *types.Block
-		leaderSelector              LeaderSelector
+		leader                      Leader
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
@@ -168,7 +168,6 @@ func NewNode(
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
-		leaderSelector:              conf.leaderSelector,
 		txValidator:                 conf.txValidator,
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
@@ -187,6 +186,7 @@ func NewNode(
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
+	n.lTR.Store(&certification.TechnicalRecord{}) // so we do not have to check for nil
 
 	if err := n.initMetrics(observe); err != nil {
 		return nil, fmt.Errorf("initialize metrics: %w", err)
@@ -267,7 +267,7 @@ func (n *Node) Run(ctx context.Context) error {
 		// They can start processing new blocks and forwarding transactions as their normal
 		// operation mode immediately.
 		n.status.Store(normal)
-		go n.network.ForwardTransactions(ctx, n.leaderSelector.GetLeader)
+		go n.network.ForwardTransactions(ctx, n.leader.Get)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -355,7 +355,7 @@ func (n *Node) committedUC() *types.UnicityCertificate {
 }
 
 func (n *Node) currentRoundNumber() uint64 {
-	return n.luc.Load().GetRoundNumber() + 1
+	return n.lTR.Load().Round
 }
 
 func (n *Node) sendHandshake(ctx context.Context) {
@@ -500,7 +500,7 @@ func (n *Node) loop(ctx context.Context) error {
 			n.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("received %T", m), logger.Data(m))
 
 			if err := n.handleMessage(ctx, m); err != nil {
-				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err))
+				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err), logger.Round(n.currentRoundNumber()))
 			} else if _, ok := m.(*types.UnicityCertificate); ok {
 				lastUCReceived = time.Now()
 			} else if _, ok := m.(*types.Block); ok {
@@ -532,8 +532,8 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	}(time.Now())
 
 	switch mt := msg.(type) {
-	case *types.UnicityCertificate:
-		return n.handleUnicityCertificate(ctx, mt)
+	case *certification.CertificationResponse:
+		return n.handleCertificationResponse(ctx, mt)
 	case *blockproposal.BlockProposal:
 		return n.handleBlockProposal(ctx, mt)
 	case *replication.LedgerReplicationRequest:
@@ -583,8 +583,11 @@ func statusCodeOfTxError(err error) string {
 
 func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
 	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
-	if err != nil {
+	if err != nil || (n.IsFeelessMode() && sm.TxStatus() != types.TxStatusSuccessful) {
 		n.sendEvent(event.TransactionFailed, tx)
+		if err == nil {
+			err = sm.ErrDetail()
+		}
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
@@ -649,9 +652,9 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() < lucRoundNumber {
 		return fmt.Errorf("outdated block proposal for round %v, LUC round %v", uc.GetRoundNumber(), lucRoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.validatorNodes)
+	expectedLeader := n.leader.Get()
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
-		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
+		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeIdentifier)
 	}
 	if uc.GetRoundNumber() > lucRoundNumber {
 		// either the other node received it faster from root or there must be some issue with root communication?
@@ -710,8 +713,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 				uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash,
 				uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
 		}
-		n.log.DebugContext(ctx, fmt.Sprintf("Received UC:\n%s", printUC(uc)))
-		n.log.DebugContext(ctx, fmt.Sprintf("LUC:\n%s", printUC(luc)))
+		n.log.DebugContext(ctx, fmt.Sprintf("LUC:\n%s\n\nReceived UC:\n%s", printUC(luc), printUC(uc)), logger.Round(n.currentRoundNumber()))
 	}
 
 	// check for equivocation
@@ -723,9 +725,6 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate) erro
 	}
 
 	n.luc.Store(uc)
-	// New luc means a new leader
-	n.leaderSelector.UpdateLeader(uc, n.validatorNodes)
-
 	n.log.Debug("updated LUC", logger.Round(uc.GetRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 	return nil
@@ -743,7 +742,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 	}
 
 	newRoundNumber := n.committedUC().GetRoundNumber() + 1
-	if n.leaderSelector.IsLeader(n.peer.ID()) {
+	if n.leader.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
 		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNumber, err)
@@ -776,6 +775,25 @@ func (n *Node) startRecovery(ctx context.Context) {
 		fromBlockNr, n.luc.Load().GetRoundNumber()))
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(ctx)
+}
+
+func (n *Node) handleCertificationResponse(ctx context.Context, cr *certification.CertificationResponse) error {
+	if err := cr.IsValid(); err != nil {
+		return fmt.Errorf("invalid CertificationResponse: %w", err)
+	}
+	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
+	defer span.End()
+	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader), logger.Round(n.currentRoundNumber()))
+
+	if cr.Partition != n.SystemID() || !cr.Shard.Equal(n.configuration.shardID) {
+		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
+	}
+
+	if err := n.leader.Set(cr.Technical.Leader); err != nil {
+		return fmt.Errorf("setting leader: %w", err)
+	}
+	n.lTR.Store(&cr.Technical)
+	return n.handleUnicityCertificate(ctx, &cr.UC)
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
@@ -953,7 +971,6 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	defer span.End()
 
 	n.stopForwardingOrHandlingTransactions()
-	defer func() { n.leaderSelector.UpdateLeader(nil, n.validatorNodes) }()
 
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -961,7 +978,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 	n.log.InfoContext(ctx, "Handling T1 timeout")
 	// if node is not leader, then do not do anything
-	if !n.leaderSelector.IsLeader(n.peer.ID()) {
+	if !n.leader.IsLeader(n.peer.ID()) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
@@ -988,19 +1005,19 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 		n.sendHandshake(ctx)
 	}
 	// handle ledger replication timeout - no response from node is received
-	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > ledgerReplicationTimeout {
+	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > n.configuration.replicationConfig.timeout {
 		n.log.WarnContext(ctx, "Ledger replication timeout, repeat request")
 		n.sendLedgerReplicationRequest(ctx)
 	}
 	// handle block timeout - no new blocks received
-	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > blockSubscriptionTimeout {
+	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
 		n.log.WarnContext(ctx, "Block subscription timeout, starting recovery")
 		n.startRecovery(ctx)
 	}
 }
 
 func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replication.LedgerReplicationResponse, toId string) error {
-	n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication response to %s: %s", toId, msg.Pretty()))
+	n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication response '%s' to %s: %s", msg.UUID.String(), toId, msg.Pretty()))
 	recoveringNodeID, err := peer.Decode(toId)
 	if err != nil {
 		return fmt.Errorf("decoding peer id %q: %w", toId, err)
@@ -1014,13 +1031,14 @@ func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replicati
 }
 
 func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replication.LedgerReplicationRequest) error {
-	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request from '%s', starting block %d", lr.NodeIdentifier, lr.BeginBlockNumber))
+	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request '%s' from '%s', starting block %d", lr.UUID.String(), lr.NodeIdentifier, lr.BeginBlockNumber))
 	if err := lr.IsValid(); err != nil {
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
 	if lr.SystemIdentifier != n.configuration.GetSystemIdentifier() {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.UnknownSystemIdentifier,
 			Message: fmt.Sprintf("Unknown system identifier: %s", lr.SystemIdentifier),
 		}
@@ -1030,6 +1048,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	// the node has been started with a later state and does not have the needed data
 	if startBlock <= n.fuc.GetRoundNumber() {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, first block: %v", startBlock, n.fuc.GetRoundNumber()+1),
 		}
@@ -1039,6 +1058,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 	latestBlock := n.committedUC().GetRoundNumber()
 	if latestBlock < startBlock {
 		resp := &replication.LedgerReplicationResponse{
+			UUID:    lr.UUID,
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, latest block: %v", startBlock, latestBlock),
 		}
@@ -1055,6 +1075,8 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 				n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
 			}
 		}()
+		var firstFetchedBlockNumber uint64
+		var lastFetchedBlockNumber uint64
 		var lastFetchedBlock *types.Block
 		for ; dbIt.Valid(); dbIt.Next() {
 			var bl types.Block
@@ -1064,17 +1086,25 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 				break
 			}
 			lastFetchedBlock = &bl
+			if firstFetchedBlockNumber == 0 {
+				firstFetchedBlockNumber = roundNo
+			}
+			lastFetchedBlockNumber = roundNo
 			blocks = append(blocks, lastFetchedBlock)
 			blockCnt++
 			countTx += uint32(len(bl.Transactions))
 			if countTx >= n.configuration.replicationConfig.maxTx ||
-				blockCnt >= n.configuration.replicationConfig.maxBlocks {
+				blockCnt >= n.configuration.replicationConfig.maxReturnBlocks ||
+				(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
 				break
 			}
 		}
 		resp := &replication.LedgerReplicationResponse{
-			Status: replication.Ok,
-			Blocks: blocks,
+			UUID:             lr.UUID,
+			Status:           replication.Ok,
+			Blocks:           blocks,
+			FirstBlockNumber: firstFetchedBlockNumber,
+			LastBlockNumber:  lastFetchedBlockNumber,
 		}
 		if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier); err != nil {
 			n.log.WarnContext(ctx, fmt.Sprintf("Problem sending ledger replication response, %s", resp.Pretty()), logger.Error(err))
@@ -1093,12 +1123,21 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		n.log.DebugContext(ctx, fmt.Sprintf("Stale Ledger Replication response, node is not recovering: %s", lr.Pretty()))
 		return nil
 	}
-	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response received: %s, ", lr.Pretty()))
+	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response '%s' received: %s, ", lr.UUID.String(), lr.Pretty()))
 	if lr.Status != replication.Ok {
 		recoverFrom := n.committedUC().GetRoundNumber() + 1
 		n.log.DebugContext(ctx, fmt.Sprintf("Resending replication request starting with round %d", recoverFrom))
 		n.sendLedgerReplicationRequest(ctx)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
+	}
+
+	// check for duplicate requests:
+	// if we have already seen the first block in the replication response then the replication must have timed out and
+	// multiple replication requests must have been performed, discard the last arrived duplicate batch
+	lastCommittedRoundNumber := n.committedUC().GetRoundNumber()
+	if lr.FirstBlockNumber <= lastCommittedRoundNumber {
+		n.log.DebugContext(ctx, fmt.Sprintf("Duplicate Ledger Replication response, received blocks %d to %d but have latest committed block %d (replication timed out and node sent multiple replication requests?): %s", lr.FirstBlockNumber, lr.LastBlockNumber, lastCommittedRoundNumber, lr.Pretty()))
+		return nil
 	}
 
 	for _, b := range lr.Blocks {
@@ -1225,9 +1264,11 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	defer span.End()
 
 	req := &replication.LedgerReplicationRequest{
+		UUID:             uuid.New(),
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		NodeIdentifier:   n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
+		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
@@ -1243,7 +1284,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 		if n.peer.ID() == p {
 			continue
 		}
-		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request to %v", p))
+		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request '%s' to %v", req.UUID.String(), p))
 		// break loop on successful send, otherwise try again but different node, until all either
 		// able to send or all attempts have failed
 		if err := n.network.Send(ctx, req, p); err != nil {
@@ -1262,13 +1303,15 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	ctx, span := n.tracer.Start(ctx, "node.sendBlockProposal")
 	defer span.End()
 
-	systemIdentifier := n.configuration.GetSystemIdentifier()
+	tr := n.lTR.Load()
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		SystemIdentifier:   systemIdentifier,
+		Partition:          n.configuration.GetSystemIdentifier(),
+		Shard:              n.configuration.shardID,
 		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: n.luc.Load(),
 		Transactions:       n.proposedTransactions,
+		Technical:          *tr,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "created BlockProposal", logger.Data(prop))
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
@@ -1289,23 +1332,27 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	ctx, span := n.tracer.Start(ctx, "node.sendCertificationRequest", trace.WithAttributes(attribute.String("author", blockAuthor)))
 	defer span.End()
 
-	systemIdentifier := n.configuration.GetSystemIdentifier()
-	luc := n.luc.Load()
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
-		return fmt.Errorf("transaction system failed to end block, %w", err)
+		return fmt.Errorf("transaction system failed to end block: %w", err)
 	}
+	ltr := n.lTR.Load()
+	trh, err := ltr.Hash()
+	if err != nil {
+		return fmt.Errorf("calculating TR hash: %w", err)
+	}
+	luc := n.luc.Load()
 	stateHash := state.Root()
-	summary := state.Summary()
 	uc := &types.UnicityCertificate{
 		Version: 1,
+		TRHash:  trh,
 		InputRecord: &types.InputRecord{
 			Version:         1,
-			Epoch:           0, // todo: implement epoch change AB-1617, AB-1725
+			Epoch:           ltr.Epoch,
 			RoundNumber:     n.currentRoundNumber(),
 			PreviousHash:    luc.InputRecord.Hash,
 			Hash:            stateHash,
-			SummaryValue:    summary,
+			SummaryValue:    state.Summary(),
 			SumOfEarnedFees: n.sumOfEarnedFees,
 		},
 	}
@@ -1325,7 +1372,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	}
 	ir, err := pendingProposal.CalculateBlockHash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return fmt.Errorf("block hash calculation error, %w", err)
+		return fmt.Errorf("calculating block hash: %w", err)
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		n.transactionSystem.Revert()
@@ -1336,10 +1383,9 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:       systemIdentifier,
+		Partition:       n.configuration.GetSystemIdentifier(),
 		Shard:           n.configuration.shardID,
 		NodeIdentifier:  n.peer.ID().String(),
-		Leader:          blockAuthor,
 		InputRecord:     ir,
 		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
 	}
@@ -1457,6 +1503,14 @@ func (n *Node) IsValidatorNode() bool {
 	return slices.Contains(n.validatorNodes, n.Peer().ID())
 }
 
+func (n *Node) IsPermissionedMode() bool {
+	return n.transactionSystem.IsPermissionedMode()
+}
+
+func (n *Node) IsFeelessMode() bool {
+	return n.transactionSystem.IsFeelessMode()
+}
+
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	// TODO verify epoch number after epoch switching is implemented
 	// fast-track solution is to restart all partition nodes with new config on epoch change
@@ -1491,7 +1545,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 
 	n.stopForwardingOrHandlingTransactions()
 
-	leader := n.leaderSelector.GetLeader()
+	leader := n.leader.Get()
 	if leader == UnknownLeader {
 		n.log.Warn("unknown round leader", logger.Round(n.currentRoundNumber()))
 		return
@@ -1516,9 +1570,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 		if leader == n.peer.ID() {
 			n.network.ProcessTransactions(ctx, n.process)
 		} else {
-			n.network.ForwardTransactions(ctx, func() peer.ID {
-				return leader
-			})
+			n.network.ForwardTransactions(ctx, n.leader.Get)
 		}
 	}()
 

@@ -93,9 +93,12 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 	return txs, nil
 }
 
-// FeesEnabled - if fee module is configured then fees will be collected
-func (m *GenericTxSystem) FeesEnabled() bool {
-	return m.fees != nil
+func (m *GenericTxSystem) IsPermissionedMode() bool {
+	return m.fees.IsPermissionedMode()
+}
+
+func (m *GenericTxSystem) IsFeelessMode() bool {
+	return m.fees.IsFeelessMode()
 }
 
 func (m *GenericTxSystem) StateSize() (uint64, error) {
@@ -206,6 +209,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 				// clear metadata
 				sm = nil
 				retErr = fmt.Errorf("handling transaction fee: %w", err)
+				return
 			}
 			// add fee credit record unit log
 			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)

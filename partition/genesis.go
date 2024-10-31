@@ -136,7 +136,6 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	blockCertificationRequest := &certification.BlockCertificationRequest{
 		Partition:       pdr.SystemIdentifier,
 		NodeIdentifier:  id,
-		Leader:          id,
 		InputRecord:     gIR,
 		RootRoundNumber: pg.RootRoundNumber,
 	}

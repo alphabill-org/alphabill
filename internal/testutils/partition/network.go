@@ -25,7 +25,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testgenesis "github.com/alphabill-org/alphabill/internal/testutils/genesis"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -37,7 +36,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/abdrc"
+	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
@@ -215,20 +214,16 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
 
-		partitionStore, err := partitions.NewPartitionStore(testgenesis.NewGenesisStore(r.rcGenesis))
-		if err != nil {
-			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
-		}
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, obs)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitionStore, rootConsensusNet, rn.RootSigner, obs)
+		cm, err := consensus.NewConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitions.NewOrchestration(r.rcGenesis), rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, obs)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, cm, obs)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
@@ -658,38 +653,45 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return reflect.DeepEqual(actualTx.TransactionOrder, tx)
 	})
 }
 
 // BlockchainContainsSuccessfulTx checks if at least one partition node has successfully executed the given transaction.
-func BlockchainContainsSuccessfulTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(part, func(actualTx *types.TransactionRecord) bool {
+func BlockchainContainsSuccessfulTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
 			reflect.DeepEqual(actualTx.TransactionOrder, tx)
 	})
 }
 
-func BlockchainContains(part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
+func BlockchainContains(t *testing.T, part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
 	return func() bool {
-		for _, n := range part.Nodes {
-			number, err := n.LatestBlockNumber()
-			if err != nil {
-				panic(err)
-			}
-			for i := uint64(0); i <= number; i++ {
-				b, err := n.GetBlock(context.Background(), number-i)
-				if err != nil || b == nil {
+		nodes := slices.Clone(part.Nodes)
+		for len(nodes) > 0 {
+			for ni, n := range nodes {
+				number, err := n.LatestBlockNumber()
+				if err != nil {
+					t.Logf("partition node %s returned error: %v", n.peerConf.ID, err)
 					continue
 				}
-				for _, t := range b.Transactions {
-					if criteria(t) {
-						return true
+				nodes[ni] = nil
+				for i := uint64(0); i <= number; i++ {
+					b, err := n.GetBlock(context.Background(), number-i)
+					if err != nil || b == nil {
+						continue
+					}
+					for _, t := range b.Transactions {
+						if criteria(t) {
+							return true
+						}
 					}
 				}
 			}
+			nodes = slices.DeleteFunc(nodes, func(pn *partitionNode) bool { return pn == nil })
+			time.Sleep(10 * time.Millisecond)
 		}
 		return false
 	}

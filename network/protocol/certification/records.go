@@ -1,8 +1,12 @@
 package certification
 
 import (
+	"bytes"
 	"crypto"
-	"encoding/binary"
+	"errors"
+	"fmt"
+
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 )
 
 /*
@@ -18,16 +22,38 @@ type TechnicalRecord struct {
 	FeeHash  []byte // hash of validator fee records
 }
 
-func (tr *TechnicalRecord) Hash(algo crypto.Hash) []byte {
-	h := algo.New()
+func (tr *TechnicalRecord) IsValid() error {
+	if tr.Round == 0 {
+		return errors.New("round is unassigned")
+	}
+	if tr.Leader == "" {
+		return errors.New("leader is unassigned")
+	}
+	if len(tr.StatHash) == 0 {
+		return errors.New("stat hash is unassigned")
+	}
+	if len(tr.FeeHash) == 0 {
+		return errors.New("fee hash is unassigned")
+	}
+	return nil
+}
 
-	h.Write(binary.BigEndian.AppendUint64(nil, tr.Round))
-	h.Write(binary.BigEndian.AppendUint64(nil, tr.Epoch))
-	h.Write([]byte(tr.Leader))
-	h.Write(tr.StatHash)
-	h.Write(tr.FeeHash)
+func (tr *TechnicalRecord) Hash() ([]byte, error) {
+	h := abhash.New(crypto.SHA256.New())
+	h.Write(tr)
+	return h.Sum()
+}
 
-	return h.Sum(nil)
+func (tr *TechnicalRecord) HashMatches(trh []byte) error {
+	h, err := tr.Hash()
+	if err != nil {
+		return fmt.Errorf("calculating hash: %w", err)
+	}
+	if !bytes.Equal(trh, h) {
+		return errors.New("hash mismatch")
+	}
+
+	return nil
 }
 
 /*
@@ -43,16 +69,4 @@ type StatisticalRecord struct {
 	MaxFee       uint64   // maximum block fee of the epoch
 	MaxBlockSize uint64   // maximum block size of the epoch
 	MaxStateSize uint64   // maximum state size of the epoch
-}
-
-func (sr *StatisticalRecord) Bytes() []byte {
-	buf := make([]byte, 0, 7*8)
-	buf = binary.BigEndian.AppendUint64(buf, sr.Blocks)
-	buf = binary.BigEndian.AppendUint64(buf, sr.BlockFees)
-	buf = binary.BigEndian.AppendUint64(buf, sr.BlockSize)
-	buf = binary.BigEndian.AppendUint64(buf, sr.StateSize)
-	buf = binary.BigEndian.AppendUint64(buf, sr.MaxFee)
-	buf = binary.BigEndian.AppendUint64(buf, sr.MaxBlockSize)
-	buf = binary.BigEndian.AppendUint64(buf, sr.MaxStateSize)
-	return buf
 }

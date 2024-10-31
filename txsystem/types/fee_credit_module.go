@@ -10,6 +10,9 @@ type (
 		FeeCalculation
 		FeeBalanceValidator
 		FeeTxVerifier
+
+		IsPermissionedMode() bool
+		IsFeelessMode() bool
 	}
 
 	FeeBalanceValidator interface {

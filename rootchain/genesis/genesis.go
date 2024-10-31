@@ -8,9 +8,11 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/abdrc/types"
+	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 )
 
@@ -172,6 +174,7 @@ func NewRootGenesis(
 	ucData := make([]*types.UnicityTreeData, len(partitions))
 	// remember system description records hashes and system id for verification
 	sdrhs := make(map[types.SystemID][]byte, len(partitions))
+	trHash := make(map[types.SystemID][]byte, len(partitions))
 	for i, partition := range partitions {
 		// Check that partition is valid: required fields sent and no duplicate node, all requests with same system id
 		if err = partition.IsValid(); err != nil {
@@ -186,6 +189,27 @@ func NewRootGenesis(
 			SystemIdentifier:         partition.PartitionDescription.SystemIdentifier,
 			InputRecord:              partition.Validators[0].BlockCertificationRequest.InputRecord,
 			PartitionDescriptionHash: sdrh,
+		}
+
+		fees := map[string]uint64{}
+		for _, v := range partition.Validators {
+			fees[v.NodeIdentifier] = 0
+		}
+		h := abhash.New(gocrypto.SHA256.New())
+		h.WriteRaw(types.RawCBOR{0xA0})
+		h.Write(fees)
+		tr := certification.TechnicalRecord{
+			Round:  ucData[i].InputRecord.RoundNumber + 1,
+			Epoch:  ucData[i].InputRecord.Epoch,
+			Leader: partition.Validators[0].NodeIdentifier,
+			// precalculated hash of CBOR(certification.StatisticalRecord{})
+			StatHash: []uint8{0x24, 0xee, 0x26, 0xf4, 0xaa, 0x45, 0x48, 0x5f, 0x53, 0xaa, 0xb4, 0x77, 0x57, 0xd0, 0xb9, 0x71, 0x99, 0xa3, 0xd9, 0x5f, 0x50, 0xcb, 0x97, 0x9c, 0x38, 0x3b, 0x7e, 0x50, 0x24, 0xf9, 0x21, 0xff},
+		}
+		if tr.FeeHash, err = h.Sum(); err != nil {
+			return nil, nil, fmt.Errorf("calculating fee hash: %w", err)
+		}
+		if trHash[partition.PartitionDescription.SystemIdentifier], err = tr.Hash(); err != nil {
+			return nil, nil, fmt.Errorf("calculating partition %s TR hash: %w", partition.PartitionDescription.SystemIdentifier, err)
 		}
 	}
 	// if all requests match then consensus is present
@@ -220,8 +244,8 @@ func NewRootGenesis(
 		return nil, nil, fmt.Errorf("failed to create trust base: %w", err)
 	}
 	for sysId, uc := range certs {
-		// check the certificate
-		// ignore error, we just put it there and if not, then verify will fail anyway
+		// ignore "not found" cases, we just put it there and if not, then verify will fail anyway
+		uc.TRHash = trHash[sysId]
 		srdh := sdrhs[sysId]
 		if err = uc.Verify(tb, c.hashAlgorithm, sysId, srdh); err != nil {
 			// should never happen.

@@ -29,6 +29,8 @@ type (
 		TransactionSystemState() txsystem.StateReader
 		ValidatorNodes() peer.IDSlice
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
+		IsPermissionedMode() bool
+		IsFeelessMode() bool
 	}
 
 	Unit[T any] struct {

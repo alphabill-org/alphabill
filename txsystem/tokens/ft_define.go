@@ -26,10 +26,10 @@ func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr 
 func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, authProof *tokens.DefineFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
 	if !unitID.HasType(tokens.FungibleTokenTypeUnitType) {
-		return fmt.Errorf(ErrStrInvalidUnitID)
+		return errors.New(ErrStrInvalidUnitID)
 	}
 	if attr.ParentTypeID != nil && !attr.ParentTypeID.HasType(tokens.FungibleTokenTypeUnitType) {
-		return fmt.Errorf(ErrStrInvalidParentTypeID)
+		return errors.New(ErrStrInvalidParentTypeID)
 	}
 	if len(attr.Symbol) > maxSymbolLength {
 		return errors.New(ErrStrInvalidSymbolLength)

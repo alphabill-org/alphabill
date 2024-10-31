@@ -4,9 +4,9 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
+	"fmt"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -25,7 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/rootchain/consensus"
+	consensustypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/state"
@@ -161,8 +161,6 @@ func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 }
 
 func (sn *SingleNodePartition) newNode() error {
-	nodeID := sn.nodeDeps.peerConf.ID
-
 	n, err := NewNode(
 		context.Background(),
 		sn.nodeDeps.peerConf,
@@ -174,10 +172,6 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.obs,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
-			WithLeaderSelector(&TestLeaderSelector{
-				leader:      nodeID,
-				currentNode: nodeID,
-			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
 			WithEventHandler(sn.eh.HandleEvent, 100),
 			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
@@ -202,8 +196,55 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 	return err
 }
 
+/*
+SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to the node.
+*/
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
-	sn.mockNet.Receive(uc)
+	cr := &certification.CertificationResponse{
+		Partition: sn.nodeConf.GetSystemIdentifier(),
+		Shard:     sn.nodeConf.shardID,
+		UC:        *uc,
+	}
+	if err := cr.SetTechnicalRecord(certification.TechnicalRecord{
+		Round:    uc.GetRoundNumber() + 1,
+		Epoch:    uc.InputRecord.Epoch,
+		Leader:   sn.partition.peer.ID().String(),
+		StatHash: []byte{1},
+		FeeHash:  []byte{2},
+	}); err != nil {
+		sn.mockNet.SetErrorState(fmt.Errorf("setting TR of the CertResp: %w", err))
+	}
+	sn.mockNet.Receive(cr)
+}
+
+/*
+WaitHandshake waits until partition node sends handshake message to the RootChain
+and responds to it with the genesis UC. After that validator should be ready for
+normal operation.
+*/
+func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
+	test.TryTilCountIs(t, RequestReceived(sn, network.ProtocolHandshake), 5, test.WaitShortTick)
+	sn.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	// root responds with genesis
+	uc := sn.certs[sn.partition.SystemID()]
+	cr := &certification.CertificationResponse{
+		Partition: sn.partition.SystemID(),
+		Shard:     sn.partition.configuration.shardID,
+		UC:        *uc,
+	}
+	err := cr.SetTechnicalRecord(certification.TechnicalRecord{
+		Round:    uc.GetRoundNumber() + 1,
+		Epoch:    uc.InputRecord.Epoch,
+		Leader:   sn.partition.peer.ID().String(),
+		StatHash: []byte{1},
+		FeeHash:  []byte{2},
+	})
+	if err != nil {
+		t.Errorf("sending handshake response to the node, set TR: %v", err)
+	}
+	if err = sn.partition.handleMessage(context.Background(), cr); err != nil {
+		t.Errorf("sending handshake response to the node: %v", err)
+	}
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
@@ -235,8 +276,10 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		panic(err)
 	}
 
-	return &types.UnicityCertificate{Version: 1,
+	return &types.UnicityCertificate{
+		Version:     1,
 		InputRecord: ir,
+		TRHash:      make([]byte, 32),
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:         cert.SystemIdentifier,
 			HashSteps:                cert.HashSteps,
@@ -285,7 +328,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	luc, found := sn.certs[req.Partition]
 	require.True(t, found)
-	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
+	require.NoError(t, consensustypes.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
@@ -306,42 +349,6 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
 	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
-}
-
-type TestLeaderSelector struct {
-	leader      peer.ID
-	currentNode peer.ID
-	mutex       sync.Mutex
-}
-
-// IsLeader returns true it current node is the leader and must propose the next block.
-func (l *TestLeaderSelector) IsLeader(peerID peer.ID) bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	return l.leader == peerID
-}
-
-func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate, validators []peer.ID) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	if seal == nil {
-		l.leader = ""
-		return
-	}
-	l.leader = l.currentNode
-}
-
-func (l *TestLeaderSelector) GetLeader() peer.ID {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	return l.leader
-}
-
-func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate, validators []peer.ID) peer.ID {
-	if seal == nil {
-		return ""
-	}
-	return l.currentNode
 }
 
 func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {

@@ -1,7 +1,7 @@
 package partition
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"errors"
 	"fmt"
 	"sort"
@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	DefaultT1Timeout                   = 750 * time.Millisecond
-	DefaultReplicationMaxBlocks uint64 = 1000
-	DefaultReplicationMaxTx     uint32 = 10000
+	DefaultT1Timeout                       = 750 * time.Millisecond
+	DefaultReplicationMaxBlocks     uint64 = 1000
+	DefaultReplicationMaxTx         uint32 = 10000
+	DefaultBlockSubscriptionTimeout        = 3000 * time.Millisecond
+	DefaultLedgerReplicationTimeout        = 1500 * time.Millisecond
 )
 
 var (
@@ -36,18 +38,18 @@ type (
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
-		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
 		ownerIndexer                *OwnerIndexer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
-		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
+		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
 		signer                      abcrypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		trustBase                   types.RootTrustBase
 		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
+		blockSubscriptionTimeout    time.Duration // time since last block when to start recovery on non-validating node
 	}
 
 	NodeOption func(c *configuration)
@@ -63,15 +65,19 @@ type (
 	}
 
 	ledgerReplicationConfig struct {
-		maxBlocks uint64
-		maxTx     uint32
+		maxFetchBlocks  uint64
+		maxReturnBlocks uint64
+		maxTx           uint32
+		timeout         time.Duration
 	}
 )
 
-func WithReplicationParams(maxBlocks uint64, maxTx uint32) NodeOption {
+func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32, timeout time.Duration) NodeOption {
 	return func(c *configuration) {
-		c.replicationConfig.maxBlocks = maxBlocks
+		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
+		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
 		c.replicationConfig.maxTx = maxTx
+		c.replicationConfig.timeout = timeout
 	}
 }
 
@@ -84,12 +90,6 @@ func WithUnicityCertificateValidator(unicityCertificateValidator UnicityCertific
 func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) NodeOption {
 	return func(c *configuration) {
 		c.blockProposalValidator = blockProposalValidator
-	}
-}
-
-func WithLeaderSelector(leaderSelector LeaderSelector) NodeOption {
-	return func(c *configuration) {
-		c.leaderSelector = leaderSelector
 	}
 }
 
@@ -131,6 +131,12 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
+func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
+	return func(c *configuration) {
+		c.blockSubscriptionTimeout = t
+	}
+}
+
 func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, trustBase types.RootTrustBase, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
@@ -147,7 +153,7 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	c := &configuration{
 		signer:        signer,
 		genesis:       genesis,
-		hashAlgorithm: gocrypto.SHA256,
+		hashAlgorithm: crypto.SHA256,
 		proofIndexConfig: proofIndexConfig{
 			historyLen: 20,
 		},
@@ -186,10 +192,6 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 
-	if c.leaderSelector == nil {
-		c.leaderSelector = NewDefaultLeaderSelector()
-	}
-
 	if c.blockProposalValidator == nil {
 		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
 		if err != nil {
@@ -208,11 +210,20 @@ func (c *configuration) initMissingDefaults() error {
 			return err
 		}
 	}
-	if c.replicationConfig.maxBlocks == 0 {
-		c.replicationConfig.maxBlocks = DefaultReplicationMaxBlocks
+	if c.replicationConfig.maxFetchBlocks == 0 {
+		c.replicationConfig.maxFetchBlocks = DefaultReplicationMaxBlocks
+	}
+	if c.replicationConfig.maxReturnBlocks == 0 {
+		c.replicationConfig.maxReturnBlocks = DefaultReplicationMaxBlocks
 	}
 	if c.replicationConfig.maxTx == 0 {
 		c.replicationConfig.maxTx = DefaultReplicationMaxTx
+	}
+	if c.replicationConfig.timeout == 0 {
+		c.replicationConfig.timeout = DefaultLedgerReplicationTimeout
+	}
+	if c.blockSubscriptionTimeout == 0 {
+		c.blockSubscriptionTimeout = DefaultBlockSubscriptionTimeout
 	}
 	return nil
 }

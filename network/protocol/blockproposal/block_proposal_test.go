@@ -122,7 +122,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &BlockProposal{
-				SystemIdentifier:   tt.fields.SystemIdentifier,
+				Partition:          tt.fields.SystemIdentifier,
 				NodeIdentifier:     tt.fields.NodeIdentifier,
 				UnicityCertificate: tt.fields.UnicityCertificate,
 				Transactions:       tt.fields.Transactions,
@@ -152,8 +152,8 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   "1",
+		Partition:      systemIdentifier,
+		NodeIdentifier: "1",
 		UnicityCertificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),
@@ -203,8 +203,8 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
-		SystemIdentifier: systemIdentifier,
-		NodeIdentifier:   "1",
+		Partition:      systemIdentifier,
+		NodeIdentifier: "1",
 		UnicityCertificate: &types.UnicityCertificate{Version: 1,
 			InputRecord: &types.InputRecord{Version: 1,
 				PreviousHash: test.RandomBytes(32),

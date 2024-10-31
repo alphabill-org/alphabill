@@ -3,7 +3,7 @@ services:
     platform: linux/amd64
     build:
       context: ./
-      dockerfile: ./cli/alphabill/Dockerfile
+      dockerfile: ./scripts/Dockerfile
     volumes:
       - ./docker:/docker
   alphabill-root-bootnode:

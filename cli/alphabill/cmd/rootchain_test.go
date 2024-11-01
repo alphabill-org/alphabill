@@ -175,7 +175,7 @@ func Test_StartSingleNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -184,7 +184,7 @@ func Test_StartSingleNode(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				Partition:      money.DefaultSystemID,
+				Partition:      money.DefaultPartitionID,
 				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -312,7 +312,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultSystemID, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, moneyPeer.Configuration().Validators}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -320,7 +320,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				Partition:      money.DefaultSystemID,
+				Partition:      money.DefaultPartitionID,
 				NodeIdentifier: moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
@@ -349,13 +349,13 @@ func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addres
 }
 
 type mockNode struct {
-	systemID       types.SystemID
+	partitionID    types.PartitionID
 	peer           *network.Peer
 	validatorNodes peer.IDSlice
 }
 
-func (mn *mockNode) SystemID() types.SystemID {
-	return mn.systemID
+func (mn *mockNode) PartitionID() types.PartitionID {
+	return mn.partitionID
 }
 
 func (mn *mockNode) Peer() *network.Peer {

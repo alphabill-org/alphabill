@@ -131,12 +131,12 @@ func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransf
 	}
 	// transfers were in this network
 	if dcTxo.NetworkID != m.networkID {
-		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", m.networkID, dcTxo.SystemID)
+		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", m.networkID, dcTxo.PartitionID)
 	}
 	// transfers were in the money partition
-	if dcTxo.SystemID != m.systemID {
-		return 0, fmt.Errorf("dust transfer system id is not money partition system id: expected %d vs provided %d",
-			m.systemID, dcTxo.SystemID)
+	if dcTxo.PartitionID != m.partitionID {
+		return 0, fmt.Errorf("dust transfer partition id is not money partition partition id: expected %d vs provided %d",
+			m.partitionID, dcTxo.PartitionID)
 	}
 	// bills were transferred to DC
 	if dcTxo.Type != money.TransactionTypeTransDC {

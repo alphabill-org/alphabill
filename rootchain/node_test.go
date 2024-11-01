@@ -30,8 +30,8 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
-const partitionID types.SystemID = 0x00FF0001
-const unknownID types.SystemID = 0
+const partitionID types.PartitionID = 0x00FF0001
+const unknownID types.PartitionID = 0
 
 var partitionInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
@@ -44,26 +44,26 @@ var partitionInputRecord = &types.InputRecord{Version: 1,
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan *certification.CertificationResponse
-	certs        map[types.SystemID]*certification.CertificationResponse
-	shardInfo    map[types.SystemID]*drctypes.ShardInfo // only single shard partitions
+	certs        map[types.PartitionID]*certification.CertificationResponse
+	shardInfo    map[types.PartitionID]*drctypes.ShardInfo // only single shard partitions
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
-	var c = make(map[types.SystemID]*certification.CertificationResponse)
+	var c = make(map[types.PartitionID]*certification.CertificationResponse)
 	for _, partition := range rg.Partitions {
-		c[partition.PartitionDescription.GetSystemIdentifier()] = &certification.CertificationResponse{
-			Partition: partition.PartitionDescription.GetSystemIdentifier(),
+		c[partition.PartitionDescription.GetPartitionIdentifier()] = &certification.CertificationResponse{
+			Partition: partition.PartitionDescription.GetPartitionIdentifier(),
 			UC:        *partition.Certificate,
 		}
 	}
 
-	shardInfo := map[types.SystemID]*drctypes.ShardInfo{}
+	shardInfo := map[types.PartitionID]*drctypes.ShardInfo{}
 	for _, partition := range rg.Partitions {
 		si, err := drctypes.NewShardInfoFromGenesis(partition)
 		if err != nil {
 			return nil, fmt.Errorf("creating shard info: %w", err)
 		}
-		shardInfo[partition.PartitionDescription.SystemIdentifier] = si
+		shardInfo[partition.PartitionDescription.PartitionIdentifier] = si
 	}
 
 	return &MockConsensusManager{
@@ -93,15 +93,15 @@ func (m *MockConsensusManager) Run(_ context.Context) error {
 	return nil
 }
 
-func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.PartitionID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	luc, f := m.certs[id]
 	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %X", id)
+		return nil, fmt.Errorf("no certificate found for partition id %X", id)
 	}
 	return luc, nil
 }
 
-func (m *MockConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (m *MockConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error) {
 	if si, ok := m.shardInfo[partition]; ok {
 		return si, nil
 	}
@@ -361,7 +361,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: partitionID,
+				PartitionIdentifier: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -454,7 +454,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: partitionID,
+				PartitionIdentifier: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -468,7 +468,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			FeeHash:  []byte{2},
 		}))
 	// simulate 2x subscriptions
-	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
+	id32 := rg.Partitions[0].PartitionDescription.PartitionIdentifier
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
@@ -477,7 +477,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	certs := testutils.MockNetAwaitMultiple[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
 	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.SystemIdentifier)
+		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.PartitionIdentifier)
 		require.Equal(t, newIR, cert.UC.InputRecord)
 	}
 }
@@ -502,7 +502,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: unknownID,
+				PartitionIdentifier: unknownID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},

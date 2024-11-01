@@ -23,11 +23,11 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, encryptionKey1 := testsig.CreateSignerAndVerifier(t)
 	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
 	validPDR := &types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  1,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         1 * time.Second,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 1,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           1 * time.Second,
 	}
 
 	type fields struct {

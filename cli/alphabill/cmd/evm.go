@@ -109,10 +109,10 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
-	systemIdentifier := pg.PartitionDescription.GetSystemIdentifier()
+	partitionID := pg.PartitionDescription.GetPartitionIdentifier()
 	txs, err := evm.NewEVMTxSystem(
 		pg.PartitionDescription.GetNetworkIdentifier(),
-		systemIdentifier,
+		partitionID,
 		log,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
@@ -133,7 +133,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	}
 	cfg.RPCServer.Router = api.NewAPI(
 		state,
-		systemIdentifier,
+		partitionID,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
 		log,

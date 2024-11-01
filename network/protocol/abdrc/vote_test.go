@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
@@ -111,7 +112,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 			HighQc: &drctypes.QuorumCert{
 				VoteInfo:         commitQcInfo,
 				LedgerCommitInfo: commitInfo,
-				Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
+				Signatures:       map[string]hex.Bytes{"1": sig1, "2": sig2, "3": sig3},
 			},
 			Author: "1",
 		}

@@ -47,7 +47,7 @@ func BenchmarkCallContract(b *testing.B) {
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
-	}, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	}, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(b, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -65,7 +65,7 @@ func BenchmarkCallContract(b *testing.B) {
 	b.Run("call counter contract", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			blockDB, _ := memorydb.New()
-			if _, err = Execute(2, stateDB, blockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log); err != nil {
+			if _, err = Execute(2, stateDB, blockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
 			callContract.Nonce += 1
@@ -99,7 +99,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 			blockDB, err := memorydb.New()
 			require.NoError(t, err)
 			blockCtx := NewBlockContext(0, blockDB)
-			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier.Bytes())), NewVMConfig())
+			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(partitionIdentifier.Bytes())), NewVMConfig())
 			_, _, _, err = evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, uint256.MustFromBig(evmAttr.Value))
 			require.NoError(t, err)
 			if eoa.Nonce != 0 {
@@ -488,7 +488,7 @@ func Test_execute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			blockDB, err := memorydb.New()
 			require.NoError(t, err)
-			metadata, err := Execute(tt.args.currentBlockNumber, tt.args.stateDB, blockDB, tt.args.attr, nil, systemIdentifier, tt.args.gp, gasPrice, false, logger.New(t))
+			metadata, err := Execute(tt.args.currentBlockNumber, tt.args.stateDB, blockDB, tt.args.attr, nil, partitionIdentifier, tt.args.gp, gasPrice, false, logger.New(t))
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)
@@ -535,13 +535,13 @@ func Test_ReplayContractCreation(t *testing.T) {
 	}
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	metadata, err := Execute(1, stateDB, blockDB, evmAttr, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	metadata, err := Execute(1, stateDB, blockDB, evmAttr, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
 	require.EqualValues(t, initialBalance, new(uint256.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
 	// Try to replay
-	_, err = Execute(1, stateDB, blockDB, evmAttr, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	_, err = Execute(1, stateDB, blockDB, evmAttr, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.ErrorContains(t, err, "nonce too low")
 }
 
@@ -565,7 +565,7 @@ func Test_ReplayCall(t *testing.T) {
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	log := logger.New(t)
-	metadata, err := Execute(2, stateDB, blockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	metadata, err := Execute(2, stateDB, blockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	require.NotNil(t, metadata)
 	// check that fee and account balance add up to initial value
@@ -573,7 +573,7 @@ func Test_ReplayCall(t *testing.T) {
 	require.EqualValues(t, initialBalance, new(uint256.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
 
 	// try to replay
-	_, err = Execute(2, stateDB, blockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	_, err = Execute(2, stateDB, blockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.ErrorContains(t, err, "nonce too low")
 }
 
@@ -597,7 +597,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	ucBytes, err := (uc).MarshalCBOR()
 	require.NoError(t, err)
 	b := &types.Block{
-		Header:             &types.Header{SystemID: evm.DefaultSystemID},
+		Header:             &types.Header{PartitionID: evm.DefaultPartitionID},
 		Transactions:       []*types.TransactionRecord{},
 		UnicityCertificate: ucBytes,
 	}
@@ -607,7 +607,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 		Data:  common.Hex2Bytes(getPreviousHashCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
-	}, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	}, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(getPreviousHashABI)))
@@ -621,7 +621,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 		Value: big.NewInt(0),
 		Nonce: 1,
 	}
-	res, err := Execute(2, stateDB, mockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	res, err := Execute(2, stateDB, mockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
@@ -630,7 +630,7 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.EqualValues(t, uc.InputRecord.BlockHash, details.ReturnData)
 	// query not existing block
 	callContract.Nonce++
-	res, err = Execute(3, stateDB, mockDB, callContract, nil, systemIdentifier, gasPool, gasPrice, false, log)
+	res, err = Execute(3, stateDB, mockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)

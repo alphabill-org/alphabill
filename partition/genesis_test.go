@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-var zeroHash = make([]byte, 32)
+var zeroHash hex.Bytes = make([]byte, 32)
 var nodeID peer.ID = "test"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
@@ -25,11 +26,11 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	validPDR := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  1,
-		TypeIdLen:         8,
-		UnitIdLen:         128,
-		T2Timeout:         5 * time.Second,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 1,
+		TypeIdLen:           8,
+		UnitIdLen:           128,
+		T2Timeout:           5 * time.Second,
 	}
 
 	type args struct {
@@ -91,36 +92,36 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		})
 	}
 
-	// invalid system identifier
+	// invalid partition identifier
 	got, err := NewNodeGenesis(
 		state.NewEmptyState(),
-		types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 0},
+		types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 0},
 		WithPeerID("1"),
 		WithSigningKey(signer),
 		WithEncryptionPubKey(pubKeyBytes),
 		WithHashAlgorithm(gocrypto.SHA256),
 	)
 	require.Nil(t, got)
-	require.EqualError(t, err, `calculating genesis block hash: block hash calculation failed: invalid block: system identifier is unassigned`)
+	require.EqualError(t, err, `calculating genesis block hash: block hash calculation failed: invalid block: partition identifier is unassigned`)
 }
 
 func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
 	pn := createPartitionNode(t, signer, verifier, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
-	require.Equal(t, pubKey, pn.SigningPublicKey)
+	require.Equal(t, hex.Bytes(pubKey), pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
-	require.Equal(t, pdr.SystemIdentifier, blockCertificationRequestRequest.Partition)
+	require.Equal(t, pdr.PartitionIdentifier, blockCertificationRequestRequest.Partition)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord
-	expectedHash := make([]byte, 32)
+	expectedHash := hex.Bytes(make([]byte, 32))
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(pdr.SystemIdentifier, nil, true), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(pdr.PartitionIdentifier, nil, true), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
@@ -139,13 +140,13 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(systemIdentifier types.SystemID, previousHash []byte, isEmpty bool) []byte {
+func calculateBlockHash(partitionIdentifier types.PartitionID, previousHash []byte, isEmpty bool) hex.Bytes {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
 	if isEmpty {
 		return zeroHash
 	}
-	hasher.Write(systemIdentifier.Bytes())
+	hasher.Write(partitionIdentifier.Bytes())
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)
 

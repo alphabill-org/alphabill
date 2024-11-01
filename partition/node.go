@@ -369,7 +369,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			Partition:      n.configuration.GetSystemIdentifier(),
+			Partition:      n.configuration.GetPartitionIdentifier(),
 			Shard:          n.configuration.shardID,
 			NodeIdentifier: n.peer.ID().String(),
 		},
@@ -574,7 +574,7 @@ func statusCodeOfTxError(err error) string {
 		return "ok"
 	case errors.Is(err, ErrTxTimeout):
 		return "tx.timeout"
-	case errors.Is(err, errInvalidSystemIdentifier):
+	case errors.Is(err, errInvalidPartitionIdentifier):
 		return "invalid.sysid"
 	default:
 		return "err"
@@ -616,7 +616,7 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
 //  1. Block proposal as a whole is validated:
-//     * It must have valid signature, correct transaction system ID, valid UC;
+//     * It must have valid signature, correct transaction partition ID, valid UC;
 //     * the UC must be not older than the latest known by current node;
 //     * Sender must be the leader for the round started by included UC.
 //  2. If included UC is newer than latest UC then the new UC is processed; this rolls back possible pending change in
@@ -785,7 +785,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	defer span.End()
 	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader), logger.Round(n.currentRoundNumber()))
 
-	if cr.Partition != n.SystemID() || !cr.Shard.Equal(n.configuration.shardID) {
+	if cr.Partition != n.PartitionID() || !cr.Shard.Equal(n.configuration.shardID) {
 		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
 	}
 
@@ -798,7 +798,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
 //  1. Given UC is validated cryptographically -> checked before this method is called by unicityCertificateValidator
-//  2. Given UC has correct system identifier -> checked before this method is called by unicityCertificateValidator
+//  2. Given UC has correct partition identifier -> checked before this method is called by unicityCertificateValidator
 //  3. TODO: sanity check timestamp
 //  4. Given UC is checked for equivocation (for more details see certificates.CheckNonEquivocatingCertificates)
 //  5. On unexpected case where there is no pending block proposal, recovery is initiated, unless the state is already
@@ -1036,11 +1036,11 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
-	if lr.SystemIdentifier != n.configuration.GetSystemIdentifier() {
+	if lr.PartitionIdentifier != n.configuration.GetPartitionIdentifier() {
 		resp := &replication.LedgerReplicationResponse{
 			UUID:    lr.UUID,
-			Status:  replication.UnknownSystemIdentifier,
-			Message: fmt.Sprintf("Unknown system identifier: %s", lr.SystemIdentifier),
+			Status:  replication.UnknownPartitionIdentifier,
+			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionIdentifier),
 		}
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
 	}
@@ -1264,11 +1264,11 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	defer span.End()
 
 	req := &replication.LedgerReplicationRequest{
-		UUID:             uuid.New(),
-		SystemIdentifier: n.configuration.GetSystemIdentifier(),
-		NodeIdentifier:   n.peer.ID().String(),
-		BeginBlockNumber: startingBlockNr,
-		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
+		UUID:                uuid.New(),
+		PartitionIdentifier: n.configuration.GetPartitionIdentifier(),
+		NodeIdentifier:      n.peer.ID().String(),
+		BeginBlockNumber:    startingBlockNr,
+		EndBlockNumber:      startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
@@ -1306,7 +1306,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	tr := n.lTR.Load()
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		Partition:          n.configuration.GetSystemIdentifier(),
+		Partition:          n.configuration.GetPartitionIdentifier(),
 		Shard:              n.configuration.shardID,
 		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: n.luc.Load(),
@@ -1362,7 +1362,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	}
 	pendingProposal := &types.Block{
 		Header: &types.Header{
-			SystemID:          n.configuration.GetSystemIdentifier(),
+			PartitionID:       n.configuration.GetPartitionIdentifier(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
 			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
@@ -1383,7 +1383,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:       n.configuration.GetSystemIdentifier(),
+		Partition:       n.configuration.GetPartitionIdentifier(),
 		Shard:           n.configuration.shardID,
 		NodeIdentifier:  n.peer.ID().String(),
 		InputRecord:     ir,
@@ -1487,8 +1487,8 @@ func (n *Node) NetworkID() types.NetworkID {
 	return n.configuration.GetNetworkIdentifier()
 }
 
-func (n *Node) SystemID() types.SystemID {
-	return n.configuration.GetSystemIdentifier()
+func (n *Node) PartitionID() types.PartitionID {
+	return n.configuration.GetPartitionIdentifier()
 }
 
 func (n *Node) Peer() *network.Peer {

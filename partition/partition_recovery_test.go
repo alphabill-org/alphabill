@@ -481,7 +481,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
+	require.EqualValues(t, 0x01010101, tp.partition.PartitionID())
 }
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
@@ -520,7 +520,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	require.Equal(t, uint64(3), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.Equal(t, latestBlock, newBlock3)
-	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
+	require.EqualValues(t, 0x01010101, tp.partition.PartitionID())
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
@@ -593,7 +593,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	b, err = tp.partition.GetBlock(context.Background(), 6)
 	require.NoError(t, err)
 	require.Nil(t, b)
-	require.EqualValues(t, 0x01010101, tp.partition.SystemID())
+	require.EqualValues(t, 0x01010101, tp.partition.PartitionID())
 }
 
 func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
@@ -1086,7 +1086,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 	illegalBlock := copyBlock(t, newBlock1)
-	illegalBlock.Header.SystemID = 0xFFFFFFFF
+	illegalBlock.Header.PartitionID = 0xFFFFFFFF
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status:           replication.Ok,
@@ -1095,7 +1095,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	illegalBlock = copyBlock(t, newBlock1)
-	illegalBlock.Header.SystemID = 0
+	illegalBlock.Header.PartitionID = 0
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status:           replication.Ok,
@@ -1161,9 +1161,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	//send replication request, it will hit tx replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: genesisBlockNumber + 1,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    genesisBlockNumber + 1,
+		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
 	})
 
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
@@ -1180,9 +1180,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.partition.configuration.replicationConfig.maxReturnBlocks = 1
 	//send replication request, it will hit block replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: genesisBlockNumber + 1,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    genesisBlockNumber + 1,
+		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
@@ -1224,9 +1224,9 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 	// does not have the block 11
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: 11,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    11,
+		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	//make sure response is sent
@@ -1237,40 +1237,40 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.Equal(t, replication.BlocksNotFound, msg.Status)
 	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 4")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
-	// system id is valid, but does not match
+	// partition id is valid, but does not match
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: 2,
-		SystemIdentifier: 0xFFFFFFFF,
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    2,
+		PartitionIdentifier: 0xFFFFFFFF,
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg = resp.Message.(*replication.LedgerReplicationResponse)
-	require.Equal(t, replication.UnknownSystemIdentifier, msg.Status)
-	require.Contains(t, msg.Message, "Unknown system identifier: FFFFFFFF")
+	require.Equal(t, replication.UnknownPartitionIdentifier, msg.Status)
+	require.Contains(t, msg.Message, "Unknown partition identifier: FFFFFFFF")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// cases where node does not even respond
-	// system id is nil
+	// partition id is nil
 	req := &replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: 2,
-		SystemIdentifier: 0,
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    2,
+		PartitionIdentifier: 0,
 	}
-	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid system identifier")
+	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid partition identifier")
 	req = &replication.LedgerReplicationRequest{
-		NodeIdentifier:   tp.nodeDeps.peerConf.ID.String(),
-		BeginBlockNumber: 5,
-		EndBlockNumber:   3,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
+		BeginBlockNumber:    5,
+		EndBlockNumber:      3,
+		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid block request range from 5 to 3")
 	// unknown node identifier
 	req = &replication.LedgerReplicationRequest{
-		NodeIdentifier:   "",
-		BeginBlockNumber: 2,
-		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		NodeIdentifier:      "",
+		BeginBlockNumber:    2,
+		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }
@@ -1303,7 +1303,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	require.NoError(t, err)
 	newBlock := &types.Block{
 		Header: &types.Header{
-			SystemID:          uc.UnicityTreeCertificate.SystemIdentifier,
+			PartitionID:       uc.UnicityTreeCertificate.PartitionIdentifier,
 			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",
 			PreviousBlockHash: uc.InputRecord.BlockHash,

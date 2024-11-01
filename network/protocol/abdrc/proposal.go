@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -16,9 +17,9 @@ var (
 
 type ProposalMsg struct {
 	_           struct{}           `cbor:",toarray"`
-	Block       *abdrc.BlockData   `json:"block,omitempty"`         // Proposed change
-	LastRoundTc *abdrc.TimeoutCert `json:"last_round_tc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
-	Signature   []byte             `json:"signature,omitempty"`
+	Block       *abdrc.BlockData   `json:"block"`       // Proposed change
+	LastRoundTc *abdrc.TimeoutCert `json:"lastRoundTc"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
+	Signature   hex.Bytes          `json:"signature"`
 }
 
 func (x *ProposalMsg) getLastTcRound() uint64 {

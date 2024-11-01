@@ -27,7 +27,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
 			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)),
@@ -54,7 +54,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 	d := u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.TypeID)
-	require.Equal(t, []byte{0xa}, d.Data)
+	require.EqualValues(t, []byte{0xa}, d.Data)
 	require.Equal(t, uint64(0), d.Counter)
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 
@@ -63,7 +63,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
 			Data:    test.RandomBytes(10),
 			Counter: 1,
@@ -84,7 +84,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
 		testtransaction.WithUnitID(unitID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(templates.EmptyArgument()),
@@ -107,7 +107,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 	d = u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, nftTypeID2, d.TypeID)
-	require.Equal(t, attr.Data, d.Data)
+	require.EqualValues(t, attr.Data, d.Data)
 	require.Equal(t, uint64(2), d.Counter)
 	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), d.Owner())
 }

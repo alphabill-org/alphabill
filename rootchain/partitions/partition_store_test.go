@@ -27,9 +27,9 @@ func Test_PartitionStore_Init(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         2600 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -147,9 +147,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         1000 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           1000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -159,9 +159,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		},
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  2,
-				T2Timeout:         2000 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 2,
+				T2Timeout:           2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
@@ -179,9 +179,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		ps, err := NewPartitionStore(gs)
 		require.NoError(t, err)
 		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
-		sdr, tb, err := ps.GetInfo(3, 1)
+		pdr, tb, err := ps.GetInfo(3, 1)
 		require.EqualError(t, err, `unknown partition identifier 00000003`)
-		require.Nil(t, sdr)
+		require.Nil(t, pdr)
 		require.Nil(t, tb)
 	})
 
@@ -199,16 +199,16 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
 
-		sdr, tb, err := ps.GetInfo(1, 1)
+		pdr, tb, err := ps.GetInfo(1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, tb)
-		require.Equal(t, partitions[0].PartitionDescription, sdr)
+		require.Equal(t, partitions[0].PartitionDescription, pdr)
 		require.EqualValues(t, 1, loadCalls)
 
-		sdr, tb, err = ps.GetInfo(2, 10)
+		pdr, tb, err = ps.GetInfo(2, 10)
 		require.NoError(t, err)
 		require.NotNil(t, tb)
-		require.Equal(t, partitions[1].PartitionDescription, sdr)
+		require.Equal(t, partitions[1].PartitionDescription, pdr)
 		// as the queries hit current dataset no additional calls to genesis store is expected
 		require.EqualValues(t, 1, loadCalls)
 	})
@@ -231,10 +231,10 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
 		// query from round beyond current range to trigger load from storage
-		sdr, tb, err := ps.GetInfo(1, ps.next+1)
+		pdr, tb, err := ps.GetInfo(1, ps.next+1)
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, tb)
-		require.Nil(t, sdr)
+		require.Nil(t, pdr)
 		require.EqualValues(t, 2, loadCalls)
 	})
 
@@ -242,9 +242,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		invalidPartitions := []*genesis.GenesisPartitionRecord{
 			{
 				PartitionDescription: &types.PartitionDescriptionRecord{
-					NetworkIdentifier: 5,
-					SystemIdentifier:  1,
-					T2Timeout:         1000 * time.Millisecond,
+					NetworkIdentifier:   5,
+					PartitionIdentifier: 1,
+					T2Timeout:           1000 * time.Millisecond,
 				},
 				// make one of the PKs invalid so building partition trust base should fail
 				Nodes: []*genesis.PartitionNode{
@@ -270,10 +270,10 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
 		// query from round beyond current range to trigger load from storage
-		sdr, tb, err := ps.GetInfo(1, ps.next+1)
+		pdr, tb, err := ps.GetInfo(1, ps.next+1)
 		require.EqualError(t, err, `switching to new config: creating verifier for the node "node2": pubkey must be 33 bytes long, but is 3`)
 		require.Nil(t, tb)
-		require.Nil(t, sdr)
+		require.Nil(t, pdr)
 		require.EqualValues(t, 2, loadCalls)
 	})
 
@@ -281,9 +281,9 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		nextConfig := []*genesis.GenesisPartitionRecord{
 			{
 				PartitionDescription: &types.PartitionDescriptionRecord{
-					NetworkIdentifier: 5,
-					SystemIdentifier:  3,
-					T2Timeout:         3000 * time.Millisecond,
+					NetworkIdentifier:   5,
+					PartitionIdentifier: 3,
+					T2Timeout:           3000 * time.Millisecond,
 				},
 				Nodes: []*genesis.PartitionNode{
 					{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -306,38 +306,38 @@ func Test_PartitionStore_GetInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, ps.Reset(func() uint64 { return 1 }))
 		// initial config has partitions 1 and 2
-		sdr, tb, err := ps.GetInfo(1, 1)
+		pdr, tb, err := ps.GetInfo(1, 1)
 		require.NoError(t, err)
 		require.NotNil(t, tb)
-		require.Equal(t, partitions[0].PartitionDescription, sdr)
+		require.Equal(t, partitions[0].PartitionDescription, pdr)
 		require.EqualValues(t, 1, loadCalls)
 
-		sdr, tb, err = ps.GetInfo(2, 2)
+		pdr, tb, err = ps.GetInfo(2, 2)
 		require.NoError(t, err)
 		require.NotNil(t, tb)
-		require.Equal(t, partitions[1].PartitionDescription, sdr)
+		require.Equal(t, partitions[1].PartitionDescription, pdr)
 		require.EqualValues(t, 1, loadCalls)
 		// but no partition 3
-		sdr, tb, err = ps.GetInfo(3, ps.next-1)
+		pdr, tb, err = ps.GetInfo(3, ps.next-1)
 		require.EqualError(t, err, `unknown partition identifier 00000003`)
-		require.Nil(t, sdr)
+		require.Nil(t, pdr)
 		require.Nil(t, tb)
 
 		// query from round beyond current range to trigger load from storage
 		// we now should only have partition 3
 		cfg2round := ps.next
-		sdr, tb, err = ps.GetInfo(1, cfg2round)
+		pdr, tb, err = ps.GetInfo(1, cfg2round)
 		require.EqualError(t, err, `unknown partition identifier 00000001`)
 		require.Nil(t, tb)
-		require.Nil(t, sdr)
-		sdr, tb, err = ps.GetInfo(2, cfg2round+1)
+		require.Nil(t, pdr)
+		pdr, tb, err = ps.GetInfo(2, cfg2round+1)
 		require.EqualError(t, err, `unknown partition identifier 00000002`)
 		require.Nil(t, tb)
-		require.Nil(t, sdr)
-		sdr, tb, err = ps.GetInfo(3, cfg2round+30)
+		require.Nil(t, pdr)
+		pdr, tb, err = ps.GetInfo(3, cfg2round+30)
 		require.NoError(t, err)
 		require.NotNil(t, tb)
-		require.Equal(t, nextConfig[0].PartitionDescription, sdr)
+		require.Equal(t, nextConfig[0].PartitionDescription, pdr)
 		// we expect only two calls to genesis store
 		require.EqualValues(t, 2, loadCalls)
 	})

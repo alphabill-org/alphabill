@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
+	// TxValidator is used to validate generic transactions (e.g. timeouts, partition identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
 		Validate(tx *types.TransactionOrder, latestBlockNumber uint64) error
@@ -33,7 +33,7 @@ type (
 
 	// DefaultUnicityCertificateValidator is a default implementation of UnicityCertificateValidator.
 	DefaultUnicityCertificateValidator struct {
-		systemIdentifier      types.SystemID
+		partitionIdentifier   types.PartitionID
 		systemDescriptionHash []byte
 		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
@@ -41,27 +41,27 @@ type (
 
 	// DefaultBlockProposalValidator is a default implementation of UnicityCertificateValidator.
 	DefaultBlockProposalValidator struct {
-		systemIdentifier      types.SystemID
+		partitionIdentifier   types.PartitionID
 		systemDescriptionHash []byte
 		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
 	DefaultTxValidator struct {
-		systemIdentifier types.SystemID
+		partitionIdentifier types.PartitionID
 	}
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
-var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
+var errInvalidPartitionIdentifier = errors.New("invalid transaction partition identifier")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
-func NewDefaultTxValidator(systemIdentifier types.SystemID) (TxValidator, error) {
-	if systemIdentifier == 0 {
-		return nil, fmt.Errorf("invalid transaction system identifier: %s", systemIdentifier)
+func NewDefaultTxValidator(partitionIdentifier types.PartitionID) (TxValidator, error) {
+	if partitionIdentifier == 0 {
+		return nil, fmt.Errorf("invalid transaction partition identifier: %s", partitionIdentifier)
 	}
 	return &DefaultTxValidator{
-		systemIdentifier: systemIdentifier,
+		partitionIdentifier: partitionIdentifier,
 	}, nil
 }
 
@@ -69,9 +69,9 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
-	if dtv.systemIdentifier != tx.SystemID {
+	if dtv.partitionIdentifier != tx.PartitionID {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %s, got %s: %w", dtv.systemIdentifier, tx.SystemID, errInvalidSystemIdentifier)
+		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionIdentifier, tx.PartitionID, errInvalidPartitionIdentifier)
 	}
 
 	if tx.Timeout() <= latestBlockNumber {
@@ -100,7 +100,7 @@ func NewDefaultUnicityCertificateValidator(
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
-		systemIdentifier:      systemDescription.SystemIdentifier,
+		partitionIdentifier:   systemDescription.PartitionIdentifier,
 		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -108,7 +108,7 @@ func NewDefaultUnicityCertificateValidator(
 }
 
 func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
-	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
+	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.partitionIdentifier, ucv.systemDescriptionHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
@@ -125,7 +125,7 @@ func NewDefaultBlockProposalValidator(
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultBlockProposalValidator{
-		systemIdentifier:      systemDescription.SystemIdentifier,
+		partitionIdentifier:   systemDescription.PartitionIdentifier,
 		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -137,7 +137,7 @@ func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockPropos
 		nodeSignatureVerifier,
 		bpv.rootTrustBase,
 		bpv.algorithm,
-		bpv.systemIdentifier,
+		bpv.partitionIdentifier,
 		bpv.systemDescriptionHash,
 	)
 }

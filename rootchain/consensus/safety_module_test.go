@@ -6,6 +6,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -311,7 +312,7 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	qc := drctypes.NewQuorumCertificate(voteInfo, nil)
 	// add some dummy signatures
-	qc.Signatures = map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
+	qc.Signatures = map[string]hex.Bytes{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	proposal.Block.Qc = qc
 	require.NoError(t, s.Sign(proposal))
 	require.Greater(t, len(proposal.Signature), 1)
@@ -334,7 +335,7 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 	// previous round did not time out
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	qc := drctypes.NewQuorumCertificate(voteInfo, nil)
-	qc.Signatures = map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
+	qc.Signatures = map[string]hex.Bytes{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	tmoMsg := &abdrc.TimeoutMsg{
 		Timeout: &drctypes.Timeout{Epoch: 0,
 			Round:  3,

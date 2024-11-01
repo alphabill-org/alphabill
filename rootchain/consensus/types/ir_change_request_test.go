@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const sysId1 types.SystemID = 1
-const sysId2 types.SystemID = 2
+const sysId1 types.PartitionID = 1
+const sysId2 types.PartitionID = 2
 
 var prevHash = []byte{0, 0, 0}
 var inputRecord1 = &types.InputRecord{Version: 1,
@@ -86,10 +86,10 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 
 	expectedHash := gocrypto.SHA256.New()
 	expectedHash.Write([]byte{
-		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg
+		0, 0, 0, 1, // 4 byte Partition identifier of IRChangeReqMsg
 		0, 0, 0, 1, // cert reason quorum not possible
 		// Start of the BlockCertificationRequest
-		0, 0, 0, 1, // 4 byte system identifier
+		0, 0, 0, 1, // 4 byte partition identifier
 		128,                                            // empty shard ID
 		'1',                                            // node identifier - string is encoded without '/0'
 		0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 3, // prev. hash, hash, block hash, summary value, round number
@@ -133,7 +133,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.EqualError(t, err, "ir change request validation failed: unknown reason (16)")
 		require.Nil(t, ir)
 	})
-	t.Run("system id in request and proof do not match", func(t *testing.T) {
+	t.Run("partition id in request and proof do not match", func(t *testing.T) {
 		luc := &types.UnicityCertificate{Version: 1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
@@ -155,7 +155,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 			Requests:   []*certification.BlockCertificationRequest{reqS1InvalidSysId, reqS2},
 		}
 		ir, err := x.Verify(tb, luc, 0, 0)
-		require.EqualError(t, err, "invalid partition 00000001 proof: node 1 request system id 00000002 does not match request")
+		require.EqualError(t, err, "invalid partition 00000001 proof: node 1 request partition id 00000002 does not match request")
 		require.Nil(t, ir)
 	})
 	t.Run("IR change request, signature verification error", func(t *testing.T) {

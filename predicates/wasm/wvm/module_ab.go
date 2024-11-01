@@ -205,8 +205,8 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 		return 0, errors.New("invalid input: trustbase is unassigned")
 	}
 	txo := txRecordProof.TransactionOrder()
-	if txo.SystemID != money.DefaultSystemID {
-		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID)
+	if txo.PartitionID != money.DefaultPartitionID {
+		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultPartitionID, txo.PartitionID)
 	}
 	if refNo != nil && !bytes.Equal(refNo, txo.ReferenceNumber()) {
 		return 0, errors.New("reference number mismatch")

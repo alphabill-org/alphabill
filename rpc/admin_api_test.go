@@ -22,7 +22,7 @@ func TestGetNodeInfo_OK(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "money node", r.Name)
 		require.Equal(t, types.NetworkID(5), r.NetworkID)
-		require.Equal(t, types.SystemID(65536), r.SystemID)
+		require.Equal(t, types.PartitionID(65536), r.PartitionID)
 		require.Equal(t, selfPeer.ID().String(), r.Self.Identifier)
 		require.Equal(t, selfPeer.MultiAddresses(), r.Self.Addresses)
 		require.Empty(t, r.BootstrapNodes)

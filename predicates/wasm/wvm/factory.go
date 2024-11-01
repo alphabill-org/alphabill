@@ -9,7 +9,7 @@ import (
 // AB "common types", ie not tx system specific stuff
 type ABTypesFactory struct{}
 
-// must be "tx system id + type id" to support tx system specific objects?
+// must be "tx partition id + type id" to support tx system specific objects?
 // or we only support generic types here?
 // either the "data" (CBOR!) must have version id or version must come in as param?
 // the data (CBOR) could also encode the type?

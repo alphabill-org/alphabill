@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +52,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 	// need VerifyQuorumSignatures for verifying tx proofs of payment
 	trustbase := &mockRootTrustBase{
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 
 	// configuration of the conference (predicate configuration)
@@ -99,9 +100,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: tokens.DefaultSystemID,
-				Type:     tokens.TransactionTypeTransferNFT,
-				UnitID:   tokenID,
+				PartitionID: tokens.DefaultPartitionID,
+				Type:        tokens.TransactionTypeTransferNFT,
+				UnitID:      tokenID,
 			},
 		}
 
@@ -148,9 +149,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		txNFTUpdate := &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: tokens.DefaultSystemID,
-				Type:     tokens.TransactionTypeUpdateNFT,
-				UnitID:   tokenID,
+				PartitionID: tokens.DefaultPartitionID,
+				Type:        tokens.TransactionTypeUpdateNFT,
+				UnitID:      tokenID,
 			},
 		}
 		require.NoError(t, txNFTUpdate.SetAttributes(
@@ -212,9 +213,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: tokens.DefaultSystemID,
-				Type:     tokens.TransactionTypeTransferNFT,
-				UnitID:   tokenID,
+				PartitionID: tokens.DefaultPartitionID,
+				Type:        tokens.TransactionTypeTransferNFT,
+				UnitID:      tokenID,
 			},
 		}
 		require.NoError(t, txNFTTransfer.SetAttributes(
@@ -297,9 +298,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		txNFTUpdate := &types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: tokens.DefaultSystemID,
-				Type:     tokens.TransactionTypeUpdateNFT,
-				UnitID:   tokenID,
+				PartitionID: tokens.DefaultPartitionID,
+				Type:        tokens.TransactionTypeUpdateNFT,
+				UnitID:      tokenID,
 			},
 		}
 		require.NoError(t, txNFTUpdate.SetAttributes(
@@ -366,9 +367,9 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	// attendee transfers to the organizer
 	txPayment := &types.TransactionOrder{
 		Payload: types.Payload{
-			SystemID: money.DefaultSystemID,
-			Type:     money.TransactionTypeTransfer,
-			UnitID:   money.NewBillID(nil, []byte{8, 1, 1, 1}),
+			PartitionID: money.DefaultPartitionID,
+			Type:        money.TransactionTypeTransfer,
+			UnitID:      money.NewBillID(nil, []byte{8, 1, 1, 1}),
 			ClientMetadata: &types.ClientMetadata{
 				ReferenceNumber: refNo,
 			},
@@ -385,7 +386,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	)
 
 	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithSystemIdentifier(money.DefaultSystemID))
+	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 
 	b, err := types.Cbor.Marshal(txRec)
 	require.NoError(t, err)

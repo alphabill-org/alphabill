@@ -11,17 +11,17 @@ import (
 )
 
 var (
-	ErrBlockProposalIsNil      = errors.New("block proposal is nil")
-	ErrTrustBaseIsNil          = errors.New("trust base is nil")
-	ErrSignerIsNil             = errors.New("signer is nil")
-	ErrNodeVerifierIsNil       = errors.New("node signature verifier is nil")
-	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
-	errBlockProposerIDMissing  = errors.New("block proposer id is missing")
+	ErrBlockProposalIsNil         = errors.New("block proposal is nil")
+	ErrTrustBaseIsNil             = errors.New("trust base is nil")
+	ErrSignerIsNil                = errors.New("signer is nil")
+	ErrNodeVerifierIsNil          = errors.New("node signature verifier is nil")
+	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
+	errBlockProposerIDMissing     = errors.New("block proposer id is missing")
 )
 
 type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
-	Partition          types.SystemID
+	Partition          types.PartitionID
 	Shard              types.ShardID
 	NodeIdentifier     string
 	UnicityCertificate *types.UnicityCertificate
@@ -30,7 +30,7 @@ type BlockProposal struct {
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, systemIdentifier types.SystemID, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionIdentifier types.PartitionID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
@@ -43,10 +43,10 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if tb == nil {
 		return ErrTrustBaseIsNil
 	}
-	if systemIdentifier != x.Partition {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidSystemIdentifier, systemIdentifier, x.Partition)
+	if partitionIdentifier != x.Partition {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionIdentifier, partitionIdentifier, x.Partition)
 	}
-	if err := x.UnicityCertificate.Verify(tb, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionIdentifier, systemDescriptionHash); err != nil {
 		return err
 	}
 	return x.Verify(algorithm, nodeSignatureVerifier)

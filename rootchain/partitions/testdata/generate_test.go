@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const partitionID1 types.SystemID = 1
+const partitionID1 types.PartitionID = 1
 
 var genesisInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),

@@ -24,11 +24,11 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 	observe := observability.Default(t)
 	tree := abstate.NewEmptyState()
 	a := &API{
-		state:            tree,
-		systemIdentifier: 3,
-		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
-		blockGasLimit:    100000000000,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 3,
+		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
+		blockGasLimit:       100000000000,
+		log:                 observe.Logger(),
 	}
 	call := &evmsdk.CallEVMRequest{
 		From:  test.RandomBytes(20),
@@ -56,11 +56,11 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    100000000000,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       100000000000,
+		log:                 observe.Logger(),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -106,11 +106,11 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 observe.Logger(),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -142,11 +142,11 @@ func TestAPI_EstimateGas_ErrorIntrinsicGas(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 observe.Logger(),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -178,11 +178,11 @@ func TestAPI_EstimateGas_ErrorRevert(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 observe.Logger(),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -215,11 +215,11 @@ func TestAPI_EstimateGas_CallInfinite(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 observe.Logger(),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -251,11 +251,11 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 	address, contractAddr := initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    evm.DefaultBlockGasLimit,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       evm.DefaultBlockGasLimit,
+		log:                 observe.Logger(),
 	}
 	call := &evmsdk.CallEVMRequest{
 		From:  address.Bytes(),
@@ -283,11 +283,11 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 	initState(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    100000000000,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(1),
+		blockGasLimit:       100000000000,
+		log:                 observe.Logger(),
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()

@@ -238,9 +238,9 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 	validTxOrder := &types.TransactionOrder{
 		Payload: types.Payload{
-			SystemID: 1,
-			Type:     22,
-			UnitID:   []byte{0, 0, 1, 1, 2, 2},
+			PartitionID: 1,
+			Type:        22,
+			UnitID:      []byte{0, 0, 1, 1, 2, 2},
 		},
 	}
 	require.NoError(t, validTxOrder.SetAttributes("not really attributes"))

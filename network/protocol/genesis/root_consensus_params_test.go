@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestConsensusParams_HashSignaturesAreIgnored(t *testing.T) {
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  consensusTimeout,
 		HashAlgorithm:       uint32(gocrypto.SHA256),
-		Signatures:          make(map[string][]byte),
+		Signatures:          make(map[string]hex.Bytes),
 	}
 	// calc hash
 	cBytes := x.Bytes()
@@ -40,7 +41,7 @@ func TestConsensusParams_HashFieldsIncluded(t *testing.T) {
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  consensusTimeout,
 		HashAlgorithm:       hashAlgo,
-		Signatures:          map[string][]byte{},
+		Signatures:          map[string]hex.Bytes{},
 	}
 	// serialized form
 	serialized := []byte{
@@ -60,7 +61,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 		BlockRateMs         uint32
 		ConsensusTimeoutMs  uint32
 		HashAlgorithm       uint32
-		Signatures          map[string][]byte
+		Signatures          map[string]hex.Bytes
 	}
 	tests := []struct {
 		name    string
@@ -155,7 +156,7 @@ func TestConsensusIsValid_InvalidSignature(t *testing.T) {
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
-		Signatures:          map[string][]byte{"test": {0, 0}},
+		Signatures:          map[string]hex.Bytes{"test": {0, 0}},
 	}
 
 	verifiers := map[string]crypto.Verifier{"test": verifier}
@@ -171,7 +172,7 @@ func TestConsensusVerify_UnknownSigner(t *testing.T) {
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
-		Signatures:          map[string][]byte{"test": {0, 0}},
+		Signatures:          map[string]hex.Bytes{"test": {0, 0}},
 	}
 	verifiers := map[string]crypto.Verifier{"t": ver}
 	err := x.Verify(verifiers)
@@ -195,7 +196,7 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		BlockRateMs:         blockRate,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
-		Signatures:          map[string][]byte{"test": {0, 0}},
+		Signatures:          map[string]hex.Bytes{"test": {0, 0}},
 	}
 	err := x.Verify(nil)
 	require.ErrorContains(t, err, "missing root node public info")

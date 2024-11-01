@@ -24,23 +24,23 @@ var (
 
 type RootGenesis struct {
 	_          struct{}                  `cbor:",toarray"`
-	Version    types.ABVersion           `json:"version,omitempty"`
-	Root       *GenesisRootRecord        `json:"root,omitempty"`
-	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
+	Version    types.ABVersion           `json:"version"`
+	Root       *GenesisRootRecord        `json:"root"`
+	Partitions []*GenesisPartitionRecord `json:"partitions"`
 }
 
 type SystemDescriptionRecordGetter interface {
 	GetSystemDescriptionRecord() *types.PartitionDescriptionRecord
 }
 
-func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
-	ids := make(map[types.SystemID]struct{}, len(records))
+func CheckPartitionPartitionIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
+	ids := make(map[types.PartitionID]struct{}, len(records))
 	for _, rec := range records {
 		record := rec.GetSystemDescriptionRecord()
-		if _, f := ids[record.SystemIdentifier]; f {
-			return fmt.Errorf("duplicated system identifier: %s", record.SystemIdentifier)
+		if _, f := ids[record.PartitionIdentifier]; f {
+			return fmt.Errorf("duplicated partition identifier: %s", record.PartitionIdentifier)
 		}
-		ids[record.SystemIdentifier] = struct{}{}
+		ids[record.PartitionIdentifier] = struct{}{}
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func (x *RootGenesis) IsValid() error {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionPartitionIdentifiersUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
 
@@ -99,7 +99,7 @@ func (x *RootGenesis) Verify() error {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionPartitionIdentifiersUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition error: %w", err)
 	}
 	// Check all signatures on Partition UC Seals
@@ -116,7 +116,7 @@ func (x *RootGenesis) Verify() error {
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
-				p.PartitionDescription.SystemIdentifier)
+				p.PartitionDescription.PartitionIdentifier)
 		}
 	}
 	return nil

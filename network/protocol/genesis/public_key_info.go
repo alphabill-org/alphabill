@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -17,10 +18,10 @@ var (
 )
 
 type PublicKeyInfo struct {
-	_                   struct{} `cbor:",toarray"`
-	NodeIdentifier      string   `json:"node_identifier,omitempty"`
-	SigningPublicKey    []byte   `json:"signing_public_key,omitempty"`
-	EncryptionPublicKey []byte   `json:"encryption_public_key,omitempty"`
+	_                   struct{}  `cbor:",toarray"`
+	NodeIdentifier      string    `json:"nodeIdentifier"`
+	SigningPublicKey    hex.Bytes `json:"signingPublicKey"`
+	EncryptionPublicKey hex.Bytes `json:"encryptionPublicKey"`
 }
 
 // NewValidatorTrustBase creates a verifier to node id map from public key info using the signing public key.
@@ -50,8 +51,8 @@ func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 		return ErrValidatorPublicInfoIsEmpty
 	}
 	var ids = make(map[string]string)
-	var signingKeys = make(map[string][]byte)
-	var encryptionKeys = make(map[string][]byte)
+	var signingKeys = make(map[string]hex.Bytes)
+	var encryptionKeys = make(map[string]hex.Bytes)
 	for _, nodeInfo := range validators {
 		if err := nodeInfo.IsValid(); err != nil {
 			return err

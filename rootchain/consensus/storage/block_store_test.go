@@ -71,8 +71,8 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	require.Len(t, bStore.GetCertificates(), 2)
 	uc, err := bStore.GetCertificate(sysID1, types.ShardID{})
 	require.NoError(t, err)
-	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.SystemIdentifier)
-	uc, err = bStore.GetCertificate(types.SystemID(100), types.ShardID{})
+	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.PartitionIdentifier)
+	uc, err = bStore.GetCertificate(100, types.ShardID{})
 	require.Error(t, err)
 	require.Nil(t, uc)
 }
@@ -86,7 +86,7 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 			Qc:      qc,
 		},
 		CurrentIR: make(InputRecords, 0),
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make([]types.PartitionID, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
 		Qc:        &drctypes.QuorumCert{},
@@ -351,14 +351,14 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	// the initBlockStoreFromGenesis fills the store from global var "pg"
 	for idx, partGenesis := range pg {
-		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.SystemIdentifier, types.ShardID{})
+		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.Epoch)
 		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber, si.Round)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
-		require.Equal(t, partGenesis.PartitionDescription.SystemIdentifier, si.LastCR.Partition)
+		require.Equal(t, partGenesis.PartitionDescription.PartitionIdentifier, si.LastCR.Partition)
 	}
 
 	// and an partition which shouldn't exist
@@ -382,10 +382,10 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	// two stores should have the same state now
 	require.Len(t, storeA.shardInfo, len(storeB.shardInfo))
 	for _, partGenesis := range pg {
-		siA, err := storeA.ShardInfo(partGenesis.PartitionDescription.SystemIdentifier, types.ShardID{})
+		siA, err := storeA.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siA)
-		siB, err := storeB.ShardInfo(partGenesis.PartitionDescription.SystemIdentifier, types.ShardID{})
+		siB, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siB)
 
@@ -405,7 +405,7 @@ func Test_BlockStore_persistance(t *testing.T) {
 	// change some shard info and persist it
 	certs := []*certification.CertificationResponse{
 		{
-			Partition: pg[0].PartitionDescription.SystemIdentifier,
+			Partition: pg[0].PartitionDescription.PartitionIdentifier,
 			Shard:     types.ShardID{},
 			Technical: certification.TechnicalRecord{
 				Round:    8876,
@@ -427,7 +427,7 @@ func Test_BlockStore_persistance(t *testing.T) {
 	}
 	// updateCertificateCache updates only LastCR unless it's epoch change too
 	// so set some SI properties manually before triggering storing ths state
-	si, err := bStore.ShardInfo(pg[0].PartitionDescription.SystemIdentifier, types.ShardID{})
+	si, err := bStore.ShardInfo(pg[0].PartitionDescription.PartitionIdentifier, types.ShardID{})
 	require.NoError(t, err)
 	si.Round = certs[0].Technical.Round
 	si.RootHash = certs[0].UC.InputRecord.Hash
@@ -442,7 +442,7 @@ func Test_BlockStore_persistance(t *testing.T) {
 	require.NoError(t, err)
 
 	cr := certs[0]
-	si, err = bStore.ShardInfo(pg[0].PartitionDescription.SystemIdentifier, types.ShardID{})
+	si, err = bStore.ShardInfo(pg[0].PartitionDescription.PartitionIdentifier, types.ShardID{})
 	require.NoError(t, err)
 	require.NotNil(t, si)
 	require.Equal(t, cr.Technical.Epoch, si.Epoch)

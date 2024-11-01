@@ -17,9 +17,9 @@ import (
 
 type (
 	MockState struct {
-		inProgress   []types.SystemID
+		inProgress   []types.PartitionID
 		irInProgress *types.InputRecord
-		shardInfo    func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error)
+		shardInfo    func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error)
 	}
 )
 
@@ -36,7 +36,7 @@ func (s *MockState) GetCertificates() []*types.UnicityCertificate {
 	return []*types.UnicityCertificate{{
 		Version:                1,
 		InputRecord:            irSysID1,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{SystemIdentifier: 1},
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{PartitionIdentifier: 1},
 		UnicitySeal: &types.UnicitySeal{
 			Version:              1,
 			RootChainRoundNumber: 1,
@@ -45,11 +45,11 @@ func (s *MockState) GetCertificates() []*types.UnicityCertificate {
 	}
 }
 
-func (s *MockState) ShardInfo(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+func (s *MockState) ShardInfo(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
 	return s.shardInfo(partition, shard)
 }
 
-func (s *MockState) IsChangeInProgress(id types.SystemID) *types.InputRecord {
+func (s *MockState) IsChangeInProgress(id types.PartitionID) *types.InputRecord {
 	for _, sysId := range s.inProgress {
 		if sysId == id {
 			return s.irInProgress
@@ -65,9 +65,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         2000 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -79,11 +79,11 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		},
 	}
 	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
-	stateProvider := func(partitions []types.SystemID, irs *types.InputRecord) *MockState {
+	stateProvider := func(partitions []types.PartitionID, irs *types.InputRecord) *MockState {
 		return &MockState{
 			inProgress:   partitions,
 			irInProgress: irs,
-			shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
 				si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
 				return si, err
 			},
@@ -93,7 +93,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("ir change request nil", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.SystemID{sysID1}, nil),
+			state:         stateProvider([]types.PartitionID{sysID1}, nil),
 			orchestration: orchestration,
 		}
 		data, err := ver.VerifyIRChangeReq(2, nil)
@@ -104,7 +104,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("error change in progress", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.SystemID{sysID1}, &types.InputRecord{Version: 1}),
+			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
@@ -135,7 +135,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	t.Run("invalid partition ID", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.SystemID{sysID1}, &types.InputRecord{Version: 1}),
+			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{Version: 1,
@@ -174,7 +174,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.SystemID{sysID1}, newIR),
+			state:         stateProvider([]types.PartitionID{sysID1}, newIR),
 			orchestration: orchestration,
 		}
 		request := &certification.BlockCertificationRequest{
@@ -265,9 +265,9 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         2600 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -310,9 +310,9 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  1,
-				T2Timeout:         2600 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: 1,
+				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -357,9 +357,9 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
-				NetworkIdentifier: 5,
-				SystemIdentifier:  sysID1,
-				T2Timeout:         2500 * time.Millisecond,
+				NetworkIdentifier:   5,
+				PartitionIdentifier: sysID1,
+				T2Timeout:           2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -367,7 +367,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		},
 	}
 	state := &MockState{
-		shardInfo: func(partition types.SystemID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+		shardInfo: func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
 			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
 			return si, err
 		},
@@ -377,7 +377,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		state:         state,
 		orchestration: partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions}),
 	}
-	var tmos []types.SystemID
+	var tmos []types.PartitionID
 	// last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
 	tmos, err = tmoGen.GetT2Timeouts(11)
 	require.NoError(t, err)
@@ -385,7 +385,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	// last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 	tmos, err = tmoGen.GetT2Timeouts(12)
 	require.NoError(t, err)
-	require.EqualValues(t, []types.SystemID{sysID1}, tmos)
+	require.EqualValues(t, []types.PartitionID{sysID1}, tmos)
 	// mock sysID1 has pending change in pipeline - no timeout will be generated
 	state.inProgress = append(state.inProgress, sysID1)
 	state.irInProgress = irSysID1

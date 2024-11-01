@@ -36,8 +36,8 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	t.Run("TransactionOrder ok", func(t *testing.T) {
 		txo := types.TransactionOrder{
 			Payload: types.Payload{
-				SystemID: 1,
-				Type:     22,
+				PartitionID: 1,
+				Type:        22,
 			},
 			AuthProof: []byte{1},
 			FeeProof:  []byte{2},

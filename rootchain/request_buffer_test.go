@@ -14,8 +14,8 @@ import (
 var ir1 = &types.InputRecord{Version: 1, Hash: []byte{1}}
 var ir2 = &types.InputRecord{Version: 1, Hash: []byte{2}}
 var ir3 = &types.InputRecord{Version: 1, Hash: []byte{3}}
-var sysID1 = types.SystemID(1)
-var sysID2 = types.SystemID(2)
+var sysID1 = types.PartitionID(1)
+var sysID2 = types.PartitionID(2)
 
 var req1 = &certification.BlockCertificationRequest{
 	InputRecord: ir1,
@@ -201,7 +201,7 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	require.Equal(t, req1.InputRecord, proof[1].InputRecord)
 }
 
-func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
+func TestCertRequestStore_isConsensusReceived_MultiplePartitionIds(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
 	shard := types.ShardID{}
@@ -282,7 +282,7 @@ func TestCertRequestStore_EmptyStore(t *testing.T) {
 	// Reset resets both stores
 	require.NotPanics(t, func() { cs.Reset() })
 	require.NotPanics(t, func() { cs.Clear(sysID1, shard) })
-	require.NotPanics(t, func() { cs.Clear(types.SystemID(0x1010101), shard) })
+	require.NotPanics(t, func() { cs.Clear(types.PartitionID(0x1010101), shard) })
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
 }

@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const partitionID1 types.SystemID = 1
-const partitionID2 types.SystemID = 2
+const partitionID1 types.PartitionID = 1
+const partitionID2 types.PartitionID = 2
 
 var genesisInputRecord = &types.InputRecord{Version: 1,
 	PreviousHash: make([]byte, 32),
@@ -62,7 +62,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	b := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, data.Partition)
+	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PartitionDescriptionHash, data.PDRHash)
 	require.Empty(t, b.Changed)
@@ -110,7 +110,7 @@ func TestExecutedBlock(t *testing.T) {
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
-	getTRFunc := func(types.SystemID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+	getTRFunc := func(types.PartitionID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
 		return certification.TechnicalRecord{}, nil
 	}
 	executedBlock, err := NewExecutedBlock(hash, newBlock, parent, reqVer, getTRFunc)
@@ -167,7 +167,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 				PDRHash: []byte{4, 5, 6, 7},
 			},
 		},
-		Changed:  []types.SystemID{partitionID1, partitionID2},
+		Changed:  []types.PartitionID{partitionID1, partitionID2},
 		HashAlgo: gocrypto.SHA256,
 		RootHash: rh,
 	}

@@ -16,9 +16,9 @@ var (
 
 type GenesisRootRecord struct {
 	_              struct{}         `cbor:",toarray"`
-	Version        types.ABVersion  `json:"version,omitempty"`
-	RootValidators []*PublicKeyInfo `json:"rootValidators,omitempty"`
-	Consensus      *ConsensusParams `json:"consensus,omitempty"`
+	Version        types.ABVersion  `json:"version"`
+	RootValidators []*PublicKeyInfo `json:"rootValidators"`
+	Consensus      *ConsensusParams `json:"consensus"`
 }
 
 // IsValid only validates Consensus structure and that it signed by the listed root nodes

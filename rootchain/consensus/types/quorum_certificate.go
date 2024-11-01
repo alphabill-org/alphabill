@@ -19,9 +19,9 @@ var (
 
 type QuorumCert struct {
 	_                struct{}             `cbor:",toarray"`
-	VoteInfo         *RoundInfo           `json:"voteInfo,omitempty"`         // Consensus data
-	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo,omitempty"` // Commit info
-	Signatures       map[string]hex.Bytes `json:"signatures,omitempty"`       // Node identifier to signature map (NB! aggregated signature schema in spec)
+	VoteInfo         *RoundInfo           `json:"voteInfo"`         // Consensus data
+	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo"` // Commit info
+	Signatures       map[string]hex.Bytes `json:"signatures"`       // Node identifier to signature map (NB! aggregated signature schema in spec)
 }
 
 func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.UnicitySeal, signatures map[string]hex.Bytes) *QuorumCert {

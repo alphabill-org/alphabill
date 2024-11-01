@@ -16,10 +16,10 @@ var (
 
 type GenesisPartitionRecord struct {
 	_                    struct{}                          `cbor:",toarray"`
-	Version              types.ABVersion                   `json:"version,omitempty"`
-	Nodes                []*PartitionNode                  `json:"nodes,omitempty"`
-	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
-	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord,omitempty"`
+	Version              types.ABVersion                   `json:"version"`
+	Nodes                []*PartitionNode                  `json:"nodes"`
+	Certificate          *types.UnicityCertificate         `json:"certificate"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord"`
 }
 
 func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {

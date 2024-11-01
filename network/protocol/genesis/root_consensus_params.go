@@ -31,12 +31,12 @@ const (
 
 type ConsensusParams struct {
 	_                   struct{}             `cbor:",toarray"`
-	Version             types.ABVersion      `json:"version,omitempty"`
-	TotalRootValidators uint32               `json:"totalRootValidators,omitempty"` // Number of root validator nodes in the root cluster
-	BlockRateMs         uint32               `json:"blockRateMs,omitempty"`         // Block rate
-	ConsensusTimeoutMs  uint32               `json:"consensusTimeoutMs,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
-	HashAlgorithm       uint32               `json:"hashAlgorithm,omitempty"`       // Hash algorithm for UnicityTree calculation
-	Signatures          map[string]hex.Bytes `json:"signatures,omitempty"`          // Signed hash of all fields excluding signatures
+	Version             types.ABVersion      `json:"version"`
+	TotalRootValidators uint32               `json:"totalRootValidators"` // Number of root validator nodes in the root cluster
+	BlockRateMs         uint32               `json:"blockRateMs"`         // Block rate
+	ConsensusTimeoutMs  uint32               `json:"consensusTimeoutMs"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
+	HashAlgorithm       uint32               `json:"hashAlgorithm"`       // Hash algorithm for UnicityTree calculation
+	Signatures          map[string]hex.Bytes `json:"signatures"`          // Signed hash of all fields excluding signatures
 }
 
 func (x *ConsensusParams) IsValid() error {

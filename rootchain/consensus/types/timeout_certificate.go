@@ -11,21 +11,21 @@ import (
 
 type Timeout struct {
 	_      struct{}    `cbor:",toarray"`
-	Epoch  uint64      `json:"epoch,omitempty"`  // Epoch to establish valid configuration
-	Round  uint64      `json:"round,omitempty"`  // Root round number
-	HighQc *QuorumCert `json:"highQc,omitempty"` // Highest quorum certificate of the validator
+	Epoch  uint64      `json:"epoch"`  // Epoch to establish valid configuration
+	Round  uint64      `json:"round"`  // Root round number
+	HighQc *QuorumCert `json:"highQc"` // Highest quorum certificate of the validator
 }
 
 type TimeoutVote struct {
 	_         struct{}  `cbor:",toarray"`
-	HqcRound  uint64    `json:"hqcRound,omitempty"`  // round from timeout.high_qc.voteInfo.round
-	Signature hex.Bytes `json:"signature,omitempty"` // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
+	HqcRound  uint64    `json:"hqcRound"`  // round from timeout.high_qc.voteInfo.round
+	Signature hex.Bytes `json:"signature"` // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
 }
 
 type TimeoutCert struct {
 	_          struct{}                `cbor:",toarray"`
-	Timeout    *Timeout                `json:"timeout,omitempty"`    // Round and epoch of the timeout event
-	Signatures map[string]*TimeoutVote `json:"signatures,omitempty"` // 2f+1 signatures from nodes confirming TC
+	Timeout    *Timeout                `json:"timeout"`    // Round and epoch of the timeout event
+	Signatures map[string]*TimeoutVote `json:"signatures"` // 2f+1 signatures from nodes confirming TC
 }
 
 // NewTimeout creates new Timeout for round (epoch) and highest QC seen

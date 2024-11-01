@@ -13,9 +13,9 @@ import (
 
 type IrChangeReqMsg struct {
 	_           struct{}           `cbor:",toarray"`
-	Author      string             `json:"author,omitempty"`
-	IrChangeReq *abdrc.IRChangeReq `json:"irChangeReq,omitempty"`
-	Signature   hex.Bytes          `json:"signature,omitempty"`
+	Author      string             `json:"author"`
+	IrChangeReq *abdrc.IRChangeReq `json:"irChangeReq"`
+	Signature   hex.Bytes          `json:"signature"`
 }
 
 func (x *IrChangeReqMsg) IsValid() error {

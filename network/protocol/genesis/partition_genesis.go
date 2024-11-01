@@ -19,10 +19,10 @@ var (
 
 type PartitionGenesis struct {
 	_                    struct{}                          `cbor:",toarray"`
-	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord,omitempty"`
-	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
-	RootValidators       []*PublicKeyInfo                  `json:"rootValidators,omitempty"`
-	Keys                 []*PublicKeyInfo                  `json:"keys,omitempty"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord"`
+	Certificate          *types.UnicityCertificate         `json:"certificate"`
+	RootValidators       []*PublicKeyInfo                  `json:"rootValidators"`
+	Keys                 []*PublicKeyInfo                  `json:"keys"`
 	Params               hex.Bytes                         `json:"params,omitempty"`
 }
 

@@ -17,9 +17,9 @@ var (
 
 type ProposalMsg struct {
 	_           struct{}           `cbor:",toarray"`
-	Block       *abdrc.BlockData   `json:"block,omitempty"`       // Proposed change
-	LastRoundTc *abdrc.TimeoutCert `json:"lastRoundTc,omitempty"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
-	Signature   hex.Bytes          `json:"signature,omitempty"`
+	Block       *abdrc.BlockData   `json:"block"`       // Proposed change
+	LastRoundTc *abdrc.TimeoutCert `json:"lastRoundTc"` // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
+	Signature   hex.Bytes          `json:"signature"`
 }
 
 func (x *ProposalMsg) getLastTcRound() uint64 {

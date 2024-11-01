@@ -13,9 +13,9 @@ import (
 
 type TimeoutMsg struct {
 	_         struct{}           `cbor:",toarray"`
-	Timeout   *abdrc.Timeout     `json:"timeout,omitempty"`
-	Author    string             `json:"author,omitempty"`
-	Signature hex.Bytes          `json:"signature,omitempty"`
+	Timeout   *abdrc.Timeout     `json:"timeout"`
+	Author    string             `json:"author"`
+	Signature hex.Bytes          `json:"signature"`
 	LastTC    *abdrc.TimeoutCert `json:"lastTc,omitempty"` // TC for Timeout.Round−1 if Timeout.HighQC.Round != Timeout.Round−1 (nil otherwise)
 }
 

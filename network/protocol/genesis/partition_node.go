@@ -19,13 +19,13 @@ var (
 
 type PartitionNode struct {
 	_                          struct{}                                 `cbor:",toarray"`
-	Version                    types.ABVersion                          `json:"version,omitempty"`
-	NodeIdentifier             string                                   `json:"nodeIdentifier,omitempty"`
-	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey,omitempty"`
-	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey,omitempty"`
-	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest,omitempty"`
-	Params                     hex.Bytes                                `json:"params,omitempty"`
+	Version                    types.ABVersion                          `json:"version"`
+	NodeIdentifier             string                                   `json:"nodeIdentifier"`
+	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey"`
+	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey"`
+	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest"`
 	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
+	Params                     hex.Bytes                                `json:"params,omitempty"`
 }
 
 type MoneyPartitionParams struct {

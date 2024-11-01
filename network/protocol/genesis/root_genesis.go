@@ -24,9 +24,9 @@ var (
 
 type RootGenesis struct {
 	_          struct{}                  `cbor:",toarray"`
-	Version    types.ABVersion           `json:"version,omitempty"`
-	Root       *GenesisRootRecord        `json:"root,omitempty"`
-	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
+	Version    types.ABVersion           `json:"version"`
+	Root       *GenesisRootRecord        `json:"root"`
+	Partitions []*GenesisPartitionRecord `json:"partitions"`
 }
 
 type SystemDescriptionRecordGetter interface {

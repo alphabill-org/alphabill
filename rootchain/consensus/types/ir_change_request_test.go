@@ -86,7 +86,7 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 
 	expectedHash := gocrypto.SHA256.New()
 	expectedHash.Write([]byte{
-		0, 0, 0, 1, // 4 byte System identifier of IRChangeReqMsg
+		0, 0, 0, 1, // 4 byte Partition identifier of IRChangeReqMsg
 		0, 0, 0, 1, // cert reason quorum not possible
 		// Start of the BlockCertificationRequest
 		0, 0, 0, 1, // 4 byte partition identifier

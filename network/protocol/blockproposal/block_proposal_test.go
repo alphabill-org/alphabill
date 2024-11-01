@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/tree/imt"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
@@ -149,7 +150,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Timestamp:            10000,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
-		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+		Signatures:           map[string]hex.Bytes{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		Partition:      partitionIdentifier,
@@ -200,7 +201,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
 		Timestamp:            10000,
-		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+		Signatures:           map[string]hex.Bytes{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		Partition:      partitionIdentifier,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -14,7 +15,7 @@ type IrChangeReqMsg struct {
 	_           struct{}           `cbor:",toarray"`
 	Author      string             `json:"author,omitempty"`
 	IrChangeReq *abdrc.IRChangeReq `json:"irChangeReq,omitempty"`
-	Signature   []byte             `json:"signature,omitempty"`
+	Signature   hex.Bytes          `json:"signature,omitempty"`
 }
 
 func (x *IrChangeReqMsg) IsValid() error {

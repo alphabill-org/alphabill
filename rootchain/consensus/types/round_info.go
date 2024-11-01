@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -17,12 +18,12 @@ var (
 )
 
 type RoundInfo struct {
-	_                 struct{} `cbor:",toarray"`
-	RoundNumber       uint64   `json:"rootChainRoundNumber,omitempty"`
-	Epoch             uint64   `json:"rootEpoch,omitempty"`
-	Timestamp         uint64   `json:"timestamp,omitempty"`
-	ParentRoundNumber uint64   `json:"rootChainParentRoundNumber,omitempty"`
-	CurrentRootHash   []byte   `json:"currentRootHash,omitempty"`
+	_                 struct{}  `cbor:",toarray"`
+	RoundNumber       uint64    `json:"rootChainRoundNumber,omitempty"`
+	Epoch             uint64    `json:"rootEpoch,omitempty"`
+	Timestamp         uint64    `json:"timestamp,omitempty"`
+	ParentRoundNumber uint64    `json:"rootChainParentRoundNumber,omitempty"`
+	CurrentRootHash   hex.Bytes `json:"currentRootHash,omitempty"`
 }
 
 func (x *RoundInfo) GetRound() uint64 {

@@ -1623,7 +1623,7 @@ func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 
 	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
 		testtransaction.WithUnitID(feeCreditID),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 
@@ -1779,7 +1779,7 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		pdr,
 		types.ShardID{},
 		observability.Default(t),
-		opts...
+		opts...,
 	)
 	require.NoError(t, err)
 	return txs, s

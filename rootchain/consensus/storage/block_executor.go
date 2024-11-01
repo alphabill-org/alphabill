@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -20,7 +21,7 @@ type (
 		Shard     types.ShardID
 		IR        *types.InputRecord
 		Technical certification.TechnicalRecord
-		PDRHash   []byte // Partition Description Record Hash
+		PDRHash   hex.Bytes // Partition Description Record Hash
 	}
 
 	InputRecords []*InputData
@@ -32,7 +33,7 @@ type (
 		CurrentIR InputRecords         // all input records in this block
 		Changed   SysIDList            // changed partition partition identifiers
 		HashAlgo  gocrypto.Hash        // hash algorithm for the block
-		RootHash  []byte               // resulting root hash
+		RootHash  hex.Bytes            // resulting root hash
 		Qc        *drctypes.QuorumCert // block's quorum certificate (from next view)
 		CommitQc  *drctypes.QuorumCert // block's commit certificate
 	}
@@ -157,7 +158,7 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 	}, nil
 }
 
-type getTRFunc func(types.SystemID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error)
+type getTRFunc func(types.PartitionID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error)
 
 func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier, getTR getTRFunc) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))

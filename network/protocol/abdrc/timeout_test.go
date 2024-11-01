@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
@@ -90,7 +91,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					HighQc: &types.QuorumCert{
 						VoteInfo: testutils.NewDummyRootRoundInfo(10),
 						//LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(9)),
-						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
+						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "",
@@ -107,7 +108,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					HighQc: &types.QuorumCert{
 						VoteInfo: testutils.NewDummyRootRoundInfo(9),
 						//LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(9)),
-						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
+						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "",
@@ -123,7 +124,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					Epoch: 0,
 					HighQc: &types.QuorumCert{
 						VoteInfo:   testutils.NewDummyRootRoundInfo(8),
-						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
+						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "",
@@ -140,7 +141,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					Epoch: 0,
 					HighQc: &types.QuorumCert{
 						VoteInfo:   testutils.NewDummyRootRoundInfo(7),
-						Signatures: map[string][]byte{"1": {0, 1, 2, 3}},
+						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "",
@@ -160,7 +161,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					HighQc: &types.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(9),
 						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
-						Signatures:       map[string][]byte{"1": {0, 1, 2, 3}},
+						Signatures:       map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
 				Author:    "test",
@@ -194,7 +195,7 @@ func TestTimeoutMsg_Sign(t *testing.T) {
 			HighQc: &types.QuorumCert{
 				VoteInfo:         testutils.NewDummyRootRoundInfo(9),
 				LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
-				Signatures:       map[string][]byte{"1": {0, 1, 2, 3}},
+				Signatures:       map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 			},
 		},
 		Author: "",
@@ -224,7 +225,7 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	highQc := &types.QuorumCert{
 		VoteInfo:         commitQcInfo,
 		LedgerCommitInfo: commitInfo,
-		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
+		Signatures:       map[string]hex.Bytes{"1": sig1, "2": sig2, "3": sig3},
 	}
 	// unknown signer
 	tmoMsg := NewTimeoutMsg(types.NewTimeout(votedRound, 0, highQc), "12", nil)

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
@@ -147,7 +148,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -221,7 +222,7 @@ func Test_transferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 
 	t.Run("invalid input, required argument is nil", func(t *testing.T) {
@@ -258,7 +259,7 @@ func Test_transferredSum(t *testing.T) {
 	})
 
 	t.Run("tx for non-money txsystem", func(t *testing.T) {
-		// money system ID is 1, create tx for some other txs
+		// money partition ID is 1, create tx for some other txs
 		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: types.Payload{PartitionID: 2}}, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
@@ -379,7 +380,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
 		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
 		require.ErrorIs(t, err, errNOK)
@@ -434,7 +435,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
 		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
 		require.ErrorIs(t, err, errNOK)

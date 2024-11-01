@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -16,9 +17,9 @@ type Timeout struct {
 }
 
 type TimeoutVote struct {
-	_         struct{} `cbor:",toarray"`
-	HqcRound  uint64   `json:"hqcRound,omitempty"`  // round from timeout.high_qc.voteInfo.round
-	Signature []byte   `json:"signature,omitempty"` // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
+	_         struct{}  `cbor:",toarray"`
+	HqcRound  uint64    `json:"hqcRound,omitempty"`  // round from timeout.high_qc.voteInfo.round
+	Signature hex.Bytes `json:"signature,omitempty"` // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
 }
 
 type TimeoutCert struct {

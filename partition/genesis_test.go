@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-var zeroHash = make([]byte, 32)
+var zeroHash hex.Bytes = make([]byte, 32)
 var nodeID peer.ID = "test"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
@@ -112,13 +113,13 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	pn := createPartitionNode(t, signer, verifier, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
-	require.Equal(t, pubKey, pn.SigningPublicKey)
+	require.Equal(t, hex.Bytes(pubKey), pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
 	require.Equal(t, pdr.PartitionIdentifier, blockCertificationRequestRequest.Partition)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord
-	expectedHash := make([]byte, 32)
+	expectedHash := hex.Bytes(make([]byte, 32))
 	require.Equal(t, expectedHash, ir.Hash)
 	require.Equal(t, calculateBlockHash(pdr.PartitionIdentifier, nil, true), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
@@ -139,7 +140,7 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(partitionIdentifier types.PartitionID, previousHash []byte, isEmpty bool) []byte {
+func calculateBlockHash(partitionIdentifier types.PartitionID, previousHash []byte, isEmpty bool) hex.Bytes {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
 	if isEmpty {

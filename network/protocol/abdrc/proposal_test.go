@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
@@ -63,7 +64,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Qc: &drctypes.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(7),
 						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(7)),
-						Signatures:       map[string][]byte{"test": {0, 1, 2, 3}},
+						Signatures:       map[string]hex.Bytes{"test": {0, 1, 2, 3}},
 					},
 				},
 			},
@@ -81,7 +82,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Qc: &drctypes.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(5),
 						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(5)),
-						Signatures:       map[string][]byte{"test": {0, 1, 2, 3}},
+						Signatures:       map[string]hex.Bytes{"test": {0, 1, 2, 3}},
 					},
 				},
 				LastTc: &drctypes.TimeoutCert{
@@ -124,7 +125,7 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         prevRoundInfo,
 				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: prevRoundInfo.Hash(gocrypto.SHA256)},
-				Signatures:       map[string][]byte{"1": {1, 2, 3}},
+				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
 		LastRoundTc: nil,
@@ -145,7 +146,7 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         qcInfo,
 				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: qcInfo.Hash(gocrypto.SHA256)},
-				Signatures:       map[string][]byte{"1": {1, 2, 3}},
+				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
 		LastRoundTc: nil,
@@ -167,7 +168,7 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         qcInfo,
 				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: qcInfo.Hash(gocrypto.SHA256)},
-				Signatures:       map[string][]byte{"1": {1, 2, 3}},
+				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
 		LastRoundTc: nil,
@@ -244,7 +245,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundQc := &drctypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
-		Signatures:       map[string][]byte{},
+		Signatures:       map[string]hex.Bytes{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)
 	addQCSignature(t, lastRoundQc, "2", s2)

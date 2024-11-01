@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -26,7 +27,7 @@ type BlockCertificationRequest struct {
 	RootRoundNumber uint64             `json:"rootRoundNumber"` // latest known RC's round number (AB-1155)
 	BlockSize       uint64             `json:"blockSize"`
 	StateSize       uint64             `json:"stateSize"`
-	Signature       []byte             `json:"signature"`
+	Signature       hex.Bytes          `json:"signature"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {

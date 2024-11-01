@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +52,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 	// need VerifyQuorumSignatures for verifying tx proofs of payment
 	trustbase := &mockRootTrustBase{
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 
 	// configuration of the conference (predicate configuration)

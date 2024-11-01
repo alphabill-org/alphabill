@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	basehex "github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -68,7 +69,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
 				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
+				Signatures:           map[string]basehex.Bytes{},
 			},
 		},
 		PartitionDescription: sdr1,
@@ -91,7 +92,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
 				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
+				Signatures:           map[string]basehex.Bytes{},
 			},
 		},
 		PartitionDescription: sdr2,

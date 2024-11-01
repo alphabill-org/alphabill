@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -42,8 +43,8 @@ type (
 	}
 
 	key struct {
-		Algorithm  string `json:"algorithm"`
-		PrivateKey []byte `json:"privateKey"`
+		Algorithm  string    `json:"algorithm"`
+		PrivateKey hex.Bytes `json:"privateKey"`
 	}
 )
 

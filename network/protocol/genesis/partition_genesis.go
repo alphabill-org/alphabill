@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 var (
@@ -22,7 +23,7 @@ type PartitionGenesis struct {
 	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
 	RootValidators       []*PublicKeyInfo                  `json:"rootValidators,omitempty"`
 	Keys                 []*PublicKeyInfo                  `json:"keys,omitempty"`
-	Params               []byte                            `json:"params,omitempty"`
+	Params               hex.Bytes                         `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {

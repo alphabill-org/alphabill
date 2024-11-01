@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -14,7 +15,7 @@ type TimeoutMsg struct {
 	_         struct{}           `cbor:",toarray"`
 	Timeout   *abdrc.Timeout     `json:"timeout,omitempty"`
 	Author    string             `json:"author,omitempty"`
-	Signature []byte             `json:"signature,omitempty"`
+	Signature hex.Bytes          `json:"signature,omitempty"`
 	LastTC    *abdrc.TimeoutCert `json:"lastTc,omitempty"` // TC for Timeout.Round−1 if Timeout.HighQC.Round != Timeout.Round−1 (nil otherwise)
 }
 

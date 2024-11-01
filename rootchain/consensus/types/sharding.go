@@ -12,6 +12,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 )
@@ -72,7 +73,7 @@ type ShardInfo struct {
 	_        struct{} `cbor:",toarray"`
 	Round    uint64
 	Epoch    uint64
-	RootHash []byte // last certified root hash
+	RootHash hex.Bytes // last certified root hash
 
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation

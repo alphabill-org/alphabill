@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )
 
@@ -20,10 +21,10 @@ type PartitionNode struct {
 	_                          struct{}                                 `cbor:",toarray"`
 	Version                    types.ABVersion                          `json:"version,omitempty"`
 	NodeIdentifier             string                                   `json:"nodeIdentifier,omitempty"`
-	SigningPublicKey           []byte                                   `json:"signingPublicKey,omitempty"`
-	EncryptionPublicKey        []byte                                   `json:"encryptionPublicKey,omitempty"`
+	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey,omitempty"`
+	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey,omitempty"`
 	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest,omitempty"`
-	Params                     []byte                                   `json:"params,omitempty"`
+	Params                     hex.Bytes                                `json:"params,omitempty"`
 	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
 }
 
@@ -80,8 +81,8 @@ func (x *PartitionNode) IsValid() error {
 
 func nodesUnique(x []*PartitionNode) error {
 	var ids = make(map[string]string)
-	var signingKeys = make(map[string][]byte)
-	var encryptionKeys = make(map[string][]byte)
+	var signingKeys = make(map[string]hex.Bytes)
+	var encryptionKeys = make(map[string]hex.Bytes)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
 			return err

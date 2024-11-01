@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -16,7 +17,7 @@ type VoteMsg struct {
 	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo,omitempty"` // Commit info
 	HighQc           *drctypes.QuorumCert `json:"highQc,omitempty"`           // Sync with highest QC
 	Author           string               `json:"author,omitempty"`           // Voter node identifier
-	Signature        []byte               `json:"signature,omitempty"`        // Vote signature on hash of consensus info
+	Signature        hex.Bytes            `json:"signature,omitempty"`        // Vote signature on hash of consensus info
 }
 
 func (x *VoteMsg) Sign(signer crypto.Signer) error {

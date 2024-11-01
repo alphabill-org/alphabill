@@ -616,7 +616,7 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
 //  1. Block proposal as a whole is validated:
-//     * It must have valid signature, correct transaction system ID, valid UC;
+//     * It must have valid signature, correct transaction partition ID, valid UC;
 //     * the UC must be not older than the latest known by current node;
 //     * Sender must be the leader for the round started by included UC.
 //  2. If included UC is newer than latest UC then the new UC is processed; this rolls back possible pending change in

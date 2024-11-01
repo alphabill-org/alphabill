@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 var (
@@ -17,13 +18,13 @@ var (
 )
 
 type QuorumCert struct {
-	_                struct{}           `cbor:",toarray"`
-	VoteInfo         *RoundInfo         `json:"voteInfo,omitempty"`         // Consensus data
-	LedgerCommitInfo *types.UnicitySeal `json:"ledgerCommitInfo,omitempty"` // Commit info
-	Signatures       map[string][]byte  `json:"signatures,omitempty"`       // Node identifier to signature map (NB! aggregated signature schema in spec)
+	_                struct{}             `cbor:",toarray"`
+	VoteInfo         *RoundInfo           `json:"voteInfo,omitempty"`         // Consensus data
+	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo,omitempty"` // Commit info
+	Signatures       map[string]hex.Bytes `json:"signatures,omitempty"`       // Node identifier to signature map (NB! aggregated signature schema in spec)
 }
 
-func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.UnicitySeal, signatures map[string][]byte) *QuorumCert {
+func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.UnicitySeal, signatures map[string]hex.Bytes) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: commitInfo,
@@ -35,7 +36,7 @@ func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
-		Signatures:       map[string][]byte{},
+		Signatures:       map[string]hex.Bytes{},
 	}
 }
 

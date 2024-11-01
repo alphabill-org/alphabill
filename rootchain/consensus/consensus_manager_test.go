@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
@@ -497,7 +498,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		highQc := &drctypes.QuorumCert{
 			VoteInfo:         qcRoundInfo,
 			LedgerCommitInfo: commitInfo,
-			Signatures:       map[string][]byte{},
+			Signatures:       map[string]hex.Bytes{},
 		}
 		cib := commitInfo.Bytes()
 		for _, cm := range cms {
@@ -1066,31 +1067,31 @@ func Test_selectRandomNodeIdsFromSignatureMap(t *testing.T) {
 		nodes := selectRandomNodeIdsFromSignatureMap(nil, 2)
 		require.Empty(t, nodes)
 
-		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{}, 2)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{}, 2)
 		require.Empty(t, nodes)
 	})
 
 	t.Run("no duplicates added", func(t *testing.T) {
-		nodes := selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil}, 2)
+		nodes := selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{idA.String(): nil}, 2)
 		require.ElementsMatch(t, []peer.ID{idA}, nodes)
 
-		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil, idB.String(): nil}, 2)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{idA.String(): nil, idB.String(): nil}, 2)
 		require.ElementsMatch(t, []peer.ID{idA, idB}, nodes)
 
-		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil, idB.String(): nil}, 3)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{idA.String(): nil, idB.String(): nil}, 3)
 		require.ElementsMatch(t, []peer.ID{idA, idB}, nodes)
 	})
 
 	t.Run("invalid IDs are ignored", func(t *testing.T) {
-		nodes := selectRandomNodeIdsFromSignatureMap(map[string][]byte{"foo bar": nil}, 1)
+		nodes := selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{"foo bar": nil}, 1)
 		require.Empty(t, nodes)
 
-		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{"foo bar": nil, idB.String(): nil}, 2)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string]hex.Bytes{"foo bar": nil, idB.String(): nil}, 2)
 		require.ElementsMatch(t, []peer.ID{idB}, nodes)
 	})
 
 	t.Run("max count items is returned", func(t *testing.T) {
-		inp := map[string][]byte{idA.String(): nil, idB.String(): nil, idC.String(): nil}
+		inp := map[string]hex.Bytes{idA.String(): nil, idB.String(): nil, idC.String(): nil}
 
 		nodes := selectRandomNodeIdsFromSignatureMap(inp, 1)
 		require.Len(t, nodes, 1)

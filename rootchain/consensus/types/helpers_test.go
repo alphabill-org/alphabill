@@ -6,6 +6,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -91,7 +92,7 @@ func (sb structBuilder) QC(t *testing.T, round uint64) *QuorumCert {
 	qc := &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: commitInfo,
-		Signatures:       map[string][]byte{},
+		Signatures:       map[string]hex.Bytes{},
 	}
 
 	cib := commitInfo.Bytes()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 /*
@@ -17,9 +18,9 @@ type TechnicalRecord struct {
 	_        struct{} `cbor:",toarray"`
 	Round    uint64
 	Epoch    uint64
-	Leader   string // identifier of the round leader
-	StatHash []byte // hash of statistical records
-	FeeHash  []byte // hash of validator fee records
+	Leader   string    // identifier of the round leader
+	StatHash hex.Bytes // hash of statistical records
+	FeeHash  hex.Bytes // hash of validator fee records
 }
 
 func (tr *TechnicalRecord) IsValid() error {

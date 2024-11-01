@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
@@ -29,13 +30,13 @@ const (
 )
 
 type ConsensusParams struct {
-	_                   struct{}          `cbor:",toarray"`
-	Version             types.ABVersion   `json:"version,omitempty"`
-	TotalRootValidators uint32            `json:"totalRootValidators,omitempty"` // Number of root validator nodes in the root cluster
-	BlockRateMs         uint32            `json:"blockRateMs,omitempty"`         // Block rate
-	ConsensusTimeoutMs  uint32            `json:"consensusTimeoutMs,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
-	HashAlgorithm       uint32            `json:"hashAlgorithm,omitempty"`       // Hash algorithm for UnicityTree calculation
-	Signatures          map[string][]byte `json:"signatures,omitempty"`          // Signed hash of all fields excluding signatures
+	_                   struct{}             `cbor:",toarray"`
+	Version             types.ABVersion      `json:"version,omitempty"`
+	TotalRootValidators uint32               `json:"totalRootValidators,omitempty"` // Number of root validator nodes in the root cluster
+	BlockRateMs         uint32               `json:"blockRateMs,omitempty"`         // Block rate
+	ConsensusTimeoutMs  uint32               `json:"consensusTimeoutMs,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
+	HashAlgorithm       uint32               `json:"hashAlgorithm,omitempty"`       // Hash algorithm for UnicityTree calculation
+	Signatures          map[string]hex.Bytes `json:"signatures,omitempty"`          // Signed hash of all fields excluding signatures
 }
 
 func (x *ConsensusParams) IsValid() error {
@@ -93,7 +94,7 @@ func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
 	}
 	// initiate signatures
 	if x.Signatures == nil {
-		x.Signatures = make(map[string][]byte)
+		x.Signatures = make(map[string]hex.Bytes)
 	}
 	x.Signatures[id] = signature
 	return nil

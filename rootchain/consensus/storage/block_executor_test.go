@@ -110,7 +110,7 @@ func TestExecutedBlock(t *testing.T) {
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
-	getTRFunc := func(types.SystemID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+	getTRFunc := func(types.PartitionID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
 		return certification.TechnicalRecord{}, nil
 	}
 	executedBlock, err := NewExecutedBlock(hash, newBlock, parent, reqVer, getTRFunc)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
@@ -51,7 +52,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			Author: "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD",
 			Timeout: &drctypes.Timeout{
 				HighQc: &drctypes.QuorumCert{
-					Signatures: map[string][]byte{"16Uiu2HAm4r9uRwS67kwJEFuZWByM2YUNjW9j179n9Di9z58NTBEj": {4, 3, 2, 1}},
+					Signatures: map[string]hex.Bytes{"16Uiu2HAm4r9uRwS67kwJEFuZWByM2YUNjW9j179n9Di9z58NTBEj": {4, 3, 2, 1}},
 					// very old message, 10 rounds behind current recovery status
 					VoteInfo: &drctypes.RoundInfo{RoundNumber: cm.recovery.toRound - 10}},
 			},
@@ -82,7 +83,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 				HighQc: &drctypes.QuorumCert{
 					// add node itself into signatures too - shouldn't happen in real life that
 					// node sends recovery request to itself but we just need valid ID here...
-					Signatures: map[string][]byte{
+					Signatures: map[string]hex.Bytes{
 						authID.String(): {4, 3, 2, 1},
 						nodeID.String(): {5, 6, 7, 8},
 					},
@@ -142,7 +143,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			Author: authID.String(),
 			Timeout: &drctypes.Timeout{
 				HighQc: &drctypes.QuorumCert{
-					Signatures: map[string][]byte{authID.String(): {4, 3, 2, 1}},
+					Signatures: map[string]hex.Bytes{authID.String(): {4, 3, 2, 1}},
 					VoteInfo:   &drctypes.RoundInfo{RoundNumber: 66}},
 			},
 		}
@@ -207,7 +208,7 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 
 	t.Run("valid input", func(t *testing.T) {
 		nodeID := "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD"
-		signatures := map[string][]byte{"16Uiu2HAm4r9uRwS67kwJEFuZWByM2YUNjW9j179n9Di9z58NTBEj": {4, 3, 2, 1}}
+		signatures := map[string]hex.Bytes{"16Uiu2HAm4r9uRwS67kwJEFuZWByM2YUNjW9j179n9Di9z58NTBEj": {4, 3, 2, 1}}
 		quorumCert := &drctypes.QuorumCert{Signatures: signatures, VoteInfo: &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}}
 
 		proposalMsg := &abdrc.ProposalMsg{Block: &drctypes.BlockData{Round: 5, Author: nodeID, Qc: quorumCert}}
@@ -218,7 +219,7 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 			name       string
 			input      any
 			info       *recoveryInfo
-			signatures map[string][]byte
+			signatures map[string]hex.Bytes
 		}{
 			{
 				name:       "proposal message",

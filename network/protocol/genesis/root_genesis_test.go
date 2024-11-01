@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       uint32(gocrypto.SHA256),
-		Signatures:          make(map[string][]byte),
+		Signatures:          make(map[string]hex.Bytes),
 	}
 	err = rootConsensus.Sign("1", signer)
 	require.NoError(t, err)

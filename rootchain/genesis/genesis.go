@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -291,7 +292,7 @@ func NewRootGenesis(
 		BlockRateMs:         c.blockRateMs,
 		ConsensusTimeoutMs:  c.consensusTimeoutMs,
 		HashAlgorithm:       uint32(c.hashAlgorithm),
-		Signatures:          make(map[string][]byte),
+		Signatures:          make(map[string]hex.Bytes),
 	}
 	if err = consensusParams.Sign(c.peerID, c.signer); err != nil {
 		return nil, nil, fmt.Errorf("consensus parameter sign error: %w", err)

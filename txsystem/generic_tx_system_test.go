@@ -58,7 +58,7 @@ func Test_NewGenericTxSystem(t *testing.T) {
 	}
 	require.NoError(t, validPDR.IsValid())
 
-	t.Run("system ID param is mandatory", func(t *testing.T) {
+	t.Run("partition ID param is mandatory", func(t *testing.T) {
 		pdr := validPDR
 		pdr.PartitionIdentifier = 0
 		txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, nil, nil, nil)
@@ -376,7 +376,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		require.NoError(t, txSys.validateGenericTransaction(txo))
 	})
 
-	t.Run("system ID is checked", func(t *testing.T) {
+	t.Run("partition ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 		txo.PartitionID = txSys.pdr.PartitionIdentifier + 1

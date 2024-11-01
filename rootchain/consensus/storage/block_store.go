@@ -283,7 +283,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	return exeBlock.RootHash, nil
 }
 
-func (x *BlockStore) getTR(partition types.SystemID, shard types.ShardID, req *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+func (x *BlockStore) getTR(partition types.PartitionID, shard types.ShardID, req *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
 	si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]
 	if !ok {
 		return certification.TechnicalRecord{}, fmt.Errorf("no shard info %s - %s", partition, shard)

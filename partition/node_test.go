@@ -3,6 +3,7 @@ package partition
 import (
 	"context"
 	gocrypto "crypto"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -545,7 +546,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	require.NoError(t, err)
 	tp.SubmitBlockProposal(bp)
 
-	ContainsError(t, tp, "invalid node identifier. leader from UC:")
+	ContainsError(t, tp, "expecting leader , leader in proposal:")
 }
 
 func TestBlockProposal_Ok(t *testing.T) {
@@ -658,6 +659,33 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 		require.NoError(t, err)
 		return proof != nil
 	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
+	txSystem := &testtxsystem.CounterTxSystem{
+		FeelessMode:  true,
+		ExecuteError: errors.New("failed to execute tx"),
+	}
+
+	indexDB, err := memorydb.New()
+	require.NoError(t, err)
+	tp := RunSingleNodePartition(t, txSystem, WithProofIndex(indexDB, 0))
+	tp.WaitHandshake(t)
+	require.NoError(t, tp.partition.startNewRound(context.Background()))
+
+	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(99))
+	_ = txo.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, tp.SubmitTx(txo))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
+
+	lucRound, err := tp.partition.GetLatestRoundNumber(context.Background())
+	require.NoError(t, err)
+	tp.CreateBlock(t)
+
+	// Failed transaction not put to block in feeless mode
+	block, err := tp.partition.GetBlock(context.Background(), lucRound+1)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(block.Transactions))
 }
 
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -63,16 +62,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 	if err != nil {
 		return nil, fmt.Errorf("acquiring shard info: %w", err)
 	}
-	// timeout IR change request do not have BCR
-	var bcr *certification.BlockCertificationRequest
-	if len(irChReq.Requests) > 0 {
-		bcr = irChReq.Requests[0]
-	}
-	tr, err := si.TechnicalRecord(bcr, x.orchestration)
-	if err != nil {
-		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
-	}
-	pg, err := x.orchestration.ShardConfig(irChReq.Partition, irChReq.Shard, tr.Epoch)
+	pg, err := x.orchestration.ShardConfig(irChReq.Partition, irChReq.Shard, si.Epoch)
 	if err != nil {
 		return nil, fmt.Errorf("acquiring shard config: %w", err)
 	}
@@ -98,7 +88,6 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 			Partition: irChReq.Partition,
 			Shard:     irChReq.Shard,
 			IR:        inputRecord,
-			Technical: tr,
 			PDRHash:   pg.PartitionDescription.Hash(x.params.HashAlgorithm),
 		},
 		nil

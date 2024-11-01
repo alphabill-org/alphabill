@@ -209,6 +209,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 				// clear metadata
 				sm = nil
 				retErr = fmt.Errorf("handling transaction fee: %w", err)
+				return
 			}
 			// add fee credit record unit log
 			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)

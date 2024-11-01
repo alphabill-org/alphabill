@@ -112,8 +112,8 @@ func MockNetAwaitMultiple[T any](t *testing.T, net *testnetwork.MockNet, msgType
 	require.Eventually(t, func() bool {
 		messages := net.SentMessages(msgType)
 		if len(messages) >= nof {
-			for i, msg := range messages {
-				result[i] = msg.Message.(T)
+			for i := range result {
+				result[i] = messages[i].Message.(T)
 			}
 			return true
 		}

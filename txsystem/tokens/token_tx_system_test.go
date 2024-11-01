@@ -1612,6 +1612,45 @@ func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
 	require.False(t, fcr.IsLocked())
 }
 
+func TestExecute_FailedTxInFeelessMode(t *testing.T) {
+	txs, _ := newTokenTxSystem(t,
+		WithAdminOwnerPredicate(templates.AlwaysTrueBytes()),
+		WithFeelessMode(true))
+
+	// lock fee credit record (not supported in feeless mode)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(10))
+
+	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
+		testtransaction.WithUnitID(feeCreditID),
+		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithClientMetadata(createClientMetadata()),
+	)
+
+	// Failed tx in feeless mode does not change state
+	ss, err := txs.StateSummary()
+	require.NoError(t, err)
+	rootHashBefore := ss.Root()
+
+	u, err := txs.State().GetUnit(feeCreditID, false)
+	fcrBefore, ok := u.Data().(*fc.FeeCreditRecord)
+	require.True(t, ok)
+
+	sm, err := txs.Execute(lockFC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.EqualValues(t, 0, sm.ActualFee)
+
+	u, err = txs.State().GetUnit(feeCreditID, false)
+	fcrAfter, ok := u.Data().(*fc.FeeCreditRecord)
+	require.True(t, ok)
+	require.Equal(t, fcrBefore.Balance, fcrAfter.Balance)
+
+	ss, err = txs.EndBlock()
+	require.Equal(t, rootHashBefore, ss.Root())
+}
+
 func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeID types.UnitID) types.UnitID {
 	// define NFT type
 	tx := testtransaction.NewTransactionOrder(
@@ -1711,7 +1750,7 @@ func signTx(t *testing.T, tx *types.TransactionOrder, signer abcrypto.Signer, pu
 	return signature, templates.NewP2pkh256SignatureBytes(signature, pubKey)
 }
 
-func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
+func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, *state.State) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
@@ -1735,12 +1774,12 @@ func newTokenTxSystem(t *testing.T) (*txsystem.GenericTxSystem, *state.State) {
 		T2Timeout:           2000 * time.Millisecond,
 	}
 
+	opts = append(opts, WithTrustBase(testtb.NewTrustBase(t, verifier)), WithState(s))
 	txs, err := NewTxSystem(
 		pdr,
 		types.ShardID{},
 		observability.Default(t),
-		WithTrustBase(testtb.NewTrustBase(t, verifier)),
-		WithState(s),
+		opts...
 	)
 	require.NoError(t, err)
 	return txs, s

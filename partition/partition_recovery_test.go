@@ -52,7 +52,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// on timeout second request is sent
-	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), ledgerReplicationTimeout+time.Second, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), DefaultLedgerReplicationTimeout+time.Second, test.WaitTick)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
@@ -114,7 +114,7 @@ func TestNode_RecoverToOlderRootRound(t *testing.T) {
 	uc1 := tp.GetCommittedUC(t)
 
 	// create a new block with a new UC which node does not know about
-	uc2Block, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	uc2Block, uc2 := createNewBlockOutsideNode(t, tp, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, uc1, testtransaction.NewTransactionRecord(t))
 
 	// create a repeat UC from uc2
 	repeatUC, err := tp.CreateUnicityCertificate(
@@ -137,8 +137,10 @@ func TestNode_RecoverToOlderRootRound(t *testing.T) {
 	// send uc2Block
 	tp.eh.Reset()
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{uc2Block},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{uc2Block},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 
 	// make sure node accepts uc2Block even though it already has a UC with newer root round (repeatUC)
@@ -439,15 +441,19 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.NotNil(t, req)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 
 	// send back the response with last block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock3},
+		FirstBlockNumber: uc3.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
@@ -486,7 +492,7 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, _ := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 	// prepare a proposal
 	tp.SubmitT1Timeout(t)
 	// simulate root response with newer UC from round 2
@@ -500,8 +506,10 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	require.NotNil(t, req)
 	// send back the response with 3 blocks, block 3 has newer UC than the node has
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2, newBlock3},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// verify that recovery is successfully completed
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -540,15 +548,19 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.NotNil(t, req)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 
 	// send back the response with last block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock3empty, newBlock4, newBlock5empty},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock3empty, newBlock4, newBlock5empty},
+		FirstBlockNumber: uc3.GetRoundNumber(),
+		LastBlockNumber:  uc5.GetRoundNumber(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
@@ -607,8 +619,10 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	require.NotNil(t, req)
 	// skip block 1 and send block 2 only
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	// wait for message to be processed
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
@@ -623,8 +637,10 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 
 	// let's give the node block 1 and 2, but skip 2
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock3},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
@@ -659,31 +675,39 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	// make sure replication request is sent
 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
-	// send back the response with 2 blocks
+	// send back the response with 2 duplicate blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock1},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 
-	// send back the block 1 again, but also block 2
+	// send back the block 1 again, but also block 2 (will get discarded due to duplicate block 1)
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 
-	// send back the response with last block
+	// send back the response with block 2 and 3
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2, newBlock3},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// and now out of the blue a response with blocks 1,2 is received again
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -717,8 +741,10 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, altBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, altBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
@@ -728,8 +754,10 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 
 	// send back the block 2 again, but also block 3
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2, newBlock3},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -774,8 +802,10 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, altBlock2},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, altBlock2},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc2.GetRoundNumber(),
 	})
 	// make sure replication request is sent again and that block 3 is asked again
 	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
@@ -786,8 +816,10 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 
 	// send back the block 2 again, but also block 3
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2, newBlock3},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -830,8 +862,10 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	require.NotNil(t, req)
 	// send all missing blocks
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	// wait for message to be processed
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
@@ -844,8 +878,10 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// send blocks 2, 3, but set error first
 	db.MockWriteError(fmt.Errorf("disk is full"))
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2, newBlock3},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
@@ -860,8 +896,10 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send all missing blocks 2, 3 and make sure that node now recovers
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock2, newBlock3},
+		FirstBlockNumber: uc2.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -934,8 +972,10 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// reset error
 	db.MockWriteError(nil)
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -1003,8 +1043,10 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// reset error
 	db.MockWriteError(nil)
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -1037,37 +1079,47 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{nil},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{nil},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 	illegalBlock := copyBlock(t, newBlock1)
 	illegalBlock.Header.PartitionID = 0xFFFFFFFF
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{illegalBlock},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{illegalBlock},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	illegalBlock = copyBlock(t, newBlock1)
 	illegalBlock.Header.PartitionID = 0
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{illegalBlock},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{illegalBlock},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 	illegalBlock = copyBlock(t, newBlock1)
 	illegalBlock.UnicityCertificate = nil
 	// send back the response with nil block
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{illegalBlock},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{illegalBlock},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// send all blocks and assume full recovery
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1, newBlock2, newBlock3},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1, newBlock2, newBlock3},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc3.GetRoundNumber(),
 	})
 	// wait for message to be processed and expect recovery finished event
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -1078,7 +1130,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
@@ -1125,7 +1177,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	tp.eh.Reset()
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
-	tp.partition.configuration.replicationConfig.maxBlocks = 1
+	tp.partition.configuration.replicationConfig.maxReturnBlocks = 1
 	//send replication request, it will hit block replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
@@ -1142,7 +1194,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 }
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
@@ -1301,8 +1353,10 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 
 	// when the replication response is received
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-		Status: replication.Ok,
-		Blocks: []*types.Block{newBlock1},
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 
 	// then recovery should fail

@@ -272,7 +272,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier)
+	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier, x.getTR)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}
@@ -281,6 +281,14 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 		return nil, err
 	}
 	return exeBlock.RootHash, nil
+}
+
+func (x *BlockStore) getTR(partition types.SystemID, shard types.ShardID, req *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+	si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]
+	if !ok {
+		return certification.TechnicalRecord{}, fmt.Errorf("no shard info %s - %s", partition, shard)
+	}
+	return si.TechnicalRecord(req, x.orchestration)
 }
 
 func (x *BlockStore) GetHighQc() *drctypes.QuorumCert {

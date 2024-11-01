@@ -167,11 +167,13 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		}, {
 			args: "money",
 			envVars: []envVar{
+				{"AB_LEDGER_REPLICATION_MAX_BLOCKS_FETCH", "4"},
 				{"AB_LEDGER_REPLICATION_MAX_BLOCKS", "8"},
 				{"AB_LEDGER_REPLICATION_MAX_TRANSACTIONS", "16"},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
+				sc.Node.LedgerReplicationMaxBlocksFetch = 4
 				sc.Node.LedgerReplicationMaxBlocks = 8
 				sc.Node.LedgerReplicationMaxTx = 16
 				return sc
@@ -252,10 +254,13 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			},
 		},
 		Node: &startNodeConfiguration{
-			Address:                    "/ip4/127.0.0.1/tcp/26652",
-			LedgerReplicationMaxBlocks: 1000,
-			LedgerReplicationMaxTx:     10000,
-			WithOwnerIndex:             true,
+			Address:                         "/ip4/127.0.0.1/tcp/26652",
+			LedgerReplicationMaxBlocksFetch: 1000,
+			LedgerReplicationMaxBlocks:      1000,
+			LedgerReplicationMaxTx:          10000,
+			LedgerReplicationTimeoutMs:      1500,
+			BlockSubscriptionTimeoutMs:      3000,
+			WithOwnerIndex:                  true,
 		},
 		rpcServer: &rpc.ServerConfiguration{
 			Address:                "",

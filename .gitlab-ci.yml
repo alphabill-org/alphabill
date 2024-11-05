@@ -5,22 +5,20 @@ stages:
 
 image: $CI_REGISTRY/alphabill/gitlab-ci-image:main
 
+include:
+  - project: "$CI_PROJECT_NAMESPACE/gitlab-ci-image"
+    file:
+      - "/templates/go-cache.gitlab-ci.yml"
+      - "/templates/go-vet.gitlab-ci.yml"
+      - "/templates/gosec.gitlab-ci.yml"
+      - "/templates/nancy.gitlab-ci.yml"
+      - "/templates/sonarqube.gitlab-ci.yml"
+      - "/templates/trivy.gitlab-ci.yml"
+
 .go-dependency:
   before_script:
     # Configure go caching
     - mkdir -p .go
-
-.go-cache:
-  variables:
-    GOPATH: "$CI_PROJECT_DIR/.go:/root/go"
-  before_script:
-    - mkdir -p .go
-  cache:
-    key:
-      files:
-        - go.sum
-    paths:
-      - .go/pkg/mod/
 
 vet:
   stage: test
@@ -77,65 +75,5 @@ build:
       - build
   needs: []
 
-gosec:
-  stage: analyze
-  script:
-    - make gosec
-  artifacts:
-    paths:
-      - gosec_report.json
-  needs: []
-
 sonarqube-check:
-  stage: analyze
-  image:
-    name: sonarsource/sonar-scanner-cli:latest
-    entrypoint: [""]
-  variables:
-    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar" # Defines the location of the analysis task cache
-    GIT_DEPTH: "0" # Tells git to fetch all the branches of the project, required by the analysis task
-  cache:
-    key: "${CI_JOB_NAME}"
-    paths:
-      - .sonar/cache
-  script: >
-    if [ "$CI_OPEN_MERGE_REQUESTS" == "" ]; then
-      # Merge request not available, running Sonar without it.
-      sonar-scanner
-    else
-      # Place the CI_OPEN_MERGE_REQUESTS in between single quotes, because ! is special character for bash.
-      QUOTED_CI_OPEN_MERGE_REQUESTS="'${CI_OPEN_MERGE_REQUESTS}'"
-
-      # Takes part between last ! and ' character. Job rules makes sure that $CI_OPEN_MERGE_REQUESTS is not empty.
-      MERGE_REQUEST_ID=`echo ${QUOTED_CI_OPEN_MERGE_REQUESTS} | rev | cut -d'!' -f1 | cut -d"'" -f2 | rev`
-
-      sonar-scanner -Dsonar.pullrequest.key=${MERGE_REQUEST_ID} -Dsonar.pullrequest.branch=${CI_COMMIT_BRANCH} -Dsonar.pullrequest.base=${CI_DEFAULT_BRANCH}
-    fi
-  allow_failure: true
   needs: ["gosec", "test"]
-
-trivy:
-  stage: analyze
-  script:
-    # build report
-    - trivy --cache-dir .trivycache/ fs --exit-code 0 --no-progress --format template --template "@/html.tpl" -o trivy-report.html .
-    # print report
-    - trivy --cache-dir .trivycache/ fs --exit-code 1 --no-progress --severity "HIGH,CRITICAL" .
-  cache:
-    paths:
-      - .trivycache/
-  artifacts:
-    paths:
-      - trivy-report.html
-    when: always
-  needs: []
-
-nancy:
-  stage: analyze
-  extends:
-    - .go-cache
-    - .go-dependency
-  when: manual
-  script:
-    - go list -json -m all | nancy sleuth
-  needs: []

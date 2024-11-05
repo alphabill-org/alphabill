@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 )
 
 func CreateUnicityCertificate(
@@ -19,35 +18,43 @@ func CreateUnicityCertificate(
 
 ) *types.UnicityCertificate {
 	t.Helper()
+	trHash := make([]byte, 32)
+	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	if err != nil {
+		t.Errorf("creating shard tree: %v", err)
+		return nil
+	}
+	stCert, err := sTree.Certificate(types.ShardID{})
+	if err != nil {
+		t.Errorf("creating shard tree certificate: %v", err)
+		return nil
+	}
 	data := []*types.UnicityTreeData{{
-		PartitionIdentifier:      pdr.PartitionIdentifier,
-		InputRecord:              ir,
-		PartitionDescriptionHash: pdr.Hash(gocrypto.SHA256),
+		Partition:     pdr.PartitionIdentifier,
+		ShardTreeRoot: sTree.RootHash(),
+		PDRHash:       pdr.Hash(gocrypto.SHA256),
 	}}
-	ut, err := unicitytree.New(gocrypto.SHA256, data)
+	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
 		t.Error(err)
 	}
-	rootHash := ut.GetRootHash()
+	rootHash := ut.RootHash()
 	unicitySeal := createUnicitySeal(rootHash, roundNumber, previousRoundRootHash)
 	err = unicitySeal.Sign("test", signer)
 	if err != nil {
 		t.Error(err)
 	}
-	cert, err := ut.GetCertificate(pdr.PartitionIdentifier)
+	cert, err := ut.Certificate(pdr.PartitionIdentifier)
 	if err != nil {
 		t.Error(err)
 	}
 	return &types.UnicityCertificate{
-		Version:     1,
-		InputRecord: ir,
-		TRHash:      make([]byte, 32),
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			PartitionIdentifier:      cert.PartitionIdentifier,
-			HashSteps:                cert.HashSteps,
-			PartitionDescriptionHash: pdr.Hash(gocrypto.SHA256),
-		},
-		UnicitySeal: unicitySeal,
+		Version:                1,
+		InputRecord:            ir,
+		TRHash:                 trHash,
+		ShardTreeCertificate:   stCert,
+		UnicityTreeCertificate: cert,
+		UnicitySeal:            unicitySeal,
 	}
 }
 

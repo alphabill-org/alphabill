@@ -41,10 +41,10 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 	switch irChReq.CertReason {
 	case drctypes.Quorum:
 		// NB! there was at least one request, otherwise we would not be here
-		return &InputData{IR: irChReq.Requests[0].InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PartitionDescriptionHash}, nil
+		return &InputData{IR: irChReq.Requests[0].InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
 	case drctypes.QuorumNotPossible:
 	case drctypes.T2Timeout:
-		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PartitionDescriptionHash}, nil
+		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 }
@@ -62,7 +62,7 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	hQc := bStore.GetHighQc()
 	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
-	require.Nil(t, bStore.IsChangeInProgress(sysID1))
+	require.Nil(t, bStore.IsChangeInProgress(sysID1, types.ShardID{}))
 	b, err := bStore.Block(1)
 	require.NoError(t, err)
 	require.Len(t, b.RootHash, 32)
@@ -71,7 +71,7 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	require.Len(t, bStore.GetCertificates(), 2)
 	uc, err := bStore.GetCertificate(sysID1, types.ShardID{})
 	require.NoError(t, err)
-	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.PartitionIdentifier)
+	require.Equal(t, sysID1, uc.UC.UnicityTreeCertificate.Partition)
 	uc, err = bStore.GetCertificate(100, types.ShardID{})
 	require.Error(t, err)
 	require.Nil(t, uc)
@@ -86,7 +86,7 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 			Qc:      qc,
 		},
 		CurrentIR: make(InputRecords, 0),
-		Changed:   make([]types.PartitionID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
 		Qc:        &drctypes.QuorumCert{},

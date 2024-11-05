@@ -118,8 +118,8 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		}
 	}
 	for _, c := range sm.ShardInfo {
-		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.PartitionIdentifier, c.UC.UnicityTreeCertificate.PartitionDescriptionHash); err != nil {
-			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.PartitionIdentifier, err)
+		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.Partition, c.UC.UnicityTreeCertificate.PDRHash); err != nil {
+			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.Partition, err)
 		}
 	}
 	return nil

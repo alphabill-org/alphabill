@@ -253,7 +253,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// round is advanced
 	require.Equal(t, uint64(4), cm.pacemaker.GetCurrentRound())
 	// only changes from round 3 are removed, rest will still be active
-	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(partitionID, types.ShardID{}))
 	// await the next proposal as well, the proposal must contain TC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
@@ -311,8 +311,8 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, partitionID, result.UnicityTreeCertificate.PartitionIdentifier)
-	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID))
+	require.Equal(t, partitionID, result.UnicityTreeCertificate.Partition)
+	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID, types.ShardID{}))
 	// verify certificates have been updated when recovery query is sent
 	getCertsMsg := &abdrc.StateRequestMsg{
 		NodeId: partitionNodes[0].PeerConf.ID.String(),
@@ -323,7 +323,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	certsMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	require.Equal(t, len(rg.Partitions), len(certsMsg.ShardInfo))
 	idx := slices.IndexFunc(certsMsg.ShardInfo, func(c abdrc.ShardInfo) bool {
-		return c.UC.UnicityTreeCertificate.PartitionIdentifier == partitionID
+		return c.UC.UnicityTreeCertificate.Partition == partitionID
 	})
 	require.False(t, idx == -1)
 	require.True(t, certsMsg.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
@@ -870,8 +870,8 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 				UC: types.UnicityCertificate{
 					Version: 1,
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
-						PartitionIdentifier:      id,
-						PartitionDescriptionHash: test.RandomBytes(32),
+						Partition: id,
+						PDRHash:   test.RandomBytes(32),
 					},
 				},
 			}

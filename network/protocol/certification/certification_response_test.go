@@ -17,8 +17,8 @@ func Test_CertificationResponse_IsValid(t *testing.T) {
 			UC: types.UnicityCertificate{
 				Version: 1,
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					Version:             1,
-					PartitionIdentifier: 1,
+					Version:   1,
+					Partition: 1,
 				},
 			},
 		}

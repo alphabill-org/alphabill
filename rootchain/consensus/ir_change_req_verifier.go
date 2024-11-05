@@ -14,7 +14,7 @@ type (
 	State interface {
 		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
 		GetCertificates() []*types.UnicityCertificate
-		IsChangeInProgress(id types.PartitionID) *types.InputRecord
+		IsChangeInProgress(id types.PartitionID, shard types.ShardID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -73,7 +73,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	if ir := x.state.IsChangeInProgress(irChReq.Partition); ir != nil {
+	if ir := x.state.IsChangeInProgress(irChReq.Partition, irChReq.Shard); ir != nil {
 		// If the same change is already in progress then report duplicate error
 		if types.EqualIR(inputRecord, ir) {
 			return nil, ErrDuplicateChangeReq
@@ -119,7 +119,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []type
 	for _, partition := range configs {
 		partitionID := partition.PartitionDescription.PartitionIdentifier
 		// do not create T2 timeout requests if partition has a change already in pipeline
-		if ir := x.state.IsChangeInProgress(partitionID); ir != nil {
+		if ir := x.state.IsChangeInProgress(partitionID, types.ShardID{}); ir != nil {
 			continue
 		}
 		si, err := x.state.ShardInfo(partitionID, types.ShardID{})

@@ -1,11 +1,12 @@
 package storage
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"encoding/hex"
 	"fmt"
-	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -13,7 +14,6 @@ import (
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/stretchr/testify/require"
 )
 
 const partitionID1 types.PartitionID = 1
@@ -57,14 +57,15 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
+	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	b := NewGenesisBlock(hash, rootGenesis.Partitions)
-	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
+	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	require.NoError(t, err)
+	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
 	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
-	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PartitionDescriptionHash, data.PDRHash)
+	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PDRHash, data.PDRHash)
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
@@ -88,9 +89,10 @@ func TestExecutedBlock(t *testing.T) {
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
+	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	parent := NewGenesisBlock(hash, rootGenesis.Partitions)
+	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
 		Partition:      partitionID1,
 		NodeIdentifier: "1",
@@ -119,20 +121,20 @@ func TestExecutedBlock(t *testing.T) {
 	require.Equal(t, genesis.RootRound+1, executedBlock.BlockData.Round)
 	require.Equal(t, certReq, executedBlock.BlockData.Payload.Requests[0].Requests[0])
 	require.Len(t, executedBlock.Changed, 1)
-	require.True(t, slices.Contains(executedBlock.Changed, partitionID1))
+	require.Contains(t, executedBlock.Changed, partitionShard{partition: partitionID1, shard: types.ShardID{}.Key()})
 	require.Len(t, executedBlock.CurrentIR, 1)
 	require.Equal(t, certReq.InputRecord, executedBlock.CurrentIR.Find(partitionID1).IR)
 	// parent remains unchanged
 	require.Equal(t, genesisInputRecord, parent.CurrentIR.Find(partitionID1).IR)
 	require.Equal(t, hash, executedBlock.HashAlgo)
-	require.EqualValues(t, "89D3869C9284F932817E48CA5CEA7979000292E0072D3D5264D5ABEA2054E912", fmt.Sprintf("%X", executedBlock.RootHash))
+	require.EqualValues(t, "99AD3740E3CFC07EC1C1C04ED60D930BC3E2DC01AD5B3E8631C119C50EAF4520", fmt.Sprintf("%X", executedBlock.RootHash))
 	// block has not got QC nor commit QC yet
 	require.Nil(t, executedBlock.Qc)
 	require.Nil(t, executedBlock.CommitQc)
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	rh, err := hex.DecodeString("DDA4C864E4365DDB45B6555D3815BFAC9227C01887540DD653169CBA3D7BCB4F")
+	rh, err := hex.DecodeString("bc5400e7ebbbd6dafd3339a2ff58c8c65b05bfc26b2dfb440fb97b2b3f586a70")
 	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -167,8 +169,11 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 				PDRHash: []byte{4, 5, 6, 7},
 			},
 		},
-		Changed:  []types.PartitionID{partitionID1, partitionID2},
-		HashAlgo: gocrypto.SHA256,
+		Changed: map[partitionShard]struct{}{
+			{partitionID1, types.ShardID{}.Key()}: {},
+			{partitionID2, types.ShardID{}.Key()}: {},
+		},
+		HashAlgo: crypto.SHA256,
 		RootHash: rh,
 	}
 
@@ -176,11 +181,11 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		VoteInfo: &drctypes.RoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
-			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
+			CurrentRootHash:   make([]byte, crypto.SHA256.Size()),
 		},
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},
-			Hash:         make([]byte, gocrypto.SHA256.Size()),
+			Hash:         make([]byte, crypto.SHA256.Size()),
 		},
 	}
 	// root hash does not match
@@ -192,7 +197,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		VoteInfo: &drctypes.RoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
-			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
+			CurrentRootHash:   make([]byte, crypto.SHA256.Size()),
 		},
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
 			PreviousHash: []byte{0, 0, 0, 0},

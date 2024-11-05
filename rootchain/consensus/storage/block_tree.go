@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -322,7 +323,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 	path := bt.FindPathToRoot(commitRound)
 	// new committed block also certifies the changes from pending rounds
 	for _, cb := range path {
-		commitNode.data.Changed = append(commitNode.data.Changed, cb.Changed...)
+		maps.Copy(commitNode.data.Changed, cb.Changed)
 	}
 	// prune the chain, the committed block becomes new root of the chain
 	blocksToPrune, err := bt.findBlocksToPrune(commitRound)

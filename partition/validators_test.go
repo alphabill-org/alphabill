@@ -164,7 +164,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc.UnicityTreeCertificate.PartitionIdentifier,
+		Partition:          uc.UnicityTreeCertificate.Partition,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
 		Transactions: []*types.TransactionRecord{

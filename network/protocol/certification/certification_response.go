@@ -29,7 +29,7 @@ func (cr *CertificationResponse) IsValid() error {
 	if cr.UC.UnicityTreeCertificate == nil {
 		return errors.New("UnicityTreeCertificate is unassigned")
 	}
-	if utcP := cr.UC.UnicityTreeCertificate.PartitionIdentifier; utcP != cr.Partition {
+	if utcP := cr.UC.UnicityTreeCertificate.Partition; utcP != cr.Partition {
 		return fmt.Errorf("partition %s doesn't match UnicityTreeCertificate partition %s", cr.Partition, utcP)
 	}
 

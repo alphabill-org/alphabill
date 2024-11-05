@@ -111,7 +111,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				PartitionDescription: validPDR,
 			},
-			wantErrStr: "invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil",
+			wantErrStr: "invalid unicity certificate: invalid unicity certificate: unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {

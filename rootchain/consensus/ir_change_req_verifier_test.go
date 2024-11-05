@@ -36,7 +36,7 @@ func (s *MockState) GetCertificates() []*types.UnicityCertificate {
 	return []*types.UnicityCertificate{{
 		Version:                1,
 		InputRecord:            irSysID1,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{PartitionIdentifier: 1},
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{Partition: 1},
 		UnicitySeal: &types.UnicitySeal{
 			Version:              1,
 			RootChainRoundNumber: 1,
@@ -49,7 +49,7 @@ func (s *MockState) ShardInfo(partition types.PartitionID, shard types.ShardID) 
 	return s.shardInfo(partition, shard)
 }
 
-func (s *MockState) IsChangeInProgress(id types.PartitionID) *types.InputRecord {
+func (s *MockState) IsChangeInProgress(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 	for _, sysId := range s.inProgress {
 		if sysId == id {
 			return s.irInProgress

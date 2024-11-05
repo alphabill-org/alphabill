@@ -4,9 +4,9 @@
     "version": 1,
     "rootValidators": [
       {
-        "nodeIdentifier": "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG",
-        "signingPublicKey": "0x022faadc939d2fe67e1abccdb711de3561d3419ab10c1862185e208e5d43ba1f31",
-        "encryptionPublicKey": "0x022faadc939d2fe67e1abccdb711de3561d3419ab10c1862185e208e5d43ba1f31"
+        "nodeIdentifier": "16Uiu2HAmRFSxbxHCzdhDbAvfkcBAKjhJ5wVBk868UZSNi4y8qNMK",
+        "signingPublicKey": "0x03a05012f57b8b441b97fb6c35173427e923c8588545de885bab225d4ea2a27064",
+        "encryptionPublicKey": "0x03a05012f57b8b441b97fb6c35173427e923c8588545de885bab225d4ea2a27064"
       }
     ],
     "consensus": {
@@ -16,7 +16,7 @@
       "consensusTimeoutMs": 10000,
       "hashAlgorithm": 5,
       "signatures": {
-        "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG": "0xe06d4e14f4507083af107828624c284638c4985cdb0759239959314c1f36fa9729a8288ee6946ccdb61fc28e40c5119c32cf2366dbda3c5ffcc77527044c952a00"
+        "16Uiu2HAmRFSxbxHCzdhDbAvfkcBAKjhJ5wVBk868UZSNi4y8qNMK": "0x9fd8e84e72cd1398c82172b0ed88ae8e540fd166b60f17ce2e63be07fa2da8a90a188089841827e4a8e8939872b6f57a6d28419fd22efb953ac44127949b8b8401"
       }
     }
   },
@@ -26,13 +26,13 @@
       "nodes": [
         {
           "version": 1,
-          "nodeIdentifier": "16Uiu2HAm9JaqdPax86gmroHfCyxVeRirqcMEfAgwmBrVCa1oS2LC",
-          "signingPublicKey": "0x039d5eb9622eb04bf08b5cf1f19e87ccb96eba93220ae64ee261ccd859f227f951",
-          "encryptionPublicKey": "0x02ce32bd1545547cbacc6a9a273ae4d23cac0349253bdd1e0e8e15f8c71d291805",
+          "nodeIdentifier": "16Uiu2HAmDsgbWSLbZatieNa2495BCnCcDSMhBBFKDtG8Ab2cgtda",
+          "signingPublicKey": "0x02689c10b19ea070f32dba1e891200f3b4bcc6346fb3fee8f5259963253776bb6f",
+          "encryptionPublicKey": "0x03121c2976ab4100c6f951156be3f9473a36c2fba91f1bf17e0d1e293a3ef32d5d",
           "blockCertificationRequest": {
             "partitionIdentifier": 1,
             "shardIdentifier": "0x80",
-            "nodeIdentifier": "16Uiu2HAm9JaqdPax86gmroHfCyxVeRirqcMEfAgwmBrVCa1oS2LC",
+            "nodeIdentifier": "16Uiu2HAmDsgbWSLbZatieNa2495BCnCcDSMhBBFKDtG8Ab2cgtda",
             "inputRecord": {
               "version": 1,
               "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -46,7 +46,7 @@
             "rootRoundNumber": 0,
             "blockSize": 0,
             "stateSize": 0,
-            "signature": "0xd9e6e3aab3bfb2c05414f7f64d62aed2a0c8bdefecf784e47763ba3b168e3d9c0552a417126fc5bc6ffd5741cfdfb63eddb085da22777939eac618e6eefceef200"
+            "signature": "0x6ab55daa93cbc0ad27e35530fd7082eb86f77ceafd25f0d128ad25e802dbcb085f602cbb83f59fff59786d307272db52c20642783f7868ee16139e0ac9f8696901"
           },
           "partitionDescriptionRecord": {
             "networkIdentifier": 0,
@@ -72,7 +72,11 @@
           "epoch": 0,
           "sumOfEarnedFees": 0
         },
-        "trHash": "0xe46a127f693a2067ba031d4ac89f674b55d170865432a2214cb85d650c6470b5",
+        "trHash": "0xd5c7f3f86add69291bb67a243f27ba6a7a3c4c551a6d30d20437514532281c35",
+        "shardTreeCertificate": {
+          "Shard": "0x80",
+          "SiblingHashes": []
+        },
         "unicityTreeCertificate": {
           "version": 0,
           "partitionIdentifier": 1,
@@ -83,10 +87,10 @@
           "version": 1,
           "rootChainRoundNumber": 1,
           "timestamp": 1681971084,
-          "previousHash": "0x92c4579e435abaaa537e53d657e92164ec13889a8b1b4cc367aa92489248a67e",
-          "hash": "0xc5bf500f431d26990185bd70a5ea15f1d2afb3f3b584e313f69e35e75eb25399",
+          "previousHash": "0xe99fbce7881d027a01ec4be15c8341008468e4560c36d1d15e88061a283c1c24",
+          "hash": "0xa8e7f61f98ca2d34bdaa79144d48cb62a4b8186d5f5fff563de995e316930687",
           "signatures": {
-            "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG": "0x6ca7fb1422ba2970e4ea17d19b95cc61f07179f8b220ba49c2c0b050a921fa374e15f0f6aa52ec68e780c12e2e8899732d0b440be69713091f4c82ccbe3461bc01"
+            "16Uiu2HAmRFSxbxHCzdhDbAvfkcBAKjhJ5wVBk868UZSNi4y8qNMK": "0xebadaffd092a8c062437bfcdfea33ad1226646f9119b7b2479e63aec18e142b20ec7387d48aad48f9276105c469f0c2d0e227b2f6894b1b3475aa5426488400201"
           }
         }
       },

@@ -361,7 +361,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				PartitionIdentifier: partitionID,
+				Partition: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -454,7 +454,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				PartitionIdentifier: partitionID,
+				Partition: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -477,7 +477,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	certs := testutils.MockNetAwaitMultiple[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
 	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.PartitionIdentifier)
+		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.Partition)
 		require.Equal(t, newIR, cert.UC.InputRecord)
 	}
 }
@@ -502,7 +502,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				PartitionIdentifier: unknownID,
+				Partition: unknownID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},

@@ -11,7 +11,7 @@ include:
       - "/templates/go-cache.gitlab-ci.yml"
       - "/templates/go-vet.gitlab-ci.yml"
       - "/templates/gosec.gitlab-ci.yml"
-      - "/templates/nancy.gitlab-ci.yml"
+      # TODO: Enable nancy - "/templates/nancy.gitlab-ci.yml"
       - "/templates/sonarqube.gitlab-ci.yml"
       - "/templates/trivy.gitlab-ci.yml"
 

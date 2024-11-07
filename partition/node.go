@@ -85,11 +85,11 @@ type (
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
 	// is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	Node struct {
-		status                      atomic.Value
-		configuration               *configuration
-		transactionSystem           txsystem.TransactionSystem
+		status            atomic.Value
+		configuration     *configuration
+		transactionSystem txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
-		fuc                         *types.UnicityCertificate
+		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		lTR                         atomic.Pointer[certification.TechnicalRecord]
@@ -1138,7 +1138,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 
 	for _, b := range lr.Blocks {
 		if err := n.handleBlock(ctx, b); err != nil {
-			n.log.ErrorContext(ctx, "Recovery failed", logger.Error(err))
 			return err
 		}
 	}

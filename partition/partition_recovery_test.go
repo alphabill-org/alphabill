@@ -49,6 +49,14 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// on timeout second request is sent
 	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), DefaultLedgerReplicationTimeout+time.Second, test.WaitTick)
+
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status: replication.BlocksNotFound,
+	})
+	// on LedgerReplicationResponse with not OK status, another request is sent after timeout
+	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {

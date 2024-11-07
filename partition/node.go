@@ -85,11 +85,11 @@ type (
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
 	// is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	Node struct {
-		status            atomic.Value
-		configuration     *configuration
-		transactionSystem txsystem.TransactionSystem
+		status                      atomic.Value
+		configuration               *configuration
+		transactionSystem           txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
-		fuc *types.UnicityCertificate
+		fuc                         *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		lTR                         atomic.Pointer[certification.TechnicalRecord]
@@ -1008,9 +1008,8 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > n.configuration.replicationConfig.timeout {
 		n.log.WarnContext(ctx, "Ledger replication timeout, repeat request")
 		n.sendLedgerReplicationRequest(ctx)
-	}
-	// handle block timeout - no new blocks received
-	if !n.IsValidatorNode() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
+	} else if !n.IsValidatorNode() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
+		// handle block timeout - no new blocks received
 		n.log.WarnContext(ctx, "Block subscription timeout, starting recovery")
 		n.startRecovery(ctx)
 	}
@@ -1125,9 +1124,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	}
 	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response '%s' received: %s, ", lr.UUID.String(), lr.Pretty()))
 	if lr.Status != replication.Ok {
-		recoverFrom := n.committedUC().GetRoundNumber() + 1
-		n.log.DebugContext(ctx, fmt.Sprintf("Resending replication request starting with round %d", recoverFrom))
-		n.sendLedgerReplicationRequest(ctx)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
 
@@ -1143,8 +1139,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	for _, b := range lr.Blocks {
 		if err := n.handleBlock(ctx, b); err != nil {
 			n.log.ErrorContext(ctx, "Recovery failed", logger.Error(err))
-			// ask for the failed block again, what else can we do?
-			n.sendLedgerReplicationRequest(ctx)
 			return err
 		}
 	}

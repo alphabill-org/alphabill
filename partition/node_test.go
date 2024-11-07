@@ -229,7 +229,7 @@ func TestNode_InvalidCertificateResponse(t *testing.T) {
 	ContainsError(t, tp, "invalid CertificationResponse: UnicityTreeCertificate is unassigned")
 }
 
-func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
+func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	committedUC := tp.GetCommittedUC(t)
@@ -240,7 +240,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, committedUC), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitUnicityCertificate(t, committedUC)
-	ContainsError(t, tp, "new certificate is from older root round 1 than previous certificate 2")
+	ContainsError(t, tp, "stale certification response for round 1 (current round 2)")
 }
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {

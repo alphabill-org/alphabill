@@ -44,7 +44,8 @@ func TestPartition_Ok(t *testing.T) {
 		Value: moneyInvariant,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: money.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -176,7 +177,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			Owner: templates.AlwaysTrueBytes(),
 		}
 	)
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   networkID,
 		PartitionIdentifier: money.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -300,7 +302,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 
 	// create swap tx
-	swapTx := &types.TransactionOrder{Version: 1,
+	swapTx := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:   pdr.NetworkIdentifier,
 			PartitionID: pdr.PartitionIdentifier,

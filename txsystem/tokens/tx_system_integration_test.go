@@ -32,7 +32,8 @@ var (
 )
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -83,7 +84,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		splitValue2         uint64 = 10
 		trustBase           types.RootTrustBase
 	)
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,

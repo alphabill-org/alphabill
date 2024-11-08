@@ -39,7 +39,8 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	t.Run("txOrder", func(t *testing.T) {
 		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
-		txo := &types.TransactionOrder{Version: 1,
+		txo := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: 7,
 				Type:        22,
@@ -99,7 +100,8 @@ func Test_generate_TXSTestsData(t *testing.T) {
 
 	t.Run("txOrder", func(t *testing.T) {
 		// ver 1 of the txOrder
-		txo := &types.TransactionOrder{Version: 1,
+		txo := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: 7,
 				Type:        22,

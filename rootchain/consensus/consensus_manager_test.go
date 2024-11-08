@@ -41,7 +41,8 @@ import (
 
 const partitionID types.PartitionID = 0x00FF0001
 
-var partitionInputRecord = &types.InputRecord{Version: 1,
+var partitionInputRecord = &types.InputRecord{
+	Version:      1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
@@ -80,7 +81,8 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 
 func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, partitionNodes []*testutils.TestNode) []*certification.BlockCertificationRequest {
 	t.Helper()
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -510,7 +512,8 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+			LedgerCommitInfo: &types.UnicitySeal{
+				Version:      1,
 				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
 			},
 			HighQc: highQc,

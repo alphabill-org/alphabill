@@ -313,7 +313,8 @@ func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
-	uc, _ := (&types.UnicityCertificate{Version: 1,
+	uc, _ := (&types.UnicityCertificate{
+		Version:     1,
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
 	tx, _ := (&types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: 1, UnitID: unitID}}).MarshalCBOR()
@@ -334,7 +335,8 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 }
 
 func simulateEmptyInput(round uint64) *BlockAndState {
-	uc, _ := (&types.UnicityCertificate{Version: 1,
+	uc, _ := (&types.UnicityCertificate{
+		Version:     1,
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
 	block := &types.Block{

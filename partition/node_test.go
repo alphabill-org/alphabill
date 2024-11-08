@@ -556,7 +556,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	// create a UC for a new round
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		Hash:         uc1.InputRecord.Hash,
 		PreviousHash: uc1.InputRecord.PreviousHash,
 		BlockHash:    uc1.InputRecord.BlockHash,

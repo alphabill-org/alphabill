@@ -19,7 +19,8 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 		bcr := &BlockCertificationRequest{
 			Partition:      1,
 			NodeIdentifier: "1",
-			InputRecord: &types.InputRecord{Version: 1,
+			InputRecord: &types.InputRecord{
+				Version:      1,
 				PreviousHash: []byte{},
 				Hash:         []byte{},
 				BlockHash:    []byte{},

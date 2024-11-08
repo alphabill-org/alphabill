@@ -84,7 +84,8 @@ func createInputRequest(t *testing.T, partitionIdentifier types.PartitionID, nod
 	req := &certification.BlockCertificationRequest{
 		Partition:      partitionIdentifier,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

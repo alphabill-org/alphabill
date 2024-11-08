@@ -633,7 +633,8 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 			testutils.WithCloseFCTargetUnitCounter(1),
 		),
 	)
-	closeFCRecord := &types.TransactionRecord{Version: 1,
+	closeFCRecord := &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: testtransaction.TxoToBytes(t, closeFC),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
@@ -756,7 +757,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
 
 	// send addFC
-	transferFCTransactionRecord := &types.TransactionRecord{Version: 1,
+	transferFCTransactionRecord := &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: testtransaction.TxoToBytes(t, transferFC),
 		ServerMetadata:   txr.ServerMetadata,
 	}
@@ -830,7 +832,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.EqualValues(t, 0, fcrUnitData.Balance)
 
 	// send reclaimFC
-	closeFCTransactionRecord := &types.TransactionRecord{Version: 1,
+	closeFCTransactionRecord := &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: testtransaction.TxoToBytes(t, closeFC),
 		ServerMetadata:   txr.ServerMetadata,
 	}
@@ -974,14 +977,16 @@ func createDCTransferAndSwapTxs(
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
 		tx, _, _ := createDCTransfer(t, id, fcrID, billData.Value, billData.Counter, targetID, targetCounter)
-		txr := &types.TransactionRecord{Version: 1,
+		txr := &types.TransactionRecord{
+			Version:          1,
 			TransactionOrder: testtransaction.TxoToBytes(t, tx),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
 		dustTransferProofs[i] = testblock.CreateTxRecordProof(t, txr, signer)
 	}
 
-	tx := &types.TransactionOrder{Version: 1,
+	tx := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:   networkID,
 			PartitionID: moneyPartitionID,
@@ -1037,7 +1042,8 @@ func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUn
 }
 
 func createTx(fromID types.UnitID, fcrID types.UnitID, transactionType uint16) *types.TransactionOrder {
-	tx := &types.TransactionOrder{Version: 1,
+	tx := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:   networkID,
 			PartitionID: moneyPartitionID,
@@ -1124,7 +1130,8 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 	s := genesisState(t, initialBill, sdrs)
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -1148,7 +1155,8 @@ func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  roundNumber,
 		Hash:         s.Root(),
 		SummaryValue: s.Summary(),

@@ -58,7 +58,8 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 func NewTransferFeeCreditProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {
 	tx, err := (NewTransferFC(t, signer, nil)).MarshalCBOR()
 	require.NoError(t, err)
-	txRecord := &types.TransactionRecord{Version: 1,
+	txRecord := &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: tx,
 		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 	}

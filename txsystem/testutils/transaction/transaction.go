@@ -130,7 +130,8 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 	}
 	txBytes, err := tx.MarshalCBOR()
 	require.NoError(t, err)
-	return &types.TransactionRecord{Version: 1,
+	return &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: txBytes,
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,

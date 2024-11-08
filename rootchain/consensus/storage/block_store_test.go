@@ -103,7 +103,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	b10 := fakeBlock(10, &drctypes.QuorumCert{
 		VoteInfo: vInfo9,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: vInfo9.Hash(gocrypto.SHA256),
 			Hash:         test.RandomBytes(32),
 		},
@@ -112,7 +113,8 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
 	b9 := fakeBlock(9, &drctypes.QuorumCert{
 		VoteInfo: vInfo8,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:              1,
 			PreviousHash:         vInfo8.Hash(gocrypto.SHA256),
 			RootChainRoundNumber: 8,
 			Hash:                 test.RandomBytes(32),
@@ -255,8 +257,9 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc := &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
-			Hash: rBlock.RootHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version: 1,
+			Hash:    rBlock.RootHash,
 		},
 	}
 	ucs, err = bStore.ProcessQc(qc)
@@ -283,8 +286,9 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc = &drctypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
-			Hash: rBlock.RootHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version: 1,
+			Hash:    rBlock.RootHash,
 		},
 	}
 	// qc for round 2, does not commit a round

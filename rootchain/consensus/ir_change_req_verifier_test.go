@@ -23,7 +23,8 @@ type (
 	}
 )
 
-var irSysID1 = &types.InputRecord{Version: 1,
+var irSysID1 = &types.InputRecord{
+	Version:         1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -108,7 +109,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -139,7 +141,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -165,7 +168,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -201,7 +205,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider(nil, nil),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -232,7 +237,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider(nil, nil),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -356,7 +362,8 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			Version: 1,
-			Certificate: &types.UnicityCertificate{Version: 1,
+			Certificate: &types.UnicityCertificate{
+				Version:     1,
 				InputRecord: &types.InputRecord{Version: 1},
 				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 			},

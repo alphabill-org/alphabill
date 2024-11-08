@@ -38,7 +38,8 @@ func TestRunTokensNode(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,

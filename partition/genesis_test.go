@@ -25,7 +25,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	validPDR := types.PartitionDescriptionRecord{Version: 1,
+	validPDR := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 1,
 		TypeIdLen:           8,

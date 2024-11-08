@@ -82,7 +82,8 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit")
 	})
 	t.Run("Invalid transaction fee", func(t *testing.T) {
-		closeFC := &types.TransactionRecord{Version: 1,
+		closeFC := &types.TransactionRecord{
+			Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testutils.NewCloseFC(t, signer,
 				testutils.NewCloseFCAttr(
 					testutils.WithCloseFCAmount(2),

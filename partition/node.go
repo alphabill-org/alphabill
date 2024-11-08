@@ -1368,7 +1368,8 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}
 	pendingProposal := &types.Block{
-		Header: &types.Header{Version: 1,
+		Header: &types.Header{
+			Version:           1,
 			PartitionID:       n.configuration.GetPartitionIdentifier(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,

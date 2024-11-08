@@ -87,7 +87,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -110,7 +111,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	// increment round number
-	irNew := &types.InputRecord{Version: 1,
+	irNew := &types.InputRecord{
+		Version:      1,
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -377,7 +379,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	rootRound++
 	partitionRound++
 	newStateHash := test.RandomBytes(32)
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         newStateHash,
 		BlockHash:    test.RandomBytes(32),
@@ -397,7 +400,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp.eh.Reset()
 	rootRound++
 	partitionRound++
-	ir = &types.InputRecord{Version: 1,
+	ir = &types.InputRecord{
+		Version:      1,
 		PreviousHash: newStateHash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),

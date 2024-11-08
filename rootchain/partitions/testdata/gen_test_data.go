@@ -49,7 +49,8 @@ func createPartition(partitionID types.PartitionID, nodeID string, partitionSign
 	req := createInputRequest(partitionID, nodeID, partitionSigner)
 	pubKey := getPubKey(partitionSigner)
 
-	pdr := &types.PartitionDescriptionRecord{Version: 1,
+	pdr := &types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: partitionID,
 		TypeIdLen:           8,
@@ -79,7 +80,8 @@ func createInputRequest(partitionID types.PartitionID, nodeID string, partitionS
 	req := &certification.BlockCertificationRequest{
 		Partition:      partitionID,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

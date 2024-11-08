@@ -222,7 +222,8 @@ func prepareState(t *testing.T) *state.State {
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -383,7 +384,8 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	attBytes, err := types.Cbor.Marshal(bt)
 	require.NoError(t, err)
 
-	txo := &types.TransactionOrder{Version: 1,
+	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			UnitID:         unitID,
 			Type:           money.TransactionTypeTransfer,

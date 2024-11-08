@@ -149,7 +149,8 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 	if err != nil {
 		return nil, fmt.Errorf("transaction order serialization error: %w", err)
 	}
-	trx = &types.TransactionRecord{Version: 1,
+	trx = &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: txBytes,
 	}
 	savepointID := m.state.Savepoint()

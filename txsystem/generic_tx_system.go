@@ -303,7 +303,8 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("marshalling transaction: %w", err)
 	}
-	trx := &types.TransactionRecord{Version: 1,
+	trx := &types.TransactionRecord{
+		Version:          1,
 		TransactionOrder: txBytes,
 		ServerMetadata:   sm,
 	}

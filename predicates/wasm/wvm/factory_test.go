@@ -57,7 +57,8 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 		require.NoError(t, tx.SetAuthProof([]byte{0, 0, 0}))
 		txBytes, err := tx.MarshalCBOR()
 		require.NoError(t, err)
-		txr := types.TransactionRecord{Version: 1,
+		txr := types.TransactionRecord{
+			Version:          1,
 			TransactionOrder: txBytes,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee:        24,
@@ -74,7 +75,8 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 	})
 
 	t.Run("TxProof ok", func(t *testing.T) {
-		txp := types.TxProof{Version: 1,
+		txp := types.TxProof{
+			Version:         1,
 			BlockHeaderHash: []byte{5, 5, 5},
 			Chain:           []*types.GenericChainItem{{Hash: []byte{4}}},
 		}

@@ -16,14 +16,16 @@ const sysId1 types.PartitionID = 1
 const sysId2 types.PartitionID = 2
 
 var prevHash = []byte{0, 0, 0}
-var inputRecord1 = &types.InputRecord{Version: 1,
+var inputRecord1 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: prevHash,
 	Hash:         []byte{1, 1, 1},
 	BlockHash:    []byte{2, 2, 2},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  2,
 }
-var inputRecord2 = &types.InputRecord{Version: 1,
+var inputRecord2 = &types.InputRecord{
+	Version:      1,
 	PreviousHash: prevHash,
 	Hash:         []byte{5, 5, 5},
 	BlockHash:    []byte{2, 2, 2},
@@ -67,7 +69,8 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 				Partition:      1,
 				Shard:          types.ShardID{},
 				NodeIdentifier: "1",
-				InputRecord: &types.InputRecord{Version: 1,
+				InputRecord: &types.InputRecord{
+					Version:      1,
 					PreviousHash: []byte{0, 1},
 					Hash:         []byte{2, 3},
 					BlockHash:    []byte{4, 5},
@@ -108,7 +111,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
 	}
 	t.Run("trust base is nil", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		x := &IRChangeReq{
@@ -121,7 +125,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("unknown reason", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		x := &IRChangeReq{
@@ -134,7 +139,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("partition id in request and proof do not match", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		reqS1InvalidSysId := &certification.BlockCertificationRequest{
@@ -159,7 +165,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("IR change request, signature verification error", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		invalidReq := &certification.BlockCertificationRequest{
@@ -178,7 +185,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("Proof contains more request, than there are partition nodes", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		reqS1 := &certification.BlockCertificationRequest{
@@ -206,7 +214,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("Proof contains more request from unknown node", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		reqS1 := &certification.BlockCertificationRequest{
@@ -234,7 +243,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("Proof contains duplicate node", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		reqS1 := &certification.BlockCertificationRequest{
@@ -256,7 +266,8 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		require.Nil(t, ir)
 	})
 	t.Run("IR does not extend last certified state", func(t *testing.T) {
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: []byte{0, 0, 1}, RoundNumber: 1},
 		}
 		reqS1 := &certification.BlockCertificationRequest{
@@ -297,9 +308,11 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 			CertReason: T2Timeout,
 			Requests:   []*certification.BlockCertificationRequest{reqS1},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
+			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: 1,
 			},
 		}
@@ -320,9 +333,11 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 			CertReason: T2Timeout,
 			Requests:   nil,
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
+			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: 1,
 			},
 		}
@@ -343,9 +358,11 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 			CertReason: T2Timeout,
 			Requests:   nil,
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
-			UnicitySeal: &types.UnicitySeal{Version: 1,
+			UnicitySeal: &types.UnicitySeal{
+				Version:              1,
 				RootChainRoundNumber: 1,
 			},
 		}
@@ -377,7 +394,8 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			CertReason: Quorum,
 			Requests:   []*certification.BlockCertificationRequest{reqS1},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 		}
@@ -405,7 +423,8 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			CertReason: Quorum,
 			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: []byte{0, 0, 1}, RoundNumber: 1},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 		}
@@ -433,7 +452,8 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			CertReason: Quorum,
 			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2},
 		}
@@ -468,7 +488,8 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			CertReason: Quorum,
 			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2, reqS3NotMatchingIR},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 		}
@@ -496,7 +517,8 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 			CertReason: Quorum,
 			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 		}
@@ -525,7 +547,8 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 			CertReason: QuorumNotPossible,
 			Requests:   []*certification.BlockCertificationRequest{reqS1},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		ir, err := x.Verify(trustBase, luc, 0, 0)
@@ -550,7 +573,8 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 			CertReason: QuorumNotPossible,
 			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2},
 		}
-		luc := &types.UnicityCertificate{Version: 1,
+		luc := &types.UnicityCertificate{
+			Version:     1,
 			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
 		}
 		ir, err := x.Verify(trustBase, luc, 0, 0)

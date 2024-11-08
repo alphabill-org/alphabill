@@ -29,7 +29,8 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 33,
 		TypeIdLen:           8,

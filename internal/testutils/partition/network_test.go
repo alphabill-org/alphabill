@@ -14,7 +14,8 @@ import (
 )
 
 func TestNewNetwork_Ok(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 0x01020401,
 		TypeIdLen:           8,
@@ -52,7 +53,8 @@ func TestNewNetwork_Ok(t *testing.T) {
 }
 
 func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 0x01020401,
 		TypeIdLen:           8,

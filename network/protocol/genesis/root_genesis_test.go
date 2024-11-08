@@ -157,7 +157,8 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	unicitySeal := &types.UnicitySeal{Version: 1,
+	unicitySeal := &types.UnicitySeal{
+		Version:              1,
 		PreviousHash:         make([]byte, 32),
 		RootChainRoundNumber: 2,
 		Timestamp:            1000,
@@ -170,7 +171,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
@@ -217,7 +219,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
@@ -226,7 +229,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},

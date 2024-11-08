@@ -105,7 +105,8 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	req := &certification.BlockCertificationRequest{
 		Partition:      1,
 		NodeIdentifier: nodeIdentifier,
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

@@ -129,8 +129,9 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1,
-					Hash: zeroHash,
+				LedgerCommitInfo: &types.UnicitySeal{
+					Version: 1,
+					Hash:    zeroHash,
 				},
 			},
 		},
@@ -396,7 +397,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -457,7 +459,8 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -571,7 +574,8 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: []byte{1, 2, 3},
 			Hash:         zeroHash,
 		},

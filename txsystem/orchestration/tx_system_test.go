@@ -24,7 +24,8 @@ func TestNewTxSystem_OK(t *testing.T) {
 	s := state.NewEmptyState()
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: orchestration.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -64,8 +65,10 @@ func TestNewTxSystem_OK(t *testing.T) {
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{Version: 1,
-		InputRecord: &types.InputRecord{Version: 1,
+	return &types.UnicityCertificate{
+		Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			RoundNumber:  roundNumber,
 			Hash:         s.Root(),
 			SummaryValue: s.Summary(),

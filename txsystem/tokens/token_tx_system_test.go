@@ -48,7 +48,8 @@ var (
 )
 
 func TestNewTokenTxSystem_NilPartitionIdentifier(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 0,
 		TypeIdLen:           8,
@@ -61,7 +62,8 @@ func TestNewTokenTxSystem_NilPartitionIdentifier(t *testing.T) {
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -1761,12 +1763,14 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 	})))
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,

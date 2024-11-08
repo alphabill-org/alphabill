@@ -109,7 +109,8 @@ func Test_txSignedByPKH(t *testing.T) {
 				},
 			}
 		}
-		txOrder := &types.TransactionOrder{Version: 1,
+		txOrder := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				Type:        tokens.TransactionTypeTransferNFT,
 				PartitionID: 5,
@@ -160,7 +161,8 @@ func Test_amountTransferredSum(t *testing.T) {
 	// add an invalid proof record - just tx record, proof is missing
 	proofs := []*types.TxRecordProof{
 		{
-			TxRecord: &types.TransactionRecord{Version: 1,
+			TxRecord: &types.TransactionRecord{
+				Version:          1,
 				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),
 				ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 			},
@@ -168,7 +170,8 @@ func Test_amountTransferredSum(t *testing.T) {
 		},
 	}
 	// valid money transfer
-	txPayment := &types.TransactionOrder{Version: 1,
+	txPayment := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			PartitionID: money.DefaultPartitionID,
 			Type:        money.TransactionTypeTransfer,
@@ -187,7 +190,8 @@ func Test_amountTransferredSum(t *testing.T) {
 	proofs = append(proofs, txRecProof)
 
 	// money transfer by split tx
-	txPayment = &types.TransactionOrder{Version: 1,
+	txPayment = &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			PartitionID: money.DefaultPartitionID,
 			Type:        money.TransactionTypeSplit,
@@ -276,7 +280,8 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("ref number mismatch", func(t *testing.T) {
 		// if ref-no parameter is provided it must match (nil ref-no means "do not care")
-		tx := &types.TransactionOrder{Version: 1,
+		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: money.DefaultPartitionID,
 				Type:        money.TransactionTypeTransfer,
@@ -287,7 +292,8 @@ func Test_transferredSum(t *testing.T) {
 		}
 		txBytes, err := (tx).MarshalCBOR()
 		require.NoError(t, err)
-		txRec := &types.TransactionRecord{Version: 1,
+		txRec := &types.TransactionRecord{
+			Version:          1,
 			TransactionOrder: txBytes,
 			ServerMetadata:   &types.ServerMetadata{},
 		}
@@ -310,7 +316,8 @@ func Test_transferredSum(t *testing.T) {
 		// be ignored ie cause no error but return zero as sum
 		txTypes := []uint16{money.TransactionTypeLock, money.TransactionTypeSwapDC, money.TransactionTypeTransDC, money.TransactionTypeUnlock}
 		tx := &types.TransactionOrder{Version: 1}
-		txRec := &types.TransactionRecord{Version: 1,
+		txRec := &types.TransactionRecord{
+			Version:          1,
 			TransactionOrder: nil,
 			ServerMetadata:   &types.ServerMetadata{},
 		}
@@ -330,7 +337,8 @@ func Test_transferredSum(t *testing.T) {
 	})
 
 	t.Run("txType and attributes do not match", func(t *testing.T) {
-		txPayment := &types.TransactionOrder{Version: 1,
+		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: money.DefaultPartitionID,
 				Type:        money.TransactionTypeSplit,
@@ -358,7 +366,8 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("transfer tx", func(t *testing.T) {
 		refNo := []byte("reasons")
-		txPayment := &types.TransactionOrder{Version: 1,
+		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: money.DefaultPartitionID,
 				Type:        money.TransactionTypeTransfer,
@@ -407,7 +416,8 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("split tx", func(t *testing.T) {
 		refNo := []byte("reasons")
-		txPayment := &types.TransactionOrder{Version: 1,
+		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: money.DefaultPartitionID,
 				Type:        money.TransactionTypeSplit,

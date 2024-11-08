@@ -128,7 +128,8 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	if rootSigner == nil {
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
 	}
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 0x01000001,
 		TypeIdLen:           8,

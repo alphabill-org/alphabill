@@ -19,7 +19,8 @@ import (
 
 func Test_TokensGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
-	pdr := types.PartitionDescriptionRecord{Version: 1,
+	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 2,
 		TypeIdLen:           8,

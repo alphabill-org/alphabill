@@ -28,7 +28,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 	}
-	validPDR := &types.PartitionDescriptionRecord{Version: 1,
+	validPDR := &types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 1,
 		TypeIdLen:           8,

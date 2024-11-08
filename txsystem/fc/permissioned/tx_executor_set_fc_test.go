@@ -211,7 +211,8 @@ func newSetFeeCreditTx(adminKey crypto.Signer, partitionID types.PartitionID, un
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	txo := &types.TransactionOrder{Version: 1,
+	txo := &types.TransactionOrder{
+		Version:  1,
 		Payload:  payload,
 		FeeProof: feeProof,
 	}

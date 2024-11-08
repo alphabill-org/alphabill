@@ -98,7 +98,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 		conf := wasm.PredicateParams{Entrypoint: "type_bearer", Args: predCfg}
 
 		// "current transaction" for the predicate is "transfer NFT"
-		txNFTTransfer := &types.TransactionOrder{Version: 1,
+		txNFTTransfer := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeTransferNFT,
@@ -147,7 +148,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "type_update_data", Args: nil}
 
-		txNFTUpdate := &types.TransactionOrder{Version: 1,
+		txNFTUpdate := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeUpdateNFT,
@@ -211,7 +213,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 		conf := wasm.PredicateParams{Entrypoint: "token_bearer", Args: predCfg}
 
 		// "current transaction" for the predicate is "transfer NFT"
-		txNFTTransfer := &types.TransactionOrder{Version: 1,
+		txNFTTransfer := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeTransferNFT,
@@ -296,7 +299,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "token_update_data", Args: predCfg}
 
-		txNFTUpdate := &types.TransactionOrder{Version: 1,
+		txNFTUpdate := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeUpdateNFT,
@@ -365,7 +369,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 // but we construct it manually out of raw CBOR arrays
 func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, value uint64, refNo []byte) []byte {
 	// attendee transfers to the organizer
-	txPayment := &types.TransactionOrder{Version: 1,
+	txPayment := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			PartitionID: money.DefaultPartitionID,
 			Type:        money.TransactionTypeTransfer,

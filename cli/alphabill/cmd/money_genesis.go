@@ -35,7 +35,8 @@ var (
 	defaultInitialBillID             = moneysdk.NewBillID(nil, []byte{1})
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
-	defaultMoneyPDR = &types.PartitionDescriptionRecord{Version: 1,
+	defaultMoneyPDR = &types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   types.NetworkLocal,
 		PartitionIdentifier: moneysdk.DefaultPartitionID,
 		TypeIdLen:           8,

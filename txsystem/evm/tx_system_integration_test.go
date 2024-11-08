@@ -187,7 +187,8 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         round1EndState.Root(),
 		SummaryValue: round1EndState.Summary(),
@@ -273,7 +274,8 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	}
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
-	txo := &types.TransactionOrder{Version: 1,
+	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			PartitionID:    partitionIdentifier,

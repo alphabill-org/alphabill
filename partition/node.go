@@ -800,6 +800,10 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
 	}
 
+	if r := n.currentRoundNumber(); r > cr.Technical.Round {
+		return fmt.Errorf("stale certification response for round %d (current round %d)", cr.Technical.Round, r)
+	}
+
 	if err := n.leader.Set(cr.Technical.Leader); err != nil {
 		return fmt.Errorf("setting leader: %w", err)
 	}

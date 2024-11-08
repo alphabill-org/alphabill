@@ -63,11 +63,16 @@ func TestNode_RecoveryCausedByBlockSubscriptionTimeout(t *testing.T) {
 	tp := runSingleNonValidatorNodePartition(t, &testtxsystem.CounterTxSystem{},
 		WithBlockSubscriptionTimeout(500 * time.Millisecond))
 
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Eventually(t, func() bool {
+		return tp.partition.status.Load() == recovering
+	}, test.WaitDuration, test.WaitTick)
+
 	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
 		Status: replication.BlocksNotFound,
 	})
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	require.Eventually(t, func() bool {
+		return tp.partition.status.Load() == normal
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {

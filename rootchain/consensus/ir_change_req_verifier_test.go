@@ -36,7 +36,7 @@ func (s *MockState) GetCertificates() []*types.UnicityCertificate {
 	return []*types.UnicityCertificate{{
 		Version:                1,
 		InputRecord:            irSysID1,
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{PartitionIdentifier: 1},
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{Partition: 1},
 		UnicitySeal: &types.UnicitySeal{
 			Version:              1,
 			RootChainRoundNumber: 1,
@@ -49,7 +49,7 @@ func (s *MockState) ShardInfo(partition types.PartitionID, shard types.ShardID) 
 	return s.shardInfo(partition, shard)
 }
 
-func (s *MockState) IsChangeInProgress(id types.PartitionID) *types.InputRecord {
+func (s *MockState) IsChangeInProgress(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 	for _, sysId := range s.inProgress {
 		if sysId == id {
 			return s.irInProgress
@@ -65,13 +65,13 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-Version: 1,
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{
 				InputRecord: irSysID1,
@@ -266,15 +266,15 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-Version: 1,
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -312,13 +312,13 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
-Version: 1,
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
@@ -361,13 +361,13 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
-Version: 1,
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: sysID1,
 				T2Timeout:           2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}

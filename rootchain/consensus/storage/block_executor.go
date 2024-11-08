@@ -2,16 +2,17 @@ package storage
 
 import (
 	"bytes"
-	gocrypto "crypto"
+	"crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
+	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	rcgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 )
 
 type (
@@ -25,21 +26,20 @@ type (
 	}
 
 	InputRecords []*InputData
-	SysIDList    []types.PartitionID
 
 	ExecutedBlock struct {
-		_         struct{}             `cbor:",toarray"`
-		BlockData *drctypes.BlockData  // proposed block
-		CurrentIR InputRecords         // all input records in this block
-		Changed   SysIDList            // changed partition partition identifiers
-		HashAlgo  gocrypto.Hash        // hash algorithm for the block
-		RootHash  hex.Bytes            // resulting root hash
-		Qc        *drctypes.QuorumCert // block's quorum certificate (from next view)
-		CommitQc  *drctypes.QuorumCert // block's commit certificate
+		_         struct{}                    `cbor:",toarray"`
+		BlockData *rctypes.BlockData          // proposed block
+		CurrentIR InputRecords                // all input records in this block
+		Changed   map[partitionShard]struct{} // changed shard identifiers
+		HashAlgo  crypto.Hash                 // hash algorithm for the block
+		RootHash  hex.Bytes                   // resulting root hash
+		Qc        *rctypes.QuorumCert         // block's quorum certificate (from next view)
+		CommitQc  *rctypes.QuorumCert         // block's commit certificate
 	}
 
 	IRChangeReqVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*InputData, error)
+		VerifyIRChangeReq(round uint64, irChReq *rctypes.IRChangeReq) (*InputData, error)
 	}
 )
 
@@ -50,7 +50,7 @@ func (data InputRecords) Update(newInputData *InputData) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("input record with partition id %X was not found", newInputData.Partition)
+	return fmt.Errorf("input record for partition %s was not found", newInputData.Partition)
 }
 
 func (data InputRecords) Find(sysID types.PartitionID) *InputData {
@@ -62,10 +62,79 @@ func (data InputRecords) Find(sysID types.PartitionID) *InputData {
 	return nil
 }
 
-func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *drctypes.QuorumCert {
+/*
+unicityTree builds the unicity tree based on the InputData slice.
+*/
+func (data InputRecords) unicityTree(algo crypto.Hash) (*types.UnicityTree, error) {
+	// TODO: supports just single shard partitions, ie each element in the data slice is the sole shard of the partition!
+	utData := make([]*types.UnicityTreeData, 0, len(data))
+	for _, d := range data {
+		trHash, err := d.Technical.Hash()
+		if err != nil {
+			return nil, fmt.Errorf("calculating TR hash: %w", err)
+		}
+		sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: d.Shard, IR: d.IR, TRHash: trHash}}, algo)
+		if err != nil {
+			return nil, fmt.Errorf("creating shard tree: %w", err)
+		}
+		utData = append(utData, &types.UnicityTreeData{
+			Partition:     d.Partition,
+			ShardTreeRoot: sTree.RootHash(),
+			PDRHash:       d.PDRHash,
+		})
+	}
+	return types.NewUnicityTree(algo, utData)
+}
+
+/*
+certificationResponses builds the unicity tree and certification responses based on the InputData slice.
+CertificationResponse will be generated only for shards listed in the "changed" argument. The UnicityCertificates
+in the response are not complete, they miss the UnicityTreeCertificate and UnicitySeal.
+*/
+func (data InputRecords) certificationResponses(changed map[partitionShard]struct{}, algo crypto.Hash) ([]*certification.CertificationResponse, *types.UnicityTree, error) {
+	crs := []*certification.CertificationResponse{}
+	utData := make([]*types.UnicityTreeData, 0, len(data))
+	for _, d := range data {
+		trHash, err := d.Technical.Hash()
+		if err != nil {
+			return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
+		}
+		sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: d.Shard, IR: d.IR, TRHash: trHash}}, algo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("creating shard tree: %w", err)
+		}
+		utData = append(utData, &types.UnicityTreeData{
+			Partition:     d.Partition,
+			ShardTreeRoot: sTree.RootHash(),
+			PDRHash:       d.PDRHash,
+		})
+
+		if _, ok := changed[partitionShard{partition: d.Partition, shard: d.Shard.Key()}]; ok {
+			stCert, err := sTree.Certificate(d.Shard)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
+			}
+			crs = append(crs, &certification.CertificationResponse{
+				Partition: d.Partition,
+				Shard:     d.Shard,
+				Technical: d.Technical,
+				UC: types.UnicityCertificate{
+					Version:              1,
+					InputRecord:          d.IR,
+					TRHash:               trHash,
+					ShardTreeCertificate: stCert,
+				},
+			})
+		}
+	}
+	ut, err := types.NewUnicityTree(algo, utData)
+	return crs, ut, err
+}
+
+func qcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *rctypes.QuorumCert {
 	for _, p := range partitionRecords {
-		return &drctypes.QuorumCert{
-			VoteInfo: &drctypes.RoundInfo{
+		return &rctypes.QuorumCert{
+			VoteInfo: &rctypes.RoundInfo{
 				RoundNumber:       p.Certificate.UnicitySeal.RootChainRoundNumber,
 				Epoch:             0,
 				Timestamp:         p.Certificate.UnicitySeal.Timestamp,
@@ -85,19 +154,25 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *drc
 	return nil
 }
 
-func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *ExecutedBlock {
+func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*ExecutedBlock, error) {
+	var err error
 	data := make([]*InputData, len(pg))
 	for i, partition := range pg {
 		data[i] = &InputData{
 			Partition: partition.PartitionDescription.PartitionIdentifier,
+			Shard:     types.ShardID{},
 			IR:        partition.Certificate.InputRecord,
-			PDRHash:   partition.Certificate.UnicityTreeCertificate.PartitionDescriptionHash,
+			PDRHash:   partition.Certificate.UnicityTreeCertificate.PDRHash,
+		}
+		nodeIDs := util.TransformSlice(partition.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeIdentifier })
+		if data[i].Technical, err = rcgenesis.TechnicalRecord(partition.Certificate.InputRecord, nodeIDs); err != nil {
+			return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 		}
 	}
-	qc := QcFromGenesisState(pg)
+	qc := qcFromGenesisState(pg)
 	// If not initiated, save genesis file to store
 	return &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
+		BlockData: &rctypes.BlockData{
 			Author:    "genesis",
 			Round:     genesis.RootRound,
 			Epoch:     0,
@@ -106,21 +181,21 @@ func NewGenesisBlock(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *
 			Qc:        qc, // qc to itself
 		},
 		CurrentIR: data,
-		Changed:   make([]types.PartitionID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  hash,
 		RootHash:  qc.LedgerCommitInfo.Hash,
 		Qc:        qc, // qc to itself
 		CommitQc:  qc, // use same qc to itself for genesis block
-	}
+	}, nil
 }
 
-func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
-	var changes SysIDList
+func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlock, error) {
+	var changes map[partitionShard]struct{}
 	if block.Block.Payload != nil {
-		changes = make([]types.PartitionID, 0, len(block.Block.Payload.Requests))
+		changes = make(map[partitionShard]struct{})
 		// verify requests for IR change and proof of consensus
 		for _, irChReq := range block.Block.Payload.Requests {
-			changes = append(changes, irChReq.Partition)
+			changes[partitionShard{partition: irChReq.Partition, shard: irChReq.Shard.Key()}] = struct{}{}
 		}
 	}
 	// recover input records
@@ -134,16 +209,7 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 			PDRHash:   d.PDRHash,
 		}
 	}
-	// calculate root hash
-	utData := make([]*types.UnicityTreeData, 0, len(irState))
-	for _, data := range irState {
-		utData = append(utData, &types.UnicityTreeData{
-			PartitionIdentifier:      data.Partition,
-			InputRecord:              data.IR,
-			PartitionDescriptionHash: data.PDRHash,
-		})
-	}
-	ut, err := unicitytree.New(hash, utData)
+	ut, err := irState.unicityTree(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +218,7 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
-		RootHash:  bytes.Clone(ut.GetRootHash()),
+		RootHash:  ut.RootHash(),
 		Qc:        block.Qc,       // qc to itself
 		CommitQc:  block.CommitQc, // use same qc to itself for genesis block
 	}, nil
@@ -160,9 +226,9 @@ func NewRootBlock(hash gocrypto.Hash, block *abdrc.CommittedBlock) (*ExecutedBlo
 
 type getTRFunc func(types.PartitionID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error)
 
-func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier, getTR getTRFunc) (*ExecutedBlock, error) {
+func NewExecutedBlock(hash crypto.Hash, newBlock *rctypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier, getTR getTRFunc) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))
-	changes := make([]types.PartitionID, 0, len(newBlock.Payload.Requests))
+	changes := make(map[partitionShard]struct{})
 	// verify requests for IR change and proof of consensus
 	for _, irChReq := range newBlock.Payload.Requests {
 		irData, err := verifier.VerifyIRChangeReq(newBlock.GetRound(), irChReq)
@@ -180,63 +246,37 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *drctypes.BlockData, parent *
 		}
 		irData.Technical = tr
 		changed = append(changed, irData)
-		changes = append(changes, irChReq.Partition)
+		changes[partitionShard{partition: irChReq.Partition, shard: irChReq.Shard.Key()}] = struct{}{}
 	}
 	// copy parent input records
 	irState := make(InputRecords, len(parent.CurrentIR))
 	copy(irState, parent.CurrentIR)
 	for _, d := range changed {
 		if err := irState.Update(d); err != nil {
-			return nil, fmt.Errorf("block execution failed, partition id %X was not found in input records", d.Partition)
+			return nil, fmt.Errorf("block execution failed, no input record for partition %s", d.Partition)
 		}
 	}
-	// calculate root hash
-	utData := make([]*types.UnicityTreeData, 0, len(irState))
-	for _, data := range irState {
-		// if it is valid it must have at least one validator with a valid certification request
-		// if there is more, all input records are matching
-		utData = append(utData, &types.UnicityTreeData{
-			PartitionIdentifier:      data.Partition,
-			InputRecord:              data.IR,
-			PartitionDescriptionHash: data.PDRHash,
-		})
-	}
-	ut, err := unicitytree.New(hash, utData)
+	ut, err := irState.unicityTree(hash)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating UnicityTree: %w", err)
 	}
 	return &ExecutedBlock{
 		BlockData: newBlock,
 		CurrentIR: irState,
 		Changed:   changes,
 		HashAlgo:  hash,
-		RootHash:  bytes.Clone(ut.GetRootHash()),
+		RootHash:  ut.RootHash(),
 	}, nil
 }
 
-func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) {
-	utData := make([]*types.UnicityTreeData, 0, len(x.CurrentIR))
-	for _, data := range x.CurrentIR {
-		// if it is valid it must have at least one validator with a valid certification request
-		// if there is more, all input records are matching
-		utData = append(utData, &types.UnicityTreeData{
-			PartitionIdentifier:      data.Partition,
-			InputRecord:              data.IR,
-			PartitionDescriptionHash: data.PDRHash,
-		})
-	}
-	return unicitytree.New(x.HashAlgo, utData)
-}
-
-func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	ut, err := x.generateUnicityTree()
+func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
+	crs, ut, err := x.CurrentIR.certificationResponses(x.Changed, x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate unicity tree: %w", err)
 	}
-	rootHash := ut.GetRootHash()
+	rootHash := ut.RootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
-	fmt.Printf("rootHash: %X\n", rootHash)
-	fmt.Printf("x.rootHash: %X\n", x.RootHash)
+	// fmt.Printf("rootHash: %X\n", rootHash) // if fails, uncomment and set this hash to 'roundInfo.CurrentRootHash'
 	if !bytes.Equal(rootHash, x.RootHash) {
 		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
 	}
@@ -244,7 +284,6 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.Hash) {
 		return nil, fmt.Errorf("commit of block round %v failed, root hash mismatch", commitQc.VoteInfo.ParentRoundNumber)
 	}
-	// Commit pending state if it has the same root hash as committed state
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
 		Version:              1,
@@ -255,37 +294,12 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *drctypes.QuorumCert) ([]*
 		Signatures:           commitQc.Signatures,
 	}
 	ucs := []*certification.CertificationResponse{}
-	// copy parent certificates and extract changed certificates from this round
-	for _, sysID := range x.Changed {
-		utCert, err := ut.GetCertificate(sysID)
-		if err != nil {
-			// this should never happen. if it does then exit with panic because we cannot generate
-			// unicity tree certificates.
-			return nil, fmt.Errorf("failed to read certificate of %X: %w", sysID, err)
+	for _, cr := range crs {
+		if cr.UC.UnicityTreeCertificate, err = ut.Certificate(cr.Partition); err != nil {
+			return nil, fmt.Errorf("create unicity tree certificate for partition %s - %s: %w", cr.Partition, cr.Shard, err)
 		}
-		ir := x.CurrentIR.Find(sysID)
-		if ir == nil {
-			return nil, fmt.Errorf("input record for %X not found", sysID)
-		}
-		cr := certification.CertificationResponse{
-			Partition: ir.Partition,
-			Shard:     ir.Shard,
-			UC: types.UnicityCertificate{
-				Version:     1,
-				InputRecord: ir.IR,
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-Version: 1,
-					PartitionIdentifier:      utCert.PartitionIdentifier,
-					HashSteps:                utCert.HashSteps,
-					PartitionDescriptionHash: utCert.PartitionDescriptionHash,
-				},
-				UnicitySeal: uSeal,
-			},
-		}
-		if err := cr.SetTechnicalRecord(ir.Technical); err != nil {
-			return nil, fmt.Errorf("assigning TechnicalRecord: %w", err)
-		}
-		ucs = append(ucs, &cr)
+		cr.UC.UnicitySeal = uSeal
+		ucs = append(ucs, cr)
 	}
 	x.CommitQc = commitQc
 	return ucs, nil

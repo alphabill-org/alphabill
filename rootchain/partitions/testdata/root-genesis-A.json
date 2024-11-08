@@ -4,9 +4,9 @@
     "version": 1,
     "rootValidators": [
       {
-        "nodeIdentifier": "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG",
-        "signingPublicKey": "0x022faadc939d2fe67e1abccdb711de3561d3419ab10c1862185e208e5d43ba1f31",
-        "encryptionPublicKey": "0x022faadc939d2fe67e1abccdb711de3561d3419ab10c1862185e208e5d43ba1f31"
+        "nodeIdentifier": "16Uiu2HAmFqnwgJfPSJuS5Y82rknSRD2m5nAtLqvGsUYqBCBuwuc8",
+        "signingPublicKey": "0x0251c21c396378b8f5bc1e2f61539e3a53a3fd069b90e1b6b92b035881b6d087c8",
+        "encryptionPublicKey": "0x0251c21c396378b8f5bc1e2f61539e3a53a3fd069b90e1b6b92b035881b6d087c8"
       }
     ],
     "consensus": {
@@ -16,7 +16,7 @@
       "consensusTimeoutMs": 10000,
       "hashAlgorithm": 5,
       "signatures": {
-        "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG": "0xe06d4e14f4507083af107828624c284638c4985cdb0759239959314c1f36fa9729a8288ee6946ccdb61fc28e40c5119c32cf2366dbda3c5ffcc77527044c952a00"
+        "16Uiu2HAmFqnwgJfPSJuS5Y82rknSRD2m5nAtLqvGsUYqBCBuwuc8": "0xa6fa5ba42e9bc4f67a31fc481212e7dffed7be65922ea1d448644cf6a4c424d15fe926b34face323f70a5d829a11a1d331df4697a97e0ce888a7907e8ca658b001"
       }
     }
   },
@@ -26,13 +26,13 @@
       "nodes": [
         {
           "version": 1,
-          "nodeIdentifier": "16Uiu2HAm9JaqdPax86gmroHfCyxVeRirqcMEfAgwmBrVCa1oS2LC",
-          "signingPublicKey": "0x039d5eb9622eb04bf08b5cf1f19e87ccb96eba93220ae64ee261ccd859f227f951",
-          "encryptionPublicKey": "0x02ce32bd1545547cbacc6a9a273ae4d23cac0349253bdd1e0e8e15f8c71d291805",
+          "nodeIdentifier": "16Uiu2HAkx65NYzDdQE1v4YjBrLMfJUm8HdSTwgoRJH5Ua6LhTBUV",
+          "signingPublicKey": "0x021eba53e6dd8dbb83c212636ae109fb50a8da52d9c264f0bd90217c9262c4e912",
+          "encryptionPublicKey": "0x02278de4fb5e737de4017f96c6feb03779f7f2cfb3fb1abcd06f777d381f3e7bd2",
           "blockCertificationRequest": {
             "partitionIdentifier": 1,
             "shardIdentifier": "0x80",
-            "nodeIdentifier": "16Uiu2HAm9JaqdPax86gmroHfCyxVeRirqcMEfAgwmBrVCa1oS2LC",
+            "nodeIdentifier": "16Uiu2HAkx65NYzDdQE1v4YjBrLMfJUm8HdSTwgoRJH5Ua6LhTBUV",
             "inputRecord": {
               "version": 1,
               "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -46,9 +46,10 @@
             "rootRoundNumber": 0,
             "blockSize": 0,
             "stateSize": 0,
-            "signature": "0xd9e6e3aab3bfb2c05414f7f64d62aed2a0c8bdefecf784e47763ba3b168e3d9c0552a417126fc5bc6ffd5741cfdfb63eddb085da22777939eac618e6eefceef200"
+            "signature": "0x02261ddb9bb38de13f8ada78817b94078f1d1049976f4e0162710540f35bb74b6859af64f654862e736c677bb1031a5a58d6baad95e6e951d62d305aea16983f00"
           },
           "partitionDescriptionRecord": {
+            "version": 1,
             "networkIdentifier": 0,
             "partitionIdentifier": 0,
             "typeIdLength": 0,
@@ -72,25 +73,30 @@
           "epoch": 0,
           "sumOfEarnedFees": 0
         },
-        "trHash": "0xe46a127f693a2067ba031d4ac89f674b55d170865432a2214cb85d650c6470b5",
+        "trHash": "0x38e6233a573ecdf085c7a5a4348a9f2f0054522ba17fd4865235e58d02bc6db4",
+        "shardTreeCertificate": {
+          "Shard": "0x80",
+          "SiblingHashes": []
+        },
         "unicityTreeCertificate": {
-          "version": 0,
+          "version": 1,
           "partitionIdentifier": 1,
           "hashSteps": [],
-          "partitionDescriptionHash": "0xe43c6eeded80f93cd3240a674e2db1987974c77d08843f32d2deee726730f546"
+          "partitionDescriptionHash": "0xc57d52d4482de608b21c70b9118a35d0de8f0def0392ce13f96df83cdef9ca54"
         },
         "unicitySeal": {
           "version": 1,
           "rootChainRoundNumber": 1,
           "timestamp": 1681971084,
-          "previousHash": "0x92c4579e435abaaa537e53d657e92164ec13889a8b1b4cc367aa92489248a67e",
-          "hash": "0xc5bf500f431d26990185bd70a5ea15f1d2afb3f3b584e313f69e35e75eb25399",
+          "previousHash": "0x533de2d32d9caef5fc5fac80016c5166b04ad92ac27fa38fecb618bc135e909c",
+          "hash": "0x4555ede8c011b4fe1b3a693dfbdffa16af4807712c406d3b525a0815890108b3",
           "signatures": {
-            "16Uiu2HAm3vneQFCSEBFneuCBLPB3M1VnJNNYebMjZL1msF9xW7RG": "0x6ca7fb1422ba2970e4ea17d19b95cc61f07179f8b220ba49c2c0b050a921fa374e15f0f6aa52ec68e780c12e2e8899732d0b440be69713091f4c82ccbe3461bc01"
+            "16Uiu2HAmFqnwgJfPSJuS5Y82rknSRD2m5nAtLqvGsUYqBCBuwuc8": "0xdf3bc7024c713694a891274b8abac70366d71e09e3bda9f7247a9c7b2012c975002c9a8625961a48a1ec95c2e139105241c6b3638531f6dd2a97b719197fb99200"
           }
         }
       },
       "partitionDescriptionRecord": {
+        "version": 1,
         "networkIdentifier": 5,
         "partitionIdentifier": 1,
         "typeIdLength": 8,

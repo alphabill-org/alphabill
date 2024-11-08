@@ -111,7 +111,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				PartitionDescription: validPDR,
 			},
-			wantErrStr: "invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil",
+			wantErrStr: "invalid unicity certificate: invalid unicity certificate: unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {
@@ -163,12 +163,12 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
-		Version:                   1,
-		NodeIdentifier:            nodeID,
-		SigningPublicKey:          node1VerifierPubKey,
-		EncryptionPublicKey:       encryptionPubKeyBytes,
-		BlockCertificationRequest: request,
-		PartitionDescription:      types.PartitionDescriptionRecord{Version: 1},
+		Version:                    1,
+		NodeIdentifier:             nodeID,
+		SigningPublicKey:           node1VerifierPubKey,
+		EncryptionPublicKey:        encryptionPubKeyBytes,
+		BlockCertificationRequest:  request,
+		PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 	}
 	return pr
 }

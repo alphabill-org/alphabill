@@ -388,7 +388,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	txBytes, err := txPayment.MarshalCBOR()
 	require.NoError(t, err)
 	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionIdentifier(money.DefaultSystemID))
+	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 
 	b, err := types.Cbor.Marshal(txRec)
 	require.NoError(t, err)

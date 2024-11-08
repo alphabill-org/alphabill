@@ -158,21 +158,21 @@ func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 
 	m.ExecuteCountDelta++
 
-	if m.ExecuteError != nil {
-		sm := &types.ServerMetadata{
-			ActualFee: m.Fee,
-		}
-		sm.SetError(m.ExecuteError)
-		return sm, nil
-	}
-
-	m.uncommitted = true
-
 	txBytes, err := tx.MarshalCBOR()
 	if err != nil {
 		return nil, err
 	}
-	return &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}, nil
+
+	txr := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}
+
+	if m.ExecuteError != nil {
+		txr.ServerMetadata.SetError(m.ExecuteError)
+		return txr, nil
+	}
+
+	m.uncommitted = true
+
+	return txr, nil
 }
 
 func (m *CounterTxSystem) IsPermissionedMode() bool {

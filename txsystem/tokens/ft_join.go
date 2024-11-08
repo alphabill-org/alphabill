@@ -69,8 +69,8 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if burnTxo.NetworkID != tx.NetworkID {
 			return fmt.Errorf("burn transaction network id does not match with join transaction network id: burn transaction %d join transaction %d", burnTxo.NetworkID, tx.NetworkID)
 		}
-		if btx.PartitionID() != tx.PartitionID {
-			return fmt.Errorf("burn transaction partition id does not match with join transaction partition id: burn transaction %d, join transaction %d", btx.PartitionID(), tx.PartitionID)
+		if burnTxo.PartitionID != tx.PartitionID {
+			return fmt.Errorf("burn transaction partition id does not match with join transaction partition id: burn transaction %d, join transaction %d", burnTxo.PartitionID, tx.PartitionID)
 		}
 		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID) {
 			return fmt.Errorf("burn transaction target token id does not match with join transaction unit id: burn transaction %s, join transaction %s", btxAttr.TargetTokenID, tx.UnitID)

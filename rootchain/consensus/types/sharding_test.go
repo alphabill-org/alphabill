@@ -178,7 +178,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	pgEpoch2 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: validKey, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+			{NodeIdentifier: "2222", SigningPublicKey: validKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 		},
 		Certificate: &types.UnicityCertificate{
 			Version: 1,
@@ -299,7 +299,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: validKey, PartitionDescription: types.PartitionDescriptionRecord{Version: 1}},
+			{NodeIdentifier: "1111", SigningPublicKey: validKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 		},
 		Certificate: &types.UnicityCertificate{
 			Version: 1,

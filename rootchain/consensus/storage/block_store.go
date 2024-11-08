@@ -58,7 +58,10 @@ func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db
 			}
 		}
 	}
-	genesisBlock := NewGenesisBlock(hash, pg)
+	genesisBlock, err := NewGenesisBlock(hash, pg)
+	if err != nil {
+		return fmt.Errorf("creating genesis block: %w", err)
+	}
 	if err := blockStoreGenesisInit(genesisBlock, db); err != nil {
 		return fmt.Errorf("storing genesis block: %w", err)
 	}
@@ -200,12 +203,12 @@ func (x *BlockStore) ProcessTc(tc *drctypes.TimeoutCert) (rErr error) {
 
 // IsChangeInProgress - return input record if sysID has a pending IR change in the pipeline or nil if no change is
 // currently in the pipeline.
-func (x *BlockStore) IsChangeInProgress(sysId types.PartitionID) *types.InputRecord {
+func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
 	blocks := x.blockTree.GetAllUncommittedNodes()
 	// go through the block we have and make sure that there is no change in progress for this partition id
 	for _, b := range blocks {
-		if slices.Contains(b.Changed, sysId) {
-			return b.CurrentIR.Find(sysId).IR
+		if _, ok := b.Changed[partitionShard{partition, shard.Key()}]; ok {
+			return b.CurrentIR.Find(partition).IR
 		}
 	}
 	return nil

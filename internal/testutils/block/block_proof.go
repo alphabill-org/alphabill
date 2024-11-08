@@ -31,7 +31,7 @@ func DefaultOptions() *Options {
 	}
 }
 
-func DefaultPDR() *types.PartitionDescriptionRecord {Version: 1,
+func DefaultPDR() *types.PartitionDescriptionRecord {
 	return &types.PartitionDescriptionRecord{
 		NetworkIdentifier:   5,
 		PartitionIdentifier: money.DefaultPartitionID,

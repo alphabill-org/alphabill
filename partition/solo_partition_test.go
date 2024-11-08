@@ -10,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -27,12 +31,8 @@ import (
 	"github.com/alphabill-org/alphabill/partition/event"
 	consensustypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -197,23 +197,39 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 }
 
 /*
+ReceiveCertResponse builds UC and TR based on given input and "sends" them as CertificationResponse to the node.
+*/
+func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, roundNumber uint64) {
+	uc, tr, err := sn.CreateUnicityCertificateTR(ir, roundNumber)
+	if err != nil {
+		t.Fatalf("creating UC and TR: %v", err)
+	}
+
+	sn.mockNet.Receive(&certification.CertificationResponse{
+		Partition: sn.nodeConf.GetPartitionIdentifier(),
+		Shard:     sn.nodeConf.shardID,
+		Technical: tr,
+		UC:        *uc,
+	})
+}
+
+/*
 SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to the node.
 */
-func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
+func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.UnicityCertificate) {
 	cr := &certification.CertificationResponse{
 		Partition: sn.nodeConf.GetPartitionIdentifier(),
 		Shard:     sn.nodeConf.shardID,
 		UC:        *uc,
 	}
-	if err := cr.SetTechnicalRecord(certification.TechnicalRecord{
-		Round:    uc.GetRoundNumber() + 1,
-		Epoch:    uc.InputRecord.Epoch,
-		Leader:   sn.partition.peer.ID().String(),
-		StatHash: []byte{1},
-		FeeHash:  []byte{2},
-	}); err != nil {
-		sn.mockNet.SetErrorState(fmt.Errorf("setting TR of the CertResp: %w", err))
+	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
+	if err != nil {
+		t.Fatalf("creating TechnicalRecord: %v", err)
 	}
+	if err := cr.SetTechnicalRecord(tr); err != nil {
+		t.Fatalf("setting TR of the CertResp: %v", err)
+	}
+
 	sn.mockNet.Receive(cr)
 }
 
@@ -232,17 +248,15 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 		Shard:     sn.partition.configuration.shardID,
 		UC:        *uc,
 	}
-	err := cr.SetTechnicalRecord(certification.TechnicalRecord{
-		Round:    uc.GetRoundNumber() + 1,
-		Epoch:    uc.InputRecord.Epoch,
-		Leader:   sn.partition.peer.ID().String(),
-		StatHash: []byte{1},
-		FeeHash:  []byte{2},
-	})
+	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
 	if err != nil {
-		t.Errorf("sending handshake response to the node, set TR: %v", err)
+		t.Fatalf("creating TechnicalRecord: %v", err)
 	}
-	if err = sn.partition.handleMessage(context.Background(), cr); err != nil {
+	cr.Technical = tr
+	if err := cr.IsValid(); err != nil {
+		t.Errorf("invalid CertRsp: %v", err)
+	}
+	if err := sn.partition.handleMessage(context.Background(), cr); err != nil {
 		t.Errorf("sending handshake response to the node: %v", err)
 	}
 }
@@ -252,41 +266,103 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
-	pdr := sn.nodeDeps.genesis.PartitionDescription
-	sdrHash := pdr.Hash(gocrypto.SHA256)
-	data := []*types.UnicityTreeData{{
-		PartitionIdentifier:      pdr.PartitionIdentifier,
-		InputRecord:              ir,
-		PartitionDescriptionHash: sdrHash,
-	},
+	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	if err != nil {
+		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
-	ut, err := unicitytree.New(gocrypto.SHA256, data)
+	trHash, err := tr.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
+	}
+
+	pdr := sn.nodeDeps.genesis.PartitionDescription
+	pdrHash := pdr.Hash(gocrypto.SHA256)
+	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("creating shard tree: %w", err)
+	}
+	stCert, err := sTree.Certificate(types.ShardID{})
+	if err != nil {
+		return nil, fmt.Errorf("creating shard tree certificate: %w", err)
+	}
+
+	data := []*types.UnicityTreeData{{
+		Partition:     pdr.PartitionIdentifier,
+		ShardTreeRoot: sTree.RootHash(),
+		PDRHash:       pdrHash,
+	}}
+	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
 		return nil, err
 	}
-	rootHash := ut.GetRootHash()
+	rootHash := ut.RootHash()
 	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ut.GetCertificate(pdr.PartitionIdentifier)
+	cert, err := ut.Certificate(pdr.PartitionIdentifier)
 	if err != nil {
-		// this should never happen. if it does then exit with panic because we cannot generate
-		// unicity tree certificates.
-		panic(err)
+		return nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
 
 	return &types.UnicityCertificate{
-		Version:     1,
-		InputRecord: ir,
-		TRHash:      make([]byte, 32),
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
-			PartitionIdentifier:      cert.PartitionIdentifier,
-			HashSteps:                cert.HashSteps,
-			PartitionDescriptionHash: sdrHash,
-		},
-		UnicitySeal: unicitySeal,
+		Version:                1,
+		InputRecord:            ir,
+		TRHash:                 trHash,
+		ShardTreeCertificate:   stCert,
+		UnicityTreeCertificate: cert,
+		UnicitySeal:            unicitySeal,
 	}, nil
+}
+
+func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
+	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	if err != nil {
+		return nil, tr, fmt.Errorf("creating TechnicalRecord: %w", err)
+	}
+	trHash, err := tr.Hash()
+	if err != nil {
+		return nil, tr, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
+	}
+
+	pdr := sn.nodeDeps.genesis.PartitionDescription
+	pdrHash := pdr.Hash(gocrypto.SHA256)
+	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	if err != nil {
+		return nil, tr, fmt.Errorf("creating shard tree: %w", err)
+	}
+	stCert, err := sTree.Certificate(types.ShardID{})
+	if err != nil {
+		return nil, tr, fmt.Errorf("creating shard tree certificate: %w", err)
+	}
+
+	data := []*types.UnicityTreeData{{
+		Partition:     pdr.PartitionIdentifier,
+		ShardTreeRoot: sTree.RootHash(),
+		PDRHash:       pdrHash,
+	}}
+	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
+	if err != nil {
+		return nil, tr, err
+	}
+	rootHash := ut.RootHash()
+	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
+	if err != nil {
+		return nil, tr, err
+	}
+	cert, err := ut.Certificate(pdr.PartitionIdentifier)
+	if err != nil {
+		return nil, tr, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
+	}
+
+	return &types.UnicityCertificate{
+		Version:                1,
+		InputRecord:            ir,
+		TRHash:                 trHash,
+		ShardTreeCertificate:   stCert,
+		UnicityTreeCertificate: cert,
+		UnicitySeal:            unicitySeal,
+	}, tr, nil
 }
 
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
@@ -319,7 +395,7 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitT1Timeout(t)
 	sn.eh.Reset()
-	sn.SubmitUnicityCertificate(sn.IssueBlockUC(t))
+	sn.SubmitUnicityCertificate(t, sn.IssueBlockUC(t))
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
 }
 

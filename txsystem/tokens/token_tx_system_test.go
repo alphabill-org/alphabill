@@ -1636,11 +1636,11 @@ func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 	fcrBefore, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 
-	sm, err := txs.Execute(lockFC)
+	txr, err := txs.Execute(lockFC)
 	require.NoError(t, err)
-	require.NotNil(t, sm)
-	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
-	require.EqualValues(t, 0, sm.ActualFee)
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
+	require.EqualValues(t, 0, txr.ServerMetadata.ActualFee)
 
 	u, err = txs.State().GetUnit(feeCreditID, false)
 	fcrAfter, ok := u.Data().(*fc.FeeCreditRecord)

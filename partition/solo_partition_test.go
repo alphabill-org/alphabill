@@ -69,8 +69,16 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
-	peerConf := createPeerConfiguration(t)
+func newSingleValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	return newSingleNodePartition(t, txSystem, true, nodeOptions...)
+}
+
+func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	return newSingleNodePartition(t, txSystem, false, nodeOptions...)
+}
+
+func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
+	peerConf := createPeerConfiguration(t, validator)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
@@ -144,10 +152,18 @@ func StartSingleNodePartition(ctx context.Context, t *testing.T, p *SingleNodePa
 	return done
 }
 
-func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+func runSingleValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	return runSingleNodePartition(t, txSystem, true, nodeOptions...)
+}
+
+func runSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	return runSingleNodePartition(t, txSystem, false, nodeOptions...)
+}
+
+func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
+	partition := newSingleNodePartition(t, txSystem, validator, nodeOptions...)
 	done := StartSingleNodePartition(ctx, t, partition)
 	t.Cleanup(func() {
 		cancel()
@@ -427,7 +443,7 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
-func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
+func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfiguration {
 	// fake validator, so that network 'send' requests don't fail
 	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
@@ -446,13 +462,18 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	peerID, err := peer.IDFromPublicKey(pubKey)
 	require.NoError(t, err)
 
+	validators := []peer.ID{fakeValidatorID}
+	if validator {
+		validators = append(validators, peerID)
+	}
+
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
 		nil,
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
 		// Need to also add peerID to make it a validator node.
-		[]peer.ID{fakeValidatorID, peerID},
+		validators,
 	)
 	require.NoError(t, err)
 

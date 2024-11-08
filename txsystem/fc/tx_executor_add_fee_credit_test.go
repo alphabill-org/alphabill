@@ -196,8 +196,8 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
-TxRecord: &types.TransactionRecord{Version: 1,
-TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithPartitionID(0xFFFFFFFF))),
+					TxRecord: &types.TransactionRecord{Version: 1,
+						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithPartitionID(0xFFFFFFFF))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 					TxProof: &types.TxProof{Version: 1},
@@ -217,8 +217,8 @@ TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, 
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
-TxRecord: &types.TransactionRecord{Version: 1,
-TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(0xFFFFFFFF)))),
+					TxRecord: &types.TransactionRecord{Version: 1,
+						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(0xFFFFFFFF)))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 					TxProof: &types.TxProof{Version: 1},
@@ -301,7 +301,7 @@ TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, 
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
-TxRecord: &types.TransactionRecord{Version: 1,
+					TxRecord: &types.TransactionRecord{Version: 1,
 						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetUnitCounter(10)))),
 						ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 					},
@@ -367,7 +367,7 @@ TxRecord: &types.TransactionRecord{Version: 1,
 			"add fee credit validation failed: invalid transferFC timeout: latestAdditionTime=10 currentRoundNumber=11")
 	})
 	t.Run("LatestAdditionTime next block OK", func(t *testing.T) {
-transTxRecord := &types.TransactionRecord{Version: 1,
+		transTxRecord := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil)),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}

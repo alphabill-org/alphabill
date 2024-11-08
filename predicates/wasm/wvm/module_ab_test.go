@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
@@ -279,7 +279,7 @@ func Test_transferredSum(t *testing.T) {
 		tx := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
 				PartitionID: money.DefaultPartitionID,
-				Type:     money.TransactionTypeTransfer,
+				Type:        money.TransactionTypeTransfer,
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: nil,
 				},
@@ -317,7 +317,7 @@ func Test_transferredSum(t *testing.T) {
 		for _, txt := range txTypes {
 			tx.Payload = types.Payload{
 				PartitionID: money.DefaultPartitionID,
-				Type:     txt,
+				Type:        txt,
 			}
 			txBytes, err := tx.MarshalCBOR()
 			require.NoError(t, err)

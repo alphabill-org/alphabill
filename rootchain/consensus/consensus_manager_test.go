@@ -870,7 +870,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 				UC: types.UnicityCertificate{
 					Version: 1,
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
-Version: 1,
+						Version:   1,
 						Partition: id,
 						PDRHash:   test.RandomBytes(32),
 					},

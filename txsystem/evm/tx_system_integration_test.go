@@ -54,7 +54,7 @@ const partitionIdentifier types.PartitionID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-Version: 1,
+		Version:             1,
 		NetworkIdentifier:   networkIdentifier,
 		PartitionIdentifier: 0x00000402,
 		TypeIdLen:           8,

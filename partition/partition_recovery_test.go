@@ -61,7 +61,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 
 func TestNode_RecoveryCausedByBlockSubscriptionTimeout(t *testing.T) {
 	tp := runSingleNonValidatorNodePartition(t, &testtxsystem.CounterTxSystem{},
-		WithBlockSubscriptionTimeout(500 * time.Millisecond))
+		WithBlockSubscriptionTimeout(500*time.Millisecond))
 
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == recovering
@@ -1298,7 +1298,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	require.NoError(t, err)
 	newBlock := &types.Block{
 		Header: &types.Header{
-Version: 1,
+			Version:           1,
 			PartitionID:       uc.UnicityTreeCertificate.Partition,
 			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",

@@ -152,17 +152,17 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		Hash:                 test.RandomBytes(32),
 		Signatures:           map[string]hex.Bytes{"1": test.RandomBytes(32)},
 	}
-tx, err := (&types.TransactionOrder{Version: 1,
-Payload: types.Payload{
-PartitionID:    0,
-Type:           22,
-UnitID:         nil,
-Attributes:     nil,
-ClientMetadata: nil,
-},
-AuthProof: nil,
-FeeProof:  nil,
-}).MarshalCBOR()
+	tx, err := (&types.TransactionOrder{Version: 1,
+		Payload: types.Payload{
+			PartitionID:    0,
+			Type:           22,
+			UnitID:         nil,
+			Attributes:     nil,
+			ClientMetadata: nil,
+		},
+		AuthProof: nil,
+		FeeProof:  nil,
+	}).MarshalCBOR()
 	require.NoError(t, err)
 	bp := &BlockProposal{
 		Partition:      partitionIdentifier,
@@ -175,7 +175,7 @@ FeeProof:  nil,
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-Version: 1,
+				Version:   1,
 				Partition: partitionIdentifier,
 				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
@@ -227,7 +227,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-Version: 1,
+				Version:   1,
 				Partition: partitionIdentifier,
 				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
@@ -235,7 +235,7 @@ Version: 1,
 			UnicitySeal: seal,
 		},
 		Transactions: []*types.TransactionRecord{{
-            TransactionOrder: tx,
+			TransactionOrder: tx,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
 			}}},

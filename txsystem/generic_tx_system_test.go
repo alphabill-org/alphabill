@@ -50,7 +50,7 @@ func (t *MockData) Owner() []byte {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-Version: 1,
+		Version:             1,
 		NetworkIdentifier:   mockNetworkID,
 		PartitionIdentifier: mockPartitionID,
 		TypeIdLen:           8,
@@ -473,7 +473,7 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-Version: 1,
+		Version:             1,
 		NetworkIdentifier:   mockNetworkID,
 		PartitionIdentifier: mockPartitionID,
 		TypeIdLen:           8,

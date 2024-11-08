@@ -1134,7 +1134,7 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-Version: 1,
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: money.DefaultPartitionID,
 		TypeIdLen:           8,

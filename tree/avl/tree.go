@@ -40,7 +40,7 @@ func NewWithTraverser[K Key[K], V Value[V]](traverser Traverser[K, V]) *Tree[K, 
 }
 
 // NewWithTraverserAndRoot creates a new AVL tree with a custom Traverser and a balanced root node.
-func NewWithTraverserAndRoot[K Key[K], V Value[V]](traverser Traverser[K, V], root *Node[K,V]) *Tree[K, V] {
+func NewWithTraverserAndRoot[K Key[K], V Value[V]](traverser Traverser[K, V], root *Node[K, V]) *Tree[K, V] {
 	return &Tree[K, V]{root: root, traverser: traverser}
 }
 

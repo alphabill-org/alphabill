@@ -30,7 +30,7 @@ func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) 
 
 func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
-	p := RunSingleNodePartition(t, s)
+	p := runSingleValidatorNodePartition(t, s)
 	p.WaitHandshake(t)
 	p.partition.startNewRound(context.Background())
 	// handshake sent us genesis UC which triggered new round and we then triggered it manually too
@@ -38,7 +38,7 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 }
 
 func TestNode_NodeStartTest(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	// node starts in init state
 	require.Equal(t, initializing, tp.partition.status.Load())
 	// node sends a handshake to root
@@ -67,7 +67,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	require.NoError(t, err)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 
 	uc0 := tp.GetCommittedUC(t)
 	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
@@ -105,7 +105,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	tp.partition.startNewRound(context.Background())
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -163,7 +163,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 // create non-empty block #1 -> empty block #2 -> empty block #3 -> non-empty block #4
 func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	t.SkipNow()
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	genesis := tp.GetLatestBlock(t)
 	tp.partition.startNewRound(context.Background())
 	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
@@ -220,7 +220,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 }
 
 func TestNode_InvalidCertificateResponse(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
 		Partition: tp.nodeConf.GetPartitionIdentifier(),
 		Shard:     tp.nodeConf.shardID,
@@ -230,7 +230,7 @@ func TestNode_InvalidCertificateResponse(t *testing.T) {
 }
 
 func TestNode_HandleStaleCertificationResponse(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	committedUC := tp.GetCommittedUC(t)
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -244,7 +244,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 }
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	luc, found := tp.certs[tp.nodeConf.GetPartitionIdentifier()]
 	require.True(t, found)
 	// Mock and skip some root rounds
@@ -265,7 +265,7 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 
 func TestNode_CreateEmptyBlock(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, txSystem)
+	tp := runSingleValidatorNodePartition(t, txSystem)
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t) // genesis state
 	txSystem.Revert()           // revert the state of the tx system
@@ -286,7 +286,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	tp.CreateBlock(t)
@@ -305,7 +305,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
 	txs := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, txs)
+	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
 	tp.partition.startNewRound(context.Background())
 	uc1 := tp.GetCommittedUC(t)
@@ -326,7 +326,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 // state does not change in case of no transactions in money partition
 func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t *testing.T) {
 	txs := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, txs)
+	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
 	genesisUC := tp.partition.luc.Load()
 	tp.partition.startNewRound(context.Background())
@@ -353,7 +353,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 
 func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	tp := RunSingleNodePartition(t, txSystem)
+	tp := runSingleValidatorNodePartition(t, txSystem)
 	uc := tp.GetCommittedUC(t)
 
 	txSystem.EndBlockCount = 10000
@@ -373,7 +373,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 // => UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	tp := RunSingleNodePartition(t, system)
+	tp := runSingleValidatorNodePartition(t, system)
 	tp.WaitHandshake(t)
 	uc := tp.GetCommittedUC(t)
 
@@ -395,7 +395,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 // pending proposal exists
 // uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees
 func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1337})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1337})
 	tp.WaitHandshake(t)
 
 	// skip UC validation
@@ -421,13 +421,13 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 }
 
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.SubmitBlockProposal(nil)
 	ContainsError(t, tp, blockproposal.ErrBlockProposalIsNil.Error())
 }
 
 func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc := tp.GetCommittedUC(t)
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -440,7 +440,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 }
 
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc := tp.GetCommittedUC(t)
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -464,7 +464,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 }
 
 func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc := tp.GetCommittedUC(t)
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -483,7 +483,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	uc1 := tp.GetCommittedUC(t)
 	uc2, err := tp.CreateUnicityCertificate(
 		uc1.InputRecord,
@@ -505,7 +505,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 }
 
 func TestBlockProposal_Ok(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	uc2, err := tp.CreateUnicityCertificate(
@@ -528,7 +528,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 
 func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, system)
+	tp := runSingleValidatorNodePartition(t, system)
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	uc2, err := tp.CreateUnicityCertificate(
@@ -552,7 +552,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 
 func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	tp := RunSingleNodePartition(t, system)
+	tp := runSingleValidatorNodePartition(t, system)
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
 	// create a UC for a new round
@@ -589,7 +589,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
-	tp := RunSingleNodePartition(t, system, WithProofIndex(indexDB, 0))
+	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(21))
@@ -624,7 +624,7 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
-	tp := RunSingleNodePartition(t, txSystem, WithProofIndex(indexDB, 0))
+	tp := runSingleValidatorNodePartition(t, txSystem, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
 
@@ -647,7 +647,7 @@ func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	tp := RunSingleNodePartition(t, system, WithProofIndex(db, 0))
+	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(db, 0))
 	proof, err := tp.partition.GetTransactionRecordProof(context.Background(), test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrIndexNotFound)
 	require.Nil(t, proof)

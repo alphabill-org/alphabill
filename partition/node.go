@@ -777,6 +777,17 @@ func (n *Node) startRecovery(ctx context.Context) {
 	n.sendLedgerReplicationRequest(ctx)
 }
 
+func (n *Node) stopRecovery(ctx context.Context) {
+	committedBlock := n.committedUC().GetRoundNumber()
+	n.log.InfoContext(ctx, fmt.Sprintf("Recovery complete, committed block %d", committedBlock))
+	n.sendEvent(event.RecoveryFinished, committedBlock)
+	n.status.Store(normal)
+}
+
+func (n *Node) isRecoveryComplete() bool {
+	return n.committedUC().GetRoundNumber() == n.luc.Load().GetRoundNumber()
+}
+
 func (n *Node) handleCertificationResponse(ctx context.Context, cr *certification.CertificationResponse) error {
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid CertificationResponse: %w", err)
@@ -1128,6 +1139,10 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	}
 	n.log.DebugContext(ctx, fmt.Sprintf("Ledger replication response '%s' received: %s, ", lr.UUID.String(), lr.Pretty()))
 	if lr.Status != replication.Ok {
+		// In case recovery was caused by a timeout, we can return to normal mode as long as we have all known blocks
+		if n.isRecoveryComplete() {
+			n.stopRecovery(ctx)
+		}
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
 
@@ -1146,27 +1161,14 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 	}
 
-	committedUC := n.committedUC()
-
-	// check if recovery is complete
-	n.log.DebugContext(ctx, fmt.Sprintf("Checking if recovery is complete, last recovered round: %d", committedUC.GetRoundNumber()))
-
-	// if the state hash is equal to luc state hash then recovery is complete
-	luc := n.luc.Load()
-	n.log.DebugContext(ctx, fmt.Sprintf("LUC round %d", luc.GetRoundNumber()))
-
-	// Compare round numbers to check if we are still missing (potentially empty) blocks.
-	if committedUC.GetRoundNumber() != luc.GetRoundNumber() {
-		n.log.DebugContext(ctx, fmt.Sprintf("Not fully recovered yet, latest recovered UC's round %d vs LUC's round %d",
-			committedUC.GetRoundNumber(), luc.GetRoundNumber()))
+	if !n.isRecoveryComplete() {
+		n.log.DebugContext(ctx, fmt.Sprintf("Recovery incomplete, committed block %d vs available block %d",
+			n.committedUC().GetRoundNumber(), n.luc.Load().GetRoundNumber()))
 		n.sendLedgerReplicationRequest(ctx)
 		return nil
 	}
 
-	// node should be recovered now, change status to normal
-	n.log.InfoContext(ctx, "node is recovered", logger.Round(committedUC.GetRoundNumber()))
-	n.sendEvent(event.RecoveryFinished, committedUC.GetRoundNumber())
-	n.status.Store(normal)
+	n.stopRecovery(ctx)
 
 	if n.IsValidatorNode() {
 		if err := n.startNewRound(ctx); err != nil {

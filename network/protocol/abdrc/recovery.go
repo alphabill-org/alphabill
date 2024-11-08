@@ -19,7 +19,7 @@ type StateRequestMsg struct {
 
 type InputData struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.SystemID
+	Partition types.PartitionID
 	Shard     types.ShardID
 	Ir        *types.InputRecord
 	Technical certification.TechnicalRecord
@@ -36,7 +36,7 @@ type CommittedBlock struct {
 
 type ShardInfo struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.SystemID
+	Partition types.PartitionID
 	Shard     types.ShardID
 	Round     uint64
 	Epoch     uint64
@@ -118,8 +118,8 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		}
 	}
 	for _, c := range sm.ShardInfo {
-		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.SystemIdentifier, c.UC.UnicityTreeCertificate.PartitionDescriptionHash); err != nil {
-			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.SystemIdentifier, err)
+		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.Partition, c.UC.UnicityTreeCertificate.PDRHash); err != nil {
+			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.Partition, err)
 		}
 	}
 	return nil

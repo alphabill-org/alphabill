@@ -23,11 +23,11 @@ import (
 func Test_EvmGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
 	pdr := types.PartitionDescriptionRecord{Version: 1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  evmsdk.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: evmsdk.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)
@@ -147,8 +147,8 @@ func Test_EvmGenesis(t *testing.T) {
 
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
-		require.EqualValues(t, pdr, pn.PartitionDescription)
-		require.EqualValues(t, pdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
+		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
 	})
 }
 

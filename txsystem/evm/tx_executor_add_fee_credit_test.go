@@ -34,7 +34,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	fcrID := testfc.NewFeeCreditRecordID(t, signer)
 
 	txRecord := &types.TransactionRecord{Version: 1,
-		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
+		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(evm.DefaultPartitionID)))),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 	}
 	txRecordProof := testblock.CreateTxRecordProof(t, txRecord, signer)
@@ -173,7 +173,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("bill not transferred to fee credits of the target record", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(evm.DefaultPartitionID)))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -193,7 +193,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 	})
 	t.Run("Invalid fee credit owner predicate", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(evm.DefaultSystemID)))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(evm.DefaultPartitionID)))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -210,9 +210,10 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"failed to extract public key from fee credit owner proof")
 	})
-	t.Run("invalid system id", func(t *testing.T) {
-		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF))),
+	t.Run("invalid partition id", func(t *testing.T) {
+		txr := &types.TransactionRecord{
+			Version:          1,
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithPartitionID(0xFFFFFFFF))),
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -227,11 +228,11 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"invalid transferFC money system identifier 4294967295 (expected 1)")
+			"invalid transferFC money partition identifier 4294967295 (expected 1)")
 	})
-	t.Run("Invalid target systemID", func(t *testing.T) {
+	t.Run("Invalid target partitionID", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
-			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF)))),
+			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(0xFFFFFFFF)))),
 			ServerMetadata:   &types.ServerMetadata{},
 		}
 		tx := testfc.NewAddFC(t, signer,
@@ -246,13 +247,13 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"invalid transferFC target system identifier: expected_target_system_id: 00000003 actual_target_system_id=FFFFFFFF")
+			"invalid transferFC target partition identifier: expected_target_partition_id: 00000003 actual_target_partition_id=FFFFFFFF")
 	})
 	t.Run("Invalid target recordID", func(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithTargetRecordID([]byte("not equal to transaction.unitId"))))),
 			ServerMetadata: &types.ServerMetadata{},
 		}
@@ -274,7 +275,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithTargetUnitCounter(4)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
@@ -296,7 +297,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithTargetUnitCounter(4)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
@@ -319,7 +320,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithTargetUnitCounter(4)),
 				testtransaction.WithUnitID(fcrID))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
@@ -348,7 +349,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithLatestAdditionTime(9)),
 				testtransaction.WithUnitID(fcrID))),
 			ServerMetadata: &types.ServerMetadata{},
@@ -371,7 +372,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithAmount(100)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
 		}
@@ -393,7 +394,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		txr := &types.TransactionRecord{Version: 1,
 			TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 				testfc.NewTransferFCAttr(t, signer,
-					testfc.WithTargetSystemID(evm.DefaultSystemID),
+					testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 					testfc.WithAmount(100)))),
 			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 		}
@@ -443,9 +444,9 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			testfc.NewTransferFCAttr(t, signer,
 				testfc.WithAmount(100),
 				testfc.WithTargetRecordID(privKeyHash),
-				testfc.WithTargetSystemID(evm.DefaultSystemID),
+				testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 			),
-			testtransaction.WithSystemID(0x00000001),
+			testtransaction.WithPartitionID(0x00000001),
 			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)}))),
 		ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 	}
@@ -486,10 +487,10 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			testfc.NewTransferFCAttr(t, signer,
 				testfc.WithAmount(10),
 				testfc.WithTargetRecordID(privKeyHash),
-				testfc.WithTargetSystemID(evm.DefaultSystemID),
+				testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 				testfc.WithTargetUnitCounter(abData.Counter),
 			),
-			testtransaction.WithSystemID(0x00000001),
+			testtransaction.WithPartitionID(0x00000001),
 			testtransaction.WithAuthProof(fcsdk.TransferFeeCreditAuthProof{OwnerProof: templates.NewP2pkh256BytesFromKeyHash(pubHash)}))),
 		ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee, SuccessIndicator: types.TxStatusSuccessful},
 	}
@@ -526,12 +527,12 @@ func withStateUnit(unitID []byte, bearer types.PredicateBytes, data types.UnitDa
 
 func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeAccount {
 	m := &FeeAccount{
-		hashAlgorithm: crypto.SHA256,
-		feeCalculator: FixedFee(1),
-		state:         state.NewEmptyState(),
-		systemID:      evm.DefaultSystemID,
-		moneySystemID: money.DefaultSystemID,
-		trustBase:     tb,
+		hashAlgorithm:    crypto.SHA256,
+		feeCalculator:    FixedFee(1),
+		state:            state.NewEmptyState(),
+		partitionID:      evm.DefaultPartitionID,
+		moneyPartitionID: money.DefaultPartitionID,
+		trustBase:        tb,
 	}
 	for _, o := range opts {
 		require.NoError(t, o(m))
@@ -543,7 +544,7 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof 
 	txRecord := &types.TransactionRecord{Version: 1,
 		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer,
 			testfc.NewTransferFCAttr(t, signer,
-				testfc.WithTargetSystemID(evm.DefaultSystemID),
+				testfc.WithTargetPartitionID(evm.DefaultPartitionID),
 				testfc.WithAmount(100)),
 		)),
 		ServerMetadata: &types.ServerMetadata{ActualFee: 1, SuccessIndicator: types.TxStatusSuccessful},
@@ -565,10 +566,10 @@ func newTxPayload(t *testing.T, txType uint16, unitID []byte, timeout uint64, fc
 	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
 	return types.Payload{
-		SystemID:   evm.DefaultSystemID,
-		Type:       txType,
-		UnitID:     unitID,
-		Attributes: attrBytes,
+		PartitionID: evm.DefaultPartitionID,
+		Type:        txType,
+		UnitID:      unitID,
+		Attributes:  attrBytes,
 		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: 1,

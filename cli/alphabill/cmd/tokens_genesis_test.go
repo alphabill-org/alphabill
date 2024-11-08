@@ -20,11 +20,11 @@ import (
 func Test_TokensGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
 	pdr := types.PartitionDescriptionRecord{Version: 1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  2,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         3 * time.Second,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 2,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           3 * time.Second,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
 	require.NoError(t, err)

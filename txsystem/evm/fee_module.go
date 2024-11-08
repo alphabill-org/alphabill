@@ -19,14 +19,14 @@ var _ txtypes.Module = (*FeeAccount)(nil)
 
 type (
 	FeeAccount struct {
-		state         *state.State
-		systemID      types.SystemID
-		moneySystemID types.SystemID
-		trustBase     types.RootTrustBase
-		hashAlgorithm crypto.Hash
-		feeCalculator FeeCalculator
-		execPredicate predicates.PredicateRunner
-		log           *slog.Logger
+		state            *state.State
+		partitionID      types.PartitionID
+		moneyPartitionID types.PartitionID
+		trustBase        types.RootTrustBase
+		hashAlgorithm    crypto.Hash
+		feeCalculator    FeeCalculator
+		execPredicate    predicates.PredicateRunner
+		log              *slog.Logger
 	}
 
 	FeeCalculator func() uint64
@@ -38,15 +38,15 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(systemIdentifier types.SystemID, options *Options, log *slog.Logger) (*FeeAccount, error) {
+func newFeeModule(partitionIdentifier types.PartitionID, options *Options, log *slog.Logger) (*FeeAccount, error) {
 	m := &FeeAccount{
-		state:         options.state,
-		systemID:      systemIdentifier,
-		moneySystemID: money.DefaultSystemID,
-		trustBase:     options.trustBase,
-		hashAlgorithm: options.hashAlgorithm,
-		feeCalculator: FixedFee(1),
-		log:           log,
+		state:            options.state,
+		partitionID:      partitionIdentifier,
+		moneyPartitionID: money.DefaultPartitionID,
+		trustBase:        options.trustBase,
+		hashAlgorithm:    options.hashAlgorithm,
+		feeCalculator:    FixedFee(1),
+		log:              log,
 	}
 	predEng, err := predicates.Dispatcher(templates.New())
 	if err != nil {

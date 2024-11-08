@@ -19,7 +19,7 @@ const (
 
 type (
 	Options struct {
-		sdr *types.PartitionDescriptionRecord
+		pdr *types.PartitionDescriptionRecord
 	}
 
 	Option func(*Options)
@@ -27,21 +27,21 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		sdr: DefaultSDR(),
+		pdr: DefaultPDR(),
 	}
 }
 
-func DefaultSDR() *types.PartitionDescriptionRecord {
-	return &types.PartitionDescriptionRecord{Version: 1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  money.DefaultSystemID,
-		T2Timeout:         2500 * time.Millisecond,
+func DefaultPDR() *types.PartitionDescriptionRecord {Version: 1,
+	return &types.PartitionDescriptionRecord{
+		NetworkIdentifier:   5,
+		PartitionIdentifier: money.DefaultPartitionID,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 }
 
-func WithSystemIdentifier(systemID types.SystemID) Option {
+func WithPartitionIdentifier(partitionID types.PartitionID) Option {
 	return func(g *Options) {
-		g.sdr.SystemIdentifier = systemID
+		g.pdr.PartitionIdentifier = partitionID
 	}
 }
 
@@ -56,20 +56,20 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 		RoundNumber:  DefaultRoundNumber,
 		SummaryValue: make([]byte, 32),
 	}
-	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.sdr, signer)
+	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.pdr, signer)
 	p, err := types.NewTxRecordProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
 }
 
-func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, sdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
+func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRecord, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.Block {
 	uc, err := (&types.UnicityCertificate{Version: 1,
 		InputRecord: ir,
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	b := &types.Block{
 		Header: &types.Header{Version: 1,
-			SystemID:          types.SystemID(1),
+			PartitionID:       1,
 			ProposerID:        "test",
 			PreviousBlockHash: make([]byte, 32),
 		},
@@ -83,7 +83,7 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 		t,
 		signer,
 		ir,
-		sdr,
+		pdr,
 		1,
 		make([]byte, 32),
 	).MarshalCBOR()

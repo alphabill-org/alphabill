@@ -3,6 +3,7 @@ package certification
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -16,8 +17,8 @@ func Test_CertificationResponse_IsValid(t *testing.T) {
 			UC: types.UnicityCertificate{
 				Version: 1,
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					Version:          1,
-					SystemIdentifier: 1,
+					Version:             1,
+					PartitionIdentifier: 1,
 				},
 			},
 		}
@@ -72,5 +73,5 @@ func Test_CertificationResponse_SetTechnicalRecord(t *testing.T) {
 
 	trh, err := tr.Hash()
 	require.NoError(t, err)
-	require.Equal(t, cr.UC.TRHash, trh)
+	require.Equal(t, cr.UC.TRHash, hex.Bytes(trh))
 }

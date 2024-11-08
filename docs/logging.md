@@ -21,7 +21,7 @@ differ as it depends on the log handler!
 Use attributes judiciously, not everything has to be "structured".
 It makes sense to add attribute if there is need to search / filter logs
 by that information.
-For example currently we do not add system id and partition id to the logs as
+For example currently we do not add partition id to the logs as
 attributes as this info is deducible from different fields in Kibana (ie
 `host.name`, `nomad.task.name` etc) and in the local env it is easy either
 to log to different files or consoles.

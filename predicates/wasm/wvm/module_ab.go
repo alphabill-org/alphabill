@@ -208,8 +208,8 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	if err != nil {
 		return 0, fmt.Errorf("decoding transaction order: %w", err)
 	}
-	if txo.SystemID != money.DefaultSystemID {
-		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultSystemID, txo.SystemID)
+	if txo.PartitionID != money.DefaultPartitionID {
+		return 0, fmt.Errorf("expected partition id %d got %d", money.DefaultPartitionID, txo.PartitionID)
 	}
 	if refNo != nil && !bytes.Equal(refNo, txo.ReferenceNumber()) {
 		return 0, errors.New("reference number mismatch")

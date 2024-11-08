@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type (
 	State interface {
-		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
 		GetCertificates() []*types.UnicityCertificate
-		IsChangeInProgress(id types.SystemID) *types.InputRecord
+		IsChangeInProgress(id types.PartitionID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -63,16 +62,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 	if err != nil {
 		return nil, fmt.Errorf("acquiring shard info: %w", err)
 	}
-	// timeout IR change request do not have BCR
-	var bcr *certification.BlockCertificationRequest
-	if len(irChReq.Requests) > 0 {
-		bcr = irChReq.Requests[0]
-	}
-	tr, err := si.TechnicalRecord(bcr, x.orchestration)
-	if err != nil {
-		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
-	}
-	pg, err := x.orchestration.ShardConfig(irChReq.Partition, irChReq.Shard, tr.Epoch)
+	pg, err := x.orchestration.ShardConfig(irChReq.Partition, irChReq.Shard, si.Epoch)
 	if err != nil {
 		return nil, fmt.Errorf("acquiring shard config: %w", err)
 	}
@@ -98,7 +88,6 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 			Partition: irChReq.Partition,
 			Shard:     irChReq.Shard,
 			IR:        inputRecord,
-			Technical: tr,
 			PDRHash:   pg.PartitionDescription.Hash(x.params.HashAlgorithm),
 		},
 		nil
@@ -121,14 +110,14 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, s
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.SystemID, retErr error) {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.PartitionID, retErr error) {
 	configs, err := x.orchestration.RoundPartitions(currentRound)
 	if err != nil {
 		return nil, err
 	}
-	timeoutIds := make([]types.SystemID, 0, len(configs))
+	timeoutIds := make([]types.PartitionID, 0, len(configs))
 	for _, partition := range configs {
-		partitionID := partition.PartitionDescription.SystemIdentifier
+		partitionID := partition.PartitionDescription.PartitionIdentifier
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(partitionID); ir != nil {
 			continue

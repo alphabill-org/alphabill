@@ -24,8 +24,8 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-const sysID1 types.SystemID = 1
-const sysID2 types.SystemID = 2
+const sysID1 types.PartitionID = 1
+const sysID2 types.PartitionID = 2
 
 var inputRecord1 = &types.InputRecord{Version: 1,
 	PreviousHash:    []byte{1, 1, 1},
@@ -64,8 +64,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := make([]types.SystemID, 0, 2)
-	isPending := func(id types.SystemID) *types.InputRecord {
+	timeouts := make([]types.PartitionID, 0, 2)
+	isPending := func(id types.PartitionID) *types.InputRecord {
 		return nil
 	}
 	// no requests, generate payload
@@ -105,8 +105,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
-	timeouts := []types.SystemID{sysID1, sysID2}
-	isPending := func(id types.SystemID) *types.InputRecord {
+	timeouts := []types.PartitionID{sysID1, sysID2}
+	isPending := func(id types.PartitionID) *types.InputRecord {
 		return nil
 	}
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
@@ -134,8 +134,8 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.SystemID{sysID1}
-	isPending := func(id types.SystemID) *types.InputRecord {
+	timeouts := []types.PartitionID{sysID1}
+	isPending := func(id types.PartitionID) *types.InputRecord {
 		return nil
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
@@ -159,8 +159,8 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.SystemID{sysID1}
-	isPending := func(id types.SystemID) *types.InputRecord {
+	timeouts := []types.PartitionID{sysID1}
+	isPending := func(id types.PartitionID) *types.InputRecord {
 		return &types.InputRecord{Version: 1}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))

@@ -115,23 +115,23 @@ func Test_MoneyGenesis(t *testing.T) {
 
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
-		sdr := &types.PartitionDescriptionRecord{Version: 1,
-			NetworkIdentifier: 5,
-			SystemIdentifier:  moneysdk.DefaultSystemID,
-			TypeIdLen:         4,
-			UnitIdLen:         300,
-			T2Timeout:         10 * time.Second,
+		pdr := &types.PartitionDescriptionRecord{Version: 1,
+			NetworkIdentifier:   5,
+			PartitionIdentifier: moneysdk.DefaultPartitionID,
+			TypeIdLen:           4,
+			UnitIdLen:           300,
+			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
-		sdrFile, err := createPDRFile(homeDir, sdr)
+		pdrFile, err := createPDRFile(homeDir, pdr)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
 		args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --initial-bill-owner-predicate %s"+
-			" --dc-money-supply-value %d --system-description-record-files %s %s", homeDir, 1, ownerPredicate, 2, sdrFile, pdrArgument)
+			" --dc-money-supply-value %d --partition-description-record-files %s %s", homeDir, 1, ownerPredicate, 2, pdrFile, pdrArgument)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
@@ -149,27 +149,27 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		params := &genesis.MoneyPartitionParams{}
 		require.NoError(t, types.Cbor.Unmarshal(pg.Params, params))
-		require.Equal(t, sdr, params.Partitions[0])
+		require.Equal(t, pdr, params.Partitions[0])
 	})
 
 	t.Run("InvalidFeeCreditBill_SameAsInitialBill", func(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
-		sdr := &types.PartitionDescriptionRecord{Version: 1,
-			NetworkIdentifier: 5,
-			SystemIdentifier:  moneysdk.DefaultSystemID,
-			T2Timeout:         10 * time.Second,
+		pdr := &types.PartitionDescriptionRecord{Version: 1,
+			NetworkIdentifier:   5,
+			PartitionIdentifier: moneysdk.DefaultPartitionID,
+			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         defaultInitialBillID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
-		sdrFile, err := createPDRFile(filepath.Join(homeDir, moneyPartitionDir), sdr)
+		pdrFile, err := createPDRFile(filepath.Join(homeDir, moneyPartitionDir), pdr)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		args := "money-genesis -g --home " + homeDir + " --system-description-record-files " + sdrFile + pdrArgument
+		args := "money-genesis -g --home " + homeDir + " --partition-description-record-files " + pdrFile + pdrArgument
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err = cmd.Execute(context.Background())
 		require.ErrorContains(t, err, "fee credit bill ID may not be equal to")
@@ -179,20 +179,20 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
-		sdr := &types.PartitionDescriptionRecord{Version: 1,
-			NetworkIdentifier: 5,
-			SystemIdentifier:  moneysdk.DefaultSystemID,
-			T2Timeout:         10 * time.Second,
+		pdr := &types.PartitionDescriptionRecord{Version: 1,
+			NetworkIdentifier:   5,
+			PartitionIdentifier: moneysdk.DefaultPartitionID,
+			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         money.DustCollectorMoneySupplyID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
-		sdrFile, err := createPDRFile(filepath.Join(homeDir, moneyPartitionDir), sdr)
+		pdrFile, err := createPDRFile(filepath.Join(homeDir, moneyPartitionDir), pdr)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		args := "money-genesis -g --home " + homeDir + " --system-description-record-files " + sdrFile + pdrArgument
+		args := "money-genesis -g --home " + homeDir + " --partition-description-record-files " + pdrFile + pdrArgument
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err = cmd.Execute(context.Background())
 		require.ErrorContains(t, err, "fee credit bill ID may not be equal to")
@@ -202,29 +202,29 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, evmGenesisFileName)
 
-		sdr := types.PartitionDescriptionRecord{Version: 1,
-			NetworkIdentifier: 5,
-			SystemIdentifier:  55,
-			TypeIdLen:         4,
-			UnitIdLen:         300,
-			T2Timeout:         10 * time.Second,
+		pdr := types.PartitionDescriptionRecord{Version: 1,
+			NetworkIdentifier:   5,
+			PartitionIdentifier: 55,
+			TypeIdLen:           4,
+			UnitIdLen:           300,
+			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
-		sdrFile, err := createPDRFile(homeDir, &sdr)
+		pdrFile, err := createPDRFile(homeDir, &pdr)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		args := "money-genesis -g -o " + nodeGenesisFile + " --home " + homeDir + " --partition-description " + sdrFile
+		args := "money-genesis -g -o " + nodeGenesisFile + " --home " + homeDir + " --partition-description " + pdrFile
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
-		require.EqualValues(t, sdr, pn.PartitionDescription)
-		require.EqualValues(t, sdr.SystemIdentifier, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
+		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
 	})
 }
 
@@ -234,31 +234,31 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 	t.Run("parse file", func(t *testing.T) {
 		// setup-testab.sh creates the SDR files with hardcoded content - refactor
 		// so that these files can be tested here?
-		fileName := filepath.Join(testDir, "sdr.json")
-		err := os.WriteFile(fileName, []byte(`{"system_identifier": 1234567890, "t2timeout": 2500, "fee_credit_bill": {"unit_id": "0x00000000000000000000000000000000000000000000000000000000000000010F", "owner_predicate": "0x5376a8014f01f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b08769ac01"}}`), 0666)
+		fileName := filepath.Join(testDir, "pdr.json")
+		err := os.WriteFile(fileName, []byte(`{"partitionIdentifier": 1234567890, "t2timeout": 2500, "feeCreditBill": {"unitId": "0x00000000000000000000000000000000000000000000000000000000000000010F", "ownerPredicate": "0x5376a8014f01f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b08769ac01"}}`), 0666)
 		require.NoError(t, err)
 
-		cfg := moneyGenesisConfig{SDRFiles: []string{fileName}}
-		sdrs, err := cfg.getSDRs()
+		cfg := moneyGenesisConfig{PDRFiles: []string{fileName}}
+		sdrs, err := cfg.getPDRs()
 		require.NoError(t, err)
 		require.Len(t, sdrs, 1)
-		require.EqualValues(t, 1234567890, sdrs[0].SystemIdentifier)
+		require.EqualValues(t, 1234567890, sdrs[0].PartitionIdentifier)
 	})
 
 	t.Run("defaultMoneySDR", func(t *testing.T) {
 		// serialize and deserialize default money SDR
 		fileName, err := createPDRFile(testDir, defaultMoneyPDR)
 		require.NoError(t, err)
-		cfg := moneyGenesisConfig{SDRFiles: []string{fileName}}
-		sdrs, err := cfg.getSDRs()
+		cfg := moneyGenesisConfig{PDRFiles: []string{fileName}}
+		sdrs, err := cfg.getPDRs()
 		require.NoError(t, err)
 		require.Len(t, sdrs, 1)
 		require.Equal(t, defaultMoneyPDR, sdrs[0])
 	})
 
 	t.Run("if no files default will be returned", func(t *testing.T) {
-		cfg := moneyGenesisConfig{SDRFiles: nil} // no files provided!
-		sdrs, err := cfg.getSDRs()
+		cfg := moneyGenesisConfig{PDRFiles: nil} // no files provided!
+		sdrs, err := cfg.getPDRs()
 		require.NoError(t, err)
 		require.Len(t, sdrs, 1)
 		require.Equal(t, defaultMoneyPDR, sdrs[0])
@@ -266,7 +266,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 }
 
 func createPDRFile(dir string, pdr *types.PartitionDescriptionRecord) (string, error) {
-	filePath := filepath.Join(dir, fmt.Sprintf("pdr-%d.json", pdr.SystemIdentifier))
+	filePath := filepath.Join(dir, fmt.Sprintf("pdr-%d.json", pdr.PartitionIdentifier))
 	if err := util.WriteJsonFile(filePath, pdr); err != nil {
 		return "", err
 	}

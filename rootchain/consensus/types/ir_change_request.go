@@ -23,7 +23,7 @@ type (
 
 	IRChangeReq struct {
 		_          struct{} `cbor:",toarray"`
-		Partition  types.SystemID
+		Partition  types.PartitionID
 		Shard      types.ShardID
 		CertReason IRChangeReason
 		// IR change (quorum or no quorum possible of block certification requests)
@@ -96,7 +96,7 @@ func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round,
 				req.Partition, req.NodeIdentifier, err)
 		}
 		if x.Partition != req.Partition {
-			return nil, fmt.Errorf("invalid partition %s proof: node %v request system id %s does not match request",
+			return nil, fmt.Errorf("invalid partition %s proof: node %v request partition id %s does not match request",
 				x.Partition, req.NodeIdentifier, req.Partition)
 		}
 		if err := CheckBlockCertificationRequest(req, luc); err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -36,11 +37,11 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{Version: 1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  orchestration.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: orchestration.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
@@ -132,14 +133,14 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 				Type:           orchestration.TransactionTypeAddVAR,
 				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
-				SystemID:       orchestration.DefaultSystemID,
+				PartitionID:    orchestration.DefaultPartitionID,
 				Attributes:     attrBytes,
 			},
 		}
 		txBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 
-		var res types.Bytes
+		var res hex.Bytes
 		err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
 		require.NoError(t, err)
 		require.NotNil(t, res)

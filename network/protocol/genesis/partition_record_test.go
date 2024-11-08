@@ -11,12 +11,12 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
-	Version:           1,
-	NetworkIdentifier: 5,
-	SystemIdentifier:  1,
-	TypeIdLen:         8,
-	UnitIdLen:         256,
-	T2Timeout:         time.Second,
+    Version: 1,
+	NetworkIdentifier:   5,
+	PartitionIdentifier: 1,
+	TypeIdLen:           8,
+	UnitIdLen:           256,
+	T2Timeout:           time.Second,
 }
 
 func TestPartitionRecord_IsValid(t *testing.T) {
@@ -54,19 +54,19 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			wantErrStr: "validators list error, partition node is nil",
 		},
 		{
-			name: "invalid validator system identifier",
+			name: "invalid validator partition identifier",
 			fields: fields{
 				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
-					Version:           1,
-					NetworkIdentifier: 5,
-					SystemIdentifier:  2,
-					TypeIdLen:         8,
-					UnitIdLen:         256,
-					T2Timeout:         time.Second,
+                    Version: 1,
+					NetworkIdentifier:   5,
+					PartitionIdentifier: 2,
+					TypeIdLen:           8,
+					UnitIdLen:           256,
+					T2Timeout:           time.Second,
 				},
 				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
-			wantErrStr: "invalid system id: expected 00000002, got 00000001",
+			wantErrStr: "invalid partition id: expected 00000002, got 00000001",
 		},
 		{
 			name: "validators not unique",

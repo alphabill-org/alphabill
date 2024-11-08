@@ -105,11 +105,11 @@ func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.A
 		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, f.networkID)
 	}
 	// bill was transferred in correct partition
-	if txo.SystemID != f.moneySystemID {
-		return nil, fmt.Errorf("invalid transferFC money system identifier %d (expected %d)", txo.SystemID, f.moneySystemID)
+	if txo.PartitionID != f.moneyPartitionID {
+		return nil, fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", txo.PartitionID, f.moneyPartitionID)
 	}
-	if transAttr.TargetSystemIdentifier != f.systemID {
-		return nil, fmt.Errorf("invalid transferFC target system identifier %d (expected %d)", transAttr.TargetSystemIdentifier, f.systemID)
+	if transAttr.TargetPartitionID != f.partitionID {
+		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, f.partitionID)
 	}
 	// bill was transferred to correct target record
 	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID) {

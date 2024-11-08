@@ -230,9 +230,9 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.Icon.Type, d.Icon.Type)
 	require.Equal(t, attributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, attributes.DecimalPlaces, d.DecimalPlaces)
-	require.Equal(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, attributes.TokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, attributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, attributes.TokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, attributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Nil(t, d.ParentTypeID)
 }
 
@@ -288,9 +288,9 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, childAttributes.Icon.Type, d.Icon.Type)
 	require.Equal(t, childAttributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, childAttributes.DecimalPlaces, d.DecimalPlaces)
-	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, childAttributes.TokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, childAttributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, childAttributes.TokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, childAttributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, parentID, d.ParentTypeID)
 }
 
@@ -915,7 +915,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithSystemIdentifier(tokens.DefaultSystemID))
+	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
 	joinAttr := &tokens.JoinFungibleTokenAttributes{
 		BurnTokenProofs: []*types.TxRecordProof{burnTxRecordProof},
 	}
@@ -980,13 +980,13 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	}, testtransaction.WithNetworkID(10))
-	invalidSystemID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
+	invalidPartitionID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID,
 		Value:              existingTokenValue,
 		TargetTokenID:      test.RandomBytes(32),
 		TargetTokenCounter: 0,
 		Counter:            0,
-	}, testtransaction.WithSystemID(10))
+	}, testtransaction.WithPartitionID(10))
 	proofInvalidTargetTokenID := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenID, signer)
 	proofInvalidTargetTokenCounter := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenCounter, signer)
 	proofBurnTx2 := testblock.CreateTxRecordProof(t, burnTx2, signer)
@@ -1008,7 +1008,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			},
 			testtransaction.WithAuthProof(burnAuthProof),
 		)
-		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithSystemIdentifier(tokens.DefaultSystemID))
+		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
 		burnTxRecordProofs = append(burnTxRecordProofs, burnTxRecordProof)
 	}
 
@@ -1049,13 +1049,13 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "burn transaction network id does not match with join transaction network id",
 		},
 		{
-			name: "source not burned - invalid target token system id",
+			name: "source not burned - invalid target token partition id",
 			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{
 				BurnTokenProofs: []*types.TxRecordProof{
-					{TxRecord: invalidSystemID, TxProof: proofInvalidTargetTokenID.TxProof},
+					{TxRecord: invalidPartitionID, TxProof: proofInvalidTargetTokenID.TxProof},
 				},
 			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
-			wantErrStr: "burn transaction system id does not match with join transaction system id",
+			wantErrStr: "burn transaction partition id does not match with join transaction partition id",
 		},
 		{
 			name: "source not burned - invalid target token id",
@@ -1196,7 +1196,7 @@ func createTxOrder(t *testing.T, unitID types.UnitID, transactionType uint16, at
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithTransactionType(transactionType),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,

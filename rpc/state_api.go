@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -20,7 +21,7 @@ type (
 
 	partitionNode interface {
 		NetworkID() types.NetworkID
-		SystemID() types.SystemID
+		PartitionID() types.PartitionID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
@@ -34,15 +35,15 @@ type (
 	}
 
 	Unit[T any] struct {
-		NetworkID  types.NetworkID       `json:"networkId"`
-		SystemID   types.SystemID        `json:"systemId"`
-		UnitID     types.UnitID          `json:"unitId"`
-		Data       T                     `json:"data"`
-		StateProof *types.UnitStateProof `json:"stateProof,omitempty"`
+		NetworkID   types.NetworkID       `json:"networkId"`
+		PartitionID types.PartitionID     `json:"partitionId"`
+		UnitID      types.UnitID          `json:"unitId"`
+		Data        T                     `json:"data"`
+		StateProof  *types.UnitStateProof `json:"stateProof,omitempty"`
 	}
 
 	TransactionRecordAndProof struct {
-		TxRecordProof types.Bytes `json:"txRecordProof"` // hex encoded CBOR of types.TxRecordProof
+		TxRecordProof hex.Bytes `json:"txRecordProof"` // hex encoded CBOR of types.TxRecordProof
 	}
 )
 
@@ -51,12 +52,12 @@ func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI
 }
 
 // GetRoundNumber returns the round number of the latest UC seen by node.
-func (s *StateAPI) GetRoundNumber(ctx context.Context) (types.Uint64, error) {
+func (s *StateAPI) GetRoundNumber(ctx context.Context) (hex.Uint64, error) {
 	roundNumber, err := s.node.GetLatestRoundNumber(ctx)
 	if err != nil {
 		return 0, err
 	}
-	return types.Uint64(roundNumber), nil
+	return hex.Uint64(roundNumber), nil
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
@@ -72,11 +73,11 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 	}
 
 	resp := &Unit[any]{
-		NetworkID:  s.node.NetworkID(),
-		SystemID:   s.node.SystemID(),
-		UnitID:     unitID,
-		Data:       unit.Data(),
-		StateProof: nil,
+		NetworkID:   s.node.NetworkID(),
+		PartitionID: s.node.PartitionID(),
+		UnitID:      unitID,
+		Data:        unit.Data(),
+		StateProof:  nil,
 	}
 
 	if includeStateProof {
@@ -91,7 +92,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) ([]types.UnitID, error) {
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
 	}
@@ -103,7 +104,7 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID types.Bytes) ([]types.UnitID, error
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
-func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (types.Bytes, error) {
+func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (hex.Bytes, error) {
 	var tx *types.TransactionOrder
 	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
@@ -116,7 +117,7 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes types.Bytes) (ty
 }
 
 // GetTransactionProof returns transaction record and proof for the given transaction hash.
-func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) (*TransactionRecordAndProof, error) {
+func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (*TransactionRecordAndProof, error) {
 	txRecordProof, err := s.node.GetTransactionRecordProof(ctx, txHash)
 	if err != nil {
 		if errors.Is(err, partition.ErrIndexNotFound) || errors.Is(err, types.ErrBlockIsNil) {
@@ -134,7 +135,7 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash types.Bytes) 
 }
 
 // GetBlock returns block for the given block number.
-func (s *StateAPI) GetBlock(ctx context.Context, blockNumber types.Uint64) (types.Bytes, error) {
+func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (hex.Bytes, error) {
 	block, err := s.node.GetBlock(ctx, uint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
@@ -150,7 +151,7 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber types.Uint64) (type
 }
 
 // GetTrustBase returns trust base for the given epoch.
-func (s *StateAPI) GetTrustBase(epochNumber types.Uint64) (types.RootTrustBase, error) {
+func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (types.RootTrustBase, error) {
 	trustBase, err := s.node.GetTrustBase(uint64(epochNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load trust base: %w", err)

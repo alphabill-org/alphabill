@@ -29,12 +29,12 @@ func GenData() {
 }
 
 func writeRootGenesisFile(filename string, partitionNodeID string, rootNodeID string, rootSigner *abcrypto.InMemorySecp256K1Signer, rootPubKey []byte) {
-	systemID := types.SystemID(1)
+	partitionID := types.PartitionID(1)
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		panic(err)
 	}
-	partition := createPartition(systemID, partitionNodeID, partitionSigner)
+	partition := createPartition(partitionID, partitionNodeID, partitionSigner)
 	rootGenesis, _, err := rg.NewRootGenesis(rootNodeID, rootSigner, rootPubKey, []*genesis.PartitionRecord{partition})
 	if err != nil {
 		panic(err)
@@ -45,16 +45,16 @@ func writeRootGenesisFile(filename string, partitionNodeID string, rootNodeID st
 	}
 }
 
-func createPartition(systemID types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
-	req := createInputRequest(systemID, nodeID, partitionSigner)
+func createPartition(partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
+	req := createInputRequest(partitionID, nodeID, partitionSigner)
 	pubKey := getPubKey(partitionSigner)
 
 	pdr := &types.PartitionDescriptionRecord{Version: 1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  systemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: partitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         money.NewBillID(nil, make([]byte, 32)),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -64,20 +64,20 @@ func createPartition(systemID types.SystemID, nodeID string, partitionSigner abc
 		PartitionDescription: pdr,
 		Validators: []*genesis.PartitionNode{
 			{
-				Version:                   1,
-				NodeIdentifier:            nodeID,
-				SigningPublicKey:          pubKey,
-				EncryptionPublicKey:       pubKey,
-				BlockCertificationRequest: req,
-				PartitionDescription:      *pdr,
+				Version:                    1,
+				NodeIdentifier:             nodeID,
+				SigningPublicKey:           pubKey,
+				EncryptionPublicKey:        pubKey,
+				BlockCertificationRequest:  req,
+				PartitionDescriptionRecord: *pdr,
 			},
 		},
 	}
 }
 
-func createInputRequest(systemID types.SystemID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	req := &certification.BlockCertificationRequest{
-		Partition:      systemID,
+		Partition:      partitionID,
 		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{Version: 1,
 			PreviousHash: make([]byte, 32),

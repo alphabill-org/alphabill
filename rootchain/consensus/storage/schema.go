@@ -31,7 +31,7 @@ type VoteStore struct {
 	VoteMsg  types.RawCBOR
 }
 
-func certKey(id types.SystemID, shard types.ShardID) []byte {
+func certKey(id types.PartitionID, shard types.ShardID) []byte {
 	return slices.Concat([]byte(certPrefix), id.Bytes(), shard.Bytes())
 }
 

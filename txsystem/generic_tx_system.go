@@ -218,6 +218,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 				// clear metadata
 				txr = nil
 				retErr = fmt.Errorf("handling transaction fee: %w", err)
+				return
 			}
 			// add fee credit record unit log
 			txr.ServerMetadata.TargetUnits = append(txr.ServerMetadata.TargetUnits, feeCreditRecordID)
@@ -337,8 +338,8 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	}
 
 	// T.β = S.β – transaction is sent to this partition
-	if m.pdr.SystemIdentifier != tx.SystemID {
-		return ErrInvalidSystemIdentifier
+	if m.pdr.PartitionIdentifier != tx.PartitionID {
+		return ErrInvalidPartitionIdentifier
 	}
 
 	// fSH(T.ι) = S.σ – target unit is in this shard

@@ -15,7 +15,7 @@ type UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
 
 // tx attribute encoder ID
 type AttrEncID struct {
-	TxSys types.SystemID
+	TxSys types.PartitionID
 	Attr  uint16 // tx type id
 }
 
@@ -81,7 +81,7 @@ func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandl
 func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, error) {
 	var buf TVEnc
 	buf.EncodeTagged(1, uint16(txo.NetworkID))
-	buf.EncodeTagged(2, uint32(txo.SystemID))
+	buf.EncodeTagged(2, uint32(txo.PartitionID))
 	buf.EncodeTagged(3, txo.UnitID)
 	buf.EncodeTagged(4, txo.Type)
 	buf.EncodeTagged(5, txo.ReferenceNumber())
@@ -89,9 +89,9 @@ func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, e
 }
 
 func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.SystemID, Attr: txo.Type}]
+	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.PartitionID, Attr: txo.Type}]
 	if !ok {
-		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.SystemID, txo.Type)
+		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.PartitionID, txo.Type)
 	}
 	return encoder(txo, ver)
 }

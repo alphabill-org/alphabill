@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 		BlockRateMs:         MinBlockRateMs,
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       uint32(gocrypto.SHA256),
-		Signatures:          make(map[string][]byte),
+		Signatures:          make(map[string]hex.Bytes),
 	}
 	err = rootConsensus.Sign("1", signer)
 	require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			wantErr: ErrPartitionsNotFound.Error(),
 		},
 		{
-			name: "genesis partition record duplicate system id",
+			name: "genesis partition record duplicate partition id",
 			args: args{
 				verifier: verifier,
 			},
@@ -98,17 +99,17 @@ func TestRootGenesis_IsValid(t *testing.T) {
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, SystemIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 				},
 			},
-			wantErr: "duplicated system identifier: ",
+			wantErr: "duplicated partition identifier: ",
 		},
 	}
 	for _, tt := range tests {

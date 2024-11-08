@@ -318,10 +318,10 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 	}).MarshalCBOR()
 	tx, _ := (&types.TransactionOrder{Version: 1, Payload: types.Payload{SystemID: types.SystemID(1), UnitID: unitID}}).MarshalCBOR()
 	block := &types.Block{
-		Header: &types.Header{Version: 1, SystemID: 1},
+		Header: &types.Header{Version: 1, PartitionID: 1},
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: tx,
+				TransactionOrder: &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: 1, UnitID: unitID}},
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},
@@ -338,7 +338,7 @@ func simulateEmptyInput(round uint64) *BlockAndState {
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
 	block := &types.Block{
-		Header:             &types.Header{Version: 1, SystemID: 1},
+		Header:             &types.Header{Version: 1, PartitionID: 1},
 		Transactions:       []*types.TransactionRecord{},
 		UnicityCertificate: uc,
 	}

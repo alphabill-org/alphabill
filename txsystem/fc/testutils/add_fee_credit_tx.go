@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	systemID           types.SystemID = 1
-	targetUnitCounter                 = uint64(3)
-	targetCounter                     = uint64(4)
-	counter                           = uint64(4)
-	amount                            = uint64(50)
-	maxFee                            = uint64(2)
-	latestAdditionTime                = uint64(10)
+	partitionID        types.PartitionID = 1
+	targetUnitCounter                    = uint64(3)
+	targetCounter                        = uint64(4)
+	counter                              = uint64(4)
+	amount                               = uint64(50)
+	maxFee                               = uint64(2)
+	latestAdditionTime                   = uint64(10)
 )
 
 func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {

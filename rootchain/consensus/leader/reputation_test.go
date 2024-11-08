@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	abt "github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -88,7 +89,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		qc := &types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
 		err = rl.Update(qc, 3, loadBlock)
 		require.NoError(t, err)
@@ -112,7 +113,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		qc := &types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
 		require.NoError(t, rl.Update(qc, 3, loadBlock))
 		// "signer A" is the author of the previous block so "signer B" must have been elected
@@ -244,7 +245,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
-			Signatures:       map[string][]byte{"signer": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{"signer": {1, 2, 3}},
 		}, loadBlock)
 		require.EqualError(t, err, `no active validators left after eliminating 1 recent authors`)
 		require.EqualValues(t, UnknownLeader, id)
@@ -262,7 +263,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
 			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
@@ -279,7 +280,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, "oh deer": {4, 5, 6}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, "oh deer": {4, 5, 6}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
 			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
@@ -299,7 +300,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
 			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		})
@@ -319,7 +320,7 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 5, ParentRoundNumber: 4},
-			Signatures:       map[string][]byte{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}, signerCkey: {7, 8, 9}},
+			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}, signerCkey: {7, 8, 9}},
 		}, func(round uint64) (*storage.ExecutedBlock, error) {
 			switch round {
 			case 3:
@@ -477,7 +478,7 @@ func Test_ReputationBased(t *testing.T) {
 		qc := &types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: round - 1, ParentRoundNumber: round - 2},
-			Signatures:       make(map[string][]byte),
+			Signatures:       make(map[string]hex.Bytes),
 		}
 		// add n-f random signers, select f randomly in range [0..4)
 		cnt := len(peerIDs) - mrand.Intn(4)

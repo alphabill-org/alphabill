@@ -21,14 +21,14 @@ type TxValidationContext struct {
 	Tx          *types.TransactionOrder
 	state       *state.State
 	NetworkID   types.NetworkID
-	SystemID    types.SystemID
+	PartitionID types.PartitionID
 	BlockNumber uint64
 	CustomData  []byte
 }
 
 type TxSystem struct {
 	networkID           types.NetworkID
-	systemID            types.SystemID
+	partitionID         types.PartitionID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentRoundNumber  uint64
@@ -40,7 +40,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -54,17 +54,17 @@ func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slo
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemID, options, log)
+	evm, err := NewEVMModule(partitionID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemID, options, log)
+	fees, err := newFeeModule(partitionID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
 	txs := &TxSystem{
 		networkID:           networkID,
-		systemID:            systemID,
+		partitionID:         partitionID,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
@@ -137,7 +137,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 		Tx:          tx,
 		state:       m.state,
 		NetworkID:   m.networkID,
-		SystemID:    m.systemID,
+		PartitionID: m.partitionID,
 		BlockNumber: m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {

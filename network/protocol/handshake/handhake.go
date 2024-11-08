@@ -7,14 +7,14 @@ import (
 )
 
 var (
-	ErrHandshakeIsNil          = errors.New("handshake is nil")
-	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
-	ErrMissingNodeIdentifier   = errors.New("missing node identifier")
+	ErrHandshakeIsNil             = errors.New("handshake is nil")
+	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
+	ErrMissingNodeIdentifier      = errors.New("missing node identifier")
 )
 
 type Handshake struct {
 	_              struct{} `cbor:",toarray"`
-	Partition      types.SystemID
+	Partition      types.PartitionID
 	Shard          types.ShardID
 	NodeIdentifier string
 }
@@ -24,7 +24,7 @@ func (h *Handshake) IsValid() error {
 		return ErrHandshakeIsNil
 	}
 	if h.Partition == 0 {
-		return ErrInvalidSystemIdentifier
+		return ErrInvalidPartitionIdentifier
 	}
 	if len(h.NodeIdentifier) == 0 {
 		return ErrMissingNodeIdentifier

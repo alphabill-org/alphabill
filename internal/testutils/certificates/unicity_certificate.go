@@ -20,7 +20,7 @@ func CreateUnicityCertificate(
 ) *types.UnicityCertificate {
 	t.Helper()
 	data := []*types.UnicityTreeData{{
-		SystemIdentifier:         pdr.SystemIdentifier,
+		PartitionIdentifier:      pdr.PartitionIdentifier,
 		InputRecord:              ir,
 		PartitionDescriptionHash: pdr.Hash(gocrypto.SHA256),
 	}}
@@ -34,7 +34,7 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	cert, err := ut.GetCertificate(pdr.SystemIdentifier)
+	cert, err := ut.GetCertificate(pdr.PartitionIdentifier)
 	if err != nil {
 		t.Error(err)
 	}
@@ -43,7 +43,7 @@ func CreateUnicityCertificate(
 		InputRecord: ir,
 		TRHash:      make([]byte, 32),
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{Version: 1,
-			SystemIdentifier:         cert.SystemIdentifier,
+			PartitionIdentifier:      cert.PartitionIdentifier,
 			HashSteps:                cert.HashSteps,
 			PartitionDescriptionHash: pdr.Hash(gocrypto.SHA256),
 		},

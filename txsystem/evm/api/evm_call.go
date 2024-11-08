@@ -103,7 +103,7 @@ func (a *API) callContract(clonedState *state.State, call *evmsdk.TxAttributes) 
 		return nil, fmt.Errorf("creating block DB: %w", err)
 	}
 	blockCtx := evm.NewBlockContext(blockNumber, db)
-	simEvm := vm.NewEVM(blockCtx, evm.NewTxContext(call, a.gasUnitPrice), stateDB, evm.NewChainConfig(new(big.Int).SetBytes(a.systemIdentifier.Bytes())), evm.NewVMConfig())
+	simEvm := vm.NewEVM(blockCtx, evm.NewTxContext(call, a.gasUnitPrice), stateDB, evm.NewChainConfig(new(big.Int).SetBytes(a.partitionIdentifier.Bytes())), evm.NewVMConfig())
 	// Apply the transaction to the current state (included in the env)
 	return core.ApplyMessage(simEvm, msg, gp)
 }

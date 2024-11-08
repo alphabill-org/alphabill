@@ -39,11 +39,11 @@ func NewTransferFC(t *testing.T, signer abcrypto.Signer, attr *fc.TransferFeeCre
 
 func NewDefaultTransferFCAttr(t *testing.T, signer abcrypto.Signer) *fc.TransferFeeCreditAttributes {
 	return &fc.TransferFeeCreditAttributes{
-		Amount:                 amount,
-		TargetSystemIdentifier: systemID,
-		TargetRecordID:         NewFeeCreditRecordID(t, signer),
-		LatestAdditionTime:     latestAdditionTime,
-		Counter:                counter,
+		Amount:             amount,
+		TargetPartitionID:  partitionID,
+		TargetRecordID:     NewFeeCreditRecordID(t, signer),
+		LatestAdditionTime: latestAdditionTime,
+		Counter:            counter,
 	}
 }
 
@@ -69,9 +69,9 @@ func WithCounter(counter uint64) TransferFeeCreditOption {
 	}
 }
 
-func WithTargetSystemID(systemID types.SystemID) TransferFeeCreditOption {
+func WithTargetPartitionID(partitionID types.PartitionID) TransferFeeCreditOption {
 	return func(tx *fc.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.TargetSystemIdentifier = systemID
+		tx.TargetPartitionID = partitionID
 		return nil
 	}
 }

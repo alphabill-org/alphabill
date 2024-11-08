@@ -113,9 +113,9 @@ func Test_RootGenesis_New_Sign(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
 	cmd := New(testobserve.NewFactory(t))
 	// create money node genesis
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + pdrFilename
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -177,11 +177,11 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyPartitionDir, defaultKeysFileName)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + pdrFilename
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 

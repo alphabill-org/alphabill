@@ -19,24 +19,24 @@ var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
-		systemIdentifier types.SystemID
-		options          *Options
-		blockGasCounter  *core.GasPool
-		execPredicate    predicates.PredicateRunner
-		log              *slog.Logger
+		partitionIdentifier types.PartitionID
+		options             *Options
+		blockGasCounter     *core.GasPool
+		execPredicate       predicates.PredicateRunner
+		log                 *slog.Logger
 	}
 )
 
-func NewEVMModule(systemIdentifier types.SystemID, opts *Options, log *slog.Logger) (*Module, error) {
+func NewEVMModule(partitionIdentifier types.PartitionID, opts *Options, log *slog.Logger) (*Module, error) {
 	if opts.gasUnitPrice == nil {
 		return nil, fmt.Errorf("evm init failed, gas price is nil")
 	}
 	return &Module{
-		systemIdentifier: systemIdentifier,
-		options:          opts,
-		blockGasCounter:  new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:    predicates.NewPredicateRunner(opts.execPredicate),
-		log:              log,
+		partitionIdentifier: partitionIdentifier,
+		options:             opts,
+		blockGasCounter:     new(core.GasPool).AddGas(opts.blockGasLimit),
+		execPredicate:       predicates.NewPredicateRunner(opts.execPredicate),
+		log:                 log,
 	}, nil
 }
 
@@ -45,8 +45,8 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		if ctx.Tx.NetworkID != ctx.NetworkID {
 			return fmt.Errorf("invalid network id: %d (expected %d)", ctx.Tx.NetworkID, ctx.NetworkID)
 		}
-		if ctx.Tx.SystemID != ctx.SystemID {
-			return txsystem.ErrInvalidSystemIdentifier
+		if ctx.Tx.PartitionID != ctx.PartitionID {
+			return txsystem.ErrInvalidPartitionIdentifier
 		}
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {
 			return txsystem.ErrTransactionExpired

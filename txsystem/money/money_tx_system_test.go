@@ -42,9 +42,9 @@ var (
 		Value: 110,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	fcrAmount     = uint64(1e8)
-	moneySystemID = money.DefaultSystemID
-	networkID     = types.NetworkID(5)
+	fcrAmount        = uint64(1e8)
+	moneyPartitionID = money.DefaultPartitionID
+	networkID        = types.NetworkID(5)
 )
 
 func TestNewTxSystem(t *testing.T) {
@@ -983,10 +983,10 @@ func createDCTransferAndSwapTxs(
 
 	tx := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
-			NetworkID: networkID,
-			SystemID:  moneySystemID,
-			UnitID:    targetID,
-			Type:      money.TransactionTypeSwapDC,
+			NetworkID:   networkID,
+			PartitionID: moneyPartitionID,
+			UnitID:      targetID,
+			Type:        money.TransactionTypeSwapDC,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
 				MaxTransactionFee: 10,
@@ -1039,11 +1039,11 @@ func createSplit(t *testing.T, fromID types.UnitID, fcrID types.UnitID, targetUn
 func createTx(fromID types.UnitID, fcrID types.UnitID, transactionType uint16) *types.TransactionOrder {
 	tx := &types.TransactionOrder{Version: 1,
 		Payload: types.Payload{
-			NetworkID:  networkID,
-			SystemID:   moneySystemID,
-			UnitID:     fromID,
-			Type:       transactionType,
-			Attributes: nil,
+			NetworkID:   networkID,
+			PartitionID: moneyPartitionID,
+			UnitID:      fromID,
+			Type:        transactionType,
+			Attributes:  nil,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
 				MaxTransactionFee: 10,
@@ -1108,8 +1108,8 @@ func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.Partitio
 	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash))
 
 	// fee credit bills
-	for _, sdr := range sdrs {
-		fcb := sdr.FeeCreditBill
+	for _, pdr := range sdrs {
+		fcb := pdr.FeeCreditBill
 		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, &money.BillData{})))
 		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
 	}
@@ -1134,12 +1134,12 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		Version:           1,
-		NetworkIdentifier: 5,
-		SystemIdentifier:  money.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+Version: 1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: money.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -1177,7 +1177,7 @@ func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(5, money.DefaultSystemID, options)
+	module, err := NewMoneyModule(5, money.DefaultPartitionID, options)
 	require.NoError(t, err)
 	return module
 }

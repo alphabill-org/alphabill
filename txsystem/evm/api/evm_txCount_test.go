@@ -29,11 +29,11 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 	teststate.CommitWithUC(t, tree)
 
 	a := &API{
-		state:            tree,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(10),
-		blockGasLimit:    10000,
-		log:              observe.Logger(),
+		state:               tree,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(10),
+		blockGasLimit:       10000,
+		log:                 observe.Logger(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", address.Bytes()), nil)
@@ -51,10 +51,10 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 
 func TestAPI_TransactionCount_NotFound(t *testing.T) {
 	a := &API{
-		state:            abstate.NewEmptyState(),
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(10),
-		blockGasLimit:    10000,
+		state:               abstate.NewEmptyState(),
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(10),
+		blockGasLimit:       10000,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", test.RandomBytes(20)), nil)

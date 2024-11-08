@@ -41,9 +41,9 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
-				SystemID: 7,
-				Type:     22,
-				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+				PartitionID: 7,
+				Type:        22,
+				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
 				},
@@ -101,9 +101,9 @@ func Test_generate_TXSTestsData(t *testing.T) {
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{Version: 1,
 			Payload: types.Payload{
-				SystemID: 7,
-				Type:     22,
-				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+				PartitionID: 7,
+				Type:        22,
+				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
 				},

@@ -10,6 +10,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
@@ -80,12 +81,12 @@ func TestGetUnit(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, unit)
 	})
-	t.Run("network and system identifier exist", func(t *testing.T) {
+	t.Run("network and partition identifier exist", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
 		require.NoError(t, err)
 		require.NotNil(t, unit)
 		require.Equal(t, types.NetworkID(5), unit.NetworkID)
-		require.Equal(t, types.SystemID(0x00010000), unit.SystemID)
+		require.Equal(t, types.PartitionID(0x00010000), unit.PartitionID)
 	})
 }
 
@@ -164,7 +165,7 @@ func TestGetBlock(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1
-		blockNumber := types.Uint64(1)
+		blockNumber := hex.Uint64(1)
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -178,7 +179,7 @@ func TestGetBlock(t *testing.T) {
 	})
 	t.Run("block not found", func(t *testing.T) {
 		node.maxBlockNumber = 1
-		blockNumber := types.Uint64(2)
+		blockNumber := hex.Uint64(2)
 
 		res, err := api.GetBlock(context.Background(), blockNumber)
 		require.NoError(t, err)
@@ -331,7 +332,7 @@ func (mn *MockNode) NetworkID() types.NetworkID {
 	return 5
 }
 
-func (mn *MockNode) SystemID() types.SystemID {
+func (mn *MockNode) PartitionID() types.PartitionID {
 	return 0x00010000
 }
 

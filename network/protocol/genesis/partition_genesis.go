@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 var (
@@ -18,11 +19,11 @@ var (
 
 type PartitionGenesis struct {
 	_                    struct{}                          `cbor:",toarray"`
-	PartitionDescription *types.PartitionDescriptionRecord `json:"partition_description_record,omitempty"`
-	Certificate          *types.UnicityCertificate         `json:"certificate,omitempty"`
-	RootValidators       []*PublicKeyInfo                  `json:"root_validators,omitempty"`
-	Keys                 []*PublicKeyInfo                  `json:"keys,omitempty"`
-	Params               []byte                            `json:"params,omitempty"`
+	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord"`
+	Certificate          *types.UnicityCertificate         `json:"certificate"`
+	RootValidators       []*PublicKeyInfo                  `json:"rootValidators"`
+	Keys                 []*PublicKeyInfo                  `json:"keys"`
+	Params               hex.Bytes                         `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
@@ -70,7 +71,7 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	}
 	sdrHash := x.PartitionDescription.Hash(hashAlgorithm)
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.SystemIdentifier, sdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, sdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators

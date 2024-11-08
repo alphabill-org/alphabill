@@ -42,10 +42,10 @@ func Test_checkFeeAccountBalance(t *testing.T) {
 
 	// validate fee balance tx ok
 	require.NoError(t, validateFeeBalanceFn(&TxValidationContext{
-		Tx:        txo,
-		state:     s,
-		NetworkID: 5,
-		SystemID:  1,
+		Tx:          txo,
+		state:       s,
+		NetworkID:   5,
+		PartitionID: 1,
 	}))
 }
 

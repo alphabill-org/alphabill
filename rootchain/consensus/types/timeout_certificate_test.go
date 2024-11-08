@@ -7,6 +7,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
 				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-				Signatures:       map[string][]byte{"1": {1, 2, 1}},
+				Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}},
 			},
 		},
 		Signatures: make(map[string]*TimeoutVote),
@@ -49,7 +50,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
 			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err := timeoutCert.Add("1", t1, []byte{0, 1, 2})
@@ -69,7 +70,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
 			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("2", t2, []byte{1, 2, 2})
@@ -90,7 +91,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
 			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("3", t3, []byte{1, 2, 2})
@@ -110,7 +111,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
 			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
-			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	err = timeoutCert.Add("4", t4, []byte{1, 2, 3})

@@ -192,12 +192,12 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC network identifier 10 (expected 5)")
 	})
-	t.Run("invalid system id", func(t *testing.T) {
+	t.Run("invalid partition id", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1,
-						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithSystemID(0xFFFFFFFF))),
+TxRecord: &types.TransactionRecord{Version: 1,
+TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, nil, testtransaction.WithPartitionID(0xFFFFFFFF))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 					TxProof: &types.TxProof{Version: 1},
@@ -211,14 +211,14 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: invalid transferFC money system identifier 4294967295 (expected 1)")
+			"add fee credit validation failed: invalid transferFC money partition identifier 4294967295 (expected 1)")
 	})
-	t.Run("invalid target systemID", func(t *testing.T) {
+	t.Run("invalid target partitionID", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer,
 				testfc.WithTransferFCProof(&types.TxRecordProof{
-					TxRecord: &types.TransactionRecord{Version: 1,
-						TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetSystemID(0xFFFFFFFF)))),
+TxRecord: &types.TransactionRecord{Version: 1,
+TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer, testfc.WithTargetPartitionID(0xFFFFFFFF)))),
 						ServerMetadata:   &types.ServerMetadata{},
 					},
 					TxProof: &types.TxProof{Version: 1},
@@ -232,7 +232,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		var authProof fc.AddFeeCreditAuthProof
 		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"add fee credit validation failed: invalid transferFC target system identifier 4294967295 (expected 1)")
+			"add fee credit validation failed: invalid transferFC target partition identifier 4294967295 (expected 1)")
 	})
 	t.Run("invalid target recordID", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,

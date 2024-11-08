@@ -28,19 +28,19 @@ type (
 	}
 
 	partitionShard struct {
-		partition types.SystemID
+		partition types.PartitionID
 		shard     string // types.ShardID is not comparable
 	}
 
 	Orchestration interface {
-		ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 	}
 )
 
 func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	for _, genRec := range pg {
-		partition := genRec.PartitionDescription.SystemIdentifier
+		partition := genRec.PartitionDescription.PartitionIdentifier
 		for shard := range genRec.PartitionDescription.Shards.All() {
 			si, err := drctypes.NewShardInfoFromGenesis(genRec)
 			if err != nil {
@@ -68,7 +68,7 @@ func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db
 func readCertificates(db keyvaluedb.KeyValueDB, pg []*genesis.GenesisPartitionRecord) (map[partitionShard]*drctypes.ShardInfo, error) {
 	ucs := make(map[partitionShard]*drctypes.ShardInfo)
 	for _, genRec := range pg {
-		partition := genRec.PartitionDescription.SystemIdentifier
+		partition := genRec.PartitionDescription.PartitionIdentifier
 		for shard := range genRec.PartitionDescription.Shards.All() {
 			var si drctypes.ShardInfo
 			ok, err := db.Read(certKey(partition, shard), &si)
@@ -200,9 +200,9 @@ func (x *BlockStore) ProcessTc(tc *drctypes.TimeoutCert) (rErr error) {
 
 // IsChangeInProgress - return input record if sysID has a pending IR change in the pipeline or nil if no change is
 // currently in the pipeline.
-func (x *BlockStore) IsChangeInProgress(sysId types.SystemID) *types.InputRecord {
+func (x *BlockStore) IsChangeInProgress(sysId types.PartitionID) *types.InputRecord {
 	blocks := x.blockTree.GetAllUncommittedNodes()
-	// go through the block we have and make sure that there is no change in progress for this system id
+	// go through the block we have and make sure that there is no change in progress for this partition id
 	for _, b := range blocks {
 		if slices.Contains(b.Changed, sysId) {
 			return b.CurrentIR.Find(sysId).IR
@@ -272,7 +272,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier)
+	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier, x.getTR)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}
@@ -281,6 +281,14 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 		return nil, err
 	}
 	return exeBlock.RootHash, nil
+}
+
+func (x *BlockStore) getTR(partition types.PartitionID, shard types.ShardID, req *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
+	si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]
+	if !ok {
+		return certification.TechnicalRecord{}, fmt.Errorf("no shard info %s - %s", partition, shard)
+	}
+	return si.TechnicalRecord(req, x.orchestration)
 }
 
 func (x *BlockStore) GetHighQc() *drctypes.QuorumCert {
@@ -324,12 +332,12 @@ func (x *BlockStore) updateCertificateCache(certs []*certification.Certification
 	return nil
 }
 
-func (x *BlockStore) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
 	si, f := x.shardInfo[partitionShard{partition: id, shard: shard.Key()}]
 	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %s", id)
+		return nil, fmt.Errorf("no certificate found for partition id %s", id)
 	}
 	return si.LastCR, nil
 }
@@ -345,7 +353,7 @@ func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	return ucs
 }
 
-func (x *BlockStore) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error) {
 	if si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]; ok {
 		return si, nil
 	}

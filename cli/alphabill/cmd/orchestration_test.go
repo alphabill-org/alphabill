@@ -37,6 +37,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: orchestration.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -64,7 +65,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// generate root genesis
@@ -128,6 +129,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				Type:           orchestration.TransactionTypeAddVAR,
 				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),

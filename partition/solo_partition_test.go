@@ -1,11 +1,11 @@
 package partition
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -79,7 +79,7 @@ func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 
 func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	peerConf := createPeerConfiguration(t, validator)
-	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
@@ -382,7 +382,8 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 }
 
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
-	u := &types.UnicitySeal{Version: 1,
+	u := &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,
@@ -491,7 +492,11 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types
 
 func ContainsTransaction(block *types.Block, tx *types.TransactionOrder) bool {
 	for _, t := range block.Transactions {
-		if reflect.DeepEqual(t.TransactionOrder, tx) {
+		txBytes, err := tx.MarshalCBOR()
+		if err != nil {
+			panic(err)
+		}
+		if bytes.Equal(t.TransactionOrder, txBytes) {
 			return true
 		}
 	}

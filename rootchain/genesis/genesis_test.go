@@ -38,6 +38,7 @@ func createPartition(t *testing.T, partitionIdentifier types.PartitionID, nodeID
 
 	return &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: partitionIdentifier,
 			TypeIdLen:           8,
@@ -45,11 +46,12 @@ func createPartition(t *testing.T, partitionIdentifier types.PartitionID, nodeID
 			T2Timeout:           2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
-			Version:                   1,
-			NodeIdentifier:            nodeID,
-			SigningPublicKey:          pubKey,
-			EncryptionPublicKey:       pubKey,
-			BlockCertificationRequest: req,
+			Version:                    1,
+			NodeIdentifier:             nodeID,
+			SigningPublicKey:           pubKey,
+			EncryptionPublicKey:        pubKey,
+			BlockCertificationRequest:  req,
+			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 		}},
 	}
 }
@@ -67,6 +69,7 @@ func createPartitionNode(t *testing.T, partitionIdentifier types.PartitionID, no
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: partitionIdentifier,
 			TypeIdLen:           8,
@@ -81,7 +84,8 @@ func createInputRequest(t *testing.T, partitionIdentifier types.PartitionID, nod
 	req := &certification.BlockCertificationRequest{
 		Partition:      partitionIdentifier,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

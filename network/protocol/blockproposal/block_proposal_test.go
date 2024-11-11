@@ -145,24 +145,41 @@ func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &types.UnicitySeal{Version: 1,
+	seal := &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: 1,
 		Timestamp:            10000,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
 		Signatures:           map[string]hex.Bytes{"1": test.RandomBytes(32)},
 	}
+	tx, err := (&types.TransactionOrder{
+		Version: 1,
+		Payload: types.Payload{
+			PartitionID:    0,
+			Type:           22,
+			UnitID:         nil,
+			Attributes:     nil,
+			ClientMetadata: nil,
+		},
+		AuthProof: nil,
+		FeeProof:  nil,
+	}).MarshalCBOR()
+	require.NoError(t, err)
 	bp := &BlockProposal{
 		Partition:      partitionIdentifier,
 		NodeIdentifier: "1",
-		UnicityCertificate: &types.UnicityCertificate{Version: 1,
-			InputRecord: &types.InputRecord{Version: 1,
+		UnicityCertificate: &types.UnicityCertificate{
+			Version: 1,
+			InputRecord: &types.InputRecord{
+				Version:      1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				Version:   1,
 				Partition: partitionIdentifier,
 				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
@@ -170,72 +187,68 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			UnicitySeal: seal,
 		},
 		Transactions: []*types.TransactionRecord{{
-			TransactionOrder: &types.TransactionOrder{
-				Payload: types.Payload{
-					PartitionID:    0,
-					Type:           22,
-					UnitID:         nil,
-					Attributes:     nil,
-					ClientMetadata: nil,
-				},
-				AuthProof: nil,
-				FeeProof:  nil,
-			},
+			TransactionOrder: tx,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
 			},
 		}},
 	}
-	err := bp.Sign(gocrypto.SHA256, signer)
-	require.NoError(t, err)
+	require.NoError(t, bp.Sign(gocrypto.SHA256, signer))
 
-	err = bp.Verify(gocrypto.SHA256, verifier)
-	require.NoError(t, err)
+	require.NoError(t, bp.Verify(gocrypto.SHA256, verifier))
 }
 
 func TestBlockProposal_InvalidSignature(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &types.UnicitySeal{Version: 1,
+	seal := &types.UnicitySeal{
+		Version:              1,
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
 		Timestamp:            10000,
 		Signatures:           map[string]hex.Bytes{"1": test.RandomBytes(32)},
 	}
+	tx, err := (&types.TransactionOrder{
+		Version: 1,
+		Payload: types.Payload{
+			PartitionID:    0,
+			Type:           22,
+			UnitID:         nil,
+			Attributes:     nil,
+			ClientMetadata: nil,
+		},
+		AuthProof: nil,
+		FeeProof:  nil,
+	}).MarshalCBOR()
+	require.NoError(t, err)
 	bp := &BlockProposal{
 		Partition:      partitionIdentifier,
 		NodeIdentifier: "1",
-		UnicityCertificate: &types.UnicityCertificate{Version: 1,
-			InputRecord: &types.InputRecord{Version: 1,
+		UnicityCertificate: &types.UnicityCertificate{
+			Version: 1,
+			InputRecord: &types.InputRecord{
+				Version:      1,
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				Version:   1,
 				Partition: partitionIdentifier,
 				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
-			Payload: types.Payload{
-				PartitionID:    0,
-				Type:           22,
-				UnitID:         nil,
-				Attributes:     nil,
-				ClientMetadata: nil,
-			},
-			AuthProof: nil,
-			FeeProof:  nil,
-		},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: tx,
 			ServerMetadata: &types.ServerMetadata{
 				ActualFee: 10,
 			}}},
 	}
-	err := bp.Sign(gocrypto.SHA256, signer)
+	err = bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
 	bp.Signature = test.RandomBytes(64)
 

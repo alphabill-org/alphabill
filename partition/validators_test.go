@@ -15,6 +15,7 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
+	Version:             1,
 	NetworkIdentifier:   5,
 	PartitionIdentifier: 1,
 	TypeIdLen:           8,
@@ -75,7 +76,8 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -147,7 +149,8 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -169,7 +172,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		UnicityCertificate: uc,
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: testtransaction.NewTransactionOrder(t),
+				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),
 				ServerMetadata: &types.ServerMetadata{
 					ActualFee: 10,
 				},

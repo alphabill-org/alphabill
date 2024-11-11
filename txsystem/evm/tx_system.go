@@ -132,7 +132,7 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
-func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
+func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRecord, err error) {
 	exeCtx := &TxValidationContext{
 		Tx:          tx,
 		state:       m.state,
@@ -145,7 +145,14 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 			return nil, fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
-
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("transaction order serialization error: %w", err)
+	}
+	trx = &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+	}
 	savepointID := m.state.Savepoint()
 	defer func() {
 		if err != nil {
@@ -153,11 +160,8 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 			m.state.RollbackToSavepoint(savepointID)
 			return
 		}
-		trx := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		for _, targetID := range sm.TargetUnits {
+
+		for _, targetID := range trx.ServerMetadata.TargetUnits {
 			// add log for each target unit
 			err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
@@ -171,11 +175,11 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, exeCtx)
+	trx.ServerMetadata, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
-	return sm, err
+	return trx, err
 }
 
 func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {

@@ -237,6 +237,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 	pubKeyHash := hash.Sum256(pubKey)
 
 	validTxOrder := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			PartitionID: 1,
 			Type:        22,

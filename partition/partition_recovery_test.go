@@ -61,7 +61,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 
 func TestNode_RecoveryCausedByBlockSubscriptionTimeout(t *testing.T) {
 	tp := runSingleNonValidatorNodePartition(t, &testtxsystem.CounterTxSystem{},
-		WithBlockSubscriptionTimeout(500 * time.Millisecond))
+		WithBlockSubscriptionTimeout(500*time.Millisecond))
 
 	require.Eventually(t, func() bool {
 		return tp.partition.status.Load() == recovering
@@ -87,7 +87,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -110,7 +111,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	// increment round number
-	irNew := &types.InputRecord{Version: 1,
+	irNew := &types.InputRecord{
+		Version:      1,
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -377,7 +379,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	rootRound++
 	partitionRound++
 	newStateHash := test.RandomBytes(32)
-	ir := &types.InputRecord{Version: 1,
+	ir := &types.InputRecord{
+		Version:      1,
 		PreviousHash: uc1.InputRecord.Hash,
 		Hash:         newStateHash,
 		BlockHash:    test.RandomBytes(32),
@@ -397,7 +400,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp.eh.Reset()
 	rootRound++
 	partitionRound++
-	ir = &types.InputRecord{Version: 1,
+	ir = &types.InputRecord{
+		Version:      1,
 		PreviousHash: newStateHash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -926,7 +930,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// submit transaction
-	require.NoError(t, tp.SubmitTx(newBlock1.Transactions[0].TransactionOrder))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -1003,7 +1008,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	require.Len(t, newBlock1.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
-	require.NoError(t, tp.SubmitTx(newBlock1.Transactions[0].TransactionOrder))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -1274,7 +1280,9 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 
 	for i, txr := range txrs {
 		transactions[i] = txr
-		_, err := txs.Execute(txr.TransactionOrder)
+		tx, err := txr.GetTransactionOrderV1()
+		require.NoError(t, err)
+		_, err = txs.Execute(tx)
 		require.NoError(t, err)
 	}
 	state, err := txs.EndBlock()
@@ -1294,6 +1302,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	require.NoError(t, err)
 	newBlock := &types.Block{
 		Header: &types.Header{
+			Version:           1,
 			PartitionID:       uc.UnicityTreeCertificate.Partition,
 			ShardID:           tp.nodeConf.shardID,
 			ProposerID:        "test",

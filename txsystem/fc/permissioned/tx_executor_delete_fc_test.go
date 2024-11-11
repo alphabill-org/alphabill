@@ -156,7 +156,7 @@ func newDeleteFeeTx(adminSigner crypto.Signer, partitionID types.PartitionID, un
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	txo := &types.TransactionOrder{Payload: payload, FeeProof: feeProof}
+	txo := &types.TransactionOrder{Version: 1, Payload: payload, FeeProof: feeProof}
 	authProof, err := signAuthProof(txo, adminSigner, func(ownerProof []byte) *permissioned.DeleteFeeCreditAuthProof {
 		return &permissioned.DeleteFeeCreditAuthProof{OwnerProof: ownerProof}
 	})

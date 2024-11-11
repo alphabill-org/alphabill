@@ -136,7 +136,11 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 	var history historyIndex
 	for i, tx := range block.Transactions {
 		// write down tx index for generating block proofs
-		txoHash := tx.TransactionOrder.Hash(p.hashAlgorithm)
+		txo, err := tx.GetTransactionOrderV1()
+		if err != nil {
+			return fmt.Errorf("unable to get transaction order: %w", err)
+		}
+		txoHash := txo.Hash(p.hashAlgorithm)
 		if err = dbTx.Write(txoHash, &TxIndex{
 			RoundNumber:  roundNumber,
 			TxOrderIndex: i,

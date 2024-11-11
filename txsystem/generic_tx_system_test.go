@@ -50,6 +50,7 @@ func (t *MockData) Owner() []byte {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   mockNetworkID,
 		PartitionIdentifier: mockPartitionID,
 		TypeIdLen:           8,
@@ -97,9 +98,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithPartitionID(mockPartitionID+1),
 			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.ErrorIs(t, err, ErrInvalidPartitionIdentifier)
-		require.Nil(t, md)
+		require.Nil(t, txr)
 	})
 
 	t.Run("no executor for the tx type", func(t *testing.T) {
@@ -114,10 +115,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 		)
 		// no modules, no tx handlers
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("tx validate returns error", func(t *testing.T) {
@@ -134,10 +135,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				MaxTransactionFee: 1,
 			}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("tx validate returns out of gas", func(t *testing.T) {
@@ -155,10 +156,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				MaxTransactionFee: 1,
 			}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxErrOutOfGas, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxErrOutOfGas, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("tx execute returns error", func(t *testing.T) {
@@ -174,10 +175,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				MaxTransactionFee: 1,
 			}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("locked unit - unlock fails", func(t *testing.T) {
@@ -216,10 +217,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				MaxTransactionFee: 1,
 			}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("locked unit - unlocked, but execution fails", func(t *testing.T) {
@@ -257,10 +258,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 			transaction.WithUnlockProof([]byte{byte(StateUnlockExecute)}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("lock fails - validate fails", func(t *testing.T) {
@@ -280,10 +281,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				ExecutionPredicate: templates.AlwaysTrueBytes(),
 				RollbackPredicate:  templates.AlwaysTrueBytes()}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("lock fails - state lock invalid", func(t *testing.T) {
@@ -299,10 +300,10 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			}),
 			transaction.WithStateLock(&types.StateLock{}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
-		require.EqualValues(t, types.TxStatusFailed, md.SuccessIndicator)
+		require.NotNil(t, txr.ServerMetadata)
+		require.EqualValues(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	})
 
 	t.Run("lock success", func(t *testing.T) {
@@ -326,9 +327,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				ExecutionPredicate: templates.AlwaysTrueBytes(),
 				RollbackPredicate:  templates.AlwaysTrueBytes()}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
+		require.NotNil(t, txr.ServerMetadata)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -346,9 +347,9 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				MaxTransactionFee: 1,
 			}),
 		)
-		md, err := txSys.Execute(txo)
+		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
-		require.NotNil(t, md)
+		require.NotNil(t, txr.ServerMetadata)
 	})
 }
 
@@ -357,6 +358,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	// tx system) for "txs" transaction system
 	createTxOrder := func(txs *GenericTxSystem) *types.TransactionOrder {
 		return &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				NetworkID:   txs.pdr.NetworkIdentifier,
 				PartitionID: txs.pdr.PartitionIdentifier,
@@ -472,6 +474,7 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   mockNetworkID,
 		PartitionIdentifier: mockPartitionID,
 		TypeIdLen:           8,

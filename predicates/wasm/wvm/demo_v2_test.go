@@ -99,6 +99,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeTransferNFT,
@@ -148,6 +149,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		conf := wasm.PredicateParams{Entrypoint: "type_update_data", Args: nil}
 
 		txNFTUpdate := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeUpdateNFT,
@@ -212,6 +214,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeTransferNFT,
@@ -297,6 +300,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		conf := wasm.PredicateParams{Entrypoint: "token_update_data", Args: predCfg}
 
 		txNFTUpdate := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID: tokens.DefaultPartitionID,
 				Type:        tokens.TransactionTypeUpdateNFT,
@@ -366,6 +370,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, value uint64, refNo []byte) []byte {
 	// attendee transfers to the organizer
 	txPayment := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			PartitionID: money.DefaultPartitionID,
 			Type:        money.TransactionTypeTransfer,
@@ -385,7 +390,9 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 		&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, txPayment, signer)}),
 	)
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txBytes, err := txPayment.MarshalCBOR()
+	require.NoError(t, err)
+	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 
 	b, err := types.Cbor.Marshal(txRec)

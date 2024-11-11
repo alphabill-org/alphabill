@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime/pprof"
 	"slices"
 	"sort"
 	"testing"
 	"time"
 
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -568,7 +568,8 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	return err
 }
 
-func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
+func (n *NodePartition) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
+	txBytes := testtransaction.TxoToBytes(t, tx)
 	for _, n := range n.Nodes {
 		number, err := n.LatestBlockNumber()
 		if err != nil {
@@ -580,7 +581,7 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 				continue
 			}
 			for j, t := range b.Transactions {
-				if reflect.DeepEqual(t.TransactionOrder, tx) {
+				if bytes.Equal(t.TransactionOrder, txBytes) {
 					proof, err := types.NewTxRecordProof(b, j, crypto.SHA256)
 					if err != nil {
 						return nil, nil, err
@@ -655,7 +656,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
 	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
-		return reflect.DeepEqual(actualTx.TransactionOrder, tx)
+		return bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 
@@ -663,7 +664,7 @@ func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.Transacti
 func BlockchainContainsSuccessfulTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
 	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
-			reflect.DeepEqual(actualTx.TransactionOrder, tx)
+			bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 

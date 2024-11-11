@@ -71,9 +71,9 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	sm, err := txs.Execute(updateTx)
+	txr, err := txs.Execute(updateTx)
 	require.NoError(t, err)
-	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 
 	// update nft with state unlock, it must be transferred to new bearer w1
 	attr := &tokens.UpdateNonFungibleTokenAttributes{
@@ -97,7 +97,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 
 	_, err = txs.Execute(updateTx)
 	require.NoError(t, err)
-	require.Equal(t, types.TxStatusFailed, sm.SuccessIndicator)
+	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 
 	// verify unit was unlocked and bearer has changed
 	u, err = txs.State().GetUnit(unitID, false)

@@ -4,9 +4,9 @@
     "version": 1,
     "rootValidators": [
       {
-        "nodeIdentifier": "16Uiu2HAmAqPXCXdnJnTAWEDAFqigKwo4gWxiJy1Ufriyn2BwM9ZC",
-        "signingPublicKey": "0x03f7a70cbde154d455c9af422f90892d117c18fefa49e8313d987a46a6dbb1455b",
-        "encryptionPublicKey": "0x03f7a70cbde154d455c9af422f90892d117c18fefa49e8313d987a46a6dbb1455b"
+        "nodeIdentifier": "16Uiu2HAm8dZx4BVsE1Hgau2v9Shya4hLsnXoZQLap1pWBtEkFW3N",
+        "signingPublicKey": "0x0277831b41a9e0a99b2a4fa896599aaa2ab95546f938ca127fb4dc595826856953",
+        "encryptionPublicKey": "0x0277831b41a9e0a99b2a4fa896599aaa2ab95546f938ca127fb4dc595826856953"
       }
     ],
     "consensus": {
@@ -16,7 +16,7 @@
       "consensusTimeoutMs": 10000,
       "hashAlgorithm": 5,
       "signatures": {
-        "16Uiu2HAmAqPXCXdnJnTAWEDAFqigKwo4gWxiJy1Ufriyn2BwM9ZC": "0x8e4146aea62d45a5df2290616d0baf660735af4893f94f257b0c7efdc88ed1380f4f8c09e4508f6c68f85b54377078cc6ab7e80b23a8ecc997de04abca0bbb5400"
+        "16Uiu2HAm8dZx4BVsE1Hgau2v9Shya4hLsnXoZQLap1pWBtEkFW3N": "0x64ef446f1dc99c00ffae415dff18b72e2c424a7f02c0c4ca2198ed14cc3649cc5c5edb9250cae535f78e983ab0fef1772b90a162ac7ed6de5533cd4c78ded54701"
       }
     }
   },
@@ -26,13 +26,13 @@
       "nodes": [
         {
           "version": 1,
-          "nodeIdentifier": "16Uiu2HAmPm4qCFZREkb8SR9gr5P9UVVoZ1UXafPgiyuYfy1aq2nG",
-          "signingPublicKey": "0x031bbacf56ab0d8daca8e436f2e69dce73cbd58bdbf6f7ce0e132aaed5591538b5",
-          "encryptionPublicKey": "0x03a4ff1b9cda96cfb18c96b79cd1fcc357239223b375e15b68bad39c2708e1b9f5",
+          "nodeIdentifier": "16Uiu2HAkvmbxZSZxAaP2M2VsXh8AtNMfxJwYoqNsej6WcbxroSMk",
+          "signingPublicKey": "0x024f462cea58fcf78702705cc91f4faf087751d73ece5648390e9e77c5118b3cbf",
+          "encryptionPublicKey": "0x0213f6c199873cecfd78dca0791b2f2d5f13b2ebdbd3e64e2e580ed2fd3fc9d8d7",
           "blockCertificationRequest": {
             "partitionIdentifier": 1,
             "shardIdentifier": "0x80",
-            "nodeIdentifier": "16Uiu2HAmPm4qCFZREkb8SR9gr5P9UVVoZ1UXafPgiyuYfy1aq2nG",
+            "nodeIdentifier": "16Uiu2HAkvmbxZSZxAaP2M2VsXh8AtNMfxJwYoqNsej6WcbxroSMk",
             "inputRecord": {
               "version": 1,
               "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -46,9 +46,10 @@
             "rootRoundNumber": 0,
             "blockSize": 0,
             "stateSize": 0,
-            "signature": "0x4e9b8205f7ef8ec67689d4e2b33b7ae9c9eb7057b4c6dd6c879a4ea5e11f66666565e8b0b42695def18d801c977391b7e231c004736bdd693c7ff0003bc8110b00"
+            "signature": "0x97bbf4a5af34128f3737ad4ef5dda11173c95dedd1dd06e26ea6ea0cab1a09600a244868fb87529ca1732b9e4479e140d8b8f7a18bb02f7e708357ce12fb033700"
           },
           "partitionDescriptionRecord": {
+            "version": 1,
             "networkIdentifier": 0,
             "partitionIdentifier": 0,
             "typeIdLength": 0,
@@ -72,29 +73,30 @@
           "epoch": 0,
           "sumOfEarnedFees": 0
         },
-        "trHash": "0x5c7933afd999c2375268cd4151f73af3acb1b8cd5664ba663c87a325464bd140",
+        "trHash": "0x0155216f1497b8ea5ac1d4597a5b403198452c82303eec75abdde5743c094a51",
         "shardTreeCertificate": {
           "Shard": "0x80",
           "SiblingHashes": []
         },
         "unicityTreeCertificate": {
-          "version": 0,
+          "version": 1,
           "partitionIdentifier": 1,
           "hashSteps": [],
-          "partitionDescriptionHash": "0xe43c6eeded80f93cd3240a674e2db1987974c77d08843f32d2deee726730f546"
+          "partitionDescriptionHash": "0xc57d52d4482de608b21c70b9118a35d0de8f0def0392ce13f96df83cdef9ca54"
         },
         "unicitySeal": {
           "version": 1,
           "rootChainRoundNumber": 1,
           "timestamp": 1681971084,
-          "previousHash": "0x8de53e4d0da8b8b3d94d5064c31de8ecfa64f007938c5f23612206a356d183b6",
-          "hash": "0x01458be9e9b06002bf88623f33fe8f445273a6f84da9269e43b399f27b8afe72",
+          "previousHash": "0x8c120c17f6b4a52bc29738261dfeb457fa8f903377cfed97bcc1df61f1ccf6e6",
+          "hash": "0xcd77888011d5af22d0bba2fce88ec3677556d0534a25f747e2ba4cde3f746ffa",
           "signatures": {
-            "16Uiu2HAmAqPXCXdnJnTAWEDAFqigKwo4gWxiJy1Ufriyn2BwM9ZC": "0x099a5ef6a1993793754d351fa30e6875602bb8f2019723a2f1298ef1884dd2a77989adcd15d4275c135d93074bc2dcbf793489fe2afc58139d700b6f66efa4e500"
+            "16Uiu2HAm8dZx4BVsE1Hgau2v9Shya4hLsnXoZQLap1pWBtEkFW3N": "0xa5c7235af99e51b319912c63a34290ec9b723fc11314a98f7555f3ae931c1d9409972c848d06145eec07f4892b0ab09546df0aacc09d25b77fc59fd27e983ec701"
           }
         }
       },
       "partitionDescriptionRecord": {
+        "version": 1,
         "networkIdentifier": 5,
         "partitionIdentifier": 1,
         "typeIdLength": 8,

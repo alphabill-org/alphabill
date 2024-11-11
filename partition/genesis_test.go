@@ -26,6 +26,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	validPDR := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 1,
 		TypeIdLen:           8,
@@ -95,7 +96,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	// invalid partition identifier
 	got, err := NewNodeGenesis(
 		state.NewEmptyState(),
-		types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 0},
+		types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0},
 		WithPeerID("1"),
 		WithSigningKey(signer),
 		WithEncryptionPubKey(pubKeyBytes),
@@ -109,7 +110,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pdr := types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
 	pn := createPartitionNode(t, signer, verifier, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)

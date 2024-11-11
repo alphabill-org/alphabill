@@ -27,7 +27,8 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 const sysID1 types.PartitionID = 1
 const sysID2 types.PartitionID = 2
 
-var inputRecord1 = &types.InputRecord{Version: 1,
+var inputRecord1 = &types.InputRecord{
+	Version:         1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -35,7 +36,8 @@ var inputRecord1 = &types.InputRecord{Version: 1,
 	RoundNumber:     5,
 	SumOfEarnedFees: 6,
 }
-var inputRecord2 = &types.InputRecord{Version: 1,
+var inputRecord2 = &types.InputRecord{
+	Version:         1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{5, 5, 5},
 	BlockHash:       []byte{3, 3, 3},

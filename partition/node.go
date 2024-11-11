@@ -400,13 +400,17 @@ func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*
 	if err := n.transactionSystem.BeginBlock(round); err != nil {
 		return nil, 0, err
 	}
-	for _, tx := range txs {
-		sm, err := n.validateAndExecuteTx(ctx, tx.TransactionOrder, round)
+	for _, txr := range txs {
+		txo, err := txr.GetTransactionOrderV1()
 		if err != nil {
-			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.UnitID(), err)
+			return nil, 0, fmt.Errorf("failed to get transaction order: %w", err)
 		}
-		sumOfEarnedFees += sm.ActualFee
+		trx, err := n.validateAndExecuteTx(ctx, txo, round)
+		if err != nil {
+			n.log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(txo.UnitID))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", txo.UnitID, err)
+		}
+		sumOfEarnedFees += trx.ServerMetadata.ActualFee
 	}
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
@@ -582,22 +586,22 @@ func statusCodeOfTxError(err error) string {
 }
 
 func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
-	sm, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
-	if err != nil || (n.IsFeelessMode() && sm.TxStatus() != types.TxStatusSuccessful) {
+	trx, err := n.validateAndExecuteTx(ctx, tx, n.committedUC().GetRoundNumber()+1)
+	if err != nil || (n.IsFeelessMode() && trx.TxStatus() != types.TxStatusSuccessful) {
 		n.sendEvent(event.TransactionFailed, tx)
 		if err == nil {
-			err = sm.ErrDetail()
+			err = trx.ServerMetadata.ErrDetail()
 		}
 		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
-	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
-	n.sumOfEarnedFees += sm.GetActualFee()
+	n.proposedTransactions = append(n.proposedTransactions, trx)
+	n.sumOfEarnedFees += trx.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
 	n.log.DebugContext(ctx, fmt.Sprintf("transaction processed, proposal size: %d", len(n.proposedTransactions)), logger.UnitID(tx.UnitID))
 	return nil
 }
 
-func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.ServerMetadata, rErr error) {
+func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.TransactionRecord, rErr error) {
 	defer func(start time.Time) {
 		txTypeAttr := attribute.Int("tx", int(tx.Type))
 		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
@@ -607,11 +611,11 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 	if err := n.txValidator.Validate(tx, round); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
-	sm, err := n.transactionSystem.Execute(tx)
+	trx, err := n.transactionSystem.Execute(tx)
 	if err != nil {
 		return nil, fmt.Errorf("executing transaction in transaction system: %w", err)
 	}
-	return sm, nil
+	return trx, nil
 }
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
@@ -676,7 +680,11 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("transaction system BeginBlock error, %w", err)
 	}
 	for _, tx := range prop.Transactions {
-		if err = n.process(ctx, tx.TransactionOrder); err != nil {
+		txo, err := tx.GetTransactionOrderV1()
+		if err != nil {
+			return fmt.Errorf("failed to get transaction order: %w", err)
+		}
+		if err = n.process(ctx, txo); err != nil {
 			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
@@ -1361,6 +1369,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	}
 	pendingProposal := &types.Block{
 		Header: &types.Header{
+			Version:           1,
 			PartitionID:       n.configuration.GetPartitionIdentifier(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
@@ -1462,7 +1471,11 @@ func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
 	}
-	h := txRecordProof.TransactionOrder().Hash(n.configuration.hashAlgorithm)
+	txo, err := txRecordProof.GetTransactionOrderV1()
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract transaction order from the block: %w", err)
+	}
+	h := txo.Hash(n.configuration.hashAlgorithm)
 	if !bytes.Equal(h, txoHash) {
 		return nil, errors.New("transaction index is invalid: hash mismatch")
 	}

@@ -78,7 +78,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 	if err != nil {
 		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
-	txOnHold := &types.TransactionOrder{}
+	txOnHold := &types.TransactionOrder{Version: 1}
 	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}

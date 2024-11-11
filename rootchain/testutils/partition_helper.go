@@ -34,6 +34,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	t.Helper()
 	record = &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: partitionID,
 			TypeIdLen:           8,
@@ -59,11 +60,12 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
-			Version:                   1,
-			NodeIdentifier:            partitionNode.PeerConf.ID.String(),
-			SigningPublicKey:          rawSigningPubKey,
-			EncryptionPublicKey:       rawEncPubKey,
-			BlockCertificationRequest: req,
+			Version:                    1,
+			NodeIdentifier:             partitionNode.PeerConf.ID.String(),
+			SigningPublicKey:           rawSigningPubKey,
+			EncryptionPublicKey:        rawEncPubKey,
+			BlockCertificationRequest:  req,
+			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 		})
 
 		partitionNodes = append(partitionNodes, partitionNode)

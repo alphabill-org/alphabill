@@ -65,6 +65,7 @@ func TestGenesisRootRecord_FindPubKeyById_Nil(t *testing.T) {
 		pubKeyInfo[i] = &PublicKeyInfo{NodeIdentifier: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
 	}
 	rg = &GenesisRootRecord{
+		Version:        1,
 		RootValidators: pubKeyInfo,
 	}
 	require.NotNil(t, rg.FindPubKeyById("1"))
@@ -244,7 +245,7 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 	t.Run("Serialize and verify", func(t *testing.T) {
 		bs, err := types.Cbor.Marshal(x)
 		require.NoError(t, err)
-		x2 := &GenesisRootRecord{}
+		x2 := &GenesisRootRecord{Version: 1}
 		err = types.Cbor.Unmarshal(bs, x2)
 		require.NoError(t, err)
 		require.NoError(t, x2.Verify())

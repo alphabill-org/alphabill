@@ -20,7 +20,11 @@ func getTransferPayloadAttributes(proof *types.TxRecordProof) (*fc.TransferFeeCr
 		return nil, err
 	}
 	var transferPayload *fc.TransferFeeCreditAttributes
-	if err := proof.TransactionOrder().UnmarshalAttributes(&transferPayload); err != nil {
+	txo, err := proof.GetTransactionOrderV1()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction order: %w", err)
+	}
+	if err := txo.UnmarshalAttributes(&transferPayload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal transfer payload: %w", err)
 	}
 	return transferPayload, nil
@@ -98,7 +102,10 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 		return fmt.Errorf("transferFC transaction record proof is not valid: %w", err)
 	}
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
-	transferTx := feeCreditTransferProof.TransactionOrder()
+	transferTx, err := feeCreditTransferProof.GetTransactionOrderV1()
+	if err != nil {
+		return fmt.Errorf("failed to get transferFC transaction order: %w", err)
+	}
 	// dirty hack
 	if transferTx.PartitionID != f.moneyPartitionID {
 		return fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", transferTx.PartitionID, f.moneyPartitionID)

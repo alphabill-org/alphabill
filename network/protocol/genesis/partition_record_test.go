@@ -11,6 +11,7 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
+	Version:             1,
 	NetworkIdentifier:   5,
 	PartitionIdentifier: 1,
 	TypeIdLen:           8,
@@ -56,6 +57,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			name: "invalid validator partition identifier",
 			fields: fields{
 				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
+					Version:             1,
 					NetworkIdentifier:   5,
 					PartitionIdentifier: 2,
 					TypeIdLen:           8,

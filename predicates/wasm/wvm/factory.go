@@ -17,9 +17,9 @@ func (ABTypesFactory) createObj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {
 	case type_id_tx_order:
-		obj = &types.TransactionOrder{}
+		obj = &types.TransactionOrder{Version: 1}
 	case type_id_tx_record:
-		obj = &types.TransactionRecord{}
+		obj = &types.TransactionRecord{Version: 1}
 	case type_id_tx_proof:
 		obj = &types.TxProof{Version: 1}
 	default:

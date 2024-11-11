@@ -23,7 +23,8 @@ type (
 	}
 )
 
-var irSysID1 = &types.InputRecord{Version: 1,
+var irSysID1 = &types.InputRecord{
+	Version:         1,
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
 	BlockHash:       []byte{3, 3, 3},
@@ -65,12 +66,13 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2000 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{
 				InputRecord: irSysID1,
@@ -78,7 +80,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	stateProvider := func(partitions []types.PartitionID, irs *types.InputRecord) *MockState {
 		return &MockState{
 			inProgress:   partitions,
@@ -107,7 +109,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -138,7 +141,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider([]types.PartitionID{sysID1}, &types.InputRecord{Version: 1}),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -164,7 +168,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -200,7 +205,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider(nil, nil),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -231,7 +237,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			state:         stateProvider(nil, nil),
 			orchestration: orchestration,
 		}
-		newIR := &types.InputRecord{Version: 1,
+		newIR := &types.InputRecord{
+			Version:         1,
 			PreviousHash:    irSysID1.Hash,
 			Hash:            []byte{3, 3, 3},
 			BlockHash:       []byte{4, 4, 4},
@@ -265,18 +272,19 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("orchestration is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&Parameters{}, nil, &MockState{})
@@ -310,16 +318,17 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions})
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("state monitor is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&Parameters{}, orchestration, nil)
@@ -352,20 +361,24 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	require.NoError(t, err)
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
+			Version: 1,
 			Certificate: &types.UnicityCertificate{
-				InputRecord: &types.InputRecord{},
-				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
+				Version:     1,
+				InputRecord: &types.InputRecord{Version: 1},
+				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
+				Version:             1,
 				NetworkIdentifier:   5,
 				PartitionIdentifier: sysID1,
 				T2Timeout:           2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	state := &MockState{
 		shardInfo: func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
 			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
@@ -375,7 +388,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	tmoGen := &PartitionTimeoutGenerator{
 		blockRate:     500 * time.Millisecond,
 		state:         state,
-		orchestration: partitions.NewOrchestration(&genesis.RootGenesis{Partitions: genesisPartitions}),
+		orchestration: orchestration,
 	}
 	var tmos []types.PartitionID
 	// last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout

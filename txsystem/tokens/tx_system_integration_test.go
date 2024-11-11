@@ -33,6 +33,7 @@ var (
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -84,6 +85,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		trustBase           types.RootTrustBase
 	)
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -333,7 +335,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	txProofs := []*types.TxRecordProof{burnTxProof, burn2TxProof}
 	sort.Slice(txProofs, func(i, j int) bool {
-		return txProofs[i].UnitID().Compare(txProofs[j].UnitID()) < 0
+		return testtransaction.FetchTxoV1(t, txProofs[i]).UnitID.Compare(testtransaction.FetchTxoV1(t, txProofs[j]).UnitID) < 0
 	})
 	//var burnTxs []*types.TransactionRecord
 	//var burnTxProofs []*types.TxProof

@@ -791,6 +791,7 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: partitionID,
 			TypeIdLen:           8,

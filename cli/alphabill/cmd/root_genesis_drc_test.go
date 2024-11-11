@@ -36,7 +36,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
-	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
+	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 	require.NoError(t, err)
 	require.Len(t, rootGenesis.Root.RootValidators, 4)
 	require.NoError(t, rootGenesis.Verify())
@@ -100,7 +100,7 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
-	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
+	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 	require.NoError(t, err)
 	// duplicate is ignored
 	require.Len(t, rootGenesis.Root.RootValidators, 3)
@@ -139,7 +139,7 @@ func Test_RootGenesis_New_Sign(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 		// read genesis file
-		rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDirNode2, rootGenesisFileName), &genesis.RootGenesis{})
+		rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDirNode2, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.NoError(t, rootGenesis.Verify())
 	})

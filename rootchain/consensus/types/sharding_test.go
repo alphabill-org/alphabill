@@ -178,16 +178,18 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	pgEpoch2 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: validKey},
+			{NodeIdentifier: "2222", SigningPublicKey: validKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 		},
 		Certificate: &types.UnicityCertificate{
+			Version: 1,
 			InputRecord: &types.InputRecord{
+				Version:     1,
 				RoundNumber: 101,
 				Epoch:       2,
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{PartitionIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, PartitionIdentifier: 7},
 	}
 
 	orc := mockOrchestration{
@@ -297,16 +299,18 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: validKey},
+			{NodeIdentifier: "1111", SigningPublicKey: validKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 		},
 		Certificate: &types.UnicityCertificate{
+			Version: 1,
 			InputRecord: &types.InputRecord{
+				Version:     1,
 				RoundNumber: 900,
 				Epoch:       1,
 				Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			},
 		},
-		PartitionDescription: &types.PartitionDescriptionRecord{PartitionIdentifier: 7},
+		PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, PartitionIdentifier: 7},
 	}
 
 	t.Run("success", func(t *testing.T) {

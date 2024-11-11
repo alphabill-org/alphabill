@@ -124,7 +124,10 @@ func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransf
 	if err := dcProof.IsValid(); err != nil {
 		return 0, err
 	}
-	dcTxo := dcProof.TransactionOrder()
+	dcTxo, err := dcProof.GetTransactionOrderV1()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get transaction order: %w", err)
+	}
 	var dcAttr money.TransferDCAttributes
 	if err := dcTxo.UnmarshalAttributes(&dcAttr); err != nil {
 		return 0, fmt.Errorf("invalid TransferDC attributes: %w", err)
@@ -144,8 +147,14 @@ func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransf
 	}
 	// transfer orders are listed in strictly increasing order of bill identifiers
 	// (this ensures that no source bill can be included multiple times
-	if prevDustTransfer != nil && bytes.Compare(dcTxo.UnitID, prevDustTransfer.TxRecord.UnitID()) != 1 {
-		return 0, errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
+	if prevDustTransfer != nil {
+		txo, err := prevDustTransfer.GetTransactionOrderV1()
+		if err != nil {
+			return 0, fmt.Errorf("failed to get previous dust transfer transaction order: %w", err)
+		}
+		if bytes.Compare(dcTxo.UnitID, txo.UnitID) != 1 {
+			return 0, errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
+		}
 	}
 	// bill transfer orders contain correct target unit ids
 	if !bytes.Equal(dcAttr.TargetUnitID, targetUnitID) {

@@ -315,7 +315,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		err := cmd.Execute(context.Background())
 		require.NoError(t, err)
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// use same keys for signing and communication encryption.
@@ -391,6 +391,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			Type:           money.TransactionTypeTransfer,
 			UnitID:         initialBillID[:],
@@ -418,6 +419,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			Type:           money.TransactionTypeTransfer,
 			UnitID:         defaultInitialBillID[:],

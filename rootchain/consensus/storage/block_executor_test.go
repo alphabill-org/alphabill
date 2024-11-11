@@ -19,7 +19,8 @@ import (
 const partitionID1 types.PartitionID = 1
 const partitionID2 types.PartitionID = 2
 
-var genesisInputRecord = &types.InputRecord{Version: 1,
+var genesisInputRecord = &types.InputRecord{
+	Version:      1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
@@ -96,7 +97,8 @@ func TestExecutedBlock(t *testing.T) {
 	certReq := &certification.BlockCertificationRequest{
 		Partition:      partitionID1,
 		NodeIdentifier: "1",
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:         1,
 			PreviousHash:    []byte{1, 1, 1, 1},
 			Hash:            []byte{2, 2, 2, 2},
 			BlockHash:       []byte{3, 3, 3, 3},
@@ -146,7 +148,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		CurrentIR: InputRecords{
 			{
 				Partition: partitionID1,
-				IR: &types.InputRecord{Version: 1,
+				IR: &types.InputRecord{
+					Version:         1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{2, 2, 2, 2},
 					BlockHash:       []byte{3, 3, 3, 3},
@@ -158,7 +161,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			},
 			{
 				Partition: partitionID2,
-				IR: &types.InputRecord{Version: 1,
+				IR: &types.InputRecord{
+					Version:         1,
 					PreviousHash:    []byte{1, 1, 1, 1},
 					Hash:            []byte{4, 4, 4, 4},
 					BlockHash:       []byte{3, 3, 3, 3},
@@ -183,7 +187,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, crypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: []byte{0, 0, 0, 0},
 			Hash:         make([]byte, crypto.SHA256.Size()),
 		},
@@ -199,7 +204,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			ParentRoundNumber: 2,
 			CurrentRootHash:   make([]byte, crypto.SHA256.Size()),
 		},
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: []byte{0, 0, 0, 0},
 			Hash:         rh,
 		},

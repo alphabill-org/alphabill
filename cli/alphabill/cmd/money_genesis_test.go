@@ -51,7 +51,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "money-genesis --gen-keys --home " + homeDir + pdrArgument
@@ -116,6 +116,7 @@ func Test_MoneyGenesis(t *testing.T) {
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
 		pdr := &types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: moneysdk.DefaultPartitionID,
 			TypeIdLen:           4,
@@ -157,6 +158,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		pdr := &types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
@@ -180,6 +182,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		pdr := &types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
@@ -203,6 +206,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, evmGenesisFileName)
 
 		pdr := types.PartitionDescriptionRecord{
+			Version:             1,
 			NetworkIdentifier:   5,
 			PartitionIdentifier: 55,
 			TypeIdLen:           4,
@@ -221,7 +225,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
 		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)

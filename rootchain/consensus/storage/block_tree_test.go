@@ -29,6 +29,7 @@ var inputRecord1 = &types.InputRecord{
 	RoundNumber:  1,
 }
 var sdr1 = &types.PartitionDescriptionRecord{
+	Version:             1,
 	NetworkIdentifier:   5,
 	PartitionIdentifier: sysID1,
 	T2Timeout:           2500 * time.Millisecond,
@@ -42,6 +43,7 @@ var inputRecord2 = &types.InputRecord{
 	RoundNumber:  1,
 }
 var sdr2 = &types.PartitionDescriptionRecord{
+	Version:             1,
 	NetworkIdentifier:   5,
 	PartitionIdentifier: sysID2,
 	T2Timeout:           2500 * time.Millisecond,
@@ -50,16 +52,18 @@ var sdr2 = &types.PartitionDescriptionRecord{
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("bb9a1a313e0ca467b13f56f1e8800ffebbaa9dbe37b5c4629e7c363c975bb66f"),
+	CurrentRootHash: hexToBytes("4D78B65F96A2087D360BFA917443A3C407453CF2840A1B0C5BC366D583536DB5"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
 	{
+		Version: 1,
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord1,
 			TRHash:      []uint8{0x76, 0xdc, 0xe1, 0x7b, 0x29, 0xcb, 0xa7, 0x61, 0xf8, 0x9e, 0x3f, 0xd6, 0xc3, 0x50, 0x4d, 0x81, 0x83, 0x92, 0x3, 0xf9, 0x5b, 0x29, 0xd4, 0xbb, 0x64, 0x58, 0x67, 0x3e, 0xdb, 0x39, 0xb6, 0xb0},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				Version:   1,
 				Partition: sysID1,
 				PDRHash:   sdr1.Hash(gocrypto.SHA256),
 			},
@@ -74,15 +78,22 @@ var pg = []*genesis.GenesisPartitionRecord{
 		},
 		PartitionDescription: sdr1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}},
+			{
+				Version:                    1,
+				NodeIdentifier:             "1111",
+				SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
+				PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
+			},
 		},
 	},
 	{
+		Version: 1,
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord2,
 			TRHash:      []uint8{0x18, 0x28, 0x40, 0xfc, 0x9, 0x13, 0x83, 0xa, 0x92, 0x82, 0xc7, 0xd3, 0x50, 0x33, 0xac, 0x41, 0x2, 0x1b, 0x1e, 0x39, 0x6c, 0xd7, 0x30, 0xaa, 0x73, 0x8d, 0xa7, 0xaf, 0x7b, 0x3c, 0xbe, 0x18},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				Version:   1,
 				Partition: sysID2,
 				PDRHash:   sdr2.Hash(gocrypto.SHA256),
 			},
@@ -97,7 +108,12 @@ var pg = []*genesis.GenesisPartitionRecord{
 		},
 		PartitionDescription: sdr2,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}},
+			{
+				Version:                    1,
+				NodeIdentifier:             "2222",
+				SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
+				PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
+			},
 		},
 	},
 }
@@ -113,8 +129,9 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1,
-					Hash: zeroHash,
+				LedgerCommitInfo: &types.UnicitySeal{
+					Version: 1,
+					Hash:    zeroHash,
 				},
 			},
 		},
@@ -380,7 +397,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -441,7 +459,8 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -555,7 +574,8 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: []byte{1, 2, 3},
 			Hash:         zeroHash,
 		},

@@ -99,13 +99,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
 						Nodes:                []*PartitionNode{{Version: 1, NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
+						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: time.Second},
 					},
 				},
 			},
@@ -157,7 +157,8 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	unicitySeal := &types.UnicitySeal{Version: 1,
+	unicitySeal := &types.UnicitySeal{
+		Version:              1,
 		PreviousHash:         make([]byte, 32),
 		RootChainRoundNumber: 2,
 		Timestamp:            1000,
@@ -170,7 +171,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
@@ -217,7 +219,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
@@ -226,7 +229,8 @@ func TestRootGenesis(t *testing.T) {
 			{
 				Version: 1,
 				Nodes:   []*PartitionNode{node},
-				Certificate: &types.UnicityCertificate{Version: 1,
+				Certificate: &types.UnicityCertificate{
+					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
@@ -239,7 +243,7 @@ func TestRootGenesis(t *testing.T) {
 	// test CBOR marshalling
 	rgBytes, err := types.Cbor.Marshal(rg)
 	require.NoError(t, err)
-	rg2 := &RootGenesis{}
+	rg2 := &RootGenesis{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(rgBytes, rg2))
 	require.Equal(t, rg, rg2)
 }

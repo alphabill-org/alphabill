@@ -39,6 +39,7 @@ func TestRunTokensNode(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
@@ -66,7 +67,7 @@ func TestRunTokensNode(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(ctx))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// use same keys for signing and communication encryption.
@@ -132,6 +133,7 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
 				PartitionID:    tokens.DefaultPartitionID,
 				Type:           tokens.TransactionTypeDefineNFT,

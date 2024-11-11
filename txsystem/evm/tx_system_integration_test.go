@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/ethereum/go-ethereum/core/tracing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -53,6 +54,7 @@ const partitionIdentifier types.PartitionID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   networkIdentifier,
 		PartitionIdentifier: 0x00000402,
 		TypeIdLen:           8,
@@ -88,13 +90,13 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
 	txProof, err := testpartition.WaitTxProof(t, evmPartition, transferTx)
 	require.NoError(t, err, "evm transfer transaction failed")
-	require.EqualValues(t, transferTx, txProof.TransactionOrder())
+	require.EqualValues(t, transferTx, testtransaction.FetchTxoV1(t, txProof))
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
 	require.NoError(t, err, "evm deploy transaction failed")
-	require.EqualValues(t, deployContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, deployContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -113,7 +115,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
 	require.NoError(t, err, "evm call transaction failed")
-	require.EqualValues(t, callContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, callContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txProof.TxRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -148,28 +150,28 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// transfer
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
-	meta, err := system.Execute(transferTx)
+	txr, err := system.Execute(transferTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
+	require.NotNil(t, txr)
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
-	meta, err = system.Execute(deployContractTx)
+	txr, err = system.Execute(deployContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
@@ -185,7 +187,8 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         round1EndState.Root(),
 		SummaryValue: round1EndState.Summary(),
@@ -193,11 +196,11 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
 	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	count = uint256.NewInt(2)
@@ -245,6 +248,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			PartitionID:    partitionIdentifier,
@@ -271,6 +275,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			PartitionID:    partitionIdentifier,
@@ -296,6 +301,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
 			PartitionID:    partitionIdentifier,

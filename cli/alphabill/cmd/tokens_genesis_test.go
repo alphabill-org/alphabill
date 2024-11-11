@@ -20,6 +20,7 @@ import (
 func Test_TokensGenesis(t *testing.T) {
 	// create partition description file to be shared in all the tests
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 2,
 		TypeIdLen:           8,
@@ -96,7 +97,7 @@ func Test_TokensGenesis(t *testing.T) {
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
-		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		var params *genesis.TokensPartitionParams
 		require.NoError(t, types.Cbor.Unmarshal(pn.Params, &params))
@@ -109,7 +110,7 @@ func Test_TokensGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, utDirectory), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, utDirectory, utGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "tokens-genesis --gen-keys --home " + homeDir + pdrArgument

@@ -21,7 +21,7 @@ Note that the GenesisRootRecord in the RootGenesis will be unassigned and thus t
 should be only used when that field/data is not needed/accessed!
 */
 func NewGenesisStoreFromPartitions(seed []*genesis.GenesisPartitionRecord) *RootGenesisStore {
-	return NewGenesisStore(&genesis.RootGenesis{Partitions: seed})
+	return NewGenesisStore(&genesis.RootGenesis{Version: 1, Partitions: seed})
 }
 
 // in-memory fixed genesis store (ie always returns the same genesis info)

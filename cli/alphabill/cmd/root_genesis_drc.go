@@ -123,7 +123,7 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to extract encryption public key from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
-	rg, err := util.ReadJsonFile(config.RootGenesisFile, &genesis.RootGenesis{})
+	rg, err := util.ReadJsonFile(config.RootGenesisFile, &genesis.RootGenesis{Version: 1})
 	if err != nil {
 		return fmt.Errorf("root genesis file '%s' read error: %w", config.RootGenesisFile, err)
 	}
@@ -141,7 +141,7 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
 	var rgs []*genesis.RootGenesis
 	for _, p := range paths {
-		rg, err := util.ReadJsonFile(p, &genesis.RootGenesis{})
+		rg, err := util.ReadJsonFile(p, &genesis.RootGenesis{Version: 1})
 		if err != nil {
 			return nil, fmt.Errorf("file '%s' read error: %w", p, err)
 		}

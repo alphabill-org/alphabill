@@ -150,7 +150,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: nil,
 			BlockData:     nil,
 		}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "commit head is nil")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "commit head is nil")
 	})
 	t.Run("commit head, invalid block", func(t *testing.T) {
 		sm := &StateMsg{
@@ -159,7 +159,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{Version: 1,
+						Ir: &types.InputRecord{
+							Version:         1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -196,7 +197,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "invalid commit head: block data error: proposed block is missing quorum certificate")
+		require.ErrorContains(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "invalid commit head: block data error: proposed block is missing quorum certificate")
 	})
 	t.Run("commit head, invalid QC", func(t *testing.T) {
 		sm := &StateMsg{
@@ -205,7 +206,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{Version: 1,
+						Ir: &types.InputRecord{
+							Version:         1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -226,14 +228,16 @@ func TestStateMsg_Verify(t *testing.T) {
 							CurrentRootHash:   test.RandomBytes(32),
 							Timestamp:         types.NewTimestamp(),
 						},
-						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+						LedgerCommitInfo: &types.UnicitySeal{
+							Version:      1,
 							PreviousHash: test.RandomBytes(32),
 						},
 					},
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -241,7 +245,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -250,7 +255,7 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 			BlockData: nil,
 		}
-		require.EqualError(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV0{}), "block qc verification error: vote info hash verification failed")
+		require.EqualError(t, sm.Verify(gocrypto.SHA256, &types.RootTrustBaseV1{Version: 1}), "block qc verification error: vote info hash verification failed")
 	})
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := &StateMsg{
@@ -259,7 +264,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{Version: 1,
+						Ir: &types.InputRecord{
+							Version:         1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -275,7 +281,8 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+						LedgerCommitInfo: &types.UnicitySeal{
+							Version:      1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 						},
@@ -284,7 +291,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -292,7 +300,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -314,7 +323,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Ir: []*InputData{
 					{
 						Partition: 1,
-						Ir: &types.InputRecord{Version: 1,
+						Ir: &types.InputRecord{
+							Version:         1,
 							PreviousHash:    test.RandomBytes(32),
 							Hash:            test.RandomBytes(32),
 							BlockHash:       test.RandomBytes(32),
@@ -330,7 +340,8 @@ func TestStateMsg_Verify(t *testing.T) {
 					Payload: &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo: r4vInfo,
-						LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+						LedgerCommitInfo: &types.UnicitySeal{
+							Version:      1,
 							PreviousHash: r4vInfo.Hash(gocrypto.SHA256),
 							Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 						},
@@ -339,7 +350,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r5vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -347,7 +359,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				},
 				CommitQc: &drctypes.QuorumCert{
 					VoteInfo: r6vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: r6vInfo.Hash(gocrypto.SHA256),
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
@@ -359,7 +372,8 @@ func TestStateMsg_Verify(t *testing.T) {
 				Payload: &drctypes.Payload{},
 				Qc: &drctypes.QuorumCert{
 					VoteInfo: r5vInfo,
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:              1,
 						PreviousHash:         r5vInfo.Hash(gocrypto.SHA256),
 						RootChainRoundNumber: 5,
 						Hash:                 test.RandomBytes(32),
@@ -388,7 +402,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -409,7 +424,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -430,7 +446,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{Version: 1,
+					Ir: &types.InputRecord{
+						Version:         1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -455,7 +472,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash: test.RandomBytes(32),
 						Timestamp:       types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -463,7 +481,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{Version: 1,
+					Ir: &types.InputRecord{
+						Version:         1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -489,7 +508,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -497,7 +517,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{Version: 1,
+					Ir: &types.InputRecord{
+						Version:         1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -523,7 +544,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -531,7 +553,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{Version: 1,
+					Ir: &types.InputRecord{
+						Version:         1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -558,7 +581,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 						CurrentRootHash:   test.RandomBytes(32),
 						Timestamp:         types.NewTimestamp(),
 					},
-					LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+					LedgerCommitInfo: &types.UnicitySeal{
+						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 					},
 				},
@@ -566,7 +590,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			Ir: []*InputData{
 				{
 					Partition: 1,
-					Ir: &types.InputRecord{Version: 1,
+					Ir: &types.InputRecord{
+						Version:         1,
 						PreviousHash:    test.RandomBytes(32),
 						Hash:            test.RandomBytes(32),
 						BlockHash:       test.RandomBytes(32),
@@ -596,7 +621,8 @@ func TestInputData_IsValid(t *testing.T) {
 	t.Run("system description hash is not set", func(t *testing.T) {
 		i := &InputData{
 			Partition: 0,
-			Ir: &types.InputRecord{Version: 1,
+			Ir: &types.InputRecord{
+				Version:         1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),
@@ -611,7 +637,8 @@ func TestInputData_IsValid(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		i := &InputData{
 			Partition: 0,
-			Ir: &types.InputRecord{Version: 1,
+			Ir: &types.InputRecord{
+				Version:         1,
 				PreviousHash:    test.RandomBytes(32),
 				Hash:            test.RandomBytes(32),
 				BlockHash:       test.RandomBytes(32),

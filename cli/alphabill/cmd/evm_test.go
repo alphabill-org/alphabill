@@ -30,6 +30,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
+		Version:             1,
 		NetworkIdentifier:   5,
 		PartitionIdentifier: 33,
 		TypeIdLen:           8,
@@ -52,7 +53,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(ctx))
 
-	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 	require.NoError(t, err)
 
 	// use same keys for signing and communication encryption.

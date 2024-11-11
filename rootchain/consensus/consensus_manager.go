@@ -1099,7 +1099,7 @@ func selectRandomNodeIdsFromSignatureMap(m map[string]hex.Bytes, count int) (nod
 	return nodes
 }
 
-func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
 	return x.blockStore.ShardInfo(partition, shard)
 }
 

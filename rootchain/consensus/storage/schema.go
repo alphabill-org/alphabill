@@ -2,7 +2,6 @@ package storage
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -12,7 +11,6 @@ import (
 )
 
 const (
-	certPrefix     = "cert_"
 	blockPrefix    = "block_"
 	timeoutCertKey = "tc"
 )
@@ -31,10 +29,6 @@ type VoteStore struct {
 	VoteMsg  types.RawCBOR
 }
 
-func certKey(id types.PartitionID, shard types.ShardID) []byte {
-	return slices.Concat([]byte(certPrefix), id.Bytes(), shard.Bytes())
-}
-
 func blockKey(round uint64) []byte {
 	return append([]byte(blockPrefix), util.Uint64ToBytes(round)...)
 }
@@ -47,7 +41,7 @@ func WriteVote(db keyvaluedb.KeyValueDB, vote any) error {
 	case *abdrc.TimeoutMsg:
 		voteType = TimeoutVoteMsg
 	default:
-		return fmt.Errorf("unknown vote type")
+		return fmt.Errorf("unknown vote type %T", vote)
 	}
 
 	encoded, err := types.Cbor.Marshal(vote)
@@ -67,7 +61,6 @@ func ReadVote(db keyvaluedb.KeyValueDB) (any, error) {
 	if !found {
 		return nil, nil
 	}
-	// error
 	if err != nil {
 		return nil, fmt.Errorf("reading vote from db: %w", err)
 	}

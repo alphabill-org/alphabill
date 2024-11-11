@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,6 +136,7 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 				},
 			},
 		},
+		ShardInfo: shardStates{},
 	}
 }
 
@@ -202,12 +204,11 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
-	require.NoError(t, err)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, blockStoreGenesisInit(gBlock, db))
-	btree, err := NewBlockTree(db)
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	btree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	return btree
 }
@@ -237,25 +238,25 @@ func TestBlockTree_RemoveLeaf(t *testing.T) {
 func TestBlockTree_FindPathToRoot(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// test tree root is set to B5
-	blocks := tree.FindPathToRoot(8)
+	blocks := tree.findPathToRoot(8)
 	require.Len(t, blocks, 3)
 	// B8-->B7-->B6-->root (not included)
 	require.Equal(t, "B8", blocks[0].BlockData.Author)
 	require.Equal(t, "B7", blocks[1].BlockData.Author)
 	require.Equal(t, "B6", blocks[2].BlockData.Author)
-	blocks = tree.FindPathToRoot(10)
+	blocks = tree.findPathToRoot(10)
 	// B10-->B9-->root (not included)
 	require.Len(t, blocks, 2)
 	require.Equal(t, "B10", blocks[0].BlockData.Author)
 	require.Equal(t, "B9", blocks[1].BlockData.Author)
-	blocks = tree.FindPathToRoot(12)
+	blocks = tree.findPathToRoot(12)
 	// B12-->B11-->B9-->root (not included)
 	require.Len(t, blocks, 3)
 	require.Equal(t, "B12", blocks[0].BlockData.Author)
 	require.Equal(t, "B11", blocks[1].BlockData.Author)
 	require.Equal(t, "B9", blocks[2].BlockData.Author)
 	// node not found
-	require.Nil(t, tree.FindPathToRoot(2))
+	require.Nil(t, tree.findPathToRoot(2))
 }
 
 func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
@@ -354,7 +355,8 @@ func TestNewBlockTree(t *testing.T) {
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
@@ -373,7 +375,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
-	bTree, err := NewBlockTree(db)
+	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 2)
@@ -385,7 +387,8 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -435,7 +438,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
 
-	bTree, err := NewBlockTree(db)
+	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 3)
@@ -447,7 +450,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -532,7 +536,7 @@ func TestAddAndCommit(t *testing.T) {
 	require.Equal(t, root.BlockData.Round, genesis.RootRound)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
 	// find path to root
-	blocks := bTree.FindPathToRoot(genesis.RootRound + 2)
+	blocks := bTree.findPathToRoot(genesis.RootRound + 2)
 	require.Len(t, blocks, 2)
 	require.Equal(t, uint64(3), blocks[0].BlockData.Round)
 	require.Equal(t, uint64(2), blocks[1].BlockData.Round)
@@ -540,10 +544,10 @@ func TestAddAndCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pruned, 2)
 	// find path to root
-	blocks = bTree.FindPathToRoot(genesis.RootRound + 1)
+	blocks = bTree.findPathToRoot(genesis.RootRound + 1)
 	require.Len(t, blocks, 1)
 	// find path to root
-	blocks = bTree.FindPathToRoot(genesis.RootRound)
+	blocks = bTree.findPathToRoot(genesis.RootRound)
 	require.Len(t, blocks, 0)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
 	require.NoError(t, bTree.RemoveLeaf(genesis.RootRound+2))

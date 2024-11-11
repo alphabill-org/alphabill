@@ -24,7 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -46,7 +46,7 @@ type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan *certification.CertificationResponse
 	certs        map[types.PartitionID]*certification.CertificationResponse
-	shardInfo    map[types.PartitionID]*drctypes.ShardInfo // only single shard partitions
+	shardInfo    map[types.PartitionID]*storage.ShardInfo // only single shard partitions
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
@@ -58,9 +58,9 @@ func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
 		}
 	}
 
-	shardInfo := map[types.PartitionID]*drctypes.ShardInfo{}
+	shardInfo := map[types.PartitionID]*storage.ShardInfo{}
 	for _, partition := range rg.Partitions {
-		si, err := drctypes.NewShardInfoFromGenesis(partition)
+		si, err := storage.NewShardInfoFromGenesis(partition)
 		if err != nil {
 			return nil, fmt.Errorf("creating shard info: %w", err)
 		}
@@ -102,7 +102,7 @@ func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.PartitionID,
 	return luc, nil
 }
 
-func (m *MockConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (m *MockConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
 	if si, ok := m.shardInfo[partition]; ok {
 		return si, nil
 	}

@@ -11,6 +11,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
@@ -19,7 +20,7 @@ type (
 	MockState struct {
 		inProgress   []types.PartitionID
 		irInProgress *types.InputRecord
-		shardInfo    func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error)
+		shardInfo    func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
 	}
 )
 
@@ -46,7 +47,7 @@ func (s *MockState) GetCertificates() []*types.UnicityCertificate {
 	}
 }
 
-func (s *MockState) ShardInfo(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
+func (s *MockState) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
 	return s.shardInfo(partition, shard)
 }
 
@@ -85,8 +86,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		return &MockState{
 			inProgress:   partitions,
 			irInProgress: irs,
-			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
-				si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
 				return si, err
 			},
 		}
@@ -380,8 +381,8 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	}
 	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	state := &MockState{
-		shardInfo: func(partition types.PartitionID, shard types.ShardID) (*abtypes.ShardInfo, error) {
-			si, err := abtypes.NewShardInfoFromGenesis(genesisPartitions[0])
+		shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+			si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
 			return si, err
 		},
 	}

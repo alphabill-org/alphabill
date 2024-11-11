@@ -21,7 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 )
 
 type (
@@ -41,7 +41,7 @@ type (
 		RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *certification.CertificationResponse
-		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
@@ -267,8 +267,8 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 	}()
 
 	subscribed := v.subscription.Get(cr.Partition)
-	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse to partition %s (%d receivers), IR Hash: %X, Block Hash: %X",
-		cr.Partition, len(subscribed), cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
+	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse to partition %s (%d receivers), R_next: %d, IR Hash: %X, Block Hash: %X",
+		cr.Partition, len(subscribed), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

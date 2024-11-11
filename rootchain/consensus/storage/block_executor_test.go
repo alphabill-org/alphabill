@@ -3,7 +3,6 @@ package storage
 import (
 	"crypto"
 	"encoding/hex"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,17 +37,6 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 	return &InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-func generateBlockData(round uint64, req ...*drctypes.IRChangeReq) *drctypes.BlockData {
-	return &drctypes.BlockData{
-		Author:    "test",
-		Round:     round,
-		Epoch:     0,
-		Timestamp: 12,
-		Payload:   &drctypes.Payload{Requests: req},
-		Qc:        nil, // not important in this context
-	}
-}
-
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
@@ -59,8 +47,10 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	orchestration := mockOrchestration{
+		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 0, nil },
+	}
+	b, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
@@ -81,7 +71,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.NoError(t, b.CommitQc.IsValid())
 }
 
-func TestExecutedBlock(t *testing.T) {
+func TestExecutedBlock_Extend(t *testing.T) {
 	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
@@ -91,8 +81,12 @@ func TestExecutedBlock(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	orchestration := mockOrchestration{
+		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
+			return genesisInputRecord.Epoch, nil
+		},
+	}
+	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
 	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
 		Partition:      partitionID1,
@@ -107,17 +101,22 @@ func TestExecutedBlock(t *testing.T) {
 			SumOfEarnedFees: 3,
 		},
 	}
-	req := &drctypes.IRChangeReq{
-		Partition:  partitionID1,
-		CertReason: drctypes.Quorum,
-		Requests:   []*certification.BlockCertificationRequest{certReq},
+	newBlock := &drctypes.BlockData{
+		Author:    "test",
+		Round:     genesis.RootRound + 1,
+		Epoch:     0,
+		Timestamp: 12,
+		Payload: &drctypes.Payload{
+			Requests: []*drctypes.IRChangeReq{{
+				Partition:  partitionID1,
+				CertReason: drctypes.Quorum,
+				Requests:   []*certification.BlockCertificationRequest{certReq},
+			}},
+		},
+		Qc: nil, // not important in this context
 	}
-	newBlock := generateBlockData(genesis.RootRound+1, req)
 	reqVer := NewAlwaysTrueIRReqVerifier()
-	getTRFunc := func(types.PartitionID, types.ShardID, *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
-		return certification.TechnicalRecord{}, nil
-	}
-	executedBlock, err := NewExecutedBlock(hash, newBlock, parent, reqVer, getTRFunc)
+	executedBlock, err := parent.Extend(hash, newBlock, reqVer, orchestration)
 	require.NoError(t, err)
 	require.Equal(t, "test", executedBlock.BlockData.Author)
 	require.Equal(t, genesis.RootRound+1, executedBlock.BlockData.Round)
@@ -129,7 +128,8 @@ func TestExecutedBlock(t *testing.T) {
 	// parent remains unchanged
 	require.Equal(t, genesisInputRecord, parent.CurrentIR.Find(partitionID1).IR)
 	require.Equal(t, hash, executedBlock.HashAlgo)
-	require.EqualValues(t, "99AD3740E3CFC07EC1C1C04ED60D930BC3E2DC01AD5B3E8631C119C50EAF4520", fmt.Sprintf("%X", executedBlock.RootHash))
+	// can't compare against hardcoded hash as fee hash and leader id change on each run (we generate partitionRecord)
+	//require.EqualValues(t, "99AD3740E3CFC07EC1C1C04ED60D930BC3E2DC01AD5B3E8631C119C50EAF4520", fmt.Sprintf("%X", executedBlock.RootHash))
 	// block has not got QC nor commit QC yet
 	require.Nil(t, executedBlock.Qc)
 	require.Nil(t, executedBlock.CommitQc)
@@ -173,6 +173,10 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 				PDRHash: []byte{4, 5, 6, 7},
 			},
 		},
+		ShardInfo: shardStates{
+			partitionShard{partitionID1, types.ShardID{}.Key()}: &ShardInfo{},
+			partitionShard{partitionID2, types.ShardID{}.Key()}: &ShardInfo{},
+		},
 		Changed: map[partitionShard]struct{}{
 			{partitionID1, types.ShardID{}.Key()}: {},
 			{partitionID2, types.ShardID{}.Key()}: {},
@@ -214,6 +218,9 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 	require.NotNil(t, block.CommitQc)
+	si, ok := block.ShardInfo[partitionShard{partitionID1, types.ShardID{}.Key()}]
+	require.True(t, ok)
+	require.NotNil(t, si.LastCR)
 }
 
 func TestExecutedBlock_GetRound(t *testing.T) {
@@ -236,4 +243,70 @@ func TestExecutedBlock_GetParentRound(t *testing.T) {
 	require.Equal(t, uint64(0), b.GetParentRound())
 	b = &ExecutedBlock{BlockData: &drctypes.BlockData{Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2}}}}
 	require.Equal(t, uint64(2), b.GetParentRound())
+}
+
+func Test_ExecutedBlock_serialization(t *testing.T) {
+	t.Run("Changed set", func(t *testing.T) {
+		// empty set
+		// we init the Changed manually to non-nil value as require.EqualValues
+		// considers nil and empty map as different. In code the ExecutedBlock
+		// values are constructed via constructors which init the Changed field.
+		b1 := ExecutedBlock{Changed: ShardSet{}}
+		buf, err := types.Cbor.Marshal(b1)
+		require.NoError(t, err)
+
+		var b2 ExecutedBlock
+		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.EqualValues(t, b1.Changed, b2.Changed)
+
+		// set with one item
+		b1.Changed = map[partitionShard]struct{}{{partition: 1, shard: types.ShardID{}.Key()}: {}}
+		buf, err = types.Cbor.Marshal(b1)
+		require.NoError(t, err)
+
+		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.Equal(t, b1.Changed, b2.Changed)
+	})
+
+	t.Run("ShardInfo", func(t *testing.T) {
+		// empty map
+		b1 := ExecutedBlock{ShardInfo: shardStates{}}
+		buf, err := types.Cbor.Marshal(b1)
+		require.NoError(t, err)
+
+		var b2 ExecutedBlock
+		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.EqualValues(t, b1.ShardInfo, b2.ShardInfo)
+
+		// non-empty map
+		si := ShardInfo{
+			Round:         1,
+			Epoch:         2,
+			RootHash:      []byte{3, 3, 3},
+			PrevEpochStat: []byte{0x43, 4, 4, 4}, // array(3)
+			PrevEpochFees: []byte{0x43, 5, 5, 5},
+			Fees:          map[string]uint64{"A": 10},
+			Leader:        "L111111",
+			LastCR: &certification.CertificationResponse{
+				Partition: 9,
+				Shard:     types.ShardID{},
+				Technical: certification.TechnicalRecord{
+					Round:  2,
+					Epoch:  3,
+					Leader: "ldr",
+				},
+				UC: types.UnicityCertificate{
+					Version: 1,
+				},
+			},
+		}
+		psKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		b1.ShardInfo[psKey] = &si
+		buf, err = types.Cbor.Marshal(b1)
+		require.NoError(t, err)
+
+		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.Equal(t, b1.ShardInfo, b2.ShardInfo)
+		require.Equal(t, &si, b2.ShardInfo[psKey])
+	})
 }

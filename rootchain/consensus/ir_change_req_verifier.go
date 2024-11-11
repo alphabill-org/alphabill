@@ -12,7 +12,7 @@ import (
 
 type (
 	State interface {
-		ShardInfo(partition types.PartitionID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
 		GetCertificates() []*types.UnicityCertificate
 		IsChangeInProgress(id types.PartitionID, shard types.ShardID) *types.InputRecord
 	}

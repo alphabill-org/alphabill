@@ -323,12 +323,12 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootStateReq, getCertsMsg)
 	// As the node is the leader, next round will trigger a proposal
 	certsMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
-	require.Equal(t, len(rg.Partitions), len(certsMsg.ShardInfo))
-	idx := slices.IndexFunc(certsMsg.ShardInfo, func(c abdrc.ShardInfo) bool {
+	require.Equal(t, len(rg.Partitions), len(certsMsg.CommittedHead.ShardInfo))
+	idx := slices.IndexFunc(certsMsg.CommittedHead.ShardInfo, func(c abdrc.ShardInfo) bool {
 		return c.UC.UnicityTreeCertificate.Partition == partitionID
 	})
 	require.False(t, idx == -1)
-	require.True(t, certsMsg.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
+	require.True(t, certsMsg.CommittedHead.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber > uint64(1))
 	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootStateReq, getStateMsg)
 	// As the node is the leader, next round will trigger a proposal
@@ -484,7 +484,7 @@ func TestGetState(t *testing.T) {
 	// at this stage there is only genesis block
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, 0, len(stateMsg.BlockData))
-	require.Len(t, stateMsg.ShardInfo, 1)
+	require.Len(t, stateMsg.CommittedHead.ShardInfo, 1)
 }
 
 func Test_ConsensusManager_onVoteMsg(t *testing.T) {
@@ -853,7 +853,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.NotNil(t, state)
 			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
 			require.Empty(t, state.BlockData)
-			require.Len(t, state.ShardInfo, 1)
+			require.Len(t, state.CommittedHead.ShardInfo, 1)
 		}
 	})
 }

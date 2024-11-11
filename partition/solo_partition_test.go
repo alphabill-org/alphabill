@@ -490,13 +490,11 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types
 	}
 }
 
-func ContainsTransaction(block *types.Block, tx *types.TransactionOrder) bool {
-	for _, t := range block.Transactions {
+func ContainsTransaction(t *testing.T, block *types.Block, tx *types.TransactionOrder) bool {
+	for _, tr := range block.Transactions {
 		txBytes, err := tx.MarshalCBOR()
-		if err != nil {
-			panic(err)
-		}
-		if bytes.Equal(t.TransactionOrder, txBytes) {
+		require.NoError(t, err)
+		if bytes.Equal(tr.TransactionOrder, txBytes) {
 			return true
 		}
 	}

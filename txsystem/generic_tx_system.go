@@ -185,8 +185,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	var txExecErr error
 	txBytes, err := tx.MarshalCBOR()
 	if err != nil {
-		retErr = fmt.Errorf("marshalling transaction: %w", err)
-		return
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
 	}
 	txr = &types.TransactionRecord{
 		Version:          1,

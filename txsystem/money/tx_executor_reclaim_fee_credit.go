@@ -51,7 +51,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 			closeFee:      attr.CloseFeeCreditProof.ActualFee(),
 		},
 	); err != nil {
-		return nil, fmt.Errorf("reclaimFC: failed to record reclaim fee credit transaction: %w", err)
+		return nil, fmt.Errorf("failed to record reclaim fee credit transaction: %w", err)
 	}
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

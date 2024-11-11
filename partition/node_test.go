@@ -123,7 +123,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 
 	block1 := tp.GetLatestBlock(t)
 	require.NotEmpty(t, block1.GetProposerID())
-	require.True(t, ContainsTransaction(block1, transfer))
+	require.True(t, ContainsTransaction(t, block1, transfer))
 
 	tx1 := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTxFromRPC(tx1))
@@ -152,9 +152,9 @@ func TestNode_CreateBlocks(t *testing.T) {
 	tp.CreateBlock(t)
 
 	block3 := tp.GetLatestBlock(t)
-	require.True(t, ContainsTransaction(block3, tx1))
-	require.True(t, ContainsTransaction(block3, tx2))
-	require.False(t, ContainsTransaction(block3, transfer))
+	require.True(t, ContainsTransaction(t, block3, tx1))
+	require.True(t, ContainsTransaction(t, block3, tx2))
+	require.False(t, ContainsTransaction(t, block3, transfer))
 
 	_, err := tp.partition.GetTransactionRecordProof(context.Background(), test.RandomBytes(33))
 	require.ErrorIs(t, err, ErrIndexNotFound)

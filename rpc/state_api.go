@@ -26,7 +26,7 @@ type (
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
-		GetLatestRoundNumber(ctx context.Context) (uint64, error)
+		CurrentRoundNumber(ctx context.Context) (uint64, error)
 		TransactionSystemState() txsystem.StateReader
 		ValidatorNodes() peer.IDSlice
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
@@ -51,9 +51,9 @@ func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI
 	return &StateAPI{node: node, ownerIndex: ownerIndex}
 }
 
-// GetRoundNumber returns the round number of the latest UC seen by node.
+// GetRoundNumber returns the current round number as seen by the node.
 func (s *StateAPI) GetRoundNumber(ctx context.Context) (hex.Uint64, error) {
-	roundNumber, err := s.node.GetLatestRoundNumber(ctx)
+	roundNumber, err := s.node.CurrentRoundNumber(ctx)
 	if err != nil {
 		return 0, err
 	}

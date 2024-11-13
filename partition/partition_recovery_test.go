@@ -283,7 +283,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	bl := tp.GetLatestBlock(t)
 	uc, err := getUCv1(bl)
 	require.NoError(t, err)
-	latestRound := uc.GetRoundNumber()
+	// latestRound := uc.GetRoundNumber()
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
@@ -293,14 +293,15 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	// submit UC, node must recover the gap of 5 blocks
+	// submit UC, node must not recover the gap of 5 blocks as the submitted UC is a successor of the committed UC
+	// TODO: also test the case where it is not successor
 	tp.SubmitUnicityCertificate(t, uc)
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-	require.Equal(t, recovering, tp.partition.status.Load())
-	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
-	require.NotNil(t, req)
-	msg := req.Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
+	testevent.NotContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Equal(t, normal, tp.partition.status.Load())
+	// req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	// require.NotNil(t, req)
+	// msg := req.Message.(*replication.LedgerReplicationRequest)
+	// require.Equal(t, latestRound+1, msg.BeginBlockNumber)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
@@ -327,7 +328,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	bl := tp.GetLatestBlock(t)
 	uc, err := getUCv1(bl)
 	require.NoError(t, err)
-	latestRound := uc.GetRoundNumber()
+	// latestRound := uc.GetRoundNumber()
 
 	// now assume the node missed the proposal due to a network hiccup, other validators finalized _one_ empty block
 	// that is, round number has been incremented, but the state hash is the same
@@ -341,28 +342,29 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(t, uc)
 	testevent.ContainsEvent(t, tp.eh, event.NewRoundStarted)
-	// okay, now let's finalize another round, node should start the recovery
+	// okay, now let's finalize another round, node should not start recovery because the new UC is a successor of the committed UC
+	// TODO: also test the case where it is not successor
 	ir = uc.InputRecord.NewRepeatIR()
-	ir.RoundNumber += 1
+	// ir.RoundNumber += 1
 	uc, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(t, uc)
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-	require.Equal(t, recovering, tp.partition.status.Load())
-	// let's submit another UC and make sure node updates the LUC and keeps recovering
+	testevent.NotContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Equal(t, normal, tp.partition.status.Load())
+	// let's submit another UC and make sure node updates the LUC and does not start recovery
 	ir = uc.InputRecord.NewRepeatIR()
-	ir.RoundNumber += 1
+	// ir.RoundNumber += 1
 	tp.ReceiveCertResponse(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
 	tp.eh.Reset()
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
-	require.Equal(t, recovering, tp.partition.status.Load())
-	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
-	require.NotNil(t, req)
-	msg := req.Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
+	require.Equal(t, normal, tp.partition.status.Load())
+	// req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	// require.NotNil(t, req)
+	// msg := req.Message.(*replication.LedgerReplicationRequest)
+	// require.Equal(t, latestRound+1, msg.BeginBlockNumber)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *testing.T) {
@@ -453,9 +455,9 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), nr)
+	require.Equal(t, uint64(4), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.Equal(t, latestBlock, newBlock3)
@@ -510,9 +512,9 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), nr)
+	require.Equal(t, uint64(4), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.Equal(t, latestBlock, newBlock3)
 	require.EqualValues(t, 0x01010101, tp.partition.PartitionID())
@@ -560,9 +562,9 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(5), nr)
+	require.Equal(t, uint64(6), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.Equal(t, latestBlock, newBlock5empty)

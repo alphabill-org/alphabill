@@ -322,7 +322,7 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 	return mn.maxBlockNumber, nil
 }
 
-func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+func (mn *MockNode) CurrentRoundNumber(_ context.Context) (uint64, error) {
 	if mn.err != nil {
 		return 0, mn.err
 	}

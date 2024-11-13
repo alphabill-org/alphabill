@@ -240,7 +240,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, committedUC), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitUnicityCertificate(t, committedUC)
-	ContainsError(t, tp, "stale certification response for round 1 (current round 2)")
+	ContainsError(t, tp, "new certificate is from older root round 1 than previous certificate 2")
 }
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
@@ -479,7 +479,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 		UnicityCertificate: uc,
 	})
 
-	ContainsError(t, tp, "outdated block proposal for round 0, LUC round 1")
+	ContainsError(t, tp, "stale block proposal with UC from root round 1, LUC root round 2")
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
@@ -634,12 +634,12 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
 
-	lucRound, err := tp.partition.GetLatestRoundNumber(context.Background())
+	currentRound, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
 	tp.CreateBlock(t)
 
 	// Failed transaction not put to block in feeless mode
-	block, err := tp.partition.GetBlock(context.Background(), lucRound+1)
+	block, err := tp.partition.GetBlock(context.Background(), currentRound)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(block.Transactions))
 }

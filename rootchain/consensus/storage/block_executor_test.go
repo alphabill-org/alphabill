@@ -25,6 +25,7 @@ var genesisInputRecord = &types.InputRecord{
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
@@ -136,7 +137,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	rh, err := hex.DecodeString("bc5400e7ebbbd6dafd3339a2ff58c8c65b05bfc26b2dfb440fb97b2b3f586a70")
+	rh, err := hex.DecodeString("9bdcae38e946dee158e5beff151dcac9e180a485b657d5d4cf4af346be58f3c7")
 	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -156,6 +157,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					SummaryValue:    []byte{4, 4, 4, 4},
 					RoundNumber:     3,
 					SumOfEarnedFees: 4,
+					Timestamp:       20241113,
 				},
 				PDRHash: []byte{1, 2, 3, 4},
 			},
@@ -169,6 +171,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					SummaryValue:    []byte{4, 4, 4, 4},
 					RoundNumber:     3,
 					SumOfEarnedFees: 6,
+					Timestamp:       20241113,
 				},
 				PDRHash: []byte{4, 5, 6, 7},
 			},

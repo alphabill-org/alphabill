@@ -111,6 +111,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
+			Timestamp:    types.NewTimestamp(),
 			RoundNumber:  1,
 		},
 		RootRoundNumber: 1,

@@ -40,6 +40,7 @@ var partitionInputRecord = &types.InputRecord{
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 type MockConsensusManager struct {
@@ -195,6 +196,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    types.NewTimestamp(),
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, unknownID, partitionNodes[0])
 	require.Error(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
@@ -212,7 +214,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		Verifier: unknownNode.Verifier,
 	}
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	require.EqualError(t, rootValidator.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification failed`)
+	require.EqualError(t, rootValidator.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification: verification failed`)
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 }
 
@@ -226,6 +228,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
@@ -239,6 +242,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
 	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request of the node in this round already stored")
@@ -269,6 +273,7 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
@@ -298,6 +303,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req1 := testutils.CreateBlockCertificationRequest(t, newIR1, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req1)
@@ -308,6 +314,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req2 := testutils.CreateBlockCertificationRequest(t, newIR2, partitionID, partitionNodes[1])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req2)
@@ -318,6 +325,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, partitionNodes[2])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].PeerConf.ID, network.ProtocolBlockCertification, req3)

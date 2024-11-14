@@ -3,15 +3,11 @@ package certification
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/require"
 )
-
-func TestBlockCertificationRequest_IsValid_BlockCertificationRequestIsNil(t *testing.T) {
-	var p1 *BlockCertificationRequest
-	require.ErrorIs(t, p1.IsValid(nil), ErrBlockCertificationRequestIsNil)
-}
 
 func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
@@ -26,6 +22,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 				BlockHash:    []byte{},
 				SummaryValue: []byte{},
 				RoundNumber:  1,
+				Timestamp:    types.NewTimestamp(),
 			},
 			RootRoundNumber: 1,
 		}
@@ -37,6 +34,11 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		bcr := validBCR(t)
 		require.NoError(t, bcr.IsValid(verifier))
+	})
+
+	t.Run("request is nil", func(t *testing.T) {
+		var brc *BlockCertificationRequest
+		require.ErrorIs(t, brc.IsValid(verifier), ErrBlockCertificationRequestIsNil)
 	})
 
 	t.Run("verifier is nil", func(t *testing.T) {
@@ -59,13 +61,13 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	t.Run("invalid IR", func(t *testing.T) {
 		bcr := validBCR(t)
 		bcr.InputRecord = nil
-		require.EqualError(t, bcr.IsValid(verifier), `input record error: input record is nil`)
+		require.EqualError(t, bcr.IsValid(verifier), `invalid input record: input record is nil`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
 		bcr := validBCR(t)
 		bcr.Signature = make([]byte, 64)
-		require.EqualError(t, bcr.IsValid(verifier), `signature verification failed`)
+		require.EqualError(t, bcr.IsValid(verifier), `signature verification: verification failed`)
 	})
 }
 

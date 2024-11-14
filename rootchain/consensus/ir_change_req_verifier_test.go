@@ -118,6 +118,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:       sysID1,
@@ -177,6 +178,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       types.NewTimestamp(),
 		}
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
@@ -214,6 +216,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:       sysID1,
@@ -246,6 +249,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:       sysID1,
@@ -260,9 +264,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Requests:   []*certification.BlockCertificationRequest{request},
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
+		require.NoError(t, err)
 		require.Equal(t, newIR, data.IR)
 		require.Equal(t, sysID1, data.Partition)
-		require.NoError(t, err)
 	})
 }
 

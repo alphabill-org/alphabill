@@ -48,6 +48,7 @@ var partitionInputRecord = &types.InputRecord{
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 func readResult(ch <-chan *certification.CertificationResponse, timeout time.Duration) (*types.UnicityCertificate, error) {
@@ -88,6 +89,7 @@ func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, parti
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    types.NewTimestamp(),
 	}
 	requests := make([]*certification.BlockCertificationRequest, len(partitionNodes))
 	for i, n := range partitionNodes {

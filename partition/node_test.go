@@ -485,30 +485,38 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	uc1 := tp.GetCommittedUC(t)
-	uc2, err := tp.CreateUnicityCertificate(
+	uc2, tr, err := tp.CreateUnicityCertificate(
 		uc1.InputRecord,
 		uc1.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
+
+	// Submit UC2 so that LUC won't be updated from BlockProposal
+	tp.SubmitUnicityCertificate(t, uc2)
+	require.Eventually(t, func() bool {
+		return tp.partition.currentRoundNumber() == uc2.GetRoundNumber()+1
+	}, test.WaitDuration, test.WaitTick)
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc2.UnicityTreeCertificate.Partition,
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
+		Technical:          *tr,
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
-	tp.SubmitBlockProposal(bp)
 
-	ContainsError(t, tp, "expecting leader , leader in proposal:")
+	tp.partition.leader.Set("foo")
+	tp.SubmitBlockProposal(bp)
+	ContainsError(t, tp, "expecting leader bQbp, leader in proposal:")
 }
 
 func TestBlockProposal_Ok(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
-	uc2, err := tp.CreateUnicityCertificate(
+	uc2, _, err := tp.CreateUnicityCertificate(
 		uc1.InputRecord,
 		uc1.UnicitySeal.RootChainRoundNumber,
 	)
@@ -531,7 +539,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, system)
 	tp.WaitHandshake(t)
 	uc1 := tp.GetCommittedUC(t)
-	uc2, err := tp.CreateUnicityCertificate(
+	uc2, _, err := tp.CreateUnicityCertificate(
 		uc1.InputRecord,
 		uc1.UnicitySeal.RootChainRoundNumber,
 	)
@@ -565,7 +573,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
 		Timestamp:    types.NewTimestamp(),
 	}
-	uc2, err := tp.CreateUnicityCertificate(
+	uc2, tr, err := tp.CreateUnicityCertificate(
 		ir,
 		uc1.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -576,6 +584,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
+		Technical:          *tr,
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)

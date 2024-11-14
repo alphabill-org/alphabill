@@ -759,7 +759,11 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	}
 
 	if tr != nil {
-		n.leader.Set(tr.Leader)
+		leaderPeerID, err := peer.Decode(tr.Leader)
+		if err != nil {
+			return fmt.Errorf("decoding leader peerID from %q: %w", tr.Leader, err)
+		}
+		n.leader.Set(leaderPeerID)
 		n.ltr.Store(tr)
 		n.log.DebugContext(ctx, "updated LTR", logger.Round(tr.Round))
 	} else {
@@ -786,7 +790,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 		n.log.DebugContext(ctx, "DB proposal delete failed", logger.Error(err))
 	}
 
-	newRoundNumber := n.committedUC().GetRoundNumber() + 1
+	newRoundNumber := n.currentRoundNumber()
 	if n.leader.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
 		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
@@ -1297,7 +1301,6 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 }
 
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
-	// TODO: we don't really know what's the first block number that needs to be recovered, there might be gaps
 	startingBlockNr := n.committedUC().GetRoundNumber() + 1
 	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr))))
 	defer span.End()

@@ -281,25 +281,25 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	sn.mockNet.Receive(prop)
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, *certification.TechnicalRecord, error) {
 	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
 	if err != nil {
-		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
+		return nil, nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
 	trHash, err := tr.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
+		return nil, nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
 	pdr := sn.nodeDeps.genesis.PartitionDescription
 	pdrHash := pdr.Hash(gocrypto.SHA256)
 	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("creating shard tree: %w", err)
+		return nil, nil, fmt.Errorf("creating shard tree: %w", err)
 	}
 	stCert, err := sTree.Certificate(types.ShardID{})
 	if err != nil {
-		return nil, fmt.Errorf("creating shard tree certificate: %w", err)
+		return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
 	}
 
 	data := []*types.UnicityTreeData{{
@@ -309,16 +309,16 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rootHash := ut.RootHash()
 	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cert, err := ut.Certificate(pdr.PartitionIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
+		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
 
 	return &types.UnicityCertificate{
@@ -328,7 +328,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		ShardTreeCertificate:   stCert,
 		UnicityTreeCertificate: cert,
 		UnicitySeal:            unicitySeal,
-	}, nil
+	}, &tr, nil
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
@@ -422,7 +422,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	luc, found := sn.certs[req.Partition]
 	require.True(t, found)
 	require.NoError(t, consensustypes.CheckBlockCertificationRequest(req, luc))
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
+	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber

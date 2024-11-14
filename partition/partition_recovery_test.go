@@ -97,7 +97,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
 		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
-	repeatUC, err := tp.CreateUnicityCertificate(
+	repeatUC, _, err := tp.CreateUnicityCertificate(
 		ir,
 		uc1.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -247,7 +247,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -291,7 +291,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -316,7 +316,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 		SumOfEarnedFees: 1,
 		Timestamp:       1,
 	}
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -364,7 +364,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	// since there's no proposal, the node will start a new round (the one that has been already finalized)
 	ir := uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber += 1
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -377,7 +377,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	ir.RoundNumber += 5
 	ir.PreviousHash = test.RandomBytes(32)
 	ir.Hash = ir.PreviousHash
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.GetRootRoundNumber()+5,
 	)
@@ -1355,7 +1355,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	require.NoError(t, newUC.UnmarshalCBOR(newBlock.UnicityCertificate))
 	require.NoError(t, txs.Commit(newUC))
 
-	newUC, err = tp.CreateUnicityCertificate(
+	newUC, _, err = tp.CreateUnicityCertificate(
 		newUC.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)

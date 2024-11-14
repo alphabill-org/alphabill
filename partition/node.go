@@ -765,15 +765,15 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		}
 		n.ltr.Store(tr)
 		n.leader.Set(leaderPeerID)
-		n.log.Debug("updated LTR", logger.Round(tr.Round))
+		n.log.DebugContext(ctx, "updated LTR", logger.Round(tr.Round))
 	} else {
 		n.ltr.Store(nil)
 		n.leader.Set(UnknownLeader)
-		n.log.Debug("missing LTR", logger.Round(uc.GetRoundNumber()))
+		n.log.DebugContext(ctx, "missing LTR", logger.Round(uc.GetRoundNumber()))
 	}
 
 	n.luc.Store(uc)
-	n.log.Debug("updated LUC", logger.Round(uc.GetRoundNumber()))
+	n.log.DebugContext(ctx, "updated LUC", logger.Round(uc.GetRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 
 	return nil

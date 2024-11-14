@@ -759,16 +759,12 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	}
 
 	if tr != nil {
-		leaderPeerID, err := peer.Decode(tr.Leader)
-		if err != nil {
-			return fmt.Errorf("decoding leader peerID from %q: %w", tr.Leader, err)
-		}
+		n.leader.Set(tr.Leader)
 		n.ltr.Store(tr)
-		n.leader.Set(leaderPeerID)
 		n.log.DebugContext(ctx, "updated LTR", logger.Round(tr.Round))
 	} else {
-		n.ltr.Store(nil)
 		n.leader.Set(UnknownLeader)
+		n.ltr.Store(nil)
 		n.log.DebugContext(ctx, "missing LTR", logger.Round(uc.GetRoundNumber()))
 	}
 

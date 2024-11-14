@@ -10,6 +10,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
@@ -91,6 +92,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		systemDescription,
 		1,
 		make([]byte, 32),
+		make([]byte, 32),
 	)
 	require.NoError(t, v.Validate(uc))
 }
@@ -157,6 +159,15 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SummaryValue: make([]byte, 32),
 		RoundNumber:  1,
 	}
+	tr := certification.TechnicalRecord{
+		Round:    1,
+		Epoch:    1,
+		Leader:   "anyone",
+		StatHash: []byte{0},
+		FeeHash:  []byte{0},
+	}
+	trHash, err := tr.Hash()
+	require.NoError(t, err)
 	uc := testcertificates.CreateUnicityCertificate(
 		t,
 		signer,
@@ -164,12 +175,14 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		systemDescription,
 		1,
 		make([]byte, 32),
+		trHash,
 	)
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc.UnicityTreeCertificate.Partition,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
+		Technical: tr,
 		Transactions: []*types.TransactionRecord{
 			{
 				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),

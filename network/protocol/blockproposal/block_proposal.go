@@ -25,7 +25,7 @@ type BlockProposal struct {
 	Shard              types.ShardID
 	NodeIdentifier     string
 	UnicityCertificate *types.UnicityCertificate
-	Technical          *certification.TechnicalRecord
+	Technical          certification.TechnicalRecord
 	Transactions       []*types.TransactionRecord
 	Signature          []byte
 }
@@ -49,13 +49,11 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionIdentifier, systemDescriptionHash); err != nil {
 		return err
 	}
-	if x.Technical != nil {
-		if err := x.Technical.IsValid(); err != nil {
-			return fmt.Errorf("invalid TechnicalRecord: %w", err)
-		}
-		if err := x.Technical.HashMatches(x.UnicityCertificate.TRHash); err != nil {
-			return fmt.Errorf("comparing TechnicalRecord hash to UC.TRHash: %w", err)
-		}
+	if err := x.Technical.IsValid(); err != nil {
+		return fmt.Errorf("invalid TechnicalRecord: %w", err)
+	}
+	if err := x.Technical.HashMatches(x.UnicityCertificate.TRHash); err != nil {
+		return fmt.Errorf("comparing TechnicalRecord hash to UC.TRHash: %w", err)
 	}
 	return x.Verify(algorithm, nodeSignatureVerifier)
 }

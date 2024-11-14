@@ -89,6 +89,7 @@ func CreateBlock(t *testing.T, txs []*types.TransactionRecord, ir *types.InputRe
 		pdr,
 		1,
 		make([]byte, 32),
+		make([]byte, 32),
 	).MarshalCBOR()
 	require.NoError(t, err)
 	return b

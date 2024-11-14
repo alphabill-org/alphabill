@@ -679,7 +679,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		// either the other node received it faster from root or there must be some issue with root communication?
 		n.log.DebugContext(ctx, fmt.Sprintf("Received newer UC with root round %d via block proposal, LUC root round %d",
 			uc.GetRootRoundNumber(), luc.GetRootRoundNumber()))
-		if err = n.handleUnicityCertificate(ctx, uc, prop.Technical); err != nil {
+		if err = n.handleUnicityCertificate(ctx, uc, &prop.Technical); err != nil {
 			return fmt.Errorf("block proposal UC handling failed: %w", err)
 		}
 	}
@@ -1342,13 +1342,19 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	ctx, span := n.tracer.Start(ctx, "node.sendBlockProposal")
 	defer span.End()
 
+	ltr := n.ltr.Load()
+	if ltr == nil {
+		// Should not reach here, leader is unknown without LTR
+		return fmt.Errorf("missing LTR")
+	}
+
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
 		Partition:          n.configuration.GetPartitionIdentifier(),
 		Shard:              n.configuration.shardID,
 		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: n.luc.Load(),
-		Technical:          n.ltr.Load(),
+		Technical:          *ltr,
 		Transactions:       n.proposedTransactions,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "created BlockProposal", logger.Data(prop))

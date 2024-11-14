@@ -145,7 +145,6 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 				SummaryValue: []byte{2},
 				Timestamp:    si.LastCR.UC.UnicitySeal.Timestamp,
 			},
-			RootRoundNumber: si.LastCR.UC.UnicitySeal.RootChainRoundNumber,
 		}
 	}
 
@@ -180,13 +179,6 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		bcr.InputRecord.PreviousHash = []byte{0}
 		require.NoError(t, bcr.Sign(signer))
 		require.EqualError(t, si.ValidRequest(bcr), `request has different root hash for last certified state`)
-	})
-
-	t.Run("root round", func(t *testing.T) {
-		bcr := validBCR()
-		bcr.RootRoundNumber--
-		require.NoError(t, bcr.Sign(signer))
-		require.EqualError(t, si.ValidRequest(bcr), `request root round number 5555554 does not match LUC root round 5555555`)
 	})
 
 	t.Run("wrong shard", func(t *testing.T) {

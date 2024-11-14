@@ -56,26 +56,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 		}
 		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, luc), "request extends unknown state: expected hash: [1 1 1 1], got: [0 0 0 0]")
 	})
-	t.Run("root round does not match", func(t *testing.T) {
-		req := &certification.BlockCertificationRequest{
-			InputRecord: &types.InputRecord{
-				Version:      1,
-				PreviousHash: []byte{0, 0, 0, 0},
-				RoundNumber:  2,
-			},
-			RootRoundNumber: 1,
-		}
-		luc := &types.UnicityCertificate{
-			Version: 1,
-			InputRecord: &types.InputRecord{
-				Version:     1,
-				RoundNumber: 1,
-				Hash:        []byte{0, 0, 0, 0},
-			},
-			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 0},
-		}
-		require.EqualError(t, consensustypes.CheckBlockCertificationRequest(req, luc), "request root round number 1 does not match luc root round 0")
-	})
+
 	t.Run("ok", func(t *testing.T) {
 		req := &certification.BlockCertificationRequest{
 			InputRecord: &types.InputRecord{

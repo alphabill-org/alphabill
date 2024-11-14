@@ -39,7 +39,6 @@ type (
 	CertRequestVerifier interface {
 		IRRound() uint64
 		IRPreviousHash() []byte
-		RootRound() uint64
 	}
 )
 
@@ -186,9 +185,6 @@ func CheckBlockCertificationRequest(req CertRequestVerifier, luc *types.UnicityC
 	} else if !bytes.Equal(req.IRPreviousHash(), luc.InputRecord.Hash) {
 		// Extending of unknown State.
 		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.IRPreviousHash())
-	} else if req.RootRound() != luc.GetRootRoundNumber() {
-		// Stale request, it has been sent before most recent UC was issued
-		return fmt.Errorf("request root round number %v does not match luc root round %v", req.RootRound(), luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return nil
 }

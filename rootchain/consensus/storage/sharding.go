@@ -345,10 +345,6 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 		return fmt.Errorf("IR timestamp %d doesn't match UnicitySeal timestamp %d", req.InputRecord.Timestamp, si.LastCR.UC.UnicitySeal.Timestamp)
 	}
 
-	if req.RootRound() != si.LastCR.UC.GetRootRoundNumber() {
-		return fmt.Errorf("request root round number %v does not match LUC root round %v", req.RootRound(), si.LastCR.UC.GetRootRoundNumber())
-	}
-
 	return nil
 }
 

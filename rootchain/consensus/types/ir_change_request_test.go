@@ -78,11 +78,11 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 					BlockHash:    []byte{4, 5},
 					SummaryValue: []byte{6, 7},
 					RoundNumber:  3,
+					Timestamp:    6,
 				},
-				RootRoundNumber: 2,
-				BlockSize:       4,
-				StateSize:       5,
-				Signature:       []byte{0, 1},
+				BlockSize: 4,
+				StateSize: 5,
+				Signature: []byte{0, 1},
 			},
 		},
 	}
@@ -98,7 +98,7 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 		128,                                            // empty shard ID
 		'1',                                            // node identifier - string is encoded without '/0'
 		0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 3, // prev. hash, hash, block hash, summary value, round number
-		0, 0, 0, 0, 0, 0, 0, 2, //root round number
+		0, 0, 0, 0, 0, 0, 0, 6, // IR.Timestamp
 		0, 0, 0, 0, 0, 0, 0, 4, // block size
 		0, 0, 0, 0, 0, 0, 0, 5, // state size
 		// Is serialized without signature
@@ -299,10 +299,9 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	}
 	t.Run("IR change request in timeout proof contains requests, not valid", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		x := &IRChangeReq{
@@ -324,10 +323,9 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	})
 	t.Run("invalid, not yet timeout", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		x := &IRChangeReq{
@@ -349,10 +347,9 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	})
 	t.Run("ok", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		x := &IRChangeReq{
@@ -385,10 +382,9 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 	}
 	t.Run("Not enough requests for quorum", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		x := &IRChangeReq{
@@ -407,17 +403,15 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 	})
 	t.Run("IR does not extend last certified state", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		reqS2 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "2",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "2",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS2.Sign(s2))
 		x := &IRChangeReq{
@@ -434,55 +428,24 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 		require.EqualError(t, err, "invalid certification request: request extends unknown state: expected hash: [0 0 1], got: [0 0 0]")
 		require.Nil(t, ir)
 	})
-	t.Run("IR does not extend last certified round", func(t *testing.T) {
-		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
-		}
-		require.NoError(t, reqS1.Sign(s1))
-		reqS2 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "2",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
-		}
-		require.NoError(t, reqS2.Sign(s2))
-		x := &IRChangeReq{
-			Partition:  sysId1,
-			CertReason: Quorum,
-			Requests:   []*certification.BlockCertificationRequest{reqS1, reqS2},
-		}
-		luc := &types.UnicityCertificate{
-			Version:     1,
-			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
-			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 2},
-		}
-		ir, err := x.Verify(tb, luc, 0, 0)
-		require.EqualError(t, err, "invalid certification request: request root round number 1 does not match luc root round 2")
-		require.Nil(t, ir)
-	})
+
 	t.Run("Contains not matching proofs", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		reqS2 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "2",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "2",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS2.Sign(s2))
 		reqS3NotMatchingIR := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "3",
-			InputRecord:     inputRecord2,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "3",
+			InputRecord:    inputRecord2,
 		}
 		require.NoError(t, reqS3NotMatchingIR.Sign(s3))
 		x := &IRChangeReq{
@@ -501,17 +464,15 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 	})
 	t.Run("OK", func(t *testing.T) {
 		reqS1 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "1",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "1",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS1.Sign(s1))
 		reqS2 := &certification.BlockCertificationRequest{
-			Partition:       sysId1,
-			NodeIdentifier:  "2",
-			InputRecord:     inputRecord1,
-			RootRoundNumber: 1,
+			Partition:      sysId1,
+			NodeIdentifier: "2",
+			InputRecord:    inputRecord1,
 		}
 		require.NoError(t, reqS2.Sign(s2))
 		x := &IRChangeReq{

@@ -24,7 +24,6 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 				RoundNumber:  1,
 				Timestamp:    types.NewTimestamp(),
 			},
-			RootRoundNumber: 1,
 		}
 
 		require.NoError(t, bcr.Sign(signer))
@@ -95,15 +94,4 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 	require.EqualValues(t, 0, req.IRRound())
 	req.InputRecord = &types.InputRecord{Version: 1, RoundNumber: 10}
 	require.EqualValues(t, 10, req.IRRound())
-}
-
-func TestBlockCertificationRequest_RootRound(t *testing.T) {
-	var req *BlockCertificationRequest = nil
-	require.EqualValues(t, 0, req.RootRound())
-	req = &BlockCertificationRequest{
-		Partition:       1,
-		NodeIdentifier:  "1",
-		RootRoundNumber: 11,
-	}
-	require.EqualValues(t, 11, req.RootRound())
 }

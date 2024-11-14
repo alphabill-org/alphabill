@@ -56,6 +56,7 @@ func CreateTxRecordProof(t *testing.T, txRecord *types.TransactionRecord, signer
 		Hash:         test.RandomBytes(32),
 		RoundNumber:  DefaultRoundNumber,
 		SummaryValue: make([]byte, 32),
+		Timestamp:    types.NewTimestamp(),
 	}
 	b := CreateBlock(t, []*types.TransactionRecord{txRecord}, ir, options.pdr, signer)
 	p, err := types.NewTxRecordProof(b, 0, crypto.SHA256)

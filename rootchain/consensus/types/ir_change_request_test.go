@@ -23,6 +23,7 @@ var inputRecord1 = &types.InputRecord{
 	BlockHash:    []byte{2, 2, 2},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  2,
+	Timestamp:    types.NewTimestamp(),
 }
 var inputRecord2 = &types.InputRecord{
 	Version:      1,
@@ -31,6 +32,7 @@ var inputRecord2 = &types.InputRecord{
 	BlockHash:    []byte{2, 2, 2},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  2,
+	Timestamp:    types.NewTimestamp(),
 }
 
 func TestIRChangeReqMsg_IsValid(t *testing.T) {
@@ -141,7 +143,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 	t.Run("partition id in request and proof do not match", func(t *testing.T) {
 		luc := &types.UnicityCertificate{
 			Version:     1,
-			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1},
+			InputRecord: &types.InputRecord{Version: 1, Hash: prevHash, RoundNumber: 1, Timestamp: types.NewTimestamp()},
 		}
 		reqS1InvalidSysId := &certification.BlockCertificationRequest{
 			Partition:      sysId2,
@@ -181,7 +183,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 			Requests:   []*certification.BlockCertificationRequest{invalidReq},
 		}
 		ir, err := x.Verify(tb, luc, 0, 0)
-		require.EqualError(t, err, "request proof from partition 00000001 node 1 is not valid: signature verification failed")
+		require.EqualError(t, err, "request proof from partition 00000001 node 1 is not valid: signature verification: signature length is 3 b (expected 64 b)")
 		require.Nil(t, ir)
 	})
 	t.Run("Proof contains more request, than there are partition nodes", func(t *testing.T) {

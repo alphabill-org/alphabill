@@ -25,6 +25,7 @@ var genesisInputRecord = &types.InputRecord{
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 func Test(t *testing.T) {

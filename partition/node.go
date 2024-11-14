@@ -1359,6 +1359,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 			RoundNumber:     n.currentRoundNumber(),
 			PreviousHash:    luc.InputRecord.Hash,
 			Hash:            stateHash,
+			Timestamp:       luc.UnicitySeal.Timestamp,
 			SummaryValue:    state.Summary(),
 			SumOfEarnedFees: n.sumOfEarnedFees,
 		},

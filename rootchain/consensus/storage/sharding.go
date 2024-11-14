@@ -318,8 +318,15 @@ func (si *ShardInfo) update(req *certification.BlockCertificationRequest) {
 }
 
 func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) error {
+	// req.IsValid checks that req is not nil and comes from valid validator.
+	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = 0H)
+	// check so we do not repeat it here.
 	if err := si.Verify(req.NodeIdentifier, req.IsValid); err != nil {
 		return fmt.Errorf("invalid certification request: %w", err)
+	}
+
+	if req.Partition != si.LastCR.Partition || !req.Shard.Equal(si.LastCR.Shard) {
+		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.Partition, req.Shard, si.LastCR.Partition, si.LastCR.Shard)
 	}
 
 	if req.IRRound() != si.Round+1 {
@@ -328,9 +335,16 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 	if req.InputRecord.Epoch != si.Epoch {
 		return fmt.Errorf("expected epoch %d, got %d", si.Epoch, req.InputRecord.Epoch)
 	}
+
 	if !bytes.Equal(req.IRPreviousHash(), si.RootHash) {
 		return errors.New("request has different root hash for last certified state")
 	}
+
+	// CR.IR.t = SI[β,σ].UC_.Cr.t – time reference is equal to the time field of the previous unicity seal
+	if req.InputRecord.Timestamp != si.LastCR.UC.UnicitySeal.Timestamp {
+		return fmt.Errorf("IR timestamp %d doesn't match UnicitySeal timestamp %d", req.InputRecord.Timestamp, si.LastCR.UC.UnicitySeal.Timestamp)
+	}
+
 	if req.RootRound() != si.LastCR.UC.GetRootRoundNumber() {
 		return fmt.Errorf("request root round number %v does not match LUC root round %v", req.RootRound(), si.LastCR.UC.GetRootRoundNumber())
 	}

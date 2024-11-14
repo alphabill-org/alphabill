@@ -39,6 +39,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: uc1.InputRecord.SummaryValue,
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
+		Timestamp:    types.NewTimestamp(),
 	}
 	tp.ReceiveCertResponse(t, ir, uc1.UnicitySeal.RootChainRoundNumber+1)
 
@@ -94,6 +95,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: uc1.InputRecord.SummaryValue,
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
@@ -118,6 +120,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: uc1.InputRecord.SummaryValue,
 		RoundNumber:  ir.RoundNumber + 1,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
 	tp.ReceiveCertResponse(t, irNew, repeatUC.UnicitySeal.RootChainRoundNumber+1)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
@@ -386,6 +389,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: sum,
 		RoundNumber:  partitionRound,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
 	tp.ReceiveCertResponse(t, ir, rootRound)
 
@@ -407,6 +411,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: sum,
 		RoundNumber:  partitionRound,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
 	tp.ReceiveCertResponse(t, ir, rootRound)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
@@ -1297,6 +1302,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 			Hash:         state.Root(),
 			PreviousHash: uc.InputRecord.Hash,
 			SummaryValue: state.Summary(),
+			Timestamp:    uc.UnicitySeal.Timestamp,
 		},
 	}).MarshalCBOR()
 	require.NoError(t, err)

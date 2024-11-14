@@ -65,10 +65,10 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return errEmptyNodeIdentifier
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return fmt.Errorf("input record error: %w", err)
+		return fmt.Errorf("invalid input record: %w", err)
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return fmt.Errorf("signature verification failed")
+		return fmt.Errorf("signature verification: %w", err)
 	}
 	return nil
 }

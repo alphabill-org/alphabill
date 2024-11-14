@@ -107,11 +107,26 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 			Partition: 22,
 			Shard:     types.ShardID{},
 			UC: types.UnicityCertificate{
-				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 5555555},
+				Version: 1,
+				UnicitySeal: &types.UnicitySeal{
+					Version:              1,
+					RootChainRoundNumber: 5555555,
+					Timestamp:            types.NewTimestamp(),
+				},
 			},
 		},
 		Leader:    "1111",
 		trustBase: map[string]abcrypto.Verifier{"1111": verifier},
+	}
+	si.LastCR.UC.InputRecord = &types.InputRecord{
+		Version:      1,
+		RoundNumber:  si.Round + 1,
+		Epoch:        si.Epoch,
+		Hash:         si.RootHash,
+		PreviousHash: si.RootHash,
+		BlockHash:    make([]byte, 32),
+		SummaryValue: []byte{5, 5, 5},
+		Timestamp:    20241113,
 	}
 
 	// return BCR which is valid next request for "si" above (but not signed)
@@ -128,6 +143,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 				Hash:         []byte{2, 2, 2, 2, 2, 6, 6, 6, 6, 6},
 				BlockHash:    []byte{1},
 				SummaryValue: []byte{2},
+				Timestamp:    si.LastCR.UC.UnicitySeal.Timestamp,
 			},
 			RootRoundNumber: si.LastCR.UC.UnicitySeal.RootChainRoundNumber,
 		}
@@ -139,7 +155,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		require.NoError(t, si.ValidRequest(bcr))
 		// changing some property should invalidate the signature
 		bcr.InputRecord.RoundNumber++
-		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: signature verification failed`)
+		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: signature verification: verification failed`)
 
 		bcr.NodeIdentifier = "unknown"
 		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: node "unknown" is not in the trustbase of the shard`)
@@ -171,6 +187,25 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		bcr.RootRoundNumber--
 		require.NoError(t, bcr.Sign(signer))
 		require.EqualError(t, si.ValidRequest(bcr), `request root round number 5555554 does not match LUC root round 5555555`)
+	})
+
+	t.Run("wrong shard", func(t *testing.T) {
+		bcr := validBCR()
+		bcr.Partition++
+		require.NoError(t, bcr.Sign(signer))
+		require.EqualError(t, si.ValidRequest(bcr), `request of shard 00000017- but ShardInfo of 00000016-`)
+
+		bcr = validBCR()
+		bcr.Shard, _ = si.LastCR.Shard.Split()
+		require.NoError(t, bcr.Sign(signer))
+		require.EqualError(t, si.ValidRequest(bcr), `request of shard 00000016-0 but ShardInfo of 00000016-`)
+	})
+
+	t.Run("IR.IsValid is called", func(t *testing.T) {
+		bcr := validBCR()
+		bcr.InputRecord.Version = 0
+		require.NoError(t, bcr.Sign(signer))
+		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: invalid input record: invalid version (type *types.InputRecord)`)
 	})
 }
 

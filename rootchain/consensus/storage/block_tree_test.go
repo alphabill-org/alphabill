@@ -28,6 +28,7 @@ var inputRecord1 = &types.InputRecord{
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
+	Timestamp:    202411131,
 }
 var sdr1 = &types.PartitionDescriptionRecord{
 	Version:             1,
@@ -42,6 +43,7 @@ var inputRecord2 = &types.InputRecord{
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
+	Timestamp:    202411132,
 }
 var sdr2 = &types.PartitionDescriptionRecord{
 	Version:             1,
@@ -53,7 +55,7 @@ var sdr2 = &types.PartitionDescriptionRecord{
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("4D78B65F96A2087D360BFA917443A3C407453CF2840A1B0C5BC366D583536DB5"),
+	CurrentRootHash: hexToBytes("aceaab50b27aeade09f7bed1aad1a3cfcc42648dd4a6d628ecd5695718178d72"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
